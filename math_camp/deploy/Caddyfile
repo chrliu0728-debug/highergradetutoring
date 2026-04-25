@@ -43,12 +43,9 @@ highergradetutoring.ca, www.highergradetutoring.ca {
 	# Compress text responses
 	encode zstd gzip
 
-	# Friendly access log
+	# Access log goes to systemd journal (no file permissions to manage).
+	# View with:  sudo journalctl -u caddy -f
 	log {
-		output file /var/log/caddy/highergrade-access.log {
-			roll_size 10mb
-			roll_keep 5
-		}
 		format console
 	}
 }
