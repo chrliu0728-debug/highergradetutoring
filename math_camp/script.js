@@ -59,15 +59,24 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
 (function () {
   if (typeof getLoggedInStudent !== 'function') return;
   const student = getLoggedInStudent();
-  const signInEl = document.querySelector('.nav-signin');
-  if (!signInEl || !student) return;
+  if (!student) return;
 
-  const firstName = (student.firstName || 'Profile')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  signInEl.innerHTML = `👤 ${firstName}`;
-  signInEl.href = 'student-portal.html';
-  signInEl.title = 'Go to your student portal';
-  signInEl.classList.add('logged-in');
+  const signInEl = document.querySelector('.nav-signin');
+  if (signInEl) {
+    const firstName = (student.firstName || 'Profile')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    signInEl.innerHTML = `👤 ${firstName}`;
+    signInEl.href = 'student-portal.html';
+    signInEl.title = 'Go to your student portal';
+    signInEl.classList.add('logged-in');
+  }
+
+  // Hide the "Register Now" CTA from the top nav once logged in.
+  // Footer "Register" link stays available for re-registration access.
+  document.querySelectorAll('.nav-links .nav-cta').forEach(el => {
+    const li = el.closest('li');
+    (li || el).style.display = 'none';
+  });
 })();
 
 // ── Back-to-top button ────────────────────────────────────────
