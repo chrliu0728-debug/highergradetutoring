@@ -8,7 +8,9 @@
 # ──────────────────────────────────────────────────────────────
 
 highergradetutoring.ca, www.highergradetutoring.ca {
-	root * /var/www/highergrade
+	# Site files live in the math_camp/ subfolder of the cloned GitHub repo.
+	# The repo is cloned to /var/www/highergrade, so the actual webroot is:
+	root * /var/www/highergrade/math_camp
 	file_server
 
 	# Directory request (e.g. "/") → index.html
