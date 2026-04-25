@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leaderboard — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .lb-hero {
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 70px 20px 56px;
+      text-align: center;
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    .lb-hero::before {
+      content: '🏆'; position: absolute; font-size: 18rem;
+      opacity: .05; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .lb-hero h1 { font-size: 2.6rem; letter-spacing: -.03em; margin-bottom: 10px; color: white; }
+    .lb-hero p  { color: rgba(255,255,255,.7); font-size: 1.02rem; }
+    .hero-back {
+      position: absolute; top: 18px; left: 18px;
+      color: rgba(255,255,255,.6); font-size: .88rem; text-decoration: none;
+      padding: 6px 12px; border-radius: 8px;
+      background: rgba(255,255,255,.08);
+      transition: background .15s, color .15s;
+    }
+    .hero-back:hover { color: white; background: rgba(255,255,255,.16); }
+    .hero-back-right {
+      position: absolute; top: 18px; right: 18px;
+      color: rgba(255,255,255,.6); font-size: .88rem; text-decoration: none;
+      padding: 6px 12px; border-radius: 8px;
+      background: rgba(255,255,255,.08);
+      transition: background .15s, color .15s;
+    }
+    .hero-back-right:hover { color: white; background: rgba(255,255,255,.16); }
+
+    /* ── Podium ── */
+    .podium-wrap { max-width: 920px; margin: -28px auto 48px; padding: 0 20px; position: relative; z-index: 2; }
+    .podium {
+      display: grid;
+      grid-template-columns: 1fr 1.05fr 1fr;
+      align-items: end;
+      gap: 14px;
+    }
+    .podium-slot {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 22px 14px;
+      text-align: center;
+      box-shadow: 0 18px 48px rgba(0,0,0,0.15);
+      border-top: 6px solid var(--border);
+      transition: transform .2s;
+    }
+    .podium-slot:hover { transform: translateY(-4px); }
+    .podium-medal { font-size: 2.8rem; line-height: 1; margin-bottom: 8px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.18)); }
+    .podium-name { font-weight: 800; font-size: 1.05rem; color: var(--text); margin-bottom: 2px; letter-spacing: -.01em; }
+    .podium-class { font-size: .76rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+    .podium-points { font-size: 1.7rem; font-weight: 900; letter-spacing: -.02em; color: var(--text); }
+    .podium-points small { display: block; font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .podium-slot.first  { border-top-color: #F4C95D; padding-top: 34px; box-shadow: 0 24px 60px rgba(244,201,93,.35), 0 18px 48px rgba(0,0,0,0.18); }
+    .podium-slot.first  .podium-medal { font-size: 3.6rem; }
+    .podium-slot.first  .podium-points { color: #C89D40; font-size: 2.1rem; }
+    .podium-slot.second { border-top-color: #C0C6CC; margin-bottom: 22px; }
+    .podium-slot.second .podium-points { color: #8A95A1; }
+    .podium-slot.third  { border-top-color: #D89060; margin-bottom: 36px; }
+    .podium-slot.third  .podium-points { color: #A56939; }
+
+    /* ── Horizontal ranked rows ── */
+    .lb-list-wrap { max-width: 1100px; margin: 0 auto 80px; padding: 0 20px; }
+    .lb-section-head {
+      text-align: center;
+      margin-bottom: 26px;
+    }
+    .lb-section-head h2 { font-size: 1.3rem; letter-spacing: -.02em; }
+    .lb-section-head p  { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+
+    .lb-row {
+      display: grid;
+      grid-template-columns: 72px minmax(220px, 2fr) 150px 1fr auto;
+      gap: 20px;
+      align-items: center;
+      padding: 20px 26px;
+      border-radius: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.06);
+      border: 1px solid var(--border);
+      transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+      position: relative;
+    }
+    .lb-row:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+
+    /* Alternating blush / mint backgrounds */
+    .lb-row.blush { background: linear-gradient(135deg, var(--blush-bg) 0%, #FFF5F7 100%); border-color: rgba(232,128,138,.25); }
+    .lb-row.mint  { background: linear-gradient(135deg, var(--mint-bg)  0%, #F4FCF7 100%); border-color: rgba(107,191,160,.28); }
+
+    .lb-rank-cell {
+      text-align: center;
+      font-size: 2.2rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+    .lb-rank-cell.r1 { color: #C89D40; }
+    .lb-rank-cell.r2 { color: #8A95A1; }
+    .lb-rank-cell.r3 { color: #A56939; }
+    .lb-rank-cell .rank-num { font-size: 1.5rem; color: var(--muted); }
+
+    .lb-identity { min-width: 0; }
+    .lb-name {
+      font-weight: 800;
+      font-size: 1.12rem;
+      color: var(--text);
+      letter-spacing: -.02em;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+    .lb-meta-row {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      font-size: .78rem; color: var(--text-mid);
+    }
+    .lb-class-chip {
+      background: rgba(255,255,255,.7);
+      border: 1px solid var(--border);
+      padding: 2px 9px; border-radius: 999px;
+      font-weight: 600; font-size: .74rem;
+    }
+    .lb-class-chip.unassigned { opacity: .6; font-style: italic; }
+    .lb-email { opacity: .75; }
+
+    .lb-total-cell {
+      text-align: center;
+      background: rgba(255,255,255,.6);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+    .lb-total-num {
+      font-size: 1.7rem;
+      font-weight: 900;
+      letter-spacing: -.03em;
+      line-height: 1;
+      color: var(--text);
+    }
+    .lb-row.blush .lb-total-num { color: var(--blush-dark); }
+    .lb-row.mint  .lb-total-num { color: var(--mint-dark); }
+    .lb-total-sub {
+      font-size: .66rem; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--muted); margin-top: 2px;
+    }
+
+    .lb-stat-strip {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: flex-end;
+    }
+    .lb-stat-pill {
+      background: rgba(255,255,255,.78);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--text);
+      border: 1px solid rgba(0,0,0,.04);
+      white-space: nowrap;
+    }
+    .lb-stat-pill .pill-ic { margin-right: 3px; opacity: .8; }
+
+    /* Empty state */
+    .lb-empty {
+      max-width: 500px; margin: 40px auto;
+      text-align: center; padding: 48px 28px;
+      background: var(--surface); border: 2px dashed var(--border); border-radius: 14px;
+    }
+    .lb-empty h2 { font-size: 1.2rem; margin-bottom: 8px; }
+    .lb-empty p  { font-size: .92rem; color: var(--muted); }
+
+    @media (max-width: 900px) {
+      .lb-row {
+        grid-template-columns: 60px 1fr auto;
+        gap: 14px;
+      }
+      .lb-total-cell { grid-column: 2 / 4; grid-row: 2; }
+      .lb-stat-strip {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+        padding-top: 4px;
+      }
+      .lb-rank-cell { font-size: 1.8rem; }
+      .lb-total-num { font-size: 1.4rem; }
+    }
+    @media (max-width: 640px) {
+      .lb-hero h1 { font-size: 1.9rem; }
+      .podium { gap: 8px; }
+      .podium-slot { padding: 16px 8px; }
+      .podium-slot.first { padding-top: 22px; }
+      .podium-medal { font-size: 2rem; }
+      .podium-slot.first .podium-medal { font-size: 2.6rem; }
+      .podium-name { font-size: .82rem; }
+      .podium-points { font-size: 1.2rem; }
+      .podium-slot.first .podium-points { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<section class="lb-hero">
+  <a href="index.html" class="hero-back" id="back-home">← Home</a>
+  <a href="student-portal.html" class="hero-back-right" id="back-profile" style="display:none;">👤 My profile →</a>
+  <h1>🏆 Summer Camp Leaderboard</h1>
+  <p>Every registered student, ranked by total points earned.</p>
+</section>
+
+<div id="lb-content"></div>
+
+<script src="students-data.js"></script>
+<script>
+// Visiting this public page ends any active admin session.
+sessionStorage.removeItem('highergrade_admin_unlocked');
+
+/* Hero navigation — show Home link only if appropriate, Profile link if logged in */
+(function () {
+  const homeLink    = document.getElementById('back-home');
+  const profileLink = document.getElementById('back-profile');
+  const loggedIn    = !!getLoggedInStudent();
+  const params      = new URLSearchParams(location.search);
+  const fromPortal  = params.get('from') === 'portal';
+
+  // Home link: shown unless the user came from the portal (which has its own Home button)
+  if (fromPortal) homeLink.style.display = 'none';
+
+  // Profile link: shown when a student is logged in
+  if (loggedIn) profileLink.style.display = '';
+})();
+
+(function () {
+  const root = document.getElementById('lb-content');
+  const students = sortedByTotalPoints(getStudents());
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  if (students.length === 0) {
+    root.innerHTML = `
+      <div class="lb-empty">
+        <h2>No students registered yet</h2>
+        <p>The leaderboard will populate once students complete the registration form.</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '';
+
+  // Podium (top 3)
+  if (students.length >= 3) {
+    const [first, second, third] = students;
+    const slot = (s, cls, medal, label) => `
+      <div class="podium-slot ${cls}">
+        <div class="podium-medal">${medal}</div>
+        <div class="podium-name">${esc(studentFullName(s))}</div>
+        <div class="podium-class">${esc(s.className || 'Unassigned')}</div>
+        <div class="podium-points">${(s.stats.totalPointsEarned || 0).toLocaleString()}<small>${label}</small></div>
+      </div>
+    `;
+    html += `
+      <div class="podium-wrap">
+        <div class="podium">
+          ${slot(second, 'second', '🥈', '2nd place')}
+          ${slot(first,  'first',  '🥇', '1st place')}
+          ${slot(third,  'third',  '🥉', '3rd place')}
+        </div>
+      </div>
+    `;
+  }
+
+  // Pills for each stat field (excluding totalPointsEarned, which is in its own cell)
+  const pillFields = STAT_FIELDS.filter(f => f.key !== 'totalPointsEarned');
+
+  html += `
+    <div class="lb-list-wrap">
+      <div class="lb-section-head">
+        <h2>Full Rankings</h2>
+        <p>${students.length} student${students.length === 1 ? '' : 's'} registered</p>
+      </div>
+  `;
+
+  students.forEach((s, i) => {
+    const rank = i + 1;
+    const rankClass = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
+    const rankDisplay = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `<span class="rank-num">#${rank}</span>`;
+    const rowColor = i % 2 === 0 ? 'blush' : 'mint';
+    const stats = s.stats || defaultStats();
+
+    html += `
+      <div class="lb-row ${rowColor}">
+        <div class="lb-rank-cell ${rankClass}">${rankDisplay}</div>
+        <div class="lb-identity">
+          <div class="lb-name">${esc(studentFullName(s))}</div>
+          <div class="lb-meta-row">
+            <span class="lb-class-chip ${s.className ? '' : 'unassigned'}">${esc(s.className || 'Unassigned')}</span>
+            ${s.studentEmail ? `<span class="lb-email">${esc(s.studentEmail)}</span>` : ''}
+          </div>
+        </div>
+        <div class="lb-total-cell">
+          <div class="lb-total-num">${(stats.totalPointsEarned || 0).toLocaleString()}</div>
+          <div class="lb-total-sub">Total pts</div>
+        </div>
+        <div class="lb-stat-strip">
+          ${pillFields.map(f => `<span class="lb-stat-pill" title="${esc(f.label)}"><span class="pill-ic">${f.icon}</span>${stats[f.key] || 0}</span>`).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  root.innerHTML = html;
+})();
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>

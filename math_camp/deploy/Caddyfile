@@ -1,0 +1,52 @@
+# ──────────────────────────────────────────────────────────────
+# HigherGrade Tutoring — Caddy production config
+# Caddy automatically obtains + renews Let's Encrypt HTTPS certs
+# as soon as your domain's A record points to this VM.
+#
+# Replace highergradetutoring.ca with the domain you bought
+# from Porkbun (e.g. highergradetutoring.ca).
+# ──────────────────────────────────────────────────────────────
+
+highergradetutoring.ca, www.highergradetutoring.ca {
+	root * /var/www/highergrade
+	file_server
+
+	# Directory request (e.g. "/") → index.html
+	try_files {path} {path}/index.html /index.html
+
+	# Long-cache fingerprint-able assets
+	@assets path *.png *.jpg *.jpeg *.gif *.svg *.webp *.woff *.woff2 *.ttf
+	header @assets Cache-Control "public, max-age=604800, immutable"
+
+	# HTML/CSS/JS — short cache so updates roll out fast
+	@code path *.html *.css *.js
+	header @code Cache-Control "public, max-age=300, must-revalidate"
+
+	# Hardening
+	header {
+		# HSTS — long-cache HTTPS preference
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "SAMEORIGIN"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		Permissions-Policy        "camera=(), microphone=(), geolocation=()"
+		# Don't leak the server software string
+		-Server
+	}
+
+	# Hide dot-files (e.g. .git, .env if you ever sync those by mistake)
+	@hidden path /.* /*/.*
+	respond @hidden 404
+
+	# Compress text responses
+	encode zstd gzip
+
+	# Friendly access log
+	log {
+		output file /var/log/caddy/highergrade-access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+		format console
+	}
+}

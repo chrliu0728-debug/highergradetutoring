@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base Stats Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    /* Passcode gate (shared style) */
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1100px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 18px;
+      align-items: center;
+      padding: 22px 26px;
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon {
+      font-size: 2.4rem;
+      width: 62px; height: 62px;
+      border-radius: 16px;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    }
+    .admin-welcome h1 { font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .9rem; color: var(--text-mid); line-height: 1.5; }
+
+    .admin-header {
+      padding: 22px 26px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-header h1 { font-size: 1.15rem; letter-spacing: -.02em; }
+    .admin-header .sub { font-size: .88rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+    .btn-tidy {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px;
+      font-size: .88rem; font-weight: 600;
+      color: var(--text-mid);
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-tidy:hover {
+      border-color: var(--blush);
+      color: var(--blush);
+      background: var(--blush-bg);
+    }
+
+    .admin-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 28px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-section h2 { font-size: 1.1rem; margin-bottom: 4px; }
+    .admin-section .section-desc { font-size: .88rem; color: var(--muted); margin-bottom: 18px; }
+
+    /* Category manager — horizontal rows, one per line */
+    .cat-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+    .cat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+    .cat-fields {
+      display: grid;
+      grid-template-columns: 84px minmax(200px, 1fr) 130px auto;
+      gap: 14px;
+      align-items: end;
+    }
+    .cat-field label {
+      display: block;
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .cat-field input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--surface);
+      outline: none;
+      font-size: .95rem;
+      font-family: inherit;
+    }
+    .cat-field input:focus { border-color: var(--blush); }
+    .cat-field-icon input { text-align: center; font-size: 1.6rem; padding: 6px 8px; }
+    .cat-field-delete { align-self: end; }
+
+    @media (max-width: 640px) {
+      .cat-fields {
+        grid-template-columns: 84px 1fr;
+        grid-template-areas:
+          "icon name"
+          "pts  pts"
+          "del  del";
+      }
+      .cat-field-icon   { grid-area: icon; }
+      .cat-field-name   { grid-area: name; }
+      .cat-field-pts    { grid-area: pts; }
+      .cat-field-delete { grid-area: del; justify-self: end; }
+    }
+    .icon-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: .82rem;
+      cursor: pointer;
+      color: var(--text-mid);
+      transition: all .15s;
+    }
+    .icon-btn:hover { border-color: var(--blush); color: var(--blush); }
+    .icon-btn.danger:hover { border-color: #c0392b; color: #c0392b; }
+
+    .add-cat-card {
+      border: 2px dashed var(--border);
+      background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 160px;
+      color: var(--muted);
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .add-cat-card:hover { border-color: var(--blush); color: var(--blush); }
+
+    /* Student value matrix */
+    .student-row {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+    }
+    .student-row-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+    }
+    .student-row-name { font-weight: 700; font-size: .98rem; }
+    .student-row-class {
+      display: inline-block; margin-left: 6px;
+      font-size: .72rem; padding: 2px 8px;
+      background: var(--surface); color: var(--muted);
+      border-radius: 999px; font-weight: 600;
+    }
+    .student-row-total {
+      font-size: .9rem; color: var(--blush); font-weight: 700;
+    }
+    .sv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .sv-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sv-tile span.sv-icon { font-size: 1rem; }
+    .sv-tile input {
+      flex: 1; min-width: 0;
+      padding: 4px 6px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--surface2);
+      outline: none;
+      font-size: .88rem; font-weight: 700;
+      text-align: center;
+    }
+    .sv-tile input:focus { border-color: var(--blush); }
+
+    .empty-state {
+      text-align: center; padding: 40px 24px;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+    }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy); color: white;
+      padding: 12px 22px; border-radius: 10px;
+      font-size: .88rem; box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 500;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+  </style>
+</head>
+<body>
+
+<!-- ─────────── Passcode gate ─────────── -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage base stats.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<!-- ─────────── Admin UI ─────────── -->
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html" class="active">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html">Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">⚙️</div>
+    <div>
+      <h1>Welcome — set up what students can track</h1>
+      <p>Base stats are things students log themselves in their portal (like homework pages or reading minutes). You decide the categories and how many points each one is worth.</p>
+    </div>
+  </div>
+
+  <div class="admin-header">
+    <h1>⚙️ Base Stat Categories &amp; Student Values</h1>
+    <div class="sub">Manage categories below, then (further down) adjust any individual student's counts. All changes save as you type.</div>
+  </div>
+
+  <!-- Categories -->
+  <div class="admin-section">
+    <h2>Base Stat Categories</h2>
+    <div class="section-desc">Categories are shared across all students. Changes save automatically.</div>
+    <div class="cat-list" id="cat-grid"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;">
+      <button class="btn btn-primary" id="add-cat-btn">+ Add category</button>
+      <button class="btn-tidy" id="reset-cats-btn">↺ Reset categories to defaults</button>
+    </div>
+  </div>
+
+  <!-- Student values -->
+  <div class="admin-section">
+    <h2>Per-Student Values</h2>
+    <div class="section-desc">Override any student's self-reported counts. Updates the same store as the student portal.</div>
+    <div id="student-values"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="students-data.js"></script>
+<script>
+/* ─────────── Passcode gate ─────────── */
+const PASSCODE = 'HigherGrade Tutoring';
+const SESSION_KEY = 'highergrade_admin_unlocked';
+
+const gate = document.getElementById('gate');
+const shell = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+function unlock() {
+  const entered  = (passInput.value || '').trim().toLowerCase();
+  const expected = PASSCODE.trim().toLowerCase();
+  if (entered === expected) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    gate.style.display = 'none';
+    shell.classList.add('unlocked');
+    render();
+    return;
+  }
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem(SESSION_KEY) === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+  setTimeout(render, 0);
+}
+
+/* ─────────── UI ─────────── */
+const catGrid = document.getElementById('cat-grid');
+const studentValuesEl = document.getElementById('student-values');
+const toast = document.getElementById('toast');
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1500);
+}
+
+function render() {
+  renderCategories();
+  renderStudentValues();
+}
+
+function renderCategories() {
+  const cats = getBaseStatCategories();
+  catGrid.innerHTML = '';
+
+  cats.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    card.innerHTML = `
+      <div class="cat-fields">
+        <div class="cat-field cat-field-icon">
+          <label>Icon</label>
+          <input type="text" data-field="icon" value="${escapeHtml(c.icon || '')}" maxlength="4" />
+        </div>
+        <div class="cat-field cat-field-name">
+          <label>Category Name</label>
+          <input type="text" data-field="name" value="${escapeHtml(c.name || '')}" placeholder="e.g. Homework Pages" />
+        </div>
+        <div class="cat-field cat-field-pts">
+          <label>Points / Unit</label>
+          <input type="number" min="0" data-field="pointsPerUnit" value="${c.pointsPerUnit || 0}" />
+        </div>
+        <div class="cat-field cat-field-delete">
+          <button class="btn-tidy" data-del>🗑 Delete</button>
+        </div>
+      </div>
+    `;
+    catGrid.appendChild(card);
+
+    card.querySelectorAll('[data-field]').forEach(input => {
+      input.addEventListener('change', () => {
+        const field = input.dataset.field;
+        const cats = getBaseStatCategories();
+        const target = cats.find(x => x.id === c.id);
+        if (!target) return;
+        if (field === 'pointsPerUnit') {
+          target[field] = Math.max(0, parseInt(input.value, 10) || 0);
+        } else {
+          target[field] = input.value;
+        }
+        saveBaseStatCategories(cats);
+        showToast('Saved');
+        renderStudentValues();
+      });
+    });
+
+    card.querySelector('[data-del]').addEventListener('click', () => {
+      if (!confirm(`Delete "${c.name}"? Student counts for this category will also be removed.`)) return;
+      const cats = getBaseStatCategories().filter(x => x.id !== c.id);
+      saveBaseStatCategories(cats);
+      // Clean up per-student counts for this category
+      const students = getStudents();
+      students.forEach(s => {
+        if (s.baseStats && s.baseStats[c.id] !== undefined) delete s.baseStats[c.id];
+      });
+      saveStudents(students);
+      showToast('Category deleted');
+      render();
+    });
+  });
+
+  // Empty state
+  if (cats.length === 0) {
+    catGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No categories yet. Click "Add category" below.</div>`;
+  }
+}
+
+function renderStudentValues() {
+  const students = sortedByTotalPoints(getStudents());
+  const cats = getBaseStatCategories();
+  studentValuesEl.innerHTML = '';
+
+  if (students.length === 0) {
+    studentValuesEl.innerHTML = `<div class="empty-state">No students registered yet.</div>`;
+    return;
+  }
+  if (cats.length === 0) {
+    studentValuesEl.innerHTML = `<div class="empty-state">Add at least one base stat category above to edit student values.</div>`;
+    return;
+  }
+
+  students.forEach(s => {
+    s.baseStats = s.baseStats || {};
+    const total = studentBaseStatTotal(s);
+
+    const row = document.createElement('div');
+    row.className = 'student-row';
+    row.innerHTML = `
+      <div class="student-row-head">
+        <div>
+          <span class="student-row-name">${escapeHtml(studentFullName(s))}</span>
+          <span class="student-row-class">${escapeHtml(s.className || 'Unassigned')}</span>
+        </div>
+        <div class="student-row-total">${total} base-stat pts</div>
+      </div>
+      <div class="sv-grid">
+        ${cats.map(c => `
+          <div class="sv-tile" title="${escapeHtml(c.name)}">
+            <span class="sv-icon">${c.icon || '📊'}</span>
+            <input type="number" min="0" data-cat="${escapeHtml(c.id)}" value="${s.baseStats[c.id] || 0}" />
+          </div>
+        `).join('')}
+      </div>
+    `;
+    studentValuesEl.appendChild(row);
+
+    row.querySelectorAll('[data-cat]').forEach(input => {
+      input.addEventListener('change', () => {
+        const catId = input.dataset.cat;
+        const val = Math.max(0, parseInt(input.value, 10) || 0);
+        updateStudentBaseStat(s.id, catId, val);
+        showToast('Saved');
+        renderStudentValues();
+      });
+    });
+  });
+}
+
+document.getElementById('add-cat-btn').addEventListener('click', () => {
+  const name = prompt('Category name (e.g. "Homework Pages"):');
+  if (!name) return;
+  const icon = prompt('Icon (single emoji, optional):') || '📊';
+  const ppu = prompt('Points per unit (number):', '1');
+  const cats = getBaseStatCategories();
+  cats.push({
+    id: newBaseStatId(),
+    name: name.trim(),
+    icon: icon.trim().slice(0, 4) || '📊',
+    pointsPerUnit: Math.max(0, parseInt(ppu, 10) || 0),
+  });
+  saveBaseStatCategories(cats);
+  showToast('Category added');
+  render();
+});
+
+document.getElementById('reset-cats-btn').addEventListener('click', () => {
+  if (!confirm('Reset categories to defaults? Existing per-student counts will remain but may become orphaned if they belonged to removed custom categories.')) return;
+  resetBaseStatCategories();
+  showToast('Categories reset');
+  render();
+});
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support Us — HigherGrade Tutoring</title>
+  <meta name="description" content="Support HigherGrade Tutoring through donations or sponsorship." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .impact-number { font-size: 2.4rem; font-weight: 900; letter-spacing: -.04em; color: var(--mint); line-height: 1; }
+    .impact-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .impact-cell { background: var(--surface); padding: 28px 20px; text-align: center; }
+    .impact-cell p { font-size: .85rem; color: var(--muted); margin-top: 6px; }
+    .amount-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+    .amount-btn { padding: 10px 20px; border-radius: 8px; border: 2px solid var(--border); background: var(--surface2); font-size: .95rem; font-weight: 600; cursor: pointer; color: var(--text); transition: all .15s; }
+    .amount-btn:hover, .amount-btn.active { border-color: var(--blush); background: rgba(232,128,138,.08); color: var(--blush); }
+    .custom-amount-wrap { position: relative; }
+    .custom-amount-wrap span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 600; color: var(--muted); }
+    .custom-amount-wrap input { padding-left: 28px; width: 100%; border-radius: 8px; border: 2px solid var(--border); background: var(--surface2); font-size: .95rem; font-weight: 600; color: var(--text); padding-top: 10px; padding-bottom: 10px; padding-right: 14px; transition: border-color .15s; outline: none; }
+    .custom-amount-wrap input:focus { border-color: var(--blush); }
+    .contact-form input, .contact-form textarea, .contact-form select { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: var(--radius-sm); color: var(--text); padding: 11px 14px; font-size: .95rem; font-family: inherit; transition: border-color .15s; outline: none; margin-bottom: 14px; }
+    .contact-form input:focus, .contact-form textarea:focus, .contact-form select:focus { border-color: var(--blush); }
+    .contact-form textarea { resize: vertical; min-height: 110px; }
+    .contact-form label { font-size: .82rem; font-weight: 600; color: var(--text-mid); display: block; margin-bottom: 5px; }
+    /* Banner image */
+    .support-banner { width: 100%; height: 260px; object-fit: cover; border-radius: var(--radius); display: block; box-shadow: var(--shadow); margin-bottom: 48px; }
+
+    /* Donation cards — clickable */
+    .donation-card { cursor: pointer; transition: transform .25s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s, border-color .2s; position: relative; }
+    .donation-card:hover { transform: translateY(-6px) scale(1.03); box-shadow: var(--shadow); border-color: var(--blush); }
+    .donation-card::after {
+      content: '🔍 Click to read more';
+      position: absolute;
+      bottom: 10px; left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      font-size: .72rem; font-weight: 600;
+      color: var(--blush);
+      opacity: 0;
+      transition: opacity .2s, transform .2s;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .donation-card:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .donation-card { padding-bottom: 32px; }
+
+    /* Donation modal icon (square rounded, emoji) */
+    .donation-modal-icon {
+      width: 96px; height: 96px;
+      border-radius: 22px;
+      margin: 0 auto 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem;
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      box-shadow: 0 8px 24px rgba(232, 128, 138, 0.18);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────────────── NAVBAR ─────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo">
+      <img src="logo.png" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About Us</a></li>
+      <li><a href="support.html">Support Us</a></li>
+      <li><a href="student-portal.html" class="nav-signin">Sign In</a></li>
+      <li><a href="register.html" class="nav-cta">Register Now</a></li>
+    </ul>
+    <button class="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ─────────────────── PAGE HERO ─────────────────── -->
+<section class="page-hero">
+  <div class="page-hero-content">
+    <div class="hero-badge" style="margin-bottom:18px;">Make an Impact</div>
+    <h1>Support the Camp</h1>
+    <p>Help us keep this camp free and accessible for every Grade 9 student who wants to be here.</p>
+  </div>
+</section>
+
+<!-- ─────────────────── IMPACT ─────────────────── -->
+<section class="section">
+  <div class="container">
+    <!-- Banner photo -->
+    <img
+      src="placeholder_support_banner_students_group_photo_at_camp.png"
+      alt="Group photo of campers at HigherGrade Tutoring"
+      class="support-banner"
+    />
+
+    <div class="section-head section-head-center">
+      <div class="section-label">Why It Matters</div>
+      <h2 class="section-title">Your support makes this possible</h2>
+      <p class="section-desc">The camp is entirely free to attend — but running it costs money. Every dollar goes directly toward making this experience happen.</p>
+    </div>
+    <div class="impact-row">
+      <div class="impact-cell"><div class="impact-number">40</div><p>students attend, all at no cost to them</p></div>
+      <div class="impact-cell"><div class="impact-number">10</div><p>days of programming, materials, and facilitation</p></div>
+      <div class="impact-cell"><div class="impact-number">$0</div><p>registration fee — access shouldn't be a barrier</p></div>
+    </div>
+    <div class="grid-3 donation-impact-grid" style="margin-top:28px;">
+      <div class="card reveal donation-card" data-icon="📦" data-title="Materials &amp; Supplies" data-full-desc="Every camper walks in on Day 1 to a fresh kit — bound problem booklets for all 5 units, pencils, erasers, lined paper, graph paper, and a scientific calculator they get to take home.
+
+Running the camp also means whiteboard markers (a lot of them), chart paper for group work, printed unit tests, and small manipulatives for the geometry days — rulers, protractors, cardboard shape kits, and graphing grids.
+
+At roughly $40 per camper for a complete kit, materials are our single biggest cost. Every dollar donated to this category goes directly into a physical resource a student will actually hold and use across the 10 days.">
+        <div class="card-icon" style="background:rgba(232,128,138,.1);">📦</div>
+        <h3>Materials &amp; Supplies</h3>
+        <p>Problem sets, stationery, whiteboards, manipulatives, and activity kits for every participant across 10 days.</p>
+      </div>
+      <div class="card reveal donation-card" data-icon="🍕" data-title="Refreshments" data-full-desc="The camp runs 8:30 AM to 5:00 PM — that's a long day for anyone, let alone a Grade 9 student pushing through their fourth math problem set.
+
+Your donations fund morning and afternoon snacks (fruit, granola bars, pretzels, juice boxes), plenty of water, and a hot lunch on exam day so nobody has to stress about packing food on top of studying.
+
+We also put aside a small budget for the occasional pizza Friday and a 'we survived Week 1' treat after the weekend unit tests are handed in. Small things, but they go a long way toward keeping the energy up and making this feel like a community rather than a classroom.">
+        <div class="card-icon" style="background:rgba(107,191,160,.1);">🍕</div>
+        <h3>Refreshments</h3>
+        <p>Light refreshments and snacks to keep energy and focus up throughout each camp day — especially during competition hours.</p>
+      </div>
+      <div class="card reveal donation-card" data-icon="🏆" data-title="Awards &amp; Closing" data-full-desc="On Day 9, students sit the full Applications and Thinking exams — the real thing, graded and returned. Every student who completes the camp earns a certificate of completion, and top scorers receive small award medals recognizing their achievement across the 5 units.
+
+On Day 10, we wrap with an informal closing — light refreshments, a group photo, and a short recognition for each team member and every camper who stuck with us through the 10 days.
+
+Your donation to this category covers the printed certificates, the medals and small awards, the Day 10 refreshments, and the printing and photography for a memory to take home. It's the smallest line item in our budget, but the one students remember longest.">
+        <div class="card-icon" style="background:rgba(232,128,138,.1);">🏆</div>
+        <h3>Awards &amp; Closing</h3>
+        <p>Trophies, certificates, and a proper closing ceremony to recognize every participant's effort and growth.</p>
+      </div>
+    </div>
+
+    <!-- ── Donation Detail Modal ── -->
+    <div class="team-modal" id="donation-modal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="team-modal-backdrop"></div>
+      <div class="team-modal-content">
+        <button class="team-modal-close" id="donation-modal-close" aria-label="Close">✕</button>
+        <div class="donation-modal-icon" id="donation-modal-icon"></div>
+        <div class="team-modal-name" id="donation-modal-title"></div>
+        <div class="team-modal-role" style="margin-bottom:20px;">Where your donation goes</div>
+        <div class="team-modal-bio" id="donation-modal-desc"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── SPONSORSHIP TIERS ─────────────────── -->
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-head section-head-center">
+      <div class="section-label">Sponsorship</div>
+      <h2 class="section-title">Sponsor the camp</h2>
+      <p class="section-desc">Partner with us as an organization or business. All sponsors are recognized in our materials and at the event.</p>
+    </div>
+    <div class="grid-3">
+      <div class="support-tier reveal">
+        <div class="tier-header">
+          <div class="tier-badge">Bronze</div>
+          <div class="tier-name">Supporter</div>
+          <div class="tier-amount">$100<span>+</span></div>
+        </div>
+        <div class="tier-body">
+          <ul class="tier-perks">
+            <li>Name listed on our website sponsor page</li>
+            <li>Shoutout in our opening ceremony</li>
+            <li>Thank-you letter from the organizers</li>
+            <li>Social media acknowledgment</li>
+          </ul>
+          <a href="#contact-sponsor" class="btn btn-ghost btn-full">Get in Touch →</a>
+        </div>
+      </div>
+      <div class="support-tier featured reveal">
+        <div class="tier-header gold-bg">
+          <div class="tier-badge">Gold — Most Popular</div>
+          <div class="tier-name">Community Partner</div>
+          <div class="tier-amount">$500<span>+</span></div>
+        </div>
+        <div class="tier-body">
+          <ul class="tier-perks">
+            <li>Everything in Bronze</li>
+            <li>Logo on all printed materials & problem sets</li>
+            <li>Named sponsor of one full camp day</li>
+            <li>Invitation to closing ceremony</li>
+            <li>Feature post on our social channels</li>
+            <li>Tax receipt (if applicable)</li>
+          </ul>
+          <a href="#contact-sponsor" class="btn btn-blue btn-full">Become a Partner →</a>
+        </div>
+      </div>
+      <div class="support-tier reveal">
+        <div class="tier-header">
+          <div class="tier-badge" style="background:var(--navy);">Platinum</div>
+          <div class="tier-name">Title Sponsor</div>
+          <div class="tier-amount">$1,000<span>+</span></div>
+        </div>
+        <div class="tier-body">
+          <ul class="tier-perks">
+            <li>Everything in Gold</li>
+            <li>Logo prominently featured on website hero</li>
+            <li>Camp named in association with your brand</li>
+            <li>Opportunity to address campers (5 min)</li>
+            <li>Dedicated social media campaign</li>
+            <li>Detailed impact report after camp</li>
+          </ul>
+          <a href="#contact-sponsor" class="btn btn-navy btn-full">Become Title Sponsor →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── INDIVIDUAL DONATION ─────────────────── -->
+<section class="section">
+  <div class="container-sm">
+    <div class="section-head section-head-center">
+      <div class="section-label">Individual Giving</div>
+      <h2 class="section-title">Every dollar counts</h2>
+      <p class="section-desc">Can't sponsor but want to help? Individual contributions of any size make a real difference.</p>
+    </div>
+    <div class="card" style="padding:36px;">
+      <div class="amount-grid">
+        <button class="amount-btn" onclick="selectAmount(this, 10)">$10</button>
+        <button class="amount-btn active" onclick="selectAmount(this, 25)">$25</button>
+        <button class="amount-btn" onclick="selectAmount(this, 50)">$50</button>
+        <button class="amount-btn" onclick="selectAmount(this, 100)">$100</button>
+        <button class="amount-btn" onclick="selectAmount(this, 250)">$250</button>
+      </div>
+      <div class="custom-amount-wrap" style="margin-bottom:18px;">
+        <span>$</span>
+        <input type="number" id="custom-amount" placeholder="Custom amount" min="1" oninput="clearActive()" />
+      </div>
+      <p id="donation-impact" style="font-size:.88rem;color:var(--mint-dark);font-weight:600;margin-bottom:20px;">
+        $25 covers materials for one camper for two full days.
+      </p>
+      <a href="mailto:lucas.liu.ca2009@gmail.com?subject=Individual Donation — HigherGrade Tutoring" class="btn btn-blue btn-full" style="justify-content:center;">
+        Donate via Email Transfer →
+      </a>
+      <p style="font-size:.78rem;color:var(--muted);text-align:center;margin-top:12px;">We'll send payment instructions and a personalized thank-you note.</p>
+    </div>
+    <div style="margin-top:28px;display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span style="font-size:1.4rem;">📝</span>
+        <span style="font-size:.9rem;color:var(--text-mid);"><strong>$10</strong> — Covers problem sets &amp; stationery for one camper</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span style="font-size:1.4rem;">🍎</span>
+        <span style="font-size:.9rem;color:var(--text-mid);"><strong>$25</strong> — Snacks and refreshments for a full camp day</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span style="font-size:1.4rem;">🏅</span>
+        <span style="font-size:.9rem;color:var(--text-mid);"><strong>$50</strong> — Award medals for our closing ceremony competition</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span style="font-size:1.4rem;">🎒</span>
+        <span style="font-size:.9rem;color:var(--text-mid);"><strong>$100</strong> — Fully funds one camper's entire 10-day experience</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── CONTACT FORM ─────────────────── -->
+<section class="section" id="contact-sponsor">
+  <div class="container-sm">
+    <div class="section-head section-head-center">
+      <div class="section-label">Get in Touch</div>
+      <h2 class="section-title">Contact us</h2>
+      <p class="section-desc">Interested in sponsoring or have a question? We'll reply within 48 hours.</p>
+    </div>
+    <div class="card" style="padding:40px;">
+      <form class="contact-form" id="contact-form" onsubmit="handleContact(event)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div><label>Your Name *</label><input type="text" name="name" placeholder="Full name" required /></div>
+          <div><label>Email Address *</label><input type="email" name="email" placeholder="you@example.com" required /></div>
+        </div>
+        <div><label>Organization / School (if applicable)</label><input type="text" name="org" placeholder="e.g. ABC Company, XYZ School" /></div>
+        <div>
+          <label>How would you like to help? *</label>
+          <select name="type" required>
+            <option value="">Select an option…</option>
+            <option value="sponsor-bronze">Bronze Sponsorship ($100+)</option>
+            <option value="sponsor-gold">Gold Sponsorship ($500+)</option>
+            <option value="sponsor-platinum">Platinum / Title Sponsorship ($1,000+)</option>
+            <option value="donate">Individual Donation</option>
+            <option value="other">Other / General Inquiry</option>
+          </select>
+        </div>
+        <div><label>Message *</label><textarea name="message" placeholder="Tell us a bit about yourself and how you'd like to be involved…" required></textarea></div>
+        <button type="submit" class="btn btn-blue btn-full" style="justify-content:center;">Send Message →</button>
+      </form>
+      <div id="contact-success" style="display:none;text-align:center;padding:32px 0;">
+        <div style="font-size:2.5rem;margin-bottom:12px;">🎉</div>
+        <h3 style="font-size:1.3rem;font-weight:800;margin-bottom:8px;">Almost done!</h3>
+        <p style="color:var(--muted);">Your email app should have opened with your message pre-filled. Hit send there — and we'll reply within 48 hours.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FOOTER ─────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <p>A student-led math summer camp for Grade 9 students. July 20–31, 2025.</p>
+        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+      </div>
+      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
+      <div class="footer-col"><h4>Support</h4><ul><li><a href="#contact-sponsor">Sponsorship</a></li><li><a href="#contact-sponsor">Contact Us</a></li></ul></div>
+      <div class="footer-col"><h4>Contact</h4><ul><li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li></ul></div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 HigherGrade Tutoring — All rights reserved.</span>
+      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+    </div>
+  </div>
+</footer>
+
+<script src="students-data.js"></script>
+<script src="script.js"></script>
+<script>
+  const impacts = { 10:'$10 covers problem sets & stationery for one camper.', 25:'$25 covers snacks and refreshments for a full camp day.', 50:'$50 funds award medals for our closing ceremony.', 100:'$100 fully funds one camper\'s entire 10-day experience!', 250:'$250 — you\'re a legend. This covers materials for 5 campers.' };
+  function selectAmount(btn, amount) { document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.getElementById('custom-amount').value = ''; document.getElementById('donation-impact').textContent = impacts[amount] || ''; }
+  function clearActive() { document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active')); const val = parseInt(document.getElementById('custom-amount').value); const el = document.getElementById('donation-impact'); if (val >= 1000) el.textContent = 'Wow — you\'re incredible. This changes everything for our campers!'; else if (val >= 100) el.textContent = `$${val} fully funds ${Math.floor(val/100)} camper(s)' entire experience!`; else el.textContent = 'Every dollar helps keep this camp free for everyone.'; }
+  // ── Donation detail modal ──
+  (function () {
+    const modal = document.getElementById('donation-modal');
+    if (!modal) return;
+    const iconEl  = document.getElementById('donation-modal-icon');
+    const titleEl = document.getElementById('donation-modal-title');
+    const descEl  = document.getElementById('donation-modal-desc');
+    const closeBtn = document.getElementById('donation-modal-close');
+    const backdrop = modal.querySelector('.team-modal-backdrop');
+
+    function openModal(card) {
+      iconEl.textContent  = card.dataset.icon  || '';
+      titleEl.innerHTML   = card.dataset.title || '';
+      descEl.textContent  = card.dataset.fullDesc || '';
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeModal() {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.donation-card').forEach(card => {
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
+      card.addEventListener('click', () => openModal(card));
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(card); }
+      });
+    });
+    backdrop.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', closeModal);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+    });
+  })();
+
+  function handleContact(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    const fd = new FormData(form);
+    const name    = fd.get('name')    || '';
+    const email   = fd.get('email')   || '';
+    const org     = fd.get('org')     || '(not provided)';
+    const type    = fd.get('type')    || 'General Inquiry';
+    const message = fd.get('message') || '';
+
+    const subject = `HigherGrade Tutoring — ${type} from ${name}`;
+    const body =
+      `Name: ${name}\n` +
+      `Email: ${email}\n` +
+      `Organization / School: ${org}\n` +
+      `Type: ${type}\n\n` +
+      `Message:\n${message}`;
+
+    const mailto = `mailto:lucas.liu.ca2009@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+
+    setTimeout(() => {
+      document.getElementById('contact-form').style.display = 'none';
+      document.getElementById('contact-success').style.display = 'block';
+    }, 600);
+  }
+</script>
+</body>
+</html>

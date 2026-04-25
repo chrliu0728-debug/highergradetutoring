@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classes Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1100px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 18px;
+      align-items: center;
+      padding: 22px 26px;
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon {
+      font-size: 2.4rem;
+      width: 62px; height: 62px;
+      border-radius: 16px;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    }
+    .admin-welcome h1 { font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .9rem; color: var(--text-mid); line-height: 1.5; }
+
+    .add-class-bar {
+      display: flex; gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 22px;
+      align-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .add-class-bar input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface2);
+      outline: none;
+      font-size: .95rem;
+      font-family: inherit;
+    }
+    .add-class-bar input:focus { border-color: var(--blush); }
+    .btn-tidy {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 18px;
+      font-size: .9rem; font-weight: 600;
+      color: var(--text-mid);
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-tidy:hover {
+      border-color: var(--blush);
+      color: var(--blush);
+      background: var(--blush-bg);
+    }
+    .btn-tidy.primary {
+      background: var(--blush);
+      color: white;
+      border-color: var(--blush);
+    }
+    .btn-tidy.primary:hover {
+      background: var(--blush-dark);
+      border-color: var(--blush-dark);
+      color: white;
+    }
+
+    /* Class cards */
+    .class-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 26px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .class-card-head {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 14px; flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .class-name-input {
+      font-size: 1.3rem; font-weight: 800; letter-spacing: -.02em;
+      padding: 6px 10px;
+      border: 1.5px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      outline: none;
+      font-family: inherit;
+      flex: 1; min-width: 200px;
+    }
+    .class-name-input:hover { border-color: var(--border); background: var(--surface2); }
+    .class-name-input:focus { border-color: var(--blush); background: var(--surface2); }
+
+    .class-meta {
+      font-size: .82rem; color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Two big stat tiles per class: class points + bank */
+    .class-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .class-stat-tile {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .class-stat-tile.points { border-left: 4px solid var(--blush); }
+    .class-stat-tile.bank   { border-left: 4px solid var(--mint); }
+    .class-stat-head {
+      display: flex; align-items: center; gap: 8px;
+      font-size: .76rem; font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 8px;
+    }
+    .class-stat-value {
+      font-size: 1.9rem; font-weight: 900;
+      letter-spacing: -.02em;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .class-stat-tile.points .class-stat-value { color: var(--blush-dark); }
+    .class-stat-tile.bank   .class-stat-value { color: var(--mint-dark); }
+    .stat-action-row {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .stat-action-row button {
+      flex: 1; min-width: 56px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .82rem; font-weight: 600;
+      color: var(--text-mid);
+      transition: all .12s;
+      font-family: inherit;
+    }
+    .stat-action-row button:hover { border-color: var(--blush); color: var(--blush); }
+    .stat-action-row button.minus:hover { border-color: #c0392b; color: #c0392b; }
+    .stat-action-row button[disabled] { opacity: .35; cursor: not-allowed; }
+    .stat-action-row button[disabled]:hover { border-color: var(--border); color: var(--text-mid); }
+
+    .claim-bank-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .claim-bank-row button {
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .82rem; font-weight: 700;
+      font-family: inherit;
+      border: 1.5px solid;
+      transition: all .12s;
+      line-height: 1.3;
+    }
+    .btn-claim {
+      background: var(--mint-bg);
+      border-color: var(--mint);
+      color: var(--mint-dark);
+    }
+    .btn-claim:hover:not([disabled]) { background: var(--mint); color: white; }
+    .btn-bank {
+      background: var(--blush-bg);
+      border-color: var(--blush);
+      color: var(--blush-dark);
+    }
+    .btn-bank:hover:not([disabled]) { background: var(--blush); color: white; }
+    .claim-bank-row button[disabled] { opacity: .4; cursor: not-allowed; }
+    @media (max-width: 700px) {
+      .claim-bank-row { grid-template-columns: 1fr; }
+    }
+
+    .class-distrib-note {
+      font-size: .8rem;
+      color: var(--mint-dark);
+      background: var(--mint-bg);
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+    }
+
+    /* Member list */
+    .member-list-head {
+      font-size: .78rem; font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 8px;
+    }
+    .member-list {
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .member-chip {
+      background: var(--blush-bg);
+      border: 1px solid var(--blush-light);
+      color: var(--blush-dark);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: .82rem;
+      font-weight: 600;
+    }
+    .member-chip-empty {
+      font-size: .82rem; color: var(--muted); font-style: italic;
+    }
+
+    .class-card-actions {
+      display: flex; justify-content: flex-end; gap: 8px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .danger-btn { color: #c0392b; }
+    .danger-btn:hover { border-color: #c0392b !important; background: #FEE2E2 !important; }
+
+    .empty-state {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 48px 28px;
+      text-align: center;
+    }
+    .empty-state h2 { font-size: 1.2rem; margin-bottom: 8px; }
+    .empty-state p { font-size: .92rem; color: var(--muted); }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy); color: white;
+      padding: 12px 22px; border-radius: 10px;
+      font-size: .88rem; box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 500;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+    @media (max-width: 700px) {
+      .class-stat-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Passcode gate -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage classes.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<!-- Admin UI -->
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html" class="active">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html">Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">🏫</div>
+    <div>
+      <h1>Welcome — manage your camp classes</h1>
+      <p>Create classes, assign students from the <strong>Students</strong> tab, and award class points. <strong>Each +1 class point gives every member of the class +10 individual points</strong>. The Investment Bank is a separate balance you can use to track group savings.</p>
+    </div>
+  </div>
+
+  <div class="add-class-bar">
+    <input type="text" id="new-class-name" placeholder="New class name (e.g. Class A, Period 1, Reds Team) …" />
+    <button class="btn-tidy primary" id="add-class-btn">+ Create class</button>
+  </div>
+
+  <div id="classes-container"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="students-data.js"></script>
+<script>
+const PASSCODE = 'HigherGrade Tutoring';
+const SESSION_KEY = 'highergrade_admin_unlocked';
+
+const gate = document.getElementById('gate');
+const shell = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+function unlock() {
+  const entered  = (passInput.value || '').trim().toLowerCase();
+  const expected = PASSCODE.trim().toLowerCase();
+  if (entered === expected) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    gate.style.display = 'none';
+    shell.classList.add('unlocked');
+    render();
+    return;
+  }
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem(SESSION_KEY) === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+  setTimeout(render, 0);
+}
+
+const container = document.getElementById('classes-container');
+const toast = document.getElementById('toast');
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+function fmtPts(n) {
+  // 12.345 → "12.35", 12 → "12", 12.0 → "12"
+  if (typeof n !== 'number' || !isFinite(n)) return '0';
+  if (Math.abs(n - Math.round(n)) < 0.005) return Math.round(n).toLocaleString();
+  return n.toFixed(2);
+}
+
+function render() {
+  const classes = getClassesWithBankRefresh();
+  container.innerHTML = '';
+
+  if (classes.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h2>No classes yet</h2>
+        <p>Use the "Create class" bar above to add your first class.</p>
+      </div>
+    `;
+    return;
+  }
+
+  classes.forEach(cls => {
+    const members  = findClassMembers(cls.id);
+    const unclaimed = cls.classPoints || 0;
+    const banked    = cls.classBank   || 0;
+
+    const card = document.createElement('div');
+    card.className = 'class-card';
+    card.dataset.id = cls.id;
+    card.innerHTML = `
+      <div class="class-card-head">
+        <input type="text" class="class-name-input" data-rename value="${escapeHtml(cls.name)}" />
+        <div class="class-meta">${members.length} member${members.length === 1 ? '' : 's'}</div>
+      </div>
+
+      <div class="class-stat-grid">
+        <div class="class-stat-tile points">
+          <div class="class-stat-head">🌟 Unclaimed Class Points</div>
+          <div class="class-stat-value">${unclaimed.toLocaleString()}</div>
+          <div class="class-distrib-note">Award class points first — then choose to <strong>Claim</strong> (distribute) or <strong>Bank</strong> (invest).</div>
+          <div class="stat-action-row" style="margin-bottom: 10px;">
+            <button data-pts="1">+1 award</button>
+            <button data-pts="5">+5 award</button>
+            <button data-pts="10">+10 award</button>
+            <button class="minus" data-pts="-1">−1</button>
+            <button class="minus" data-pts="-5">−5</button>
+            <button class="minus" data-pts="-10">−10</button>
+          </div>
+          <div class="claim-bank-row">
+            <button class="btn-claim" data-claim-all ${unclaimed === 0 ? 'disabled' : ''}>
+              ✅ Claim all → distribute ${unclaimed * CLASS_POINT_TO_INDIVIDUAL} pts to ${members.length} member${members.length === 1 ? '' : 's'}
+            </button>
+            <button class="btn-bank" data-bank-all ${unclaimed === 0 ? 'disabled' : ''}>
+              🏦 Bank all → invest ${unclaimed} pts (grows ${(CLASS_BANK_DAILY_RATE * 100).toFixed(0)}% / day)
+            </button>
+          </div>
+        </div>
+
+        <div class="class-stat-tile bank">
+          <div class="class-stat-head">🏦 Investment Bank</div>
+          <div class="class-stat-value">${fmtPts(banked)}</div>
+          <div class="class-distrib-note" style="background:var(--blush-bg);color:var(--blush-dark);">
+            Earning <strong>${(CLASS_BANK_DAILY_RATE * 100).toFixed(0)}% per day</strong>, compounded continuously.${cls.bankLastUpdate ? ` <span style="opacity:.7;">Last updated: ${new Date(cls.bankLastUpdate).toLocaleString()}.</span>` : ''}
+          </div>
+          <div class="stat-action-row">
+            <button data-withdraw="10" ${banked < 10 ? 'disabled' : ''}>↩ −10</button>
+            <button data-withdraw="50" ${banked < 50 ? 'disabled' : ''}>↩ −50</button>
+            <button data-withdraw-all ${banked < 1 ? 'disabled' : ''}>↩ Withdraw all</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="member-list-head">Members</div>
+      <div class="member-list">
+        ${members.length === 0
+          ? '<span class="member-chip-empty">No students yet — assign them in the <strong>Students</strong> tab.</span>'
+          : members.map(m => `<span class="member-chip">${escapeHtml(studentFullName(m))}</span>`).join('')
+        }
+      </div>
+
+      <div class="class-card-actions">
+        <button class="btn-tidy danger-btn" data-del>🗑 Delete class</button>
+      </div>
+    `;
+    container.appendChild(card);
+
+    card.querySelector('[data-rename]').addEventListener('change', e => {
+      const newName = e.target.value.trim();
+      if (!newName) { e.target.value = cls.name; return; }
+      updateClass(cls.id, { name: newName });
+      showToast('Class renamed');
+      render();
+    });
+
+    card.querySelectorAll('[data-pts]').forEach(b => {
+      b.addEventListener('click', () => {
+        const delta = parseInt(b.dataset.pts, 10);
+        const res = awardClassPoints(cls.id, delta);
+        if (!res.ok) { showToast(res.error || 'Could not update'); return; }
+        showToast(`${delta > 0 ? '+' : ''}${res.data.delta} class pt → unclaimed pool now ${res.data.unclaimed}`);
+        render();
+      });
+    });
+
+    const claimBtn = card.querySelector('[data-claim-all]');
+    if (claimBtn) claimBtn.addEventListener('click', () => {
+      const res = claimClassPoints(cls.id, null);
+      if (!res.ok) { showToast(res.error); return; }
+      showToast(`✅ Claimed ${res.data.claimed} class pt → ${res.data.totalDistributed} pts split across ${res.data.memberCount} member${res.data.memberCount === 1 ? '' : 's'}`);
+      render();
+    });
+
+    const bankBtn = card.querySelector('[data-bank-all]');
+    if (bankBtn) bankBtn.addEventListener('click', () => {
+      const res = bankClassPoints(cls.id, null);
+      if (!res.ok) { showToast(res.error); return; }
+      showToast(`🏦 Banked ${res.data.banked} class pt — bank balance ${fmtPts(res.data.newBank)}`);
+      render();
+    });
+
+    card.querySelectorAll('[data-withdraw]').forEach(b => {
+      b.addEventListener('click', () => {
+        const res = withdrawFromBank(cls.id, parseInt(b.dataset.withdraw, 10));
+        if (!res.ok) { showToast(res.error); return; }
+        showToast(`Withdrew ${res.data.withdrawn} pts back to unclaimed pool`);
+        render();
+      });
+    });
+
+    const wAll = card.querySelector('[data-withdraw-all]');
+    if (wAll) wAll.addEventListener('click', () => {
+      const res = withdrawFromBank(cls.id, null);
+      if (!res.ok) { showToast(res.error); return; }
+      showToast(`Withdrew ${res.data.withdrawn} pts back to unclaimed pool`);
+      render();
+    });
+
+    card.querySelector('[data-del]').addEventListener('click', () => {
+      if (!confirm(`Delete class "${cls.name}"? Members will be unassigned but their stats are kept.`)) return;
+      deleteClass(cls.id);
+      showToast('Class deleted');
+      render();
+    });
+  });
+}
+
+document.getElementById('add-class-btn').addEventListener('click', () => {
+  const input = document.getElementById('new-class-name');
+  const res = addClass(input.value);
+  if (!res.ok) { showToast(res.error); return; }
+  input.value = '';
+  showToast('Class created');
+  render();
+});
+
+document.getElementById('new-class-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('add-class-btn').click();
+});
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>

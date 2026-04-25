@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — HigherGrade Tutoring</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    /* ── Passcode gate ── */
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 44px 36px;
+      max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35);
+      text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 1rem;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface2);
+      outline: none;
+      margin-bottom: 14px;
+      transition: border-color .15s;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error {
+      color: #c0392b;
+      font-size: .85rem;
+      margin-bottom: 10px;
+      min-height: 1.2em;
+    }
+
+    /* ── Admin UI ── */
+    .admin-shell {
+      display: none;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 30px 20px 60px;
+    }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    /* Big friendly welcome strip */
+    .admin-welcome {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 18px;
+      align-items: center;
+      padding: 22px 26px;
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon {
+      font-size: 2.4rem;
+      width: 62px; height: 62px;
+      border-radius: 16px;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    }
+    .admin-welcome h1 { font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .9rem; color: var(--text-mid); line-height: 1.5; }
+
+    .admin-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      flex-wrap: wrap; gap: 16px;
+      padding: 22px 26px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-header h2 { font-size: 1.15rem; letter-spacing: -.02em; margin-bottom: 4px; }
+    .admin-subtitle { font-size: .88rem; color: var(--muted); line-height: 1.5; max-width: 520px; }
+    .admin-header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+
+    /* Tidy action buttons — consistent friendly pill */
+    .btn-tidy {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px;
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-tidy:hover {
+      border-color: var(--blush);
+      color: var(--blush);
+      background: var(--blush-bg);
+    }
+
+    .admin-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-section h2 {
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+    .admin-section .section-desc {
+      font-size: .88rem;
+      color: var(--muted);
+      margin-bottom: 22px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-grid label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--text-mid);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: .92rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface2);
+      outline: none;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus {
+      border-color: var(--blush);
+    }
+    .form-grid textarea { resize: vertical; min-height: 80px; }
+
+    .image-uploader {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px;
+      background: var(--surface2);
+      border: 1.5px dashed var(--border);
+      border-radius: 8px;
+    }
+
+    /* Drag-and-drop file zone (transcripts) */
+    .file-drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 22px 20px;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--surface2);
+    }
+    .file-drop-zone:hover { border-color: var(--blush); background: var(--blush-bg); }
+    .file-drop-zone.dragover {
+      border-color: var(--mint);
+      background: var(--mint-bg);
+      transform: scale(1.01);
+    }
+    .file-drop-inner {
+      display: flex; align-items: center; gap: 16px;
+      justify-content: center;
+      text-align: left;
+    }
+    .file-drop-icon { font-size: 2.2rem; flex-shrink: 0; }
+    .file-drop-text strong { display: block; font-size: 1rem; color: var(--text); margin-bottom: 2px; }
+    .file-drop-text small { display: block; font-size: .82rem; color: var(--muted); line-height: 1.5; max-width: 420px; }
+    .file-drop-status {
+      margin-top: 10px;
+      font-size: .88rem;
+      min-height: 1.2em;
+      color: var(--text-mid);
+    }
+    .file-drop-status.ok { color: var(--mint-dark); }
+    .file-drop-status .remove-file-btn {
+      margin-left: 10px;
+      padding: 3px 10px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .78rem;
+      color: var(--muted);
+    }
+    .file-drop-status .remove-file-btn:hover { border-color: #c0392b; color: #c0392b; }
+    .image-uploader img {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--border);
+    }
+    .image-uploader .uploader-info {
+      flex: 1;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .image-uploader input[type="file"] {
+      font-size: .82rem;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    /* ── Staff list ── */
+    .staff-list { display: grid; gap: 12px; }
+    .staff-row {
+      display: flex; align-items: center; gap: 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .staff-row img {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .staff-row-info { flex: 1; min-width: 0; }
+    .staff-row-name { font-weight: 700; font-size: .95rem; }
+    .staff-row-meta { font-size: .78rem; color: var(--muted); }
+    .staff-row-cat {
+      display: inline-block;
+      background: var(--blush-bg);
+      color: var(--blush-dark);
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-right: 6px;
+    }
+    .staff-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .icon-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: .8rem;
+      cursor: pointer;
+      transition: all .15s;
+      color: var(--text-mid);
+    }
+    .icon-btn:hover { border-color: var(--blush); color: var(--blush); }
+    .icon-btn.danger:hover { border-color: #c0392b; color: #c0392b; }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy);
+      color: white;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: .88rem;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 500;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .admin-header { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────── Passcode gate ─────────── -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage staff profiles.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<!-- ─────────── Admin UI ─────────── -->
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html" class="active">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html">Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">👋</div>
+    <div>
+      <h1>Welcome — let's manage the team</h1>
+      <p>Use the tabs above to switch between sections. Most changes save automatically as soon as you make them.</p>
+    </div>
+  </div>
+
+  <div class="admin-header">
+    <div>
+      <h2>📋 Staff Profiles</h2>
+      <p class="admin-subtitle">Add, edit, or remove the people shown on the About page. Changes appear instantly.</p>
+    </div>
+    <div class="admin-header-actions">
+      <a href="about.html#team" class="btn-tidy" target="_blank" rel="noopener">👀 Preview About page</a>
+      <button class="btn-tidy" id="export-btn">💾 Save backup (JSON)</button>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <h2 id="form-title">Add new staff profile</h2>
+    <div class="section-desc" id="form-subtitle">Fill in every relevant field. Upload a photo (stored locally in your browser).</div>
+
+    <form id="staff-form">
+      <input type="hidden" id="f-id" />
+
+      <div class="form-grid">
+        <div class="full">
+          <label>Photo</label>
+          <div class="image-uploader">
+            <img id="f-image-preview" src="" alt="preview" />
+            <div class="uploader-info">
+              <div style="margin-bottom:4px;color:var(--text);font-weight:600;">Upload a headshot</div>
+              <div style="font-size:.78rem;">Stored as a data URL in your browser. For production, replace with a real image file.</div>
+            </div>
+            <input type="file" id="f-image-file" accept="image/*" />
+          </div>
+          <input type="text" id="f-image-path" placeholder="…or paste image filename (e.g. placeholder_team_riley_singh_headshot.png)" style="margin-top:8px;" />
+        </div>
+
+        <div>
+          <label>Category *</label>
+          <select id="f-category" required></select>
+        </div>
+        <div>
+          <label>Full Name *</label>
+          <input type="text" id="f-name" required placeholder="e.g. Jane Doe" />
+        </div>
+
+        <div>
+          <label>Role / Title *</label>
+          <input type="text" id="f-role" required placeholder="e.g. Teaching Assistant" />
+        </div>
+        <div>
+          <label>Age</label>
+          <input type="text" id="f-age" placeholder="e.g. 17" />
+        </div>
+
+        <div class="full">
+          <label>School / Institution</label>
+          <input type="text" id="f-school" placeholder="e.g. Abbey Park High School — Grade 12" />
+        </div>
+
+        <div>
+          <label>Gender</label>
+          <input type="text" id="f-gender" placeholder="e.g. Female" />
+        </div>
+        <div>
+          <label>Pronouns</label>
+          <input type="text" id="f-pronouns" placeholder="e.g. she / her" />
+        </div>
+
+        <div class="full">
+          <label>Public Quote (shown on profile card) *</label>
+          <input type="text" id="f-quote" required maxlength="200" placeholder="A single memorable sentence" />
+        </div>
+
+        <div class="full">
+          <label>Interests</label>
+          <textarea id="f-interests" placeholder="Comma-separated list — e.g. Number theory, piano, chess"></textarea>
+        </div>
+
+        <div class="full">
+          <label>Bio (shown in expanded modal)</label>
+          <textarea id="f-bio" rows="5" placeholder="Multi-paragraph bio. Use blank lines to separate paragraphs."></textarea>
+        </div>
+
+        <div class="full">
+          <label>Transcripts / Credentials — Short Summary (optional)</label>
+          <textarea id="f-transcript" rows="3" placeholder="e.g. Grade 12 HDSB student. 97% MHF4U. Euclid 2025 top 25%."></textarea>
+        </div>
+
+        <div class="full">
+          <label>Transcript / Proof File (drag & drop or click to upload)</label>
+          <div class="file-drop-zone" id="transcript-drop">
+            <div class="file-drop-inner">
+              <div class="file-drop-icon">📄</div>
+              <div class="file-drop-text">
+                <strong>Drop a file here</strong> or click to browse
+                <small>PDF, TXT, DOCX, JPG, PNG — any format works. Students will see a download button on the profile.</small>
+              </div>
+            </div>
+            <input type="file" id="f-transcript-file" style="display:none;" />
+          </div>
+          <div class="file-drop-status" id="transcript-status"></div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" id="cancel-btn" style="display:none;">Cancel edit</button>
+        <button type="submit" class="btn btn-primary" id="submit-btn">Add profile</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-section">
+    <h2>Existing staff</h2>
+    <div class="section-desc" id="staff-count-desc"></div>
+    <div class="staff-list" id="staff-list"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="staff-data.js"></script>
+<script>
+/* ────────────────── Passcode gate ────────────────── */
+const PASSCODE = 'HigherGrade Tutoring';
+const SESSION_KEY = 'highergrade_admin_unlocked';
+
+const gate = document.getElementById('gate');
+const shell = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+function unlock() {
+  const enteredRaw = (passInput.value || '').trim();
+  const entered    = enteredRaw.toLowerCase();
+  const expected   = PASSCODE.trim().toLowerCase();
+
+  // Student easter-egg: "MazeWiz" code redirects to the claim page.
+  if (enteredRaw === 'MazeWiz') {
+    location.href = 'mazewiz.html';
+    return;
+  }
+
+  if (entered === expected) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    gate.style.display = 'none';
+    shell.classList.add('unlocked');
+    render();
+    return;
+  }
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+// Share unlock across admin pages — any visit to a non-admin page clears it.
+if (sessionStorage.getItem(SESSION_KEY) === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+  setTimeout(render, 0);
+}
+
+/* ────────────────── Admin UI logic ────────────────── */
+const form = document.getElementById('staff-form');
+const fId         = document.getElementById('f-id');
+const fCategory   = document.getElementById('f-category');
+const fName       = document.getElementById('f-name');
+const fRole       = document.getElementById('f-role');
+const fAge        = document.getElementById('f-age');
+const fSchool     = document.getElementById('f-school');
+const fGender     = document.getElementById('f-gender');
+const fPronouns   = document.getElementById('f-pronouns');
+const fQuote      = document.getElementById('f-quote');
+const fInterests  = document.getElementById('f-interests');
+const fBio        = document.getElementById('f-bio');
+const fTranscript = document.getElementById('f-transcript');
+const fImagePath  = document.getElementById('f-image-path');
+const fImageFile  = document.getElementById('f-image-file');
+const fImagePreview = document.getElementById('f-image-preview');
+const transcriptDrop  = document.getElementById('transcript-drop');
+const transcriptFileInput = document.getElementById('f-transcript-file');
+const transcriptStatus = document.getElementById('transcript-status');
+let currentTranscriptFile = null; // { data, name, type, size }
+const cancelBtn   = document.getElementById('cancel-btn');
+const submitBtn   = document.getElementById('submit-btn');
+const formTitle   = document.getElementById('form-title');
+const listEl      = document.getElementById('staff-list');
+const countDesc   = document.getElementById('staff-count-desc');
+const toast       = document.getElementById('toast');
+
+// Populate category dropdown
+STAFF_CATEGORIES.forEach(c => {
+  const o = document.createElement('option');
+  o.value = c.id;
+  o.textContent = c.label;
+  fCategory.appendChild(o);
+});
+
+// Image upload → base64
+fImageFile.addEventListener('change', () => {
+  const file = fImageFile.files && fImageFile.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    fImagePath.value = reader.result; // data URL
+    fImagePreview.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+fImagePath.addEventListener('input', () => {
+  fImagePreview.src = fImagePath.value || '';
+});
+
+function slugify(str) {
+  return String(str).toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function resetForm() {
+  form.reset();
+  fId.value = '';
+  fImagePreview.src = '';
+  currentTranscriptFile = null;
+  updateTranscriptStatus();
+  formTitle.textContent = 'Add new staff profile';
+  submitBtn.textContent = 'Add profile';
+  cancelBtn.style.display = 'none';
+}
+
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+function updateTranscriptStatus() {
+  if (!transcriptStatus) return;
+  if (currentTranscriptFile && currentTranscriptFile.name) {
+    transcriptStatus.className = 'file-drop-status ok';
+    transcriptStatus.innerHTML = `✅ Attached: <strong>${escapeHtml(currentTranscriptFile.name)}</strong> (${fmtBytes(currentTranscriptFile.size || 0)}) <button type="button" class="remove-file-btn" id="remove-transcript-btn">Remove file</button>`;
+    document.getElementById('remove-transcript-btn').addEventListener('click', () => {
+      currentTranscriptFile = null;
+      updateTranscriptStatus();
+    });
+  } else {
+    transcriptStatus.className = 'file-drop-status';
+    transcriptStatus.textContent = '';
+  }
+}
+
+function handleTranscriptDropFile(file) {
+  if (!file) return;
+  // Soft size warning — localStorage is limited
+  if (file.size > 2 * 1024 * 1024) {
+    if (!confirm(`This file is ${fmtBytes(file.size)}, which is quite large for local browser storage. Attach it anyway?`)) return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    currentTranscriptFile = { data: reader.result, name: file.name, type: file.type || '', size: file.size };
+    updateTranscriptStatus();
+  };
+  reader.readAsDataURL(file);
+}
+
+if (transcriptDrop) {
+  transcriptDrop.addEventListener('click', () => transcriptFileInput.click());
+  transcriptDrop.addEventListener('dragover',  e => { e.preventDefault(); transcriptDrop.classList.add('dragover'); });
+  transcriptDrop.addEventListener('dragleave', () => transcriptDrop.classList.remove('dragover'));
+  transcriptDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    transcriptDrop.classList.remove('dragover');
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    handleTranscriptDropFile(file);
+  });
+  transcriptFileInput.addEventListener('change', () => {
+    const file = transcriptFileInput.files && transcriptFileInput.files[0];
+    handleTranscriptDropFile(file);
+    transcriptFileInput.value = '';
+  });
+}
+
+cancelBtn.addEventListener('click', resetForm);
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const staff = getStaff();
+  const editingId = fId.value;
+  const id = editingId || slugify(fName.value) || ('staff-' + Date.now());
+
+  const entry = {
+    id,
+    category:  fCategory.value,
+    name:      fName.value.trim(),
+    role:      fRole.value.trim(),
+    age:       fAge.value.trim(),
+    school:    fSchool.value.trim(),
+    gender:    fGender.value.trim(),
+    pronouns:  fPronouns.value.trim(),
+    quote:     fQuote.value.trim(),
+    interests: fInterests.value.trim(),
+    bio:       fBio.value.trim(),
+    transcript:fTranscript.value.trim(),
+    transcriptFile: currentTranscriptFile,
+    image:     fImagePath.value.trim(),
+  };
+
+  if (editingId) {
+    const idx = staff.findIndex(s => s.id === editingId);
+    if (idx >= 0) staff[idx] = entry;
+    else staff.push(entry);
+    showToast('Profile updated');
+  } else {
+    // Dedupe: if a generated id collides, append timestamp
+    if (staff.some(s => s.id === id)) entry.id = id + '-' + Date.now();
+    staff.push(entry);
+    showToast('Profile added');
+  }
+
+  saveStaff(staff);
+  resetForm();
+  render();
+});
+
+function editEntry(id) {
+  const staff = getStaff();
+  const s = staff.find(x => x.id === id);
+  if (!s) return;
+  fId.value        = s.id;
+  fCategory.value  = s.category || '';
+  fName.value      = s.name || '';
+  fRole.value      = s.role || '';
+  fAge.value       = s.age || '';
+  fSchool.value    = s.school || '';
+  fGender.value    = s.gender || '';
+  fPronouns.value  = s.pronouns || '';
+  fQuote.value     = s.quote || '';
+  fInterests.value = s.interests || '';
+  fBio.value       = s.bio || '';
+  fTranscript.value= s.transcript || '';
+  currentTranscriptFile = s.transcriptFile || null;
+  updateTranscriptStatus();
+  fImagePath.value = s.image || '';
+  fImagePreview.src= s.image || '';
+
+  formTitle.textContent = 'Edit profile — ' + (s.name || s.id);
+  submitBtn.textContent = 'Save changes';
+  cancelBtn.style.display = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteEntry(id) {
+  if (!confirm('Delete this staff profile? This cannot be undone.')) return;
+  const staff = getStaff().filter(s => s.id !== id);
+  saveStaff(staff);
+  render();
+  showToast('Profile deleted');
+}
+
+function render() {
+  const staff = getStaff();
+  listEl.innerHTML = '';
+  countDesc.textContent = `${staff.length} profile${staff.length === 1 ? '' : 's'} currently stored.`;
+
+  STAFF_CATEGORIES.forEach(cat => {
+    const members = staff.filter(s => s.category === cat.id);
+    if (members.length === 0) return;
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted);margin:12px 0 4px;';
+    heading.textContent = cat.label + ' · ' + members.length;
+    listEl.appendChild(heading);
+
+    members.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'staff-row';
+      row.innerHTML = `
+        <img src="${s.image || ''}" alt="" onerror="this.style.visibility='hidden'" />
+        <div class="staff-row-info">
+          <div class="staff-row-name">${escapeHtml(s.name || '—')}</div>
+          <div class="staff-row-meta"><span class="staff-row-cat">${cat.label}</span>${escapeHtml(s.role || '')} · ${escapeHtml(s.school || '')}</div>
+        </div>
+        <div class="staff-row-actions">
+          <button class="icon-btn" data-edit="${s.id}">Edit</button>
+          <button class="icon-btn danger" data-del="${s.id}">Delete</button>
+        </div>
+      `;
+      listEl.appendChild(row);
+    });
+  });
+
+  listEl.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => editEntry(b.dataset.edit)));
+  listEl.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.del)));
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Export / reset
+document.getElementById('export-btn').addEventListener('click', () => {
+  const data = JSON.stringify(getStaff(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'highergrade-staff.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Downloaded JSON');
+});
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About Us — HigherGrade Tutoring</title>
+  <meta name="description" content="Meet the student organizers behind HigherGrade Tutoring's Summer Camp 2025 and see the full schedule." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─────────────────── NAVBAR ─────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo">
+      <img src="logo.png" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About Us</a></li>
+      <li><a href="support.html">Support Us</a></li>
+      <li><a href="student-portal.html" class="nav-signin">Sign In</a></li>
+      <li><a href="register.html" class="nav-cta">Register Now</a></li>
+    </ul>
+    <button class="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ─────────────────── PAGE HERO ─────────────────── -->
+<section class="page-hero">
+  <div class="page-hero-content">
+    <div class="hero-badge" style="margin-bottom:18px;">Our Story</div>
+    <h1>About HigherGrade Tutoring</h1>
+    <p>Built by students, for students. This is math the way we always wished it was taught.</p>
+  </div>
+</section>
+
+<!-- ─────────────────── MISSION ─────────────────── -->
+<section class="section">
+  <div class="container">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;">
+      <!-- Mission photo -->
+      <div style="border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow);">
+        <img
+          src="https://thumbs.dreamstime.com/b/asian-male-teacher-teaching-students-classroom-pointing-numbers-white-board-283046599.jpg"
+          alt="Students learning together at camp"
+          style="width:100%; height:380px; object-fit:cover; display:block;"
+        />
+      </div>
+      <div>
+        <div class="section-label">Our Mission</div>
+        <h2 class="section-title">Math the way it should feel</h2>
+        <p style="color:var(--text-mid); margin-bottom: 20px; font-size:1.02rem;">
+          HigherGrade Tutoring was born from a simple frustration: math in school too often feels like a chore. We knew it didn't have to be that way.
+        </p>
+        <p style="color:var(--muted); margin-bottom: 20px;">
+          A group of Grade 11 and 12 HDSB students decided to do something about it. We designed a summer camp from scratch — the sessions, the problem sets, the exams, the whole experience — because we wanted a math environment that we would actually want to attend when we were in Grade 9.
+        </p>
+        <p style="color:var(--muted);">
+          No adults scripting things. No rigid curriculum. Just curious students exploring fascinating ideas together, led entirely by their peers.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── VALUES ─────────────────── -->
+<section class="section section-alt">
+  <div class="container">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: start;">
+      <div>
+        <div class="section-label">What We Stand For</div>
+        <h2 class="section-title">Our values</h2>
+        <div style="display:flex; flex-direction:column; gap:16px; margin-top:24px;">
+          <div class="value-card reveal">
+            <div class="value-icon">🌱</div>
+            <div>
+              <h3>Student Ownership</h3>
+              <p>From planning to execution, every decision is made by students. This camp is a reflection of what we actually find meaningful in math.</p>
+            </div>
+          </div>
+          <div class="value-card reveal">
+            <div class="value-icon">🤝</div>
+            <div>
+              <h3>Radical Inclusion</h3>
+              <p>Free to attend. Built around the HDSB MTH1W curriculum, but students from any school board are welcome to apply. Strong fundamentals and motivation are the prerequisites.</p>
+            </div>
+          </div>
+          <div class="value-card reveal">
+            <div class="value-icon">🔥</div>
+            <div>
+              <h3>Genuine Passion</h3>
+              <p>We only teach what excites us. Every topic, every problem set, every activity was chosen because someone on our team is genuinely passionate about it.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Values image -->
+      <div style="border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-top: 48px;">
+        <img
+          src="placeholder_about_values_student_presenting_at_board.png"
+          alt="Student presenting their solution at the board"
+          style="width:100%; height:340px; object-fit:cover; display:block;"
+        />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── TEAM ─────────────────── -->
+<section class="section" id="team">
+  <div class="container">
+    <div class="section-head section-head-center">
+      <div class="section-label">The People Behind It</div>
+      <h2 class="section-title">Meet the team</h2>
+      <p class="section-desc">Organizers, teachers, TAs, logistics staff, supervisors, and partners — all the people making HigherGrade Tutoring's Summer Camp possible. Click any profile to see their full bio.</p>
+    </div>
+
+    <!-- Staff categories get rendered into here by staff-data.js -->
+    <div id="team-categories"></div>
+
+    <!-- ── Extended Team Modal ── -->
+    <div class="team-modal" id="team-modal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="team-modal-backdrop"></div>
+      <div class="team-modal-content">
+        <button class="team-modal-close" id="team-modal-close" aria-label="Close">✕</button>
+        <div class="team-modal-avatar"><img id="team-modal-img" src="" alt="" /></div>
+        <div class="team-modal-name" id="team-modal-name"></div>
+        <div class="team-modal-role" id="team-modal-role"></div>
+        <blockquote class="team-modal-quote" id="team-modal-quote"></blockquote>
+
+        <div class="team-modal-details">
+          <div class="td-cell"><div class="td-label">Age</div><div class="td-value" id="team-modal-age"></div></div>
+          <div class="td-cell"><div class="td-label">School</div><div class="td-value" id="team-modal-school"></div></div>
+          <div class="td-cell"><div class="td-label">Gender</div><div class="td-value" id="team-modal-gender"></div></div>
+          <div class="td-cell"><div class="td-label">Pronouns</div><div class="td-value" id="team-modal-pronouns"></div></div>
+        </div>
+
+        <div class="team-modal-section">
+          <h4>Interests</h4>
+          <p id="team-modal-interests"></p>
+        </div>
+        <div class="team-modal-section">
+          <h4>Bio</h4>
+          <p id="team-modal-bio"></p>
+        </div>
+        <div class="team-modal-section" id="team-modal-transcript-section">
+          <h4>Credentials &amp; Transcripts</h4>
+          <p id="team-modal-transcript"></p>
+          <a id="team-modal-transcript-download" class="transcript-download" style="display:none;" download>📄 Download transcript file</a>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─────────────────── SCHEDULE ─────────────────── -->
+<section class="section section-alt" id="schedule">
+  <div class="container">
+    <div class="section-head section-head-center">
+      <div class="section-label">Full Schedule</div>
+      <h2 class="section-title">Day-by-day breakdown</h2>
+      <p class="section-desc">Four periods per day, 8:30 AM – 5:00 PM, covering the full MTH1W curriculum across 10 intensive days.</p>
+    </div>
+    <div class="grid-2" style="gap:24px; align-items:start;">
+      <div class="week-block reveal">
+        <div class="week-header blue-bg">📅 Week 1 — July 20–25 · Units 1–4</div>
+        <div class="week-body">
+          <div class="day-row"><div class="day-label">Mon Jul 20</div><div class="day-content"><strong>Day 1 — Unit 1: Grade 8 Review</strong><span>Introductions &amp; course overview · Rational Numbers · Powers &amp; Roots · Inequalities</span></div></div>
+          <div class="day-row"><div class="day-label">Tue Jul 21</div><div class="day-content"><strong>Day 2 — Unit 2: Algebra</strong><span>Simplifying algebraic expressions · Solving equations (easy &amp; methods) · Relations</span></div></div>
+          <div class="day-row"><div class="day-label">Wed Jul 22</div><div class="day-content"><strong>Day 3 — Unit 3: Data</strong><span>Data Literacy · Statistics · Mathematical Modelling · Catch-up / free period</span></div></div>
+          <div class="day-row"><div class="day-label">Thu Jul 23</div><div class="day-content"><strong>Day 4 — Unit 4: Geometry I</strong><span>Measurement · Pythagorean's Theorem · Applying Pythagorean's Theorem · Shape areas</span></div></div>
+          <div class="day-row"><div class="day-label">Fri Jul 24</div><div class="day-content"><strong>Day 5 — Unit 4: Geometry II</strong><span>Shape areas continued · Geometric properties · Coordinate Geometry · Putting it all together</span></div></div>
+          <div class="day-row"><div class="day-label" style="color:var(--blush);">Weekend</div><div class="day-content"><strong>📝 4 Unit Tests (take-home)</strong><span>Complete and submit unit tests on Units 1–4 before Monday</span></div></div>
+        </div>
+      </div>
+      <div class="week-block reveal">
+        <div class="week-header teal-bg">📅 Week 2 — July 27–31 · Unit 5 + Exam</div>
+        <div class="week-body">
+          <div class="day-row"><div class="day-label">Mon Jul 27</div><div class="day-content"><strong>Day 6 — Unit 5: Linear Relations I</strong><span>Introduction to linear equations · Slope-intercept form · X &amp; Y values · Graphing equations</span></div></div>
+          <div class="day-row"><div class="day-label">Tue Jul 28</div><div class="day-content"><strong>Day 7 — Unit 5: Linear Relations II</strong><span>Forms of linear equations · Solving linear equations · Applications · Perpendicular &amp; parallel lines</span></div></div>
+          <div class="day-row"><div class="day-label">Wed Jul 29</div><div class="day-content"><strong>Day 8 — Linear Relations III + Review</strong><span>Interpreting linear relationships · Linear inequalities · Harder equations · Unit review</span></div></div>
+          <div class="day-row"><div class="day-label">Thu Jul 30</div><div class="day-content"><strong>Day 9 — Final Exam 🎓</strong><span>Review Periods 1 &amp; 2 · Applications EXAM (multiple choice + standard) · Thinking EXAM</span></div></div>
+          <div class="day-row"><div class="day-label" style="color:var(--mint);font-weight:800;">Fri Jul 31</div><div class="day-content"><strong>Day 10 — Flex &amp; Fun 🎉</strong><span>Flex Periods 1 &amp; 2 · Fun Periods 1 &amp; 2 · Informal closing and celebration</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── PRINCIPLES (dark) ─────────────────── -->
+<section class="section section-dark">
+  <div class="container">
+    <div class="section-head section-head-center">
+      <div class="section-label">What We Stand For</div>
+      <h2 class="section-title" style="color:white;">Our principles</h2>
+      <p class="section-desc">Every decision we make comes back to these core ideas.</p>
+    </div>
+    <div class="grid-3" style="gap:20px;">
+      <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);">
+        <div class="card-icon" style="background:rgba(107,191,160,.15);font-size:1.6rem;">🎯</div>
+        <h3 style="color:white;">Focus on Understanding</h3>
+        <p>We care more about truly understanding ideas than memorizing procedures. Every session asks "why" not just "how".</p>
+      </div>
+      <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);">
+        <div class="card-icon" style="background:rgba(107,191,160,.15);font-size:1.6rem;">🌍</div>
+        <h3 style="color:white;">HDSB + Beyond</h3>
+        <p>Free registration, no application process. Built around the HDSB MTH1W curriculum — HDSB students are our primary audience, but any strong Grade 9 math student is welcome.</p>
+      </div>
+      <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);">
+        <div class="card-icon" style="background:rgba(107,191,160,.15);font-size:1.6rem;">💪</div>
+        <h3 style="color:white;">Peer Empowerment</h3>
+        <p>Learning from someone your own age hits differently. We believe students can — and should — lead each other.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── CTA ─────────────────── -->
+<section class="section" style="text-align:center;">
+  <div class="container-sm">
+    <div class="section-label">Join Us</div>
+    <h2 class="section-title">Be part of something different</h2>
+    <p class="section-desc" style="margin: 0 auto 32px;">Whether you're registering as a camper or looking to sponsor the program — we'd love to have you.</p>
+    <div class="flex gap-12 items-center flex-wrap" style="justify-content:center;">
+      <a href="register.html" class="btn btn-blue">Register as a Camper</a>
+      <a href="support.html"  class="btn btn-ghost">Support the Camp</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FOOTER ─────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <p>A student-led math summer camp for Grade 9 students. July 20–31, 2025.</p>
+        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+      </div>
+      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
+      <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="#schedule">Schedule</a></li><li><a href="#team">Our Team</a></li><li><a href="index.html#faq">FAQ</a></li></ul></div>
+      <div class="footer-col"><h4>Contact</h4><ul><li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li><li><a href="support.html">Become a Sponsor</a></li></ul></div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 HigherGrade Tutoring — All rights reserved.</span>
+      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+    </div>
+  </div>
+</footer>
+
+<script src="staff-data.js"></script>
+<script src="students-data.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

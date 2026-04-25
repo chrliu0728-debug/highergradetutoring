@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Portal — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .portal-shell { max-width: 980px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    /* ── Login ── */
+    /* A positioned stage holds both the visible student login-card and the
+       hidden staff sign-in card stacked underneath it. */
+    .login-stage {
+      position: relative;
+      max-width: 420px;
+      margin: 80px auto;
+      min-height: 560px;
+    }
+    .login-card {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 44px 36px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.12);
+      text-align: center;
+      z-index: 2;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    /* Deliberately no visual change when draggable — students shouldn't
+       get any hint that the card has become movable. */
+    .login-card.draggable { touch-action: none; }
+    .login-card.dragging { z-index: 20; }
+
+    /* Hidden staff sign-in sits in the same spot, behind the login card */
+    .staff-hidden {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      color: white;
+      border-radius: 18px;
+      padding: 52px 36px 44px;
+      text-align: center;
+      z-index: 1;
+      box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    }
+    .staff-hidden .staff-ic {
+      font-size: 2.4rem;
+      margin-bottom: 10px;
+    }
+    .staff-hidden h2 {
+      color: white;
+      font-size: 1.5rem;
+      margin-bottom: 6px;
+      letter-spacing: -.02em;
+    }
+    .staff-hidden p {
+      color: rgba(255,255,255,.75);
+      font-size: .92rem;
+      margin-bottom: 20px;
+      line-height: 1.55;
+    }
+    .staff-hidden .staff-go {
+      display: inline-block;
+      padding: 12px 28px;
+      background: var(--blush);
+      color: white;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: .95rem;
+      box-shadow: 0 10px 28px rgba(232,128,138,.4);
+      transition: background .15s, transform .12s;
+    }
+    .staff-hidden .staff-go:hover { background: var(--blush-dark); transform: translateY(-1px); }
+    .login-card .logo-bubble {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      margin: 0 auto 16px;
+      background: linear-gradient(135deg, var(--blush), var(--mint));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem;
+      box-shadow: 0 8px 24px rgba(232, 128, 138, 0.3);
+    }
+    .login-card h1 { font-size: 1.5rem; margin-bottom: 6px; letter-spacing: -.02em; }
+    .login-card p.sub { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+    .login-card label {
+      display: block; text-align: left;
+      font-size: .78rem; font-weight: 700; color: var(--text-mid);
+      margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .login-card input {
+      width: 100%; padding: 12px 14px; font-size: .98rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none;
+      margin-bottom: 14px; font-family: inherit; transition: border-color .15s;
+    }
+    .login-card input:focus { border-color: var(--blush); }
+    .login-error { color: #c0392b; font-size: .85rem; min-height: 1.2em; margin-bottom: 10px; }
+    .login-footer { margin-top: 18px; font-size: .82rem; color: var(--muted); }
+    .login-footer a { color: var(--blush); }
+
+    /* ── Dashboard header ── */
+    .dash-header {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 12px;
+      background: linear-gradient(135deg, var(--blush), var(--blush-dark));
+      color: white; border-radius: 16px;
+      padding: 24px 28px; margin-bottom: 22px;
+      box-shadow: 0 14px 40px rgba(232, 128, 138, 0.3);
+    }
+    .dash-header h1 { font-size: 1.4rem; color: white; letter-spacing: -.02em; margin-bottom: 2px; }
+    .dash-header .sub { font-size: .88rem; opacity: .9; }
+    .dash-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .dash-header-actions .btn {
+      background: rgba(255,255,255,.2); color: white; border: 1px solid rgba(255,255,255,.3);
+      font-size: .85rem; padding: 9px 16px;
+    }
+    .dash-header-actions .btn:hover { background: rgba(255,255,255,.3); }
+
+    /* ── Big summary tiles (Points / Luck) ── */
+    .summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+    .summary-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 26px;
+      display: grid; grid-template-columns: auto 1fr; gap: 18px;
+      align-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .summary-tile.points { border-left: 5px solid var(--blush); }
+    .summary-tile.luck   { border-left: 5px solid var(--mint); }
+    .summary-icon {
+      font-size: 2.2rem;
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .summary-tile.points .summary-icon { background: var(--blush-bg); }
+    .summary-tile.luck   .summary-icon { background: var(--mint-bg); }
+    .summary-label {
+      font-size: .72rem; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .08em;
+      margin-bottom: 2px;
+    }
+    .summary-value {
+      font-size: 2.2rem; font-weight: 900; letter-spacing: -.03em;
+      color: var(--text); line-height: 1;
+    }
+    .summary-sub {
+      font-size: .76rem; color: var(--muted); margin-top: 2px;
+    }
+
+    /* ── My class (read-only) ── */
+    .class-panel {
+      background: linear-gradient(135deg, var(--mint-bg), var(--blush-bg));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 26px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .class-panel-empty {
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: .9rem;
+      text-align: center;
+      font-style: italic;
+    }
+    .class-panel-head {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .class-panel-head .label {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em;
+    }
+    .class-panel-head .name { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+    .class-panel-tag {
+      font-size: .72rem; padding: 4px 12px;
+      background: rgba(255,255,255,.7);
+      border-radius: 999px;
+      color: var(--muted); font-weight: 600;
+    }
+    .class-panel-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .class-panel-stat {
+      background: rgba(255,255,255,.7);
+      border-radius: 10px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .class-panel-stat .stat-label {
+      font-size: .68rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+    .class-panel-stat .stat-num {
+      font-size: 1.5rem; font-weight: 900; letter-spacing: -.02em; color: var(--text);
+    }
+    .class-panel-note {
+      font-size: .78rem; color: var(--muted);
+      margin-top: 10px;
+      text-align: center;
+      font-style: italic;
+    }
+    @media (max-width: 540px) {
+      .class-panel-stats { grid-template-columns: 1fr; }
+    }
+
+    /* ── Your Roles (read-only) ── */
+    .roles-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 26px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .roles-panel-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+    }
+    .roles-panel-head .label {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em;
+    }
+    .roles-panel-head .name { font-size: 1.2rem; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+    .roles-panel-head .private-tag {
+      font-size: .7rem; padding: 4px 10px;
+      background: var(--navy); color: white;
+      border-radius: 999px; font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .roles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+    }
+    .role-card {
+      position: relative;
+      padding: 16px 14px;
+      border-radius: 12px;
+      text-align: center;
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
+    .role-card .role-icon {
+      font-size: 2.2rem; line-height: 1; margin-bottom: 8px;
+      display: block;
+      filter: drop-shadow(0 3px 8px rgba(0,0,0,.18));
+    }
+    .role-card .role-name {
+      font-size: .98rem; letter-spacing: -.01em;
+      margin-bottom: 4px;
+    }
+    .role-card .role-desc {
+      font-size: .74rem; font-weight: 500;
+      opacity: .88; line-height: 1.4;
+    }
+
+    /* MazeWiz role gets the purple signature styling */
+    .role-card.mazewiz {
+      background: linear-gradient(135deg, #5B21B6, #8B5CF6 70%, #C084FC);
+      box-shadow: 0 12px 32px rgba(139, 92, 246, .4);
+    }
+    .role-card.mazewiz::before {
+      content: '✨';
+      position: absolute; top: 8px; right: 10px; font-size: 1rem;
+      opacity: .7;
+    }
+
+    /* Empty slot shown to classmates of the MazeWiz winner */
+    .role-empty {
+      padding: 16px 14px;
+      border-radius: 12px;
+      text-align: center;
+      border: 2px dashed var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+      font-size: .82rem;
+      line-height: 1.4;
+      text-decoration: none;
+    }
+    .role-empty:hover {
+      border-color: var(--blush);
+      color: var(--blush);
+      background: var(--blush-bg);
+      transform: translateY(-2px);
+    }
+    .role-empty .empty-ic {
+      font-size: 2rem; display: block; margin-bottom: 6px;
+      filter: grayscale(1); opacity: .5;
+    }
+
+    /* ── Action cards ── */
+    .actions-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px; margin-bottom: 22px;
+    }
+    .action-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex; flex-direction: column;
+    }
+    .action-card .ac-head { margin-bottom: 14px; }
+    .action-card h3 { font-size: 1.08rem; font-weight: 800; margin-bottom: 4px; letter-spacing: -.01em; }
+    .action-card .ac-sub { font-size: .84rem; color: var(--muted); line-height: 1.5; }
+
+    /* Invest in luck */
+    .luck-progress-bar {
+      height: 12px;
+      background: var(--surface2);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 14px 0 8px;
+    }
+    .luck-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--mint), var(--mint-dark));
+      transition: width .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .luck-progress-label {
+      font-size: .82rem; color: var(--text-mid);
+      margin-bottom: 12px;
+    }
+
+    /* Transfer */
+    .xfer-form { display: flex; flex-direction: column; gap: 10px; }
+    .xfer-form label {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .xfer-form select, .xfer-form input {
+      padding: 10px 12px; font-size: .95rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none;
+      font-family: inherit;
+    }
+    .xfer-form select:focus, .xfer-form input:focus { border-color: var(--blush); }
+    .xfer-preview {
+      background: var(--blush-bg);
+      border: 1px dashed var(--blush);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: .84rem;
+      color: var(--blush-dark);
+      line-height: 1.5;
+    }
+
+    /* Clicker */
+    .clicker-wrap { text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+    .clicker-btn {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, var(--blush-light), var(--blush) 60%, var(--blush-dark));
+      border: none;
+      color: white;
+      font-size: 1.3rem; font-weight: 800;
+      cursor: pointer;
+      margin: 16px auto;
+      box-shadow: 0 14px 40px rgba(232, 128, 138, 0.45), inset 0 -6px 14px rgba(0,0,0,.18);
+      transition: transform .06s ease-out, box-shadow .1s;
+      user-select: none;
+    }
+    .clicker-btn:active {
+      transform: scale(0.92);
+      box-shadow: 0 6px 20px rgba(232, 128, 138, 0.35), inset 0 -2px 8px rgba(0,0,0,.2);
+    }
+    .clicker-btn[disabled] { opacity: .55; cursor: wait; }
+    .clicker-stats {
+      font-size: .85rem; color: var(--text-mid);
+    }
+    .clicker-progress-bar {
+      height: 8px; background: var(--surface2);
+      border-radius: 999px; overflow: hidden;
+      margin: 6px 0 12px;
+    }
+    .clicker-progress-fill {
+      height: 100%; background: var(--blush);
+      transition: width .1s linear;
+    }
+
+    /* Error / action feedback banners */
+    .action-error {
+      background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B;
+      padding: 10px 14px; border-radius: 10px;
+      font-size: .86rem; line-height: 1.5;
+      margin-top: 12px;
+      display: none;
+    }
+    .action-error.show { display: block; }
+    .action-success {
+      background: var(--mint-bg); border: 1px solid var(--mint);
+      color: var(--mint-dark); padding: 10px 14px; border-radius: 10px;
+      font-size: .86rem; line-height: 1.5; margin-top: 12px;
+      display: none;
+    }
+    .action-success.show { display: block; }
+
+    /* Action button */
+    .action-card .action-btn {
+      margin-top: auto;
+      padding: 12px 18px;
+      background: var(--blush);
+      color: white; border: none; border-radius: 10px;
+      font-weight: 700; font-size: .95rem; cursor: pointer;
+      transition: background .15s, transform .12s;
+      box-shadow: 0 6px 18px rgba(232,128,138,.35);
+    }
+    .action-card .action-btn:hover { background: var(--blush-dark); transform: translateY(-1px); }
+    .action-card .action-btn[disabled] { background: #D6D6D6; color: #868E96; box-shadow: none; cursor: not-allowed; transform: none; }
+
+    /* ── Spider overlay ── */
+    .spider-overlay {
+      position: fixed; inset: 0;
+      background: radial-gradient(circle at center, rgba(0,0,0,.65), rgba(0,0,0,.9));
+      z-index: 9999;
+      display: none;
+      align-items: center; justify-content: center;
+      animation: spider-shake .4s;
+    }
+    .spider-overlay.show { display: flex; }
+    .spider-overlay .spider {
+      font-size: min(70vw, 70vh);
+      line-height: 1;
+      animation: spider-drop .6s cubic-bezier(.36, 1.6, .55, 1);
+      filter: drop-shadow(0 20px 60px rgba(0,0,0,.6));
+    }
+    .spider-overlay .spider-msg {
+      position: absolute; bottom: 12%;
+      color: white; font-size: 1.1rem; font-weight: 700;
+      text-shadow: 0 2px 8px rgba(0,0,0,.6);
+      text-align: center;
+    }
+    .spider-overlay .spider-msg small {
+      display: block; margin-top: 6px;
+      font-weight: 400; opacity: .7; font-size: .85rem;
+    }
+    @keyframes spider-drop {
+      0%   { transform: translateY(-120vh) rotate(-20deg); opacity: 0; }
+      70%  { transform: translateY(20px) rotate(6deg); opacity: 1; }
+      100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    }
+    @keyframes spider-shake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-8px, 4px); }
+      20% { transform: translate(8px, -4px); }
+      30% { transform: translate(-6px, -3px); }
+      40% { transform: translate(6px, 3px); }
+      50% { transform: translate(-4px, 2px); }
+      60% { transform: translate(4px, -2px); }
+      70% { transform: translate(-3px, -1px); }
+      80% { transform: translate(3px, 1px); }
+      90% { transform: translate(-1px, 1px); }
+    }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy); color: white;
+      padding: 12px 22px; border-radius: 10px;
+      font-size: .88rem; box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 500;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+    @media (max-width: 640px) {
+      .summary-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────── Login ─────────── -->
+<div id="login-screen">
+  <div class="login-stage">
+
+    <!-- Hidden staff sign-in — sits behind the student login card,
+         revealed once the student card is dragged out of the way. -->
+    <div class="staff-hidden" id="staff-hidden">
+      <div class="staff-ic">🔐</div>
+      <h2>Staff Sign In</h2>
+      <p>Camp instructor? You've found the secret door.<br>Continue to the admin passcode gate.</p>
+      <a href="admin.html" class="staff-go">Enter passcode →</a>
+    </div>
+
+    <!-- Student login card (silently draggable after 9 clicks on Sign in) -->
+    <div class="login-card" id="login-card">
+      <div class="logo-bubble">🎓</div>
+      <h1>Student Portal</h1>
+      <p class="sub">Sign in with your camp email and password.</p>
+
+      <label>Student Email</label>
+      <input type="email" id="login-email" placeholder="you@school.ca" autocomplete="off" />
+
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="Your camp password" autocomplete="off" />
+
+      <div class="login-error" id="login-error"></div>
+
+      <button class="btn btn-blue btn-full" id="login-btn" style="justify-content:center;">Sign in →</button>
+
+      <p class="login-footer">
+        Don't have an account yet?
+        <a href="register.html">Register for camp</a>
+      </p>
+      <p class="login-footer" style="margin-top:6px;">
+        <a href="index.html" style="color:var(--muted);">← Back to site</a>
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ─────────── Dashboard ─────────── -->
+<div id="dash-screen" class="portal-shell" style="display:none;">
+
+  <div class="dash-header">
+    <div>
+      <h1 id="greeting">Welcome!</h1>
+      <div class="sub" id="dash-sub"></div>
+    </div>
+    <div class="dash-header-actions">
+      <a class="btn" href="index.html">← Home</a>
+      <a class="btn" href="leaderboard.html?from=portal">🏆 Leaderboard</a>
+      <button class="btn" id="logout-btn">Log out</button>
+    </div>
+  </div>
+
+  <!-- Summary (Points + Luck) -->
+  <div class="summary-row">
+    <div class="summary-tile points">
+      <div class="summary-icon">💰</div>
+      <div>
+        <div class="summary-label">Your Current Points</div>
+        <div class="summary-value" id="points-val">0</div>
+        <div class="summary-sub">Earned from your camp instructors. Spend them below.</div>
+      </div>
+    </div>
+    <div class="summary-tile luck">
+      <div class="summary-icon">🍀</div>
+      <div>
+        <div class="summary-label">Luck Stat</div>
+        <div class="summary-value" id="luck-val">0</div>
+        <div class="summary-sub">Invest 800 pts to gain +1 luck.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Class (read-only) -->
+  <div class="class-panel" id="class-panel">
+    <!-- Filled by JS -->
+  </div>
+
+  <!-- My Roles (read-only, only you + admin can see these) -->
+  <div class="roles-panel" id="roles-panel" style="display:none;">
+    <!-- Filled by JS -->
+  </div>
+
+  <!-- Action cards -->
+  <div class="actions-grid">
+
+    <!-- ── Invest in luck ── -->
+    <div class="action-card">
+      <div class="ac-head">
+        <h3>🍀 Invest in Luck</h3>
+        <p class="ac-sub">Spend <strong>800 points</strong> to permanently raise your luck by <strong>+1</strong>.</p>
+      </div>
+      <div class="luck-progress-label"><span id="luck-progress-text">0 / 800 points saved</span></div>
+      <div class="luck-progress-bar"><div class="luck-progress-fill" id="luck-progress-fill" style="width:0%"></div></div>
+      <div class="action-error" id="luck-error"></div>
+      <div class="action-success" id="luck-success"></div>
+      <button class="action-btn" id="luck-btn">Invest 800 pts → +1 luck</button>
+    </div>
+
+    <!-- ── Transfer ── -->
+    <div class="action-card">
+      <div class="ac-head">
+        <h3>🔄 Transfer Points</h3>
+        <p class="ac-sub">Send points to a classmate. <strong>50% is lost in the transfer</strong> — choose wisely.</p>
+      </div>
+      <div class="xfer-form">
+        <div>
+          <label for="xfer-to">Recipient</label>
+          <select id="xfer-to"></select>
+        </div>
+        <div>
+          <label for="xfer-amt">Amount to send</label>
+          <input type="number" id="xfer-amt" min="1" placeholder="e.g. 100" />
+        </div>
+        <div class="xfer-preview" id="xfer-preview">
+          Recipient will receive <strong>0 pts</strong> · <strong>0 pts</strong> lost in transfer.
+        </div>
+      </div>
+      <div class="action-error" id="xfer-error"></div>
+      <div class="action-success" id="xfer-success"></div>
+      <button class="action-btn" id="xfer-btn" style="margin-top:12px;">Confirm transfer</button>
+    </div>
+
+    <!-- ── Clicker ── -->
+    <div class="action-card">
+      <div class="ac-head">
+        <h3>🖱 Click for Points</h3>
+        <p class="ac-sub">Every <strong>100 clicks</strong> earns you <strong>1 point</strong>. There's a short cooldown between clicks.</p>
+      </div>
+      <div class="clicker-wrap">
+        <button class="clicker-btn" id="clicker-btn">CLICK!</button>
+        <div class="clicker-stats">
+          <div><strong id="clicker-progress-text">0 / 100</strong> clicks to next point</div>
+          <div class="clicker-progress-bar"><div class="clicker-progress-fill" id="clicker-progress-fill" style="width:0%"></div></div>
+          <div style="opacity:.8;">Lifetime clicker clicks: <strong id="clicker-total-clicks">0</strong> · Earned: <strong id="clicker-total-earned">0</strong> pts</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Note about point awards -->
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; font-size: .88rem; color: var(--text-mid); line-height: 1.6;">
+    <strong>ℹ️ Heads up:</strong> You can't give yourself points directly — camp instructors award points based on class participation, perfect scores, and other in-person activities. Ask your instructor if you're wondering how to earn more!
+  </div>
+</div>
+
+<!-- Spider overlay (triggered once at 20 clicker pts earned) -->
+<div class="spider-overlay" id="spider-overlay">
+  <div class="spider">🕷</div>
+  <div class="spider-msg">
+    🕸 Congratulations, you've unlocked the spider! 🕸
+    <small>Click anywhere to dismiss…</small>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="students-data.js"></script>
+<script>
+// Visiting this public page ends any active admin session.
+sessionStorage.removeItem('highergrade_admin_unlocked');
+
+(function () {
+  const loginScreen  = document.getElementById('login-screen');
+  const dashScreen   = document.getElementById('dash-screen');
+  const loginError   = document.getElementById('login-error');
+  const loginEmail   = document.getElementById('login-email');
+  const loginPwd     = document.getElementById('login-password');
+  const loginBtn     = document.getElementById('login-btn');
+  const greetingEl   = document.getElementById('greeting');
+  const dashSubEl    = document.getElementById('dash-sub');
+  const pointsValEl  = document.getElementById('points-val');
+  const luckValEl    = document.getElementById('luck-val');
+  const logoutBtn    = document.getElementById('logout-btn');
+  const toast        = document.getElementById('toast');
+  const spider       = document.getElementById('spider-overlay');
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1500);
+  }
+
+  function flashBanner(el, text) {
+    if (!text) { el.classList.remove('show'); return; }
+    el.textContent = text;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 5500);
+  }
+
+  /* ─── Login ─── */
+  function tryLogin() {
+    loginError.textContent = '';
+    const email = loginEmail.value;
+    const pwd = loginPwd.value;
+    if (!email || !pwd) { loginError.textContent = 'Please enter your email and password.'; return; }
+    const student = findStudentByLogin(email, pwd);
+    if (!student) {
+      loginError.textContent = "Couldn't find a matching account. Check your email and password.";
+      return;
+    }
+    setLoggedInStudent(student.id);
+    renderDashboard();
+  }
+  loginBtn.addEventListener('click', tryLogin);
+  loginPwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+  /* ─── Hidden staff sign-in: click the Sign-in button EXACTLY 9 times,
+         then drag the student login card out of the way.
+         Click 10+ re-locks the drag. Counter persists via sessionStorage
+         and only resets when the user visits the home page.
+         Silent — no visual hint at any point. ─── */
+  (function () {
+    const CLICKS_NEEDED = 9;
+    const STORE_KEY = 'highergrade_signin_clicks';
+    const card = document.getElementById('login-card');
+    if (!card) return;
+
+    let clicks = parseInt(sessionStorage.getItem(STORE_KEY) || '0', 10);
+    if (!Number.isFinite(clicks) || clicks < 0) clicks = 0;
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let offsetX = 0, offsetY = 0;
+
+    function applyLockState() {
+      if (clicks === CLICKS_NEEDED) {
+        card.classList.add('draggable');
+      } else {
+        card.classList.remove('draggable');
+        // Reset position whenever outside the unlock window so it snaps
+        // back to center (removes any drag progress from a previous try).
+        offsetX = 0;
+        offsetY = 0;
+        card.style.transform = '';
+      }
+    }
+    applyLockState();
+
+    loginBtn.addEventListener('click', () => {
+      clicks++;
+      sessionStorage.setItem(STORE_KEY, String(clicks));
+      applyLockState();
+    });
+
+    function getPoint(e) {
+      if (e.touches && e.touches[0]) return e.touches[0];
+      if (e.changedTouches && e.changedTouches[0]) return e.changedTouches[0];
+      return e;
+    }
+
+    function shouldStartDrag(e) {
+      if (clicks !== CLICKS_NEEDED) return false;
+      // Let the user still interact with inputs, buttons, links, etc.
+      const target = e.target;
+      if (target.closest('input, button, a, textarea, select, label')) return false;
+      return true;
+    }
+
+    function onStart(e) {
+      if (!shouldStartDrag(e)) return;
+      isDragging = true;
+      card.classList.add('dragging');
+      const pt = getPoint(e);
+      startX = pt.clientX;
+      startY = pt.clientY;
+      e.preventDefault();
+    }
+
+    function onMove(e) {
+      if (!isDragging) return;
+      const pt = getPoint(e);
+      const dx = pt.clientX - startX;
+      const dy = pt.clientY - startY;
+      card.style.transform = `translate(${offsetX + dx}px, ${offsetY + dy}px)`;
+      e.preventDefault();
+    }
+
+    function onEnd(e) {
+      if (!isDragging) return;
+      const pt = getPoint(e);
+      offsetX += pt.clientX - startX;
+      offsetY += pt.clientY - startY;
+      isDragging = false;
+      card.classList.remove('dragging');
+    }
+
+    card.addEventListener('mousedown',  onStart);
+    card.addEventListener('touchstart', onStart, { passive: false });
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('mouseup',   onEnd);
+    window.addEventListener('touchend',  onEnd);
+  })();
+  loginEmail.addEventListener('keydown', e => { if (e.key === 'Enter') loginPwd.focus(); });
+
+  logoutBtn.addEventListener('click', () => {
+    setLoggedInStudent(null);
+    loginEmail.value = ''; loginPwd.value = ''; loginError.textContent = '';
+    dashScreen.style.display = 'none';
+    loginScreen.style.display = '';
+  });
+
+  /* ─── Dashboard rendering ─── */
+  function currentStudent() {
+    return getLoggedInStudent();
+  }
+
+  function renderDashboard() {
+    const s = currentStudent();
+    if (!s) {
+      setLoggedInStudent(null);
+      loginScreen.style.display = '';
+      dashScreen.style.display = 'none';
+      return;
+    }
+    loginScreen.style.display = 'none';
+    dashScreen.style.display = '';
+
+    greetingEl.textContent = `Welcome, ${studentFullName(s)}!`;
+    dashSubEl.textContent = [
+      s.className ? 'Class ' + s.className : 'Class not assigned yet',
+      s.school,
+    ].filter(Boolean).join(' · ');
+
+    const stats = s.stats || defaultStats();
+    pointsValEl.textContent = (stats.privatePoints || 0).toLocaleString();
+    luckValEl.textContent   = (stats.luck || 0).toLocaleString();
+
+    renderClassPanel(s);
+    renderRolesPanel(s);
+    renderLuckCard(s);
+    renderTransferCard(s);
+    renderClickerCard(s);
+  }
+
+  /* ─── My Roles (read-only) ─── */
+  function renderRolesPanel(s) {
+    const panel = document.getElementById('roles-panel');
+    if (!panel) return;
+
+    const allRoles = getRoles();
+    const byId = Object.fromEntries(allRoles.map(r => [r.id, r]));
+    const studentRoles = (Array.isArray(s.roles) ? s.roles : [])
+      .map(id => byId[id]).filter(Boolean);
+
+    // Check if this student's class has a MazeWiz winner that is NOT this student
+    let showEmptyMazeWizSlot = false;
+    if (s.classId) {
+      const winner = getMazeWizWinnerForClass(s.classId);
+      if (winner && winner.id !== s.id) showEmptyMazeWizSlot = true;
+    }
+
+    // Hide the panel entirely if there are no roles AND no empty slot to show
+    if (studentRoles.length === 0 && !showEmptyMazeWizSlot) {
+      panel.style.display = 'none';
+      return;
+    }
+
+    panel.style.display = '';
+    const cards = studentRoles.map(r => {
+      const special = r.id === MAZEWIZ_ROLE_ID ? 'mazewiz' : '';
+      const customBg = (!special && r.color) ? `style="background: linear-gradient(135deg, ${r.color}, ${r.color});"` : '';
+      return `
+        <div class="role-card ${special}" ${customBg}>
+          <span class="role-icon">${r.icon || '🏅'}</span>
+          <div class="role-name">${esc(r.name)}</div>
+          <div class="role-desc">${esc(r.description || '')}</div>
+        </div>
+      `;
+    }).join('');
+
+    const emptySlot = showEmptyMazeWizSlot ? `
+      <a class="role-empty" href="index.html" title="Someone in your class already claimed Maze Wizard — back to home">
+        <span class="empty-ic">🧙</span>
+        (empty)
+      </a>
+    ` : '';
+
+    panel.innerHTML = `
+      <div class="roles-panel-head">
+        <div>
+          <div class="label">Your Roles</div>
+          <div class="name">🏅 Titles &amp; honours</div>
+        </div>
+        <span class="private-tag">🔒 Only you &amp; admin can see this</span>
+      </div>
+      <div class="roles-grid">
+        ${cards}${emptySlot}
+      </div>
+    `;
+  }
+
+  /* ─── My Class (read-only) ─── */
+  function renderClassPanel(s) {
+    const panel = document.getElementById('class-panel');
+    if (!panel) return;
+    if (!s.classId) {
+      panel.className = 'class-panel class-panel-empty';
+      panel.innerHTML = '👥 You haven\'t been assigned to a class yet — ask your camp instructor!';
+      return;
+    }
+    // refresh bank growth so the student sees the current value
+    if (typeof getClassesWithBankRefresh === 'function') getClassesWithBankRefresh();
+    const cls = getClassById(s.classId);
+    if (!cls) {
+      panel.className = 'class-panel class-panel-empty';
+      panel.innerHTML = '👥 Your previous class no longer exists. Ask your instructor for a new one.';
+      return;
+    }
+    const memberCount = findClassMembers(cls.id).length;
+    const bankDisplay = (cls.classBank || 0) % 1 < 0.005
+      ? Math.round(cls.classBank || 0).toLocaleString()
+      : (cls.classBank || 0).toFixed(2);
+    panel.className = 'class-panel';
+    panel.innerHTML = `
+      <div class="class-panel-head">
+        <div>
+          <div class="label">Your Class</div>
+          <div class="name">🏫 ${esc(cls.name)}</div>
+        </div>
+        <span class="class-panel-tag">View only — your instructor controls these</span>
+      </div>
+      <div class="class-panel-stats">
+        <div class="class-panel-stat">
+          <div class="stat-label">👥 Classmates</div>
+          <div class="stat-num">${memberCount}</div>
+        </div>
+        <div class="class-panel-stat">
+          <div class="stat-label">🌟 Class Points</div>
+          <div class="stat-num">${(cls.classPoints || 0).toLocaleString()}</div>
+        </div>
+        <div class="class-panel-stat">
+          <div class="stat-label">🏦 Investment Bank</div>
+          <div class="stat-num">${bankDisplay}</div>
+        </div>
+      </div>
+      <div class="class-panel-note">Class points must be claimed (gives each member ${CLASS_POINT_TO_INDIVIDUAL} individual pts) or banked (grows ${(CLASS_BANK_DAILY_RATE * 100).toFixed(0)}% per day). Your instructor decides.</div>
+    `;
+  }
+
+  /* ─── Luck card ─── */
+  const luckBtn         = document.getElementById('luck-btn');
+  const luckProgressFill= document.getElementById('luck-progress-fill');
+  const luckProgressText= document.getElementById('luck-progress-text');
+  const luckError       = document.getElementById('luck-error');
+  const luckSuccess     = document.getElementById('luck-success');
+
+  function renderLuckCard(s) {
+    const pts = (s.stats && s.stats.privatePoints) || 0;
+    const pct = Math.min(100, (pts / LUCK_COST) * 100);
+    luckProgressFill.style.width = pct + '%';
+    luckProgressText.textContent = `${pts.toLocaleString()} / ${LUCK_COST} points saved`;
+    luckBtn.disabled = pts < LUCK_COST;
+  }
+
+  luckBtn.addEventListener('click', () => {
+    const s = currentStudent(); if (!s) return;
+    const res = investInLuck(s.id);
+    if (!res.ok) { flashBanner(luckError, res.error); luckSuccess.classList.remove('show'); return; }
+    luckError.classList.remove('show');
+    flashBanner(luckSuccess, `🍀 Luck is now ${res.data.newLuck}! ${res.data.remaining.toLocaleString()} pts remaining.`);
+    renderDashboard();
+  });
+
+  /* ─── Transfer card ─── */
+  const xferTo      = document.getElementById('xfer-to');
+  const xferAmt     = document.getElementById('xfer-amt');
+  const xferBtn     = document.getElementById('xfer-btn');
+  const xferPreview = document.getElementById('xfer-preview');
+  const xferError   = document.getElementById('xfer-error');
+  const xferSuccess = document.getElementById('xfer-success');
+
+  function renderTransferCard(s) {
+    const others = getStudents().filter(x => x.id !== s.id);
+    xferTo.innerHTML = '<option value="">Choose a classmate…</option>' +
+      others.map(o => `<option value="${esc(o.id)}">${esc(studentFullName(o))}${o.className ? ' (' + esc(o.className) + ')' : ''}</option>`).join('');
+    updatePreview();
+  }
+  function updatePreview() {
+    const amt = parseInt(xferAmt.value, 10) || 0;
+    const received = Math.floor(amt * TRANSFER_KEEP_RATIO);
+    const lost = amt - received;
+    xferPreview.innerHTML = `Recipient will receive <strong>${received.toLocaleString()} pts</strong> · <strong>${lost.toLocaleString()} pts</strong> lost in transfer.`;
+  }
+  xferAmt.addEventListener('input', updatePreview);
+
+  xferBtn.addEventListener('click', () => {
+    const s = currentStudent(); if (!s) return;
+    const toId = xferTo.value;
+    const amt = parseInt(xferAmt.value, 10);
+    if (!toId) { flashBanner(xferError, 'Pick a classmate to send points to.'); return; }
+    const res = transferPoints(s.id, toId, amt);
+    if (!res.ok) { flashBanner(xferError, res.error); xferSuccess.classList.remove('show'); return; }
+    xferError.classList.remove('show');
+    const toStudent = getStudents().find(x => x.id === toId);
+    flashBanner(xferSuccess, `✅ Sent ${res.data.sent} pts. ${studentFullName(toStudent)} received ${res.data.received} pts (${res.data.lost} lost).`);
+    xferAmt.value = '';
+    updatePreview();
+    renderDashboard();
+  });
+
+  /* ─── Clicker card ─── */
+  const clickerBtn        = document.getElementById('clicker-btn');
+  const clickerProgressFill = document.getElementById('clicker-progress-fill');
+  const clickerProgressText = document.getElementById('clicker-progress-text');
+  const clickerTotalClicks  = document.getElementById('clicker-total-clicks');
+  const clickerTotalEarned  = document.getElementById('clicker-total-earned');
+
+  let lastClickAt = 0;
+  let clickerCooldownTimer = null;
+
+  function renderClickerCard(s) {
+    const stats = s.stats || defaultStats();
+    const clicks = stats.clickerClicks || 0;
+    const inCycle = clicks % CLICKER_RATE;
+    const pct = (inCycle / CLICKER_RATE) * 100;
+    clickerProgressFill.style.width = pct + '%';
+    clickerProgressText.textContent = `${inCycle} / ${CLICKER_RATE}`;
+    clickerTotalClicks.textContent  = clicks.toLocaleString();
+    clickerTotalEarned.textContent  = (stats.clickerPointsEarned || 0).toLocaleString();
+  }
+
+  clickerBtn.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastClickAt < CLICKER_COOLDOWN_MS) return;
+    lastClickAt = now;
+    clickerBtn.disabled = true;
+    if (clickerCooldownTimer) clearTimeout(clickerCooldownTimer);
+    clickerCooldownTimer = setTimeout(() => { clickerBtn.disabled = false; }, CLICKER_COOLDOWN_MS);
+
+    const s = currentStudent(); if (!s) return;
+    const res = clickerTap(s.id);
+    if (!res.ok) return;
+    if (res.data.earned > 0) {
+      showToast(`+${res.data.earned} pt earned from clicker!`);
+    }
+    if (res.data.spider) {
+      triggerSpider();
+    }
+    renderDashboard();
+  });
+
+  /* ─── Spider ─── */
+  function triggerSpider() {
+    spider.classList.add('show');
+  }
+  spider.addEventListener('click', () => spider.classList.remove('show'));
+
+  /* ─── Init ─── */
+  if (currentStudent()) renderDashboard();
+})();
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>

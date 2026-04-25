@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    /* ── Passcode gate (same as admin.html) ── */
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1200px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 18px;
+      align-items: center;
+      padding: 22px 26px;
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon {
+      font-size: 2.4rem;
+      width: 62px; height: 62px;
+      border-radius: 16px;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    }
+    .admin-welcome h1 { font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .9rem; color: var(--text-mid); line-height: 1.5; }
+
+    .admin-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      flex-wrap: wrap; gap: 16px;
+      padding: 22px 26px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-header h2 { font-size: 1.15rem; letter-spacing: -.02em; margin-bottom: 4px; }
+    .admin-subtitle { font-size: .88rem; color: var(--muted); line-height: 1.5; max-width: 540px; }
+    .admin-header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+
+    .btn-tidy {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px;
+      font-size: .88rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-tidy:hover {
+      border-color: var(--blush);
+      color: var(--blush);
+      background: var(--blush-bg);
+    }
+    .btn-tidy.primary {
+      background: var(--blush);
+      color: white;
+      border-color: var(--blush);
+    }
+    .btn-tidy.primary:hover {
+      background: var(--blush-dark);
+      border-color: var(--blush-dark);
+      color: white;
+    }
+    .btn-tidy.danger-btn {
+      color: #c0392b;
+      border-color: #FCA5A5;
+      background: #FEF2F2;
+    }
+    .btn-tidy.danger-btn:hover {
+      color: white;
+      background: #c0392b;
+      border-color: #c0392b;
+    }
+    .btn-tidy.danger-btn[disabled] { opacity: .5; cursor: not-allowed; }
+    .btn-tidy.danger-btn[disabled]:hover { color: #c0392b; background: #FEF2F2; border-color: #FCA5A5; }
+
+    /* Dev reset modal */
+    .dev-reset-modal {
+      position: fixed; inset: 0; z-index: 700;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .dev-reset-modal.open { display: flex; }
+    .dev-reset-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(20,10,25,.65);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    }
+    .dev-reset-content {
+      position: relative;
+      background: var(--surface);
+      border: 2px solid #c0392b;
+      border-radius: 16px;
+      padding: 32px 32px 26px;
+      max-width: 540px; width: 100%;
+      max-height: 88vh; overflow-y: auto;
+      box-shadow: 0 30px 80px rgba(0,0,0,.4);
+    }
+    .dev-reset-icon { font-size: 2.4rem; text-align: center; margin-bottom: 6px; }
+    .dev-reset-content h2 {
+      text-align: center; color: #c0392b;
+      font-size: 1.4rem; letter-spacing: -.02em;
+      margin-bottom: 14px;
+    }
+    .dev-reset-content p { font-size: .92rem; color: var(--text-mid); line-height: 1.55; margin-bottom: 10px; }
+    .dev-reset-content ul {
+      font-size: .88rem; color: var(--text-mid); line-height: 1.7;
+      padding-left: 22px; margin-bottom: 14px;
+    }
+    .dev-reset-content code.confirm-code {
+      background: #FEF2F2; color: #c0392b;
+      padding: 2px 8px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; font-weight: 700;
+    }
+    #dev-reset-confirm {
+      width: 100%; padding: 12px 14px;
+      font-size: 1rem; font-family: 'JetBrains Mono', monospace;
+      border: 2px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none;
+      margin-bottom: 8px;
+      letter-spacing: .15em;
+    }
+    #dev-reset-confirm:focus { border-color: #c0392b; }
+    .dev-reset-error { color: #c0392b; font-size: .85rem; min-height: 1.2em; margin-bottom: 12px; }
+    .dev-reset-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+    /* ── Student cards ── */
+    .students-list { display: grid; gap: 16px; }
+    .student-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .student-top {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+    .student-rank {
+      font-size: 1.4rem; font-weight: 900;
+      color: var(--muted); letter-spacing: -.02em;
+      text-align: center; padding-top: 2px;
+    }
+    .student-rank.r1 { color: #C89D40; }
+    .student-rank.r2 { color: #8A95A1; }
+    .student-rank.r3 { color: #A56939; }
+    .student-info { min-width: 0; }
+    .student-name { font-size: 1.08rem; font-weight: 800; letter-spacing: -.01em; }
+    .student-meta { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+    .student-actions { display: flex; gap: 6px; }
+
+    .class-row {
+      display: flex; gap: 8px; align-items: center;
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+    }
+    .class-row label {
+      font-size: .74rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em;
+    }
+    .class-row input {
+      flex: 1; padding: 6px 10px; border: 1px solid var(--border);
+      border-radius: 6px; background: var(--surface); outline: none;
+      font-size: .88rem;
+    }
+    .class-row input:focus { border-color: var(--blush); }
+
+    /* ── Stat grid ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .stat-cell {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stat-cell.highlight {
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      border-color: var(--blush);
+    }
+    .stat-head {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .76rem; font-weight: 700;
+      color: var(--text-mid);
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .stat-head .stat-icon { font-size: 1rem; }
+    .stat-controls {
+      display: flex; align-items: center; gap: 4px;
+      width: 100%;
+      min-width: 0;
+    }
+    .stat-controls input {
+      flex: 1 1 0;
+      min-width: 0;          /* allow shrink below default browser min-width */
+      width: 0;              /* belt and suspenders for old WebKit */
+      padding: 6px 4px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      outline: none;
+      font-size: .95rem;
+      font-weight: 700;
+      text-align: center;
+      -moz-appearance: textfield;  /* hide spinner — Firefox */
+    }
+    /* hide spinner — WebKit / Blink */
+    .stat-controls input::-webkit-outer-spin-button,
+    .stat-controls input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .stat-controls input:focus { border-color: var(--blush); }
+    .btn-mini {
+      flex: 0 0 28px;
+      width: 28px; height: 28px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+      transition: all .12s;
+      padding: 0;
+      line-height: 1;
+    }
+    .btn-mini:hover { border-color: var(--blush); color: var(--blush); background: var(--blush-bg); }
+
+    .point-action-row {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: var(--blush-bg);
+      border: 1px dashed var(--blush);
+      border-radius: 10px;
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      font-size: .85rem;
+    }
+    .point-action-row strong { font-size: .85rem; }
+    .point-action-row button {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .82rem;
+      font-weight: 600;
+    }
+    .point-action-row button:hover { border-color: var(--blush); color: var(--blush); }
+
+    .point-action-row.penalty-row {
+      background: #FEF2F2;
+      border: 1px dashed #FCA5A5;
+    }
+    .point-action-row.penalty-row strong { color: #991B1B; }
+    .penalty-btn:hover { border-color: #c0392b !important; color: #c0392b !important; }
+    .curse-btn {
+      background: #FFF7ED !important;
+      border-color: #FED7AA !important;
+    }
+    .curse-btn:hover { border-color: #c2410c !important; color: #c2410c !important; }
+
+    .class-row select {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      outline: none;
+      font-size: .9rem;
+      font-family: inherit;
+    }
+    .class-row select:focus { border-color: var(--blush); }
+
+    .roles-row {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: 10px;
+    }
+    .roles-row strong { font-size: .85rem; white-space: nowrap; }
+    .role-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+    .role-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px 4px 12px;
+      border-radius: 999px;
+      font-size: .78rem; font-weight: 700;
+      color: white;
+      white-space: nowrap;
+    }
+    .role-chip .role-x {
+      background: rgba(255,255,255,.3);
+      border: none;
+      border-radius: 999px;
+      width: 18px; height: 18px;
+      color: white;
+      cursor: pointer;
+      font-size: .85rem;
+      line-height: 1;
+      padding: 0;
+      transition: background .15s;
+    }
+    .role-chip .role-x:hover { background: rgba(0,0,0,.25); }
+    .role-add-select {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--surface);
+      font-size: .82rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .role-add-select:focus { border-color: var(--blush); outline: none; }
+
+    .icon-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: .8rem;
+      cursor: pointer;
+      color: var(--text-mid);
+      transition: all .15s;
+    }
+    .icon-btn:hover { border-color: var(--blush); color: var(--blush); }
+    .icon-btn.danger:hover { border-color: #c0392b; color: #c0392b; }
+
+    .empty-state {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 48px 28px;
+      text-align: center;
+    }
+    .empty-state h2 { font-size: 1.2rem; margin-bottom: 8px; }
+    .empty-state p { font-size: .92rem; color: var(--muted); }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy); color: white;
+      padding: 12px 22px; border-radius: 10px;
+      font-size: .88rem; box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 500;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+    /* Edit profile modal */
+    .edit-modal {
+      position: fixed; inset: 0; z-index: 600;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .edit-modal.open { display: flex; }
+    .edit-modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(20,10,25,.55);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    .edit-modal-content {
+      position: relative;
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 32px 28px 24px;
+      max-width: 640px; width: 100%;
+      max-height: 86vh; overflow-y: auto;
+      box-shadow: 0 30px 80px rgba(0,0,0,.3);
+    }
+    .edit-modal-content h2 { font-size: 1.3rem; margin-bottom: 4px; letter-spacing: -.02em; }
+    .edit-modal-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 34px; height: 34px;
+      background: var(--surface2);
+      border: none; border-radius: 50%;
+      cursor: pointer; font-size: .9rem;
+      color: var(--text-mid);
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, transform .3s, color .15s;
+    }
+    .edit-modal-close:hover { background: var(--blush); color: white; transform: rotate(90deg); }
+    .edit-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .ef-field.full { grid-column: 1 / -1; }
+    .ef-field label {
+      display: block;
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+    .ef-field input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface2);
+      outline: none;
+      font-size: .92rem;
+      font-family: inherit;
+    }
+    .ef-field input:focus { border-color: var(--blush); }
+    .edit-form-actions {
+      display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+    }
+    .edit-form-actions .btn-primary { padding: 10px 18px; font-size: .9rem; }
+    @media (max-width: 600px) {
+      .edit-form-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .admin-header { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────── Passcode gate ─────────── -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage student stats.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<!-- ─────────── Admin UI ─────────── -->
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html" class="active">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html">Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">🎓</div>
+    <div>
+      <h1>Welcome — manage your students</h1>
+      <p>Every student who's signed up shows here, sorted by total points. Click the + and − buttons to adjust any stat, or use <strong>Edit profile</strong> to change names, emails, or parent contact info.</p>
+    </div>
+  </div>
+
+  <div class="admin-header">
+    <div>
+      <h2>🎓 Registered Students</h2>
+      <p class="admin-subtitle">Award points, assign classes, edit profiles, or export the full list for your records.</p>
+    </div>
+    <div class="admin-header-actions">
+      <button class="btn-tidy primary" id="export-csv-btn">📊 Export parent &amp; student spreadsheet (CSV)</button>
+      <button class="btn-tidy" id="add-student-btn">➕ Add a student by hand</button>
+      <button class="btn-tidy" id="add-role-btn">🏅 Create a new role type</button>
+      <button class="btn-tidy" id="export-btn">💾 Save backup (JSON)</button>
+      <button class="btn-tidy danger-btn" id="dev-reset-btn">⚠️ DEV: reset everything</button>
+    </div>
+  </div>
+
+  <!-- Dev reset — two-step verification modal -->
+  <div class="dev-reset-modal" id="dev-reset-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="dev-reset-backdrop"></div>
+    <div class="dev-reset-content">
+      <div class="dev-reset-icon">⚠️</div>
+      <h2>Reset EVERYTHING?</h2>
+      <p>This will permanently wipe:</p>
+      <ul>
+        <li>All <strong>students</strong> (registrations, names, emails, passwords, parent contacts)</li>
+        <li>All student <strong>scores, points, stats, luck, and clicker progress</strong></li>
+        <li>All <strong>classes</strong> + class points + investment bank balances</li>
+        <li>All <strong>roles</strong> (including who claimed Maze Wizard)</li>
+        <li>All <strong>base-stat categories</strong></li>
+        <li>The entire <strong>transactions log</strong></li>
+        <li>One-time items (Maze Wizard claim flag, spider-popup flag, etc.)</li>
+      </ul>
+      <p style="color:#c0392b;font-weight:600;">Staff profiles will be kept. Everything else returns to a fresh-install state.</p>
+      <p>To confirm, type <code class="confirm-code">RESET</code> below:</p>
+      <input type="text" id="dev-reset-confirm" placeholder="Type RESET to confirm" autocomplete="off" />
+      <div class="dev-reset-error" id="dev-reset-error"></div>
+      <div class="dev-reset-actions">
+        <button class="btn-tidy" id="dev-reset-cancel">Cancel</button>
+        <button class="btn-tidy danger-btn" id="dev-reset-go" disabled>🗑 Wipe it all</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="students-container"></div>
+</div>
+
+<!-- ─────────── Edit Profile Modal ─────────── -->
+<div class="edit-modal" id="edit-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="edit-modal-backdrop"></div>
+  <div class="edit-modal-content">
+    <button class="edit-modal-close" id="edit-modal-close" aria-label="Close">✕</button>
+    <h2 id="edit-modal-title">Edit Student Profile</h2>
+    <div id="edit-modal-subtitle" style="color:var(--muted); font-size:.85rem; margin-bottom: 20px;"></div>
+
+    <form id="edit-form" class="edit-form-grid">
+      <div class="ef-field"><label>First Name</label><input type="text" name="firstName" /></div>
+      <div class="ef-field"><label>Last Name</label><input type="text"  name="lastName" /></div>
+      <div class="ef-field full"><label>Student Email (login)</label><input type="email" name="studentEmail" /></div>
+      <div class="ef-field"><label>Class</label><input type="text" name="className" placeholder="e.g. Class A" /></div>
+      <div class="ef-field"><label>School</label><input type="text" name="school" /></div>
+      <div class="ef-field"><label>Date of Birth</label><input type="date" name="dob" /></div>
+      <div class="ef-field"><label>Password (plain text — see student warning)</label><input type="text" name="password" /></div>
+      <div class="ef-field"><label>Parent First Name</label><input type="text" name="parentFirst" /></div>
+      <div class="ef-field"><label>Parent Last Name</label><input type="text" name="parentLast" /></div>
+      <div class="ef-field"><label>Parent Email</label><input type="email" name="parentEmail" /></div>
+      <div class="ef-field"><label>Parent Phone</label><input type="tel" name="parentPhone" /></div>
+    </form>
+
+    <div class="edit-form-actions">
+      <button class="icon-btn" id="edit-cancel">Cancel</button>
+      <button class="btn btn-primary" id="edit-save">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="students-data.js"></script>
+<script>
+/* ─────────── Passcode gate (shared session) ─────────── */
+const PASSCODE = 'HigherGrade Tutoring';
+const SESSION_KEY = 'highergrade_admin_unlocked';
+
+const gate = document.getElementById('gate');
+const shell = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+function unlock() {
+  const entered  = (passInput.value || '').trim().toLowerCase();
+  const expected = PASSCODE.trim().toLowerCase();
+  if (entered === expected) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    gate.style.display = 'none';
+    shell.classList.add('unlocked');
+    render();
+    return;
+  }
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+// Share unlock across admin pages — any visit to a non-admin page clears it.
+if (sessionStorage.getItem(SESSION_KEY) === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+  setTimeout(render, 0);
+}
+
+/* ─────────── Admin UI logic ─────────── */
+const container = document.getElementById('students-container');
+const toast = document.getElementById('toast');
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+function render() {
+  const students = sortedByTotalPoints(getStudents());
+  const classes = getClasses();
+  const allRoles = getRoles();
+  const allRolesById = Object.fromEntries(allRoles.map(r => [r.id, r]));
+
+  if (students.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h2>No students yet</h2>
+        <p>Students will appear here once they fill out the registration form — or click "Add student manually" above.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `<div class="students-list" id="students-list"></div>`;
+  const list = document.getElementById('students-list');
+
+  students.forEach((s, i) => {
+    const rank = i + 1;
+    const rankCls = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
+    const rankLabel = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
+    const stats = s.stats || defaultStats();
+
+    const card = document.createElement('div');
+    card.className = 'student-card';
+    card.dataset.id = s.id;
+    card.innerHTML = `
+      <div class="student-top">
+        <div class="student-rank ${rankCls}">${rankLabel}</div>
+        <div class="student-info">
+          <div class="student-name">${escapeHtml(studentFullName(s))}</div>
+          <div class="student-meta">
+            ${escapeHtml(s.studentEmail || '')}${s.school ? ' · ' + escapeHtml(s.school) : ''}
+          </div>
+        </div>
+        <div class="student-actions">
+          <button class="icon-btn" data-edit>Edit profile</button>
+          <button class="icon-btn danger" data-del>Delete</button>
+        </div>
+      </div>
+
+      <div class="class-row">
+        <label>Class</label>
+        <select data-class>
+          <option value="">— Unassigned —</option>
+          ${classes.map(c => `<option value="${escapeHtml(c.id)}" ${s.classId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+        ${classes.length === 0 ? '<span style="font-size:.78rem;color:var(--muted);">No classes yet — go to the <strong>Classes</strong> tab to create one.</span>' : ''}
+      </div>
+
+      <div class="stat-grid">
+        ${STAT_FIELDS.map(f => `
+          <div class="stat-cell ${f.rankKey ? 'highlight' : ''}">
+            <div class="stat-head">
+              <span class="stat-icon">${f.icon}</span>
+              <span>${escapeHtml(f.label)}</span>
+            </div>
+            <div class="stat-controls">
+              <button class="btn-mini" data-dec="${f.key}" aria-label="Decrease">−</button>
+              <input type="number" data-stat="${f.key}" value="${stats[f.key] || 0}" min="0" />
+              <button class="btn-mini" data-inc="${f.key}" aria-label="Increase">+</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="point-action-row">
+        <strong>💰 Earn / spend:</strong>
+        <button data-earn="1">+1 pt earned</button>
+        <button data-earn="5">+5 pts earned</button>
+        <button data-earn="10">+10 pts earned</button>
+        <button data-spend="1">−1 pt spent</button>
+        <button data-spend="5">−5 pts spent</button>
+        <button data-spend="10">−10 pts spent</button>
+      </div>
+
+      <div class="point-action-row penalty-row">
+        <strong>⚠️ Penalties:</strong>
+        <button class="penalty-btn" data-penalty="1">−1 pt penalty</button>
+        <button class="penalty-btn" data-penalty="5">−5 pts penalty</button>
+        <button class="penalty-btn" data-penalty="10">−10 pts penalty</button>
+        <span style="opacity:.5;">|</span>
+        <button class="penalty-btn curse-btn" data-curse="1">🤬 −1 pt (curse word)</button>
+        <button class="penalty-btn curse-btn" data-curse="5">🤬 −5 pts (curse word)</button>
+        <button class="penalty-btn curse-btn" data-curse="10">🤬 −10 pts (curse word)</button>
+      </div>
+
+      <div class="roles-row">
+        <strong>🏅 Roles:</strong>
+        <div class="role-chips">
+          ${(Array.isArray(s.roles) && s.roles.length > 0)
+            ? s.roles.map(rid => {
+                const r = allRolesById[rid];
+                if (!r) return '';
+                return `<span class="role-chip" style="background:${r.color || '#E8808A'}">${r.icon || '🏅'} ${escapeHtml(r.name)} <button class="role-x" data-role-remove="${escapeHtml(rid)}" title="Remove role">×</button></span>`;
+              }).join('')
+            : '<span style="font-size:.82rem; color:var(--muted); font-style:italic;">No roles assigned yet</span>'}
+        </div>
+        <select class="role-add-select" data-role-add>
+          <option value="">+ Assign role…</option>
+          ${allRoles.filter(r => !(Array.isArray(s.roles) && s.roles.includes(r.id))).map(r =>
+            `<option value="${escapeHtml(r.id)}">${r.icon || '🏅'} ${escapeHtml(r.name)}</option>`
+          ).join('')}
+        </select>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  // Wire up per-card handlers
+  list.querySelectorAll('.student-card').forEach(card => {
+    const id = card.dataset.id;
+
+    card.querySelector('[data-class]').addEventListener('change', e => {
+      assignStudentToClass(id, e.target.value || null);
+      showToast(e.target.value ? 'Class assigned' : 'Removed from class');
+      render();
+    });
+
+    card.querySelectorAll('[data-stat]').forEach(input => {
+      input.addEventListener('change', () => {
+        const val = Math.max(0, parseInt(input.value, 10) || 0);
+        input.value = val;
+        const key = input.dataset.stat;
+        const students = getStudents();
+        const student = students.find(x => x.id === id);
+        if (!student) return;
+        student.stats = { ...defaultStats(), ...student.stats, [key]: val };
+        saveStudents(students);
+        showToast('Stat saved');
+        if (key === 'totalPointsEarned') render();
+      });
+    });
+
+    card.querySelectorAll('[data-inc]').forEach(b => b.addEventListener('click', () => adjustStat(id, b.dataset.inc, 1)));
+    card.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', () => adjustStat(id, b.dataset.dec, -1)));
+
+    card.querySelectorAll('[data-earn]').forEach(b => b.addEventListener('click', () => earnPoints(id, parseInt(b.dataset.earn, 10))));
+    card.querySelectorAll('[data-spend]').forEach(b => b.addEventListener('click', () => spendPoints(id, parseInt(b.dataset.spend, 10))));
+    card.querySelectorAll('[data-penalty]').forEach(b => b.addEventListener('click', () => penalize(id, parseInt(b.dataset.penalty, 10))));
+    card.querySelectorAll('[data-curse]').forEach(b => b.addEventListener('click', () => curseLogged(id, parseInt(b.dataset.curse, 10))));
+
+    // Role assign / remove
+    const roleSel = card.querySelector('[data-role-add]');
+    if (roleSel) {
+      roleSel.addEventListener('change', e => {
+        const roleId = e.target.value;
+        if (!roleId) return;
+        assignRoleToStudent(id, roleId);
+        showToast('Role assigned');
+        render();
+      });
+    }
+    card.querySelectorAll('[data-role-remove]').forEach(x => {
+      x.addEventListener('click', () => {
+        const rid = x.dataset.roleRemove;
+        removeRoleFromStudent(id, rid);
+        showToast('Role removed');
+        render();
+      });
+    });
+
+    card.querySelector('[data-edit]').addEventListener('click', () => openEditModal(id));
+
+    card.querySelector('[data-del]').addEventListener('click', () => {
+      if (!confirm('Delete this student? This cannot be undone.')) return;
+      deleteStudent(id);
+      showToast('Student deleted');
+      render();
+    });
+  });
+}
+
+/* ─── Edit Profile Modal ─── */
+const editModal = document.getElementById('edit-modal');
+const editForm  = document.getElementById('edit-form');
+const editSave  = document.getElementById('edit-save');
+const editCancel= document.getElementById('edit-cancel');
+const editClose = document.getElementById('edit-modal-close');
+const editBackdrop = editModal.querySelector('.edit-modal-backdrop');
+const editTitle = document.getElementById('edit-modal-title');
+const editSubtitle = document.getElementById('edit-modal-subtitle');
+let editingStudentId = null;
+
+function openEditModal(id) {
+  const s = getStudents().find(x => x.id === id);
+  if (!s) return;
+  editingStudentId = id;
+  editTitle.textContent = `Edit: ${studentFullName(s)}`;
+  editSubtitle.textContent = 'Password is shown in plain text — students were warned about this at signup.';
+  ['firstName','lastName','studentEmail','className','school','dob','password','parentFirst','parentLast','parentEmail','parentPhone'].forEach(k => {
+    const input = editForm.querySelector(`[name="${k}"]`);
+    if (input) input.value = s[k] || '';
+  });
+  editModal.classList.add('open');
+  editModal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEditModal() {
+  editModal.classList.remove('open');
+  editModal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  editingStudentId = null;
+}
+
+editSave.addEventListener('click', () => {
+  if (!editingStudentId) return closeEditModal();
+  const updates = {};
+  ['firstName','lastName','studentEmail','className','school','dob','password','parentFirst','parentLast','parentEmail','parentPhone'].forEach(k => {
+    const input = editForm.querySelector(`[name="${k}"]`);
+    if (input) updates[k] = input.value.trim();
+  });
+  updateStudentProfile(editingStudentId, updates);
+  showToast('Profile saved');
+  closeEditModal();
+  render();
+});
+
+editCancel.addEventListener('click', closeEditModal);
+editClose.addEventListener('click', closeEditModal);
+editBackdrop.addEventListener('click', closeEditModal);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && editModal.classList.contains('open')) closeEditModal();
+});
+
+function adjustStat(id, key, delta) {
+  const students = getStudents();
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  s.stats = { ...defaultStats(), ...s.stats };
+  s.stats[key] = Math.max(0, (s.stats[key] || 0) + delta);
+  saveStudents(students);
+  showToast(delta > 0 ? '+1 ' + key : '-1 ' + key);
+  render();
+}
+
+function earnPoints(id, amount) {
+  const students = getStudents();
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  s.stats = { ...defaultStats(), ...s.stats };
+  s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) + amount);
+  s.stats.totalPointsEarned = Math.max(0, (s.stats.totalPointsEarned || 0) + amount);
+  saveStudents(students);
+  logTransaction({
+    type: 'earn',
+    scope: 'student',
+    subjectId: id,
+    subjectName: studentFullName(s),
+    amount,
+    description: `Admin awarded +${amount} pt${amount === 1 ? '' : 's'}`,
+  });
+  showToast(`+${amount} pts (earned)`);
+  render();
+}
+
+function spendPoints(id, amount) {
+  const students = getStudents();
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  s.stats = { ...defaultStats(), ...s.stats };
+  s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
+  s.stats.pointExchanges = Math.max(0, (s.stats.pointExchanges || 0) + 1);
+  saveStudents(students);
+  logTransaction({
+    type: 'spend',
+    scope: 'student',
+    subjectId: id,
+    subjectName: studentFullName(s),
+    amount: -amount,
+    description: `Marked −${amount} pt${amount === 1 ? '' : 's'} as spent (exchange count +1)`,
+  });
+  showToast(`−${amount} pts (exchanged)`);
+  render();
+}
+
+function penalize(id, amount) {
+  const res = applyPenalty(id, amount);
+  if (res && res.ok) {
+    showToast(`⚠️ −${amount} pts (penalty)`);
+    render();
+  }
+}
+
+function curseLogged(id, amount) {
+  const res = applyCursePenalty(id, amount);
+  if (res && res.ok) {
+    showToast(`🤬 −${amount} pts + curse word logged`);
+    render();
+  }
+}
+
+/* ─── Dev reset (verified) ─── */
+(function () {
+  const REQUIRED = 'RESET';
+  const openBtn   = document.getElementById('dev-reset-btn');
+  const modal     = document.getElementById('dev-reset-modal');
+  const backdrop  = modal.querySelector('.dev-reset-backdrop');
+  const cancelBtn = document.getElementById('dev-reset-cancel');
+  const goBtn     = document.getElementById('dev-reset-go');
+  const input     = document.getElementById('dev-reset-confirm');
+  const errEl     = document.getElementById('dev-reset-error');
+
+  function open() {
+    input.value = '';
+    errEl.textContent = '';
+    goBtn.disabled = true;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => input.focus(), 50);
+  }
+  function close() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', open);
+  cancelBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', close);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) close();
+  });
+
+  input.addEventListener('input', () => {
+    const ok = input.value === REQUIRED;
+    goBtn.disabled = !ok;
+    errEl.textContent = '';
+  });
+
+  goBtn.addEventListener('click', () => {
+    if (input.value !== REQUIRED) {
+      errEl.textContent = `You need to type ${REQUIRED} exactly (case-sensitive) to confirm.`;
+      return;
+    }
+    if (!confirm('Last chance — really wipe everything? This cannot be undone.')) return;
+    devResetEverything();
+    close();
+    showToast('All student data has been reset to defaults');
+    // Re-render the page (or reload to reflect cleared session)
+    setTimeout(() => location.reload(), 800);
+  });
+})();
+
+document.getElementById('add-role-btn').addEventListener('click', () => {
+  const name = prompt('Role name (e.g. "Class Captain", "Helpful Hero"):');
+  if (!name) return;
+  const icon = prompt('Icon (single emoji, optional):') || '🏅';
+  const color = prompt('Color (hex, e.g. #E8808A). Leave blank for default:') || '#E8808A';
+  const description = prompt('Short description (shown on the student\'s card):') || '';
+  const res = addRole({
+    id: (typeof newRoleId === 'function' ? newRoleId() : 'role-' + Date.now()),
+    name: name.trim(),
+    icon: icon.trim().slice(0, 4),
+    color: color.trim(),
+    description: description.trim(),
+  });
+  if (!res.ok) { showToast(res.error || 'Could not create role'); return; }
+  showToast('Role type created — now assign it to students below');
+  render();
+});
+
+document.getElementById('add-student-btn').addEventListener('click', () => {
+  const firstName = prompt('First name:');
+  if (!firstName) return;
+  const lastName = prompt('Last name:');
+  if (lastName === null) return;
+  const className = prompt('Class (optional):') || '';
+  addStudent({
+    id: newStudentId(),
+    firstName: firstName.trim(),
+    lastName: (lastName || '').trim(),
+    className: className.trim(),
+    studentEmail: '', school: '',
+    parentFirst: '', parentLast: '', parentEmail: '', parentPhone: '',
+    registeredAt: new Date().toISOString(),
+    stats: defaultStats(),
+  });
+  showToast('Student added');
+  render();
+});
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const data = JSON.stringify(getStudents(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'highergrade-students.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Downloaded JSON');
+});
+
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+  const students = getStudents();
+  if (students.length === 0) {
+    showToast('No students yet to export');
+    return;
+  }
+  // Columns a camp organizer actually needs for parent contact records
+  const columns = [
+    { key: 'firstName',     label: 'Student First Name' },
+    { key: 'lastName',      label: 'Student Last Name' },
+    { key: 'className',     label: 'Class' },
+    { key: 'studentEmail',  label: 'Student Email' },
+    { key: 'school',        label: 'School' },
+    { key: 'dob',           label: 'Date of Birth' },
+    { key: 'parentFirst',   label: 'Parent First Name' },
+    { key: 'parentLast',    label: 'Parent Last Name' },
+    { key: 'parentEmail',   label: 'Parent Email' },
+    { key: 'parentPhone',   label: 'Parent Phone' },
+    { key: 'registeredAt',  label: 'Registered At' },
+    { key: '__totalPoints', label: 'Total Points' },
+    { key: '__currentPoints', label: 'Current Points' },
+  ];
+
+  function cell(v) {
+    const s = String(v == null ? '' : v);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  const header = columns.map(c => cell(c.label)).join(',');
+  const rows = students.map(s => columns.map(c => {
+    if (c.key === '__totalPoints')   return cell((s.stats && s.stats.totalPointsEarned) || 0);
+    if (c.key === '__currentPoints') return cell((s.stats && s.stats.privatePoints)     || 0);
+    return cell(s[c.key]);
+  }).join(','));
+
+  // Prepend a BOM so Excel opens UTF-8 correctly
+  const csv = '\uFEFF' + [header, ...rows].join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `highergrade-students-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Spreadsheet downloaded');
+});
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>

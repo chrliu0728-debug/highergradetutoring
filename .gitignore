@@ -1,0 +1,43 @@
+# Workspace .gitignore — only commit the math_camp project
+# Everything else in this repo is local-only.
+
+# Local-only Claude Code settings
+.claude/
+
+# AP Simulator — separate project, not part of this repo
+ap_simulator/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Python (in case math_camp ever grows a backend)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build/dist
+build/
+dist/
+*.log
+
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key

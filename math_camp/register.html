@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — HigherGrade Tutoring Summer Camp 2025</title>
+  <meta name="description" content="Register for HigherGrade Tutoring's Summer Camp 2025 — a free, accelerated MTH1W math summer camp at Abbey Park High School, led by Grade 11 & 12 HDSB students. HDSB and other boards welcome. July 20–31, 2025." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .progress-bar {
+      display: flex; align-items: center; gap: 0;
+      margin-bottom: 40px;
+    }
+    .step {
+      display: flex; align-items: center; gap: 10px; flex: 1;
+    }
+    .step-circle {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .82rem; font-weight: 700; flex-shrink: 0;
+      border: 2px solid var(--border); background: var(--surface2);
+      color: var(--muted); transition: all .2s;
+    }
+    .step.active   .step-circle { border-color: var(--blush); background: var(--blush); color: white; }
+    .step.complete .step-circle { border-color: var(--mint);  background: var(--mint);  color: white; }
+    .step-label { font-size: .8rem; font-weight: 600; color: var(--muted); }
+    .step.active   .step-label { color: var(--blush-dark); }
+    .step.complete .step-label { color: var(--mint-dark); }
+    .step-line {
+      flex: 1; height: 2px; background: var(--border); margin: 0 8px;
+      transition: background .3s;
+    }
+    .step-line.done { background: var(--mint); }
+
+    /* ── Form panels ── */
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+
+    /* ── Nav buttons ── */
+    .form-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
+    .form-nav-left  { display: flex; gap: 10px; align-items: center; }
+
+    /* ── Sidebar ── */
+    .register-layout {
+      display: grid; grid-template-columns: 1fr 340px;
+      gap: 32px; align-items: start;
+    }
+    .register-sidebar { position: sticky; top: 90px; }
+    .sidebar-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 16px;
+    }
+    .sidebar-card h4 {
+      font-size: .85rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-bottom: 14px;
+    }
+    .sidebar-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: .88rem; color: var(--text-mid);
+      margin-bottom: 10px;
+    }
+    .sidebar-item:last-child { margin-bottom: 0; }
+    .sidebar-item .si-icon { font-size: 1rem; flex-shrink: 0; }
+
+    /* ── Terms expandable ── */
+    .terms-details {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .terms-details summary {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--blush-dark);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terms-details summary::-webkit-details-marker { display: none; }
+    .terms-details[open] summary { border-bottom: 1px solid var(--border); }
+    .terms-details summary::before { content: '▶'; font-size: .7rem; transition: transform .2s; }
+    .terms-details[open] summary::before { transform: rotate(90deg); }
+    .terms-body {
+      padding: 16px;
+      font-size: .82rem;
+      color: var(--text-mid);
+      line-height: 1.7;
+      max-height: 260px;
+      overflow-y: auto;
+      background: var(--surface2);
+    }
+    .terms-body h5 { font-weight: 700; margin: 12px 0 4px; color: var(--text); }
+    .terms-body p  { margin-bottom: 8px; }
+
+    /* ── Emergency contact block ── */
+    .emerg-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      margin-top: 8px;
+      background: var(--surface2);
+    }
+    .emerg-block-title {
+      font-size: .82rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .register-layout { grid-template-columns: 1fr; }
+      .register-sidebar { position: static; }
+    }
+    @media (max-width: 600px) {
+      .step-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────────────── NAVBAR ─────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo">
+      <img src="logo.png" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About Us</a></li>
+      <li><a href="support.html">Support Us</a></li>
+      <li><a href="student-portal.html" class="nav-signin">Sign In</a></li>
+      <li><a href="register.html" class="nav-cta">Register Now</a></li>
+    </ul>
+    <button class="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ─────────────────── PAGE HERO ─────────────────── -->
+<section class="page-hero" style="padding-bottom:52px;">
+  <div class="page-hero-content">
+    <div class="hero-badge" style="margin-bottom:18px;">Free Registration</div>
+    <h1>Register for HigherGrade Tutoring Summer Camp 2025</h1>
+    <p>Secure your spot in the two-week student-led math experience of the summer.</p>
+  </div>
+</section>
+
+<!-- ─────────────────── FORM ─────────────────── -->
+<section class="section" style="padding-top:52px;">
+  <div class="container">
+    <div class="register-layout">
+
+      <!-- ── Main form ── -->
+      <div>
+        <form id="reg-form" novalidate>
+
+          <!-- Progress bar -->
+          <div class="progress-bar" id="progress-bar">
+            <div class="step active" id="step-1">
+              <div class="step-circle">1</div>
+              <div class="step-label">Student Info</div>
+            </div>
+            <div class="step-line" id="line-1"></div>
+            <div class="step" id="step-2">
+              <div class="step-circle">2</div>
+              <div class="step-label">Parent / Guardian</div>
+            </div>
+            <div class="step-line" id="line-2"></div>
+            <div class="step" id="step-3">
+              <div class="step-circle">3</div>
+              <div class="step-label">About You</div>
+            </div>
+            <div class="step-line" id="line-3"></div>
+            <div class="step" id="step-4">
+              <div class="step-circle">4</div>
+              <div class="step-label">Review</div>
+            </div>
+          </div>
+
+          <!-- ── Panel 1: Student Info ── -->
+          <div class="form-card form-panel active" id="panel-1">
+            <div class="form-section-title">👤 Student Information</div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>First Name <span class="req">*</span></label>
+                <input type="text" id="first-name" name="first_name" placeholder="e.g. Alex" required />
+                <div class="field-error" id="err-first-name">Please enter your first name.</div>
+              </div>
+              <div class="field">
+                <label>Last Name <span class="req">*</span></label>
+                <input type="text" id="last-name" name="last_name" placeholder="e.g. Chen" required />
+                <div class="field-error" id="err-last-name">Please enter your last name.</div>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>Date of Birth <span class="req">*</span></label>
+                <input type="date" id="dob" name="dob" required />
+                <div class="field-error" id="err-dob">Please enter your date of birth.</div>
+              </div>
+              <div class="field">
+                <label>Student Email <span class="req">*</span></label>
+                <input type="email" id="student-email" name="student_email" placeholder="you@school.ca" required />
+                <div class="field-hint">For sending your confirmation and schedule.</div>
+                <div class="field-error" id="err-student-email">Please enter a valid email address.</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>School <span class="req">*</span></label>
+              <select id="school" name="school" required>
+                <option value="">Select your HDSB school…</option>
+                <optgroup label="Burlington">
+                  <option>Aldershot High School</option>
+                  <option>Burlington Central High School</option>
+                  <option>Lester B. Pearson High School</option>
+                  <option>M.M. Robinson High School</option>
+                  <option>Nelson High School</option>
+                  <option>Robert Bateman High School</option>
+                </optgroup>
+                <optgroup label="Oakville">
+                  <option>Garth Webb Secondary School</option>
+                  <option>Hayden Secondary School</option>
+                  <option>Iroquois Ridge High School</option>
+                  <option>Oakville Trafalgar High School</option>
+                  <option>Thomas A. Blakelock High School</option>
+                  <option>White Oaks Secondary School</option>
+                </optgroup>
+                <optgroup label="Milton">
+                  <option>Craig Kielburger Secondary School</option>
+                  <option>Milton District High School</option>
+                </optgroup>
+                <optgroup label="Halton Hills">
+                  <option>Acton District High School</option>
+                  <option>Georgetown District High School</option>
+                </optgroup>
+                <option value="Other">Other / Not listed</option>
+              </select>
+              <div class="field-error" id="err-school">Please select your school.</div>
+            </div>
+
+            <div class="form-nav">
+              <div class="form-nav-left">
+                <span style="font-size:.82rem;color:var(--muted);">Step 1 of 4</span>
+              </div>
+              <button type="button" class="btn btn-blue" onclick="goToPanel(2)">Next: Parent Info →</button>
+            </div>
+          </div>
+
+          <!-- ── Panel 2: Parent / Guardian ── -->
+          <div class="form-card form-panel" id="panel-2">
+            <div class="form-section-title">👨‍👩‍👧 Parent / Guardian Information</div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>Guardian First Name <span class="req">*</span></label>
+                <input type="text" id="parent-first" name="parent_first" placeholder="e.g. Sarah" required />
+                <div class="field-error" id="err-parent-first">Please enter a first name.</div>
+              </div>
+              <div class="field">
+                <label>Guardian Last Name <span class="req">*</span></label>
+                <input type="text" id="parent-last" name="parent_last" placeholder="e.g. Chen" required />
+                <div class="field-error" id="err-parent-last">Please enter a last name.</div>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>Relationship to Student <span class="req">*</span></label>
+                <select id="relationship" name="relationship" required>
+                  <option value="">Select…</option>
+                  <option>Parent</option>
+                  <option>Guardian</option>
+                  <option>Other</option>
+                </select>
+                <div class="field-error" id="err-relationship">Please select a relationship.</div>
+              </div>
+              <div class="field">
+                <label>Guardian Phone Number <span class="req">*</span></label>
+                <input type="tel" id="parent-phone" name="parent_phone" placeholder="e.g. (905) 555-0123" required />
+                <div class="field-error" id="err-parent-phone">Please enter a phone number.</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Guardian Email Address <span class="req">*</span></label>
+              <input type="email" id="parent-email" name="parent_email" placeholder="parent@example.com" required />
+              <div class="field-hint">We'll send the confirmation, schedule, and any updates here.</div>
+              <div class="field-error" id="err-parent-email">Please enter a valid email address.</div>
+            </div>
+
+            <hr class="form-divider" />
+            <div class="form-section-title">🚨 Emergency Contacts</div>
+            <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px;">Please provide two emergency contacts we can reach if needed.</p>
+
+            <!-- Emergency Contact 1 -->
+            <div class="emerg-block">
+              <div class="emerg-block-title">Emergency Contact 1</div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Full Name <span class="req">*</span></label>
+                  <input type="text" id="emerg1-name" name="emerg1_name" placeholder="e.g. David Chen" required />
+                  <div class="field-error" id="err-emerg1-name">Please enter a name.</div>
+                </div>
+                <div class="field">
+                  <label>Relationship to Camper <span class="req">*</span></label>
+                  <select id="emerg1-relationship" name="emerg1_relationship" required>
+                    <option value="">Select…</option>
+                    <option>Parent</option>
+                    <option>Guardian</option>
+                    <option>Grandparent</option>
+                    <option>Aunt / Uncle</option>
+                    <option>Sibling (18+)</option>
+                    <option>Family Friend</option>
+                    <option>Other</option>
+                  </select>
+                  <div class="field-error" id="err-emerg1-relationship">Please select a relationship.</div>
+                </div>
+              </div>
+              <div class="field">
+                <label>Phone Number <span class="req">*</span></label>
+                <input type="tel" id="emerg1-phone" name="emerg1_phone" placeholder="e.g. (905) 555-0456" required />
+                <div class="field-error" id="err-emerg1-phone">Please enter a phone number.</div>
+              </div>
+            </div>
+
+            <!-- Emergency Contact 2 -->
+            <div class="emerg-block" style="margin-top:12px;">
+              <div class="emerg-block-title">Emergency Contact 2</div>
+              <div class="field-row">
+                <div class="field">
+                  <label>Full Name <span class="req">*</span></label>
+                  <input type="text" id="emerg2-name" name="emerg2_name" placeholder="e.g. Linda Patel" required />
+                  <div class="field-error" id="err-emerg2-name">Please enter a name.</div>
+                </div>
+                <div class="field">
+                  <label>Relationship to Camper <span class="req">*</span></label>
+                  <select id="emerg2-relationship" name="emerg2_relationship" required>
+                    <option value="">Select…</option>
+                    <option>Parent</option>
+                    <option>Guardian</option>
+                    <option>Grandparent</option>
+                    <option>Aunt / Uncle</option>
+                    <option>Sibling (18+)</option>
+                    <option>Family Friend</option>
+                    <option>Other</option>
+                  </select>
+                  <div class="field-error" id="err-emerg2-relationship">Please select a relationship.</div>
+                </div>
+              </div>
+              <div class="field">
+                <label>Phone Number <span class="req">*</span></label>
+                <input type="tel" id="emerg2-phone" name="emerg2_phone" placeholder="e.g. (416) 555-0789" required />
+                <div class="field-error" id="err-emerg2-phone">Please enter a phone number.</div>
+              </div>
+            </div>
+
+            <div class="form-nav">
+              <div class="form-nav-left">
+                <button type="button" class="btn btn-ghost" onclick="goToPanel(1)">← Back</button>
+                <span style="font-size:.82rem;color:var(--muted);">Step 2 of 4</span>
+              </div>
+              <button type="button" class="btn btn-blue" onclick="goToPanel(3)">Next: About You →</button>
+            </div>
+          </div>
+
+          <!-- ── Panel 3: About Yourself ── -->
+          <div class="form-card form-panel" id="panel-3">
+            <div class="form-section-title">✨ About You</div>
+            <p style="font-size:.88rem;color:var(--muted);margin-bottom:20px;">Help us get to know you a little better before camp!</p>
+
+            <div class="field">
+              <label>What are your hobbies and interests?</label>
+              <textarea id="hobbies" name="hobbies" rows="4"
+                placeholder="e.g. I love competitive gaming, playing piano, reading sci-fi novels, and drawing. Outside of math, I'm really into computer science and chess.">
+              </textarea>
+            </div>
+
+            <div class="field">
+              <label>Why do you want to join the camp?</label>
+              <textarea id="why-join" name="why_join" rows="4"
+                placeholder="e.g. I want to explore math beyond what's taught in class, especially number theory and logic. I also love the idea of learning alongside other students who share my passion for problem-solving.">
+              </textarea>
+            </div>
+
+            <div style="background: var(--blush-bg); border: 1px solid var(--blush-light); border-radius: var(--radius-sm); padding: 12px 16px; margin-top: 8px; font-size: .85rem; color: var(--text-mid); line-height: 1.5;">
+              <strong>📅 Attendance:</strong> We assume all registered campers attend the full two weeks (July 20–31). If you can only attend part of the camp, please email <a href="mailto:lucas.liu.ca2009@gmail.com" style="color:var(--blush-dark);">lucas.liu.ca2009@gmail.com</a> after registering so we can plan accordingly.
+            </div>
+
+            <div class="form-nav">
+              <div class="form-nav-left">
+                <button type="button" class="btn btn-ghost" onclick="goToPanel(2)">← Back</button>
+                <span style="font-size:.82rem;color:var(--muted);">Step 3 of 4</span>
+              </div>
+              <button type="button" class="btn btn-blue" onclick="goToPanel(4)">Review Application →</button>
+            </div>
+          </div>
+
+          <!-- ── Panel 4: Review & Submit ── -->
+          <div class="form-card form-panel" id="panel-4">
+            <div class="form-section-title">✅ Review Your Application</div>
+
+            <div id="review-summary" style="margin-bottom:28px; background:var(--surface2); border-radius:var(--radius-sm); padding:20px; font-size:.9rem; line-height:1.8; color:var(--text-mid);">
+            </div>
+
+            <hr class="form-divider" style="margin-top:0;" />
+
+            <!-- Password -->
+            <div class="form-section-title">🔐 Create Your Camp Password</div>
+            <div style="background:#FEF3C7; border:1px solid #FDE68A; border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:16px; font-size:.88rem; line-height:1.55; color:#92400E;">
+              <strong>⚠️ Important — please read:</strong> Camp admins can view your password in plain text. <strong>Do NOT use a password you use anywhere else</strong> (school, email, social media, etc.). Pick something simple and unique — you'll only use it here to sign in and track your own stats.
+            </div>
+            <div class="field">
+              <label>Camp Password <span class="req">*</span></label>
+              <input type="password" id="camp-password" name="camp_password" placeholder="Pick something unique to this site" minlength="4" required />
+              <div class="field-hint">At least 4 characters. You'll use your student email + this password to sign in.</div>
+              <div class="field-error" id="err-camp-password">Please create a password (at least 4 characters).</div>
+            </div>
+
+            <hr class="form-divider" />
+
+            <!-- Consent -->
+            <div class="form-section-title">📋 Consent & Agreement</div>
+
+            <div class="field">
+              <div class="checkbox-group">
+
+                <!-- Checkbox 1: Terms & Conditions -->
+                <label class="checkbox-label">
+                  <input type="checkbox" id="consent-terms" name="consent_terms" required />
+                  <span>I/We have read and agree to the HigherGrade Tutoring Terms &amp; Conditions. <span class="req">*</span></span>
+                </label>
+                <details class="terms-details">
+                  <summary>Read Terms &amp; Conditions</summary>
+                  <div class="terms-body">
+                    <p><em>Terms and conditions are being finalized by the organizing team. Please check back shortly. By submitting this form you agree to abide by all camp rules and policies as communicated by the HigherGrade Tutoring organizers.</em></p>
+                    <h5>Placeholder — Organizer to complete</h5>
+                    <p>This section will include: participation agreement, code of conduct, liability waiver, media/photo policy, and cancellation terms.</p>
+                  </div>
+                </details>
+
+                <!-- Checkbox 2: Photo / Social Media -->
+                <label class="checkbox-label" style="margin-top:14px;">
+                  <input type="checkbox" id="consent-photo" name="consent_photo" />
+                  <span>I/We consent to photographs and videos of the student being taken during the camp and posted on HigherGrade Tutoring's social media and promotional materials. (Optional)</span>
+                </label>
+
+              </div>
+              <div class="field-error" id="err-consent">Please agree to the Terms &amp; Conditions to continue.</div>
+            </div>
+
+            <div class="form-nav">
+              <div class="form-nav-left">
+                <button type="button" class="btn btn-ghost" onclick="goToPanel(3)">← Back</button>
+                <span style="font-size:.82rem;color:var(--muted);">Step 4 of 4</span>
+              </div>
+              <button type="submit" class="btn btn-primary" id="submit-btn">
+                Submit Registration 🎉
+              </button>
+            </div>
+            <div class="field-error" id="err-submit" style="margin-top:12px;text-align:right;"></div>
+          </div>
+
+        </form>
+
+        <!-- ── Success ── -->
+        <div class="form-card form-success" id="form-success">
+          <div class="check-circle">✓</div>
+          <h2>You're registered!</h2>
+          <p>
+            Thanks for registering for HigherGrade Tutoring's Summer Camp 2025. We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before July 20.
+          </p>
+          <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:380px;text-align:left;font-size:.88rem;color:var(--text-mid);">
+            <div style="margin-bottom:8px;">📅 <strong>Camp Dates:</strong> July 20–31, 2025</div>
+            <div style="margin-bottom:8px;">📧 <strong>Confirmation:</strong> Check your email</div>
+            <div>📍 <strong>Location:</strong> Abbey Park High School, Oakville</div>
+          </div>
+          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <a href="student-portal.html" class="btn btn-primary">Go to your student portal →</a>
+            <a href="index.html" class="btn btn-ghost">Back to Home</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Sidebar ── -->
+      <aside class="register-sidebar">
+
+        <div class="sidebar-card">
+          <h4>Camp Details</h4>
+          <div class="sidebar-item"><span class="si-icon">📅</span><span><strong>July 20–31, 2025</strong><br>Week 1: Mon–Sat · Week 2: Mon–Thu</span></div>
+          <div class="sidebar-item"><span class="si-icon">⏰</span><span><strong>9:00 AM – 3:30 PM</strong> daily</span></div>
+          <div class="sidebar-item"><span class="si-icon">🎓</span><span>For <strong>Grade 9 students</strong> — HDSB &amp; all boards welcome</span></div>
+          <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>Abbey Park High School</strong>, Oakville</span></div>
+          <div class="sidebar-item"><span class="si-icon">💰</span><span><strong>100% free</strong> to attend</span></div>
+          <div class="sidebar-item"><span class="si-icon">👥</span><span>Limited to <strong>40 participants</strong></span></div>
+        </div>
+
+        <div class="sidebar-card">
+          <h4>What to Bring</h4>
+          <div class="sidebar-item"><span class="si-icon">📓</span><span>Notebook &amp; pencils (extras provided)</span></div>
+          <div class="sidebar-item"><span class="si-icon">🍱</span><span>Your own lunch</span></div>
+          <div class="sidebar-item"><span class="si-icon">💧</span><span>Water bottle</span></div>
+          <div class="sidebar-item"><span class="si-icon">😊</span><span>A curious mind!</span></div>
+        </div>
+
+        <div class="sidebar-card" style="background:linear-gradient(135deg,rgba(232,128,138,.08),rgba(107,191,160,.08)); border-color: rgba(232,128,138,.25);">
+          <h4 style="color:var(--blush-dark);">Questions?</h4>
+          <p style="font-size:.85rem;color:var(--text-mid);margin-bottom:12px;">We're happy to help with any registration questions.</p>
+          <a href="mailto:lucas.liu.ca2009@gmail.com" class="btn btn-blue btn-full" style="justify-content:center;font-size:.85rem;">
+            📧 Email Us
+          </a>
+        </div>
+      </aside>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FOOTER ─────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <p>A student-led math summer camp for Grade 9 students. July 20–31, 2025.</p>
+        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+      </div>
+      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
+      <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="about.html#schedule">Schedule</a></li><li><a href="about.html#team">Our Team</a></li><li><a href="index.html#faq">FAQ</a></li></ul></div>
+      <div class="footer-col"><h4>Contact</h4><ul><li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li><li><a href="support.html">Become a Sponsor</a></li></ul></div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 HigherGrade Tutoring — All rights reserved.</span>
+      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+    </div>
+  </div>
+</footer>
+
+<script src="students-data.js"></script>
+<script src="script.js"></script>
+<script>
+  const API_BASE = '/api';  // APSim backend (adjust if running standalone)
+  let currentPanel = 1;
+
+  const panelFields = {
+    1: [
+      ['first-name',     'err-first-name',     'required'],
+      ['last-name',      'err-last-name',      'required'],
+      ['dob',            'err-dob',            'required'],
+      ['student-email',  'err-student-email',  'email'],
+      ['school',         'err-school',         'required'],
+    ],
+    2: [
+      ['parent-first',        'err-parent-first',        'required'],
+      ['parent-last',         'err-parent-last',         'required'],
+      ['relationship',        'err-relationship',        'required'],
+      ['parent-phone',        'err-parent-phone',        'required'],
+      ['parent-email',        'err-parent-email',        'email'],
+      ['emerg1-name',         'err-emerg1-name',         'required'],
+      ['emerg1-relationship', 'err-emerg1-relationship', 'required'],
+      ['emerg1-phone',        'err-emerg1-phone',        'required'],
+      ['emerg2-name',         'err-emerg2-name',         'required'],
+      ['emerg2-relationship', 'err-emerg2-relationship', 'required'],
+      ['emerg2-phone',        'err-emerg2-phone',        'required'],
+    ],
+    3: [],
+    4: [],
+  };
+
+  function validatePanel(panel) {
+    let ok = true;
+    (panelFields[panel] || []).forEach(([id, errId, type]) => {
+      const el  = document.getElementById(id);
+      const err = document.getElementById(errId);
+      if (!el) return;
+      el.classList.remove('error');
+      err && err.classList.remove('show');
+      const val = el.value.trim();
+      if (type === 'required' && !val) {
+        el.classList.add('error'); err && err.classList.add('show'); ok = false;
+      } else if (type === 'email' && (!val || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val))) {
+        el.classList.add('error'); err && err.classList.add('show'); ok = false;
+      }
+    });
+    return ok;
+  }
+
+  function goToPanel(next) {
+    if (next > currentPanel && !validatePanel(currentPanel)) {
+      document.querySelector('#panel-' + currentPanel + ' .error')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (next === 4) buildReview();
+
+    document.getElementById('panel-' + currentPanel).classList.remove('active');
+    document.getElementById('panel-' + next).classList.add('active');
+
+    for (let i = 1; i <= 4; i++) {
+      const step = document.getElementById('step-' + i);
+      step.classList.remove('active', 'complete');
+      if (i < next)  step.classList.add('complete');
+      if (i === next) step.classList.add('active');
+    }
+    for (let i = 1; i <= 3; i++) {
+      document.getElementById('line-' + i).classList.toggle('done', i < next);
+    }
+
+    currentPanel = next;
+    document.querySelector('.form-card.active')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function get(id) { return document.getElementById(id)?.value?.trim() || '—'; }
+
+  function buildReview() {
+    document.getElementById('review-summary').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
+        <div><strong>Student:</strong> ${get('first-name')} ${get('last-name')}</div>
+        <div><strong>School:</strong> ${get('school')}</div>
+        <div><strong>Date of Birth:</strong> ${get('dob')}</div>
+        <div><strong>Student Email:</strong> ${get('student-email')}</div>
+        <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
+          <strong>Parent/Guardian:</strong> ${get('parent-first')} ${get('parent-last')} (${get('relationship')}) · ${get('parent-phone')}
+        </div>
+        <div style="grid-column:1/-1;"><strong>Parent Email:</strong> ${get('parent-email')}</div>
+        <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
+          <strong>Emergency Contact 1:</strong> ${get('emerg1-name')} (${get('emerg1-relationship')}) · ${get('emerg1-phone')}
+        </div>
+        <div style="grid-column:1/-1;">
+          <strong>Emergency Contact 2:</strong> ${get('emerg2-name')} (${get('emerg2-relationship')}) · ${get('emerg2-phone')}
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById('reg-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const termsEl  = document.getElementById('consent-terms');
+    const errEl    = document.getElementById('err-consent');
+    const submitEl = document.getElementById('submit-btn');
+    const apiErr   = document.getElementById('err-submit');
+
+    if (!termsEl.checked) {
+      errEl.classList.add('show');
+      errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    errEl.classList.remove('show');
+
+    const payload = {
+      first_name:          get('first-name'),
+      last_name:           get('last-name'),
+      dob:                 get('dob'),
+      school:              get('school'),
+      student_email:       get('student-email'),
+      parent_first:        get('parent-first'),
+      parent_last:         get('parent-last'),
+      relationship:        get('relationship'),
+      parent_phone:        get('parent-phone'),
+      parent_email:        get('parent-email'),
+      emerg1_name:         get('emerg1-name'),
+      emerg1_phone:        get('emerg1-phone'),
+      emerg1_relationship: get('emerg1-relationship'),
+      emerg2_name:         get('emerg2-name'),
+      emerg2_phone:        get('emerg2-phone'),
+      emerg2_relationship: get('emerg2-relationship'),
+      hobbies:             document.getElementById('hobbies')?.value?.trim() || null,
+      why_join:            document.getElementById('why-join')?.value?.trim() || null,
+      consent_photo:       document.getElementById('consent-photo').checked,
+    };
+
+    submitEl.disabled = true;
+    submitEl.textContent = 'Submitting…';
+    apiErr.classList.remove('show');
+
+    try {
+      const res = await fetch(API_BASE + '/camp/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || 'Submission failed. Please try again.');
+      }
+      // Success
+      document.getElementById('reg-form').style.display = 'none';
+      document.getElementById('form-success').style.display = 'block';
+      document.getElementById('form-success').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+      apiErr.textContent = err.message;
+      apiErr.classList.add('show');
+      submitEl.disabled = false;
+      submitEl.textContent = 'Submit Registration 🎉';
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HigherGrade Tutoring — Summer Math Camp 2025</title>
+  <meta name="description" content="A two-week accelerated MTH1W math summer camp at Abbey Park High School, led by Grade 11 & 12 HDSB students. For Grade 9 students — HDSB and all boards welcome. July 20–31, 2025." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    #countdown {
+      display: flex; gap: 14px; margin-top: 28px; flex-wrap: wrap;
+    }
+    #countdown span {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 10px;
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: white;
+      line-height: 1;
+      min-width: 64px;
+    }
+    #countdown small {
+      display: block; font-size: .62rem; font-weight: 500;
+      color: rgba(255,255,255,.55); text-transform: uppercase;
+      letter-spacing: .08em; margin-top: 4px;
+    }
+
+    /* Clickable unit cards — inherit .card styling but drop native button chrome */
+    button.unit-card {
+      display: block; width: 100%;
+      font: inherit; color: inherit; text-align: left;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s, border-color .2s;
+    }
+    button.unit-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 36px rgba(0,0,0,.12);
+      border-color: var(--blush);
+    }
+    button.unit-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
+
+    /* Unit detail modal */
+    .unit-modal {
+      position: fixed; inset: 0; z-index: 800;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .unit-modal.open { display: flex; }
+    .unit-modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(20,10,25,.55);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      animation: modal-fade .2s ease;
+    }
+    .unit-modal-content {
+      position: relative;
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 36px 36px 32px;
+      max-width: 620px; width: 100%;
+      max-height: 86vh; overflow-y: auto;
+      box-shadow: 0 30px 80px rgba(0,0,0,.25);
+      animation: modal-pop .35s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    .unit-modal-close {
+      position: absolute; top: 14px; right: 14px;
+      width: 36px; height: 36px;
+      background: var(--surface2);
+      border: none; border-radius: 50%;
+      cursor: pointer; font-size: .95rem;
+      color: var(--text-mid);
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, transform .3s, color .15s;
+      z-index: 2;
+    }
+    .unit-modal-close:hover { background: var(--blush); color: white; transform: rotate(90deg); }
+    .unit-modal-icon {
+      font-size: 2.8rem; line-height: 1;
+      margin-bottom: 8px;
+    }
+    .unit-modal-eyebrow {
+      font-size: .74rem; font-weight: 700;
+      color: var(--blush); text-transform: uppercase; letter-spacing: .1em;
+      margin-bottom: 4px;
+    }
+    .unit-modal-title {
+      font-size: 1.7rem; letter-spacing: -.02em;
+      margin-bottom: 14px;
+    }
+    .unit-modal-lede {
+      font-size: 1rem; color: var(--text-mid);
+      line-height: 1.6; margin-bottom: 20px;
+    }
+    .unit-modal-body h4 {
+      font-size: .78rem; font-weight: 700;
+      color: var(--mint-dark);
+      text-transform: uppercase; letter-spacing: .08em;
+      margin: 18px 0 6px;
+    }
+    .unit-modal-body p {
+      font-size: .94rem; color: var(--text-mid);
+      line-height: 1.65; margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────────────── NAVBAR ─────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo">
+      <img src="logo.png" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About Us</a></li>
+      <li><a href="support.html">Support Us</a></li>
+      <li><a href="student-portal.html" class="nav-signin">Sign In</a></li>
+      <li><a href="register.html" class="nav-cta">Register Now</a></li>
+    </ul>
+    <button class="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ─────────────────── HERO ─────────────────── -->
+<section class="hero">
+  <div class="hero-math-bg">
+    <div class="math-symbol">∑</div>
+    <div class="math-symbol">π</div>
+    <div class="math-symbol">√</div>
+    <div class="math-symbol">∫</div>
+    <div class="math-symbol">∞</div>
+    <div class="math-symbol">Δ</div>
+    <div class="math-symbol">θ</div>
+    <div class="math-symbol">≠</div>
+  </div>
+  <div class="hero-content hero-split">
+    <!-- Left: text -->
+    <div class="hero-text">
+      <div class="hero-badge">Accelerated · MTH1W · Student-Led · Summer 2025</div>
+      <h1>Grade 9 Math,<br><span class="accent">Mastered</span> in 10 Days</h1>
+      <p class="hero-sub">
+        An accelerated, student-led summer program covering the full MTH1W curriculum —
+        designed for Grade 9 students who are serious about mathematics and ready to push beyond the classroom.
+      </p>
+      <div class="hero-dates">
+        <span class="cal-icon">📅</span>
+        July 20 – July 31, 2025 &nbsp;·&nbsp; 10 Days of Math
+      </div>
+      <div class="hero-dates" style="margin-top:10px;">
+        <span class="cal-icon">📍</span>
+        Abbey Park High School &nbsp;·&nbsp; HDSB &amp; other boards welcome
+      </div>
+      <div id="countdown" aria-label="Countdown to camp start"></div>
+      <div class="hero-buttons" style="margin-top: 32px;">
+        <a href="register.html" class="btn btn-primary">Register for Free →</a>
+        <a href="about.html"    class="btn btn-outline">Learn More</a>
+      </div>
+    </div>
+    <!-- Right: hero image -->
+    <div class="hero-image">
+      <img
+        src="placeholder_hero_students_collaborating_at_whiteboard.png"
+        alt="Students collaborating on math problems"
+      />
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── STATS ─────────────────── -->
+<section style="background: var(--navy); padding: 0;">
+  <div class="container">
+    <div class="grid-4">
+      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid rgba(255,255,255,.08);border-radius:0;">
+        <div class="stat-number">10</div>
+        <div class="stat-label">Days of Camp</div>
+      </div>
+      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid rgba(255,255,255,.08);border-radius:0;">
+        <div class="stat-number">100%</div>
+        <div class="stat-label">Student-Led</div>
+      </div>
+      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid rgba(255,255,255,.08);border-radius:0;">
+        <div class="stat-number">5</div>
+        <div class="stat-label">MTH1W Units</div>
+      </div>
+      <div class="card stat-card" style="background:transparent;border:none;border-radius:0;">
+        <div class="stat-number">Free</div>
+        <div class="stat-label">To Attend</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── WHY MATHCAMP ─────────────────── -->
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-label">Why Us?</div>
+      <h2 class="section-title">A different kind of<br>math experience</h2>
+      <p class="section-desc">Structured like a real course, run entirely by students. We cover the full MTH1W curriculum at pace — with daily problem sets, peer teaching, and a final exam.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-icon" style="background:rgba(232,128,138,.1);">🧠</div>
+        <h3>Student-Led Everything</h3>
+        <p>Every session, lesson, and problem set is planned and facilitated by Grade 11 and 12 HDSB students who've already aced this material. Real peer learning — no adults running the show.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(107,191,160,.1);">📚</div>
+        <h3>Full MTH1W Coverage</h3>
+        <p>We cover the entire Grade 9 math course across 10 intensive days — Grade 8 Review, Algebra, Data, Geometry, and Linear Relations.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(232,128,138,.1);">✏️</div>
+        <h3>Daily Problem Sets</h3>
+        <p>Hundreds of curated homework questions — tiered by difficulty — to reinforce every concept the same day it's taught. Come ready to work.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── TOPICS ─────────────────── -->
+<section class="section">
+  <div class="container">
+    <div class="section-head section-head-center">
+      <div class="section-label">Curriculum · MTH1W</div>
+      <h2 class="section-title">5 units. 10 days.</h2>
+      <p class="section-desc">The complete Grade 9 math curriculum, taught intensively by students who know it inside and out.</p>
+    </div>
+    <p style="text-align:center; color:var(--muted); font-size:.88rem; margin: -18px auto 20px;">👆 Click any unit for more details</p>
+    <div class="grid-3" style="gap:16px; margin-top: 8px;">
+      <button class="card unit-card" data-unit="1" style="border-top: 3px solid var(--blush);">
+        <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">🔄</div>
+        <h3>Unit 1 — Grade 8 Review</h3>
+        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Rational Numbers</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Powers &amp; Roots</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Inequalities</div>
+        </div>
+      </button>
+      <button class="card unit-card" data-unit="2" style="border-top: 3px solid var(--mint);">
+        <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📈</div>
+        <h3>Unit 2 — Algebra</h3>
+        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Simplifying Expressions</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Solving Equations</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Relations</div>
+        </div>
+      </button>
+      <button class="card unit-card" data-unit="3" style="border-top: 3px solid var(--blush);">
+        <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📊</div>
+        <h3>Unit 3 — Data</h3>
+        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Data Literacy</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Statistics</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Mathematical Modelling</div>
+        </div>
+      </button>
+      <button class="card unit-card" data-unit="4" style="border-top: 3px solid var(--mint);">
+        <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📐</div>
+        <h3>Unit 4 — Geometry</h3>
+        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Measurement</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Pythagorean Theorem</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Shape Areas</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Geometric Properties</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Coordinate Geometry</div>
+        </div>
+      </button>
+      <button class="card unit-card" data-unit="5" style="border-top: 3px solid var(--blush); grid-column: span 2 / span 2;">
+        <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📉</div>
+        <h3>Unit 5 — Linear Relations</h3>
+        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Linear Equations</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Slope-Intercept Form</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Graphing Equations</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Solving Linear Equations</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Parallel &amp; Perpendicular Lines</div>
+          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Linear Inequalities</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- ── Unit detail modal ── -->
+    <div class="unit-modal" id="unit-modal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="unit-modal-backdrop"></div>
+      <div class="unit-modal-content">
+        <button class="unit-modal-close" id="unit-modal-close" aria-label="Close">✕</button>
+        <div class="unit-modal-icon" id="unit-modal-icon">🔄</div>
+        <div class="unit-modal-eyebrow" id="unit-modal-eyebrow">Unit 1</div>
+        <h2 class="unit-modal-title" id="unit-modal-title"></h2>
+        <p class="unit-modal-lede" id="unit-modal-lede"></p>
+        <div class="unit-modal-body" id="unit-modal-body"></div>
+      </div>
+    </div>
+    <div style="text-align:center; margin-top: 36px;">
+      <a href="about.html#schedule" class="btn btn-blue">See the Full Day-by-Day Schedule →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── WEEK AT A GLANCE ─────────────────── -->
+<section class="section section-alt">
+  <div class="container">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;">
+      <div>
+        <div class="section-label">Camp Structure</div>
+        <h2 class="section-title">Two weeks,<br>one full course</h2>
+        <p class="section-desc" style="margin-bottom:28px;">
+          Each week covers a set of MTH1W units, building toward a full Applications + Thinking exam on Day 9.
+        </p>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-time">Week 1 · July 20–25</div>
+            <h4>Units 1–4: Review → Geometry</h4>
+            <p>Grade 8 Review, Algebra, Data Literacy, and Geometry — four units in five days, capped by a weekend of unit tests.</p>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-time">Week 2 · July 27–31</div>
+            <h4>Unit 5 + Review + Final Exam</h4>
+            <p>Linear Relations in full, then a two-day comprehensive review before the Applications and Thinking exams on Day 9.</p>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-time">July 31 · Final Day</div>
+            <h4>Flex & Fun 🎉</h4>
+            <p>Flex periods, fun activities, and an informal celebration to close out the 10 days together.</p>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="card" style="border-left:4px solid var(--blush);">
+          <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--blush);margin-bottom:6px;">Daily Schedule</div>
+          <div style="font-size:.92rem;color:var(--text-mid);display:flex;flex-direction:column;gap:6px;">
+            <div>📋 <strong>8:30 – 8:45</strong> — Beginning of class</div>
+            <div>📚 <strong>8:45 – 10:15</strong> — Period 1</div>
+            <div>☕ <strong>10:15 – 10:45</strong> — Break</div>
+            <div>✏️ <strong>10:45 – 12:15</strong> — Period 2</div>
+            <div>🍕 <strong>12:15 – 1:15</strong> — Lunch</div>
+            <div>🤝 <strong>1:15 – 2:45</strong> — Period 3</div>
+            <div>☕ <strong>2:45 – 3:15</strong> — Break</div>
+            <div>🧮 <strong>3:15 – 4:45</strong> — Period 4</div>
+            <div>🌆 <strong>4:45 – 5:00</strong> — Pick up</div>
+          </div>
+        </div>
+        <div class="card" style="border-left:4px solid var(--mint);">
+          <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mint-dark);margin-bottom:6px;">Who Should Attend</div>
+          <div style="font-size:.92rem;color:var(--text-mid);">
+            This is an <strong>accelerated MTH1W program</strong> designed for Grade 9 students who excel at math and are ready for a challenge. Built primarily for HDSB students, but students from other boards are absolutely welcome. We expect high motivation, active participation, and a commitment to daily homework.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── CTA BAND ─────────────────── -->
+<div class="highlight-band">
+  <h2>Think you have what it takes?</h2>
+  <p>Registration is completely free. This is an accelerated program — if you're one of the best math students in your grade, we want you here.</p>
+  <div class="flex gap-12 items-center flex-wrap" style="justify-content:center;">
+    <a href="register.html" class="btn btn-primary" style="background:white;color:var(--blush);">Register Now →</a>
+    <a href="support.html"  class="btn btn-outline">Support the Camp</a>
+  </div>
+</div>
+
+<!-- ─────────────────── TESTIMONIALS ─────────────────── -->
+<section class="section">
+  <div class="container-sm">
+    <div class="section-head section-head-center">
+      <div class="section-label">From Our Community</div>
+      <h2 class="section-title">What people are saying</h2>
+    </div>
+    <div style="display:flex; flex-direction:column; gap: 20px;">
+      <div class="quote-card">
+        <blockquote>"I never thought I'd enjoy math this much. The student-led format makes it feel completely different from school — everyone genuinely wants to be here."</blockquote>
+        <cite>— Alex M., participant preview session</cite>
+      </div>
+      <div class="quote-card">
+        <blockquote>"It's inspiring to see students take full ownership of organizing something this ambitious. This is exactly the kind of initiative schools should be supporting."</blockquote>
+        <cite>— Ms. Chen, math teacher &amp; faculty advisor</cite>
+      </div>
+      <div class="quote-card">
+        <blockquote>"My daughter came home every day buzzing about the problems they worked on. She started doing math puzzles on her own for fun — that's never happened before."</blockquote>
+        <cite>— Parent of a participant</cite>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FAQ ─────────────────── -->
+<section class="section section-alt" id="faq">
+  <div class="container-sm">
+    <div class="section-head section-head-center">
+      <div class="section-label">Questions</div>
+      <h2 class="section-title">Frequently asked questions</h2>
+    </div>
+    <div>
+      <div class="faq-item">
+        <button class="faq-q">Is this camp really free? <span class="arrow">▼</span></button>
+        <div class="faq-a">Yes, 100% free to attend. The camp is student-organized and community-supported through donations and sponsorships. We believe access to enrichment should never depend on ability to pay.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Is this camp for all skill levels? <span class="arrow">▼</span></button>
+        <div class="faq-a">This is an accelerated program covering the full MTH1W curriculum in 10 days. It's best suited for students who already have strong math fundamentals and are ready to be challenged. If you're one of the top math students in your Grade 8 class or early Grade 9, this camp is built for you.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Where is the camp held? <span class="arrow">▼</span></button>
+        <div class="faq-a">All 10 days run at <strong>Abbey Park High School</strong> in Oakville. Specific room assignments and drop-off / pick-up details will be emailed to registered families ahead of Day 1.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Do I have to be an HDSB student? <span class="arrow">▼</span></button>
+        <div class="faq-a">No — the program was built around the HDSB MTH1W curriculum, so HDSB students are our primary audience, but we warmly welcome strong Grade 9 math students from any school board.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Who runs the sessions? <span class="arrow">▼</span></button>
+        <div class="faq-a">100% of the sessions are planned and facilitated by Grade 11 and 12 HDSB students who have already completed and excelled at this material. A faculty advisor is present for support and safety.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">What should I bring each day? <span class="arrow">▼</span></button>
+        <div class="faq-a">Just yourself, a notebook, pencil, and a curious mind. All materials and problem sets are provided. Bring your own lunch — there is no cafeteria, but lunch breaks are a fun social time.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">How many spots are available? <span class="arrow">▼</span></button>
+        <div class="faq-a">We currently plan for around 40 participants, but we're open to hosting more if demand is strong. Register early — if we receive more applications than expected, we'll do our best to expand capacity.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Can I attend just one week? <span class="arrow">▼</span></button>
+        <div class="faq-a">We strongly encourage attending both weeks since the material builds across the two weeks. However, we understand scheduling conflicts — please note your availability in the registration form and we'll do our best to accommodate you.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── FOOTER ─────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <p>A student-led math summer camp for Grade 9 students. July 20–31, 2025.</p>
+        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+      </div>
+      <div class="footer-col footer-pages">
+        <h4>Pages</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About Us</a></li>
+          <li><a href="support.html">Support Us</a></li>
+          <li><a href="register.html">Register</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Camp Info</h4>
+        <ul>
+          <li><a href="about.html#schedule">Schedule</a></li>
+          <li><a href="about.html#team">Our Team</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Contact</h4>
+        <ul>
+          <li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li>
+          <li><a href="support.html">Become a Sponsor</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 HigherGrade Tutoring — All rights reserved.</span>
+      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+    </div>
+  </div>
+</footer>
+
+<script src="students-data.js"></script>
+<script src="script.js"></script>
+<script>
+/* ─── Curriculum unit modal ─── */
+(function () {
+  const modal = document.getElementById('unit-modal');
+  if (!modal) return;
+  const backdrop = modal.querySelector('.unit-modal-backdrop');
+  const closeBtn = document.getElementById('unit-modal-close');
+  const iconEl   = document.getElementById('unit-modal-icon');
+  const eyebrowEl= document.getElementById('unit-modal-eyebrow');
+  const titleEl  = document.getElementById('unit-modal-title');
+  const ledeEl   = document.getElementById('unit-modal-lede');
+  const bodyEl   = document.getElementById('unit-modal-body');
+
+  const UNITS = {
+    1: {
+      icon: '🔄', eyebrow: 'Unit 1 · Day 1',
+      title: 'Grade 8 Review',
+      lede: 'We kick off camp by filling in the gaps from Grade 8 so nobody falls behind once we pick up pace. Expect a friendly first-day vibe — introductions, diagnostic problems, and building the foundation everything else relies on.',
+      body: `
+        <h4>What we cover</h4>
+        <p><strong>Rational numbers</strong> — operations with fractions, decimals, and negatives; order of operations; real-world contexts.</p>
+        <p><strong>Powers &amp; roots</strong> — exponent laws, square &amp; cube roots, estimating irrationals, scientific notation.</p>
+        <p><strong>Inequalities</strong> — reading, writing, and solving simple one-variable inequalities; number-line representations.</p>
+        <h4>Homework</h4>
+        <p>100 problems to take home: 60 easy, 20 medium, 10 hard. Designed to feel beatable but not trivial.</p>
+      `
+    },
+    2: {
+      icon: '📈', eyebrow: 'Unit 2 · Day 2',
+      title: 'Algebra',
+      lede: 'The heart of Grade 9 math. We build from simplifying expressions to solving equations with multiple methods, then introduce relations as the bridge into Unit 5.',
+      body: `
+        <h4>What we cover</h4>
+        <p><strong>Simplifying expressions</strong> — combining like terms, distributive property, factoring GCFs, substitution.</p>
+        <p><strong>Solving equations</strong> — one-step, two-step, then equations requiring multiple methods (combining, rearranging, isolating).</p>
+        <p><strong>Relations</strong> — input/output tables, mappings, and introducing the vocabulary we'll need for linear relations later.</p>
+        <h4>Homework</h4>
+        <p>80 problems: 15 substitution, 5 thinking, 60 easy. Plus one applied thinking question (the "fill-the-bucket-at-a-constant-rate" problem).</p>
+      `
+    },
+    3: {
+      icon: '📊', eyebrow: 'Unit 3 · Day 3',
+      title: 'Data',
+      lede: 'A lighter but important day — numeracy in the real world. We focus on reading data critically and building simple models, not crunching through computations.',
+      body: `
+        <h4>What we cover</h4>
+        <p><strong>Data literacy</strong> — spotting misleading graphs, understanding scales, asking what a dataset can and can't tell you.</p>
+        <p><strong>Statistics</strong> — mean, median, mode, range, and when each is the right tool.</p>
+        <p><strong>Mathematical modelling</strong> — translating a real-world scenario into a mathematical statement.</p>
+        <h4>Catch-up afternoon</h4>
+        <p>Last period of Day 3 is a catch-up/free period — finish any homework from Days 1 &amp; 2, or tackle a 100-question review set (30 inequalities, 10 stats, 10 data, 30 powers &amp; roots, 15 equations, 15 simplifying).</p>
+      `
+    },
+    4: {
+      icon: '📐', eyebrow: 'Unit 4 · Days 4–5',
+      title: 'Geometry',
+      lede: 'A full two-day unit because there\'s a lot here — measurement, the Pythagorean theorem, shape areas, geometric properties, and coordinate geometry all stack on each other.',
+      body: `
+        <h4>Day 4</h4>
+        <p><strong>Measurement</strong> — units, conversions, perimeter, surface area fundamentals.</p>
+        <p><strong>Pythagorean theorem</strong> — derivation, then applying it to word problems.</p>
+        <p><strong>Calculating shape areas</strong> — triangles, quadrilaterals, circles, composite figures.</p>
+        <h4>Day 5</h4>
+        <p><strong>More shape calculations</strong>, then <strong>geometric properties</strong> (parallel lines, transversals, angle relationships) and <strong>coordinate geometry</strong> (distance, midpoint, slope).</p>
+        <p>The day ends with a "putting it all together" session — combined problems that draw on everything so far.</p>
+        <h4>Homework</h4>
+        <p>Day 4: 30 shape calculations + 20 Pythagoras. Day 5: 30 easy + 10 hard geometry, 10 hard geometric proofs, 40 graphical shape calculations, 10 thinking questions. Weekend: 4 unit tests to return Monday.</p>
+      `
+    },
+    5: {
+      icon: '📉', eyebrow: 'Unit 5 · Days 6–8',
+      title: 'Linear Relations',
+      lede: 'The biggest unit in Grade 9 and the one students tend to struggle with most. We spend three full days on it — builds from basics, through multiple solving strategies, into applications.',
+      body: `
+        <h4>Day 6</h4>
+        <p><strong>Introduction to linear equations</strong>, <strong>slope-intercept form</strong>, how x and y values work in tables and on graphs, and <strong>graphing equations</strong> from scratch.</p>
+        <h4>Day 7</h4>
+        <p><strong>Forms of linear equations</strong> (point-slope, standard, slope-intercept), solving linear equations with multiple techniques, <strong>applications</strong>, and <strong>parallel &amp; perpendicular lines</strong>.</p>
+        <h4>Day 8</h4>
+        <p>Interpreting linear relationships, <strong>linear inequalities</strong>, harder mixed-method solving, and a full unit review. 200 mixed homework problems — but three hours of in-class time to tackle them together.</p>
+        <h4>What's next</h4>
+        <p>Day 9 is the final exam: Applications (multiple choice + standard questions) in the morning, Thinking (stretch + mixed-unit) in the afternoon.</p>
+      `
+    },
+  };
+
+  function openUnit(n) {
+    const u = UNITS[n];
+    if (!u) return;
+    iconEl.textContent    = u.icon;
+    eyebrowEl.textContent = u.eyebrow;
+    titleEl.textContent   = u.title;
+    ledeEl.textContent    = u.lede;
+    bodyEl.innerHTML      = u.body;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('unit-modal-close').focus();
+  }
+  function closeUnit() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('.unit-card').forEach(btn => {
+    btn.addEventListener('click', () => openUnit(btn.dataset.unit));
+  });
+  backdrop.addEventListener('click', closeUnit);
+  closeBtn.addEventListener('click', closeUnit);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) closeUnit();
+  });
+})();
+</script>
+</body>
+</html>

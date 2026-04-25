@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transactions Log — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--navy), var(--navy-mid)); padding: 20px; }
+    .gate-box { background: var(--surface); border-radius: 18px; padding: 44px 36px; max-width: 400px; width: 100%; box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center; }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input { width: 100%; padding: 12px 14px; font-size: 1rem; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface2); outline: none; margin-bottom: 14px; }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1200px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 8px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px; font-size: .9rem; font-weight: 600;
+      color: var(--text-mid); text-decoration: none; border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center;
+      padding: 22px 26px;
+      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
+      border: 1px solid var(--border); border-radius: 14px;
+      margin-bottom: 20px; box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon {
+      font-size: 2.4rem; width: 62px; height: 62px; border-radius: 16px;
+      background: white; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    }
+    .admin-welcome h1 { font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .9rem; color: var(--text-mid); line-height: 1.5; }
+
+    .tx-toolbar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 18px; margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .tx-toolbar .spacer { flex: 1; }
+    .tx-toolbar input, .tx-toolbar select {
+      padding: 9px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; background: var(--surface2); outline: none;
+      font-size: .9rem; font-family: inherit;
+    }
+    .tx-toolbar input:focus, .tx-toolbar select:focus { border-color: var(--blush); }
+    .tx-toolbar .count {
+      font-size: .82rem; font-weight: 700; color: var(--muted);
+    }
+    .btn-tidy {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 16px; font-size: .88rem; font-weight: 600;
+      color: var(--text-mid); background: var(--surface2);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      cursor: pointer; text-decoration: none; transition: all .15s; font-family: inherit;
+    }
+    .btn-tidy:hover { border-color: var(--blush); color: var(--blush); background: var(--blush-bg); }
+    .btn-tidy.primary { background: var(--blush); color: white; border-color: var(--blush); }
+    .btn-tidy.primary:hover { background: var(--blush-dark); border-color: var(--blush-dark); color: white; }
+    .btn-tidy.danger:hover { border-color: #c0392b; color: #c0392b; background: #FEE2E2; }
+
+    .tx-table {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-sm);
+    }
+    .tx-head, .tx-row {
+      display: grid;
+      grid-template-columns: 160px 160px minmax(180px, 1fr) 80px minmax(260px, 2fr);
+      gap: 14px;
+      padding: 14px 20px;
+      align-items: center;
+    }
+    .tx-head {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      font-size: .72rem; font-weight: 700;
+      color: var(--muted); letter-spacing: .08em; text-transform: uppercase;
+    }
+    .tx-row { border-bottom: 1px solid var(--border); font-size: .88rem; }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-row:nth-child(even) { background: rgba(232,128,138,.03); }
+    .tx-date { color: var(--text-mid); font-variant-numeric: tabular-nums; }
+    .tx-type-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: .76rem; font-weight: 700;
+      background: var(--surface2); color: var(--text-mid);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .tx-subject { font-weight: 700; color: var(--text); }
+    .tx-scope-mini { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+    .tx-amount { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; font-size: 1rem; }
+    .tx-amount.pos { color: var(--mint-dark); }
+    .tx-amount.neg { color: #c0392b; }
+    .tx-desc { color: var(--text-mid); font-size: .86rem; line-height: 1.45; }
+
+    .empty-state {
+      text-align: center; padding: 60px 28px;
+      color: var(--muted);
+    }
+    .empty-state h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text); }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--navy); color: white;
+      padding: 12px 22px; border-radius: 10px; font-size: .88rem;
+      box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s; z-index: 500;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+    @media (max-width: 900px) {
+      .tx-head { display: none; }
+      .tx-row {
+        grid-template-columns: 1fr auto;
+        gap: 4px;
+      }
+      .tx-date { grid-column: 1 / -1; font-size: .76rem; }
+      .tx-type-cell { grid-column: 1 / -1; }
+      .tx-subject-cell { grid-column: 1; }
+      .tx-amount { grid-column: 2; grid-row: span 2; }
+      .tx-desc { grid-column: 1 / -1; font-size: .82rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Passcode gate -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to view the transactions log.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<!-- Admin UI -->
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html" class="active">Transactions</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html">Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">🧾</div>
+    <div>
+      <h1>Point transactions log</h1>
+      <p>Every movement of points — earned, spent, transferred, penalized, invested — is automatically recorded here. Use this to audit the camp economy.</p>
+    </div>
+  </div>
+
+  <div class="tx-toolbar">
+    <input type="text" id="search" placeholder="Search student/class/description…" />
+    <select id="filter-type">
+      <option value="">All types</option>
+    </select>
+    <span class="count" id="tx-count"></span>
+    <span class="spacer"></span>
+    <button class="btn-tidy primary" id="export-csv">📊 Export CSV</button>
+    <button class="btn-tidy danger" id="clear-btn">🗑 Clear log</button>
+  </div>
+
+  <div id="tx-container"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="students-data.js"></script>
+<script>
+const PASSCODE = 'HigherGrade Tutoring';
+const SESSION_KEY = 'highergrade_admin_unlocked';
+
+const gate = document.getElementById('gate');
+const shell = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+function unlock() {
+  const entered  = (passInput.value || '').trim().toLowerCase();
+  const expected = PASSCODE.trim().toLowerCase();
+  if (entered === expected) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    gate.style.display = 'none';
+    shell.classList.add('unlocked');
+    render();
+    return;
+  }
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem(SESSION_KEY) === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+  setTimeout(render, 0);
+}
+
+const container = document.getElementById('tx-container');
+const searchEl  = document.getElementById('search');
+const typeEl    = document.getElementById('filter-type');
+const countEl   = document.getElementById('tx-count');
+const toast     = document.getElementById('toast');
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+// Populate type filter
+Object.keys(TX_TYPES).forEach(key => {
+  const o = document.createElement('option');
+  o.value = key;
+  o.textContent = `${TX_TYPES[key].icon} ${TX_TYPES[key].label}`;
+  typeEl.appendChild(o);
+});
+
+function fmtDate(ts) {
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function render() {
+  const all = getTransactions().slice().reverse(); // newest first
+  const q = (searchEl.value || '').trim().toLowerCase();
+  const typeFilter = typeEl.value;
+
+  const filtered = all.filter(tx => {
+    if (typeFilter && tx.type !== typeFilter) return false;
+    if (!q) return true;
+    const haystack = [
+      tx.subjectName, tx.relatedName, tx.description, tx.type,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+
+  countEl.textContent = all.length === filtered.length
+    ? `${all.length} transaction${all.length === 1 ? '' : 's'}`
+    : `${filtered.length} of ${all.length} shown`;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="tx-table">
+        <div class="empty-state">
+          <h2>${all.length === 0 ? 'No transactions yet' : 'No matches'}</h2>
+          <p>${all.length === 0
+            ? 'Every point-moving action (awards, penalties, transfers, claims, bank moves, etc.) will appear here as soon as it happens.'
+            : 'Try a different search term or "All types".'}</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div class="tx-table">
+      <div class="tx-head">
+        <div>When</div>
+        <div>Type</div>
+        <div>Subject</div>
+        <div style="text-align:right;">Amount</div>
+        <div>Description</div>
+      </div>
+  `;
+  filtered.forEach(tx => {
+    const meta = TX_TYPES[tx.type] || { icon: '•', label: tx.type };
+    const amt  = Number(tx.amount) || 0;
+    const amtCls = amt > 0 ? 'pos' : amt < 0 ? 'neg' : '';
+    const amtStr = (amt > 0 ? '+' : '') + amt.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    html += `
+      <div class="tx-row">
+        <div class="tx-date">${fmtDate(tx.at)}</div>
+        <div class="tx-type-cell"><span class="tx-type-pill">${meta.icon} ${escapeHtml(meta.label)}</span></div>
+        <div class="tx-subject-cell">
+          <div class="tx-subject">${escapeHtml(tx.subjectName || '—')}</div>
+          <div class="tx-scope-mini">${tx.scope === 'class' ? '🏫 class' : '🎓 student'}${tx.relatedName ? ' · with ' + escapeHtml(tx.relatedName) : ''}</div>
+        </div>
+        <div class="tx-amount ${amtCls}">${amtStr}</div>
+        <div class="tx-desc">${escapeHtml(tx.description || '')}</div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+searchEl.addEventListener('input', render);
+typeEl.addEventListener('change', render);
+
+document.getElementById('export-csv').addEventListener('click', () => {
+  const txs = getTransactions();
+  if (txs.length === 0) { showToast('Nothing to export yet'); return; }
+  const cols = [
+    { k: 'at',          label: 'Timestamp (ISO)' },
+    { k: 'at_local',    label: 'Timestamp (local)' },
+    { k: 'type',        label: 'Type' },
+    { k: 'scope',       label: 'Scope' },
+    { k: 'subjectId',   label: 'Subject ID' },
+    { k: 'subjectName', label: 'Subject Name' },
+    { k: 'relatedId',   label: 'Related ID' },
+    { k: 'relatedName', label: 'Related Name' },
+    { k: 'amount',      label: 'Amount' },
+    { k: 'description', label: 'Description' },
+  ];
+  function cell(v) {
+    const s = String(v == null ? '' : v);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  const header = cols.map(c => cell(c.label)).join(',');
+  const rows = txs.slice().reverse().map(tx => cols.map(c => {
+    if (c.k === 'at')       return cell(new Date(tx.at).toISOString());
+    if (c.k === 'at_local') return cell(fmtDate(tx.at));
+    return cell(tx[c.k]);
+  }).join(','));
+  const csv = '\uFEFF' + [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `highergrade-transactions-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Transactions CSV downloaded');
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  if (!confirm('Clear the entire transactions log? This CANNOT be undone.')) return;
+  clearTransactions();
+  render();
+  showToast('Log cleared');
+});
+
+// Back-to-top button
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'back-to-top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '↑';
+  document.body.appendChild(btn);
+  const update = () => btn.classList.toggle('visible', window.scrollY > 400);
+  window.addEventListener('scroll', update, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  update();
+})();
+</script>
+</body>
+</html>
