@@ -1,5 +1,5 @@
 /* ============================================================
-   MATH CAMP 2025 — Shared JavaScript
+   MATH CAMP 2026 — Shared JavaScript
    ============================================================ */
 
 // ── Session housekeeping ──
@@ -374,7 +374,7 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   const el = document.getElementById('countdown');
   if (!el) return;
 
-  const target = new Date('2025-07-20T09:00:00');
+  const target = new Date('2026-07-20T09:00:00');
 
   function tick() {
     const now  = new Date();

@@ -23,7 +23,7 @@ const DEFAULT_STAFF = [
     gender: 'Male', pronouns: 'he / him',
     interests: 'Number theory, jazz piano, chess, competitive math, Oakville pizza discourse.',
     bio: "Hi! I'm Alex — a Grade 12 HDSB student and the one who kicked this whole thing off.\n\nI fell in love with number theory after stumbling onto a Numberphile video about Fermat primes late one night, and I've been hooked ever since. I've written the CEMC Euclid three years running and reached the CMO qualifier last year.\n\nThe idea for this camp came out of frustration — I was sitting through a slow Grade 9 math class and realized I'd learned more in one afternoon of self-study than the whole semester. I wanted to give the next wave of Grade 9s a preview of what math can actually feel like.",
-    transcript: 'Grade 12 HDSB student. 98% MCV4U, 96% MHF4U. Euclid 2025 top 10%. CMO Qualifier 2024.',
+    transcript: 'Grade 12 HDSB student. 98% MCV4U, 96% MHF4U. Euclid 2026 top 10%. CMO Qualifier 2024.',
   },
   {
     id: 'jordan-park', category: 'organizers',
@@ -45,7 +45,7 @@ const DEFAULT_STAFF = [
     gender: 'Female', pronouns: 'she / her',
     interests: 'Competitive math, cross-country running, bullet journalling.',
     bio: "I'm Maya, a Grade 12 HDSB student. I've participated in CEMC contests every year since Grade 7 and scored top 25% on the Euclid last year.\n\nAt the camp, I design the weekend unit tests and the two final exams (Applications + Thinking) to closely match what Grade 9 students will actually see in class — plus a few stretch questions to push the strongest of you.\n\nWhen I'm not doing math, I'm probably running — I'm on my school's cross-country team.",
-    transcript: 'Grade 12 HDSB student. 97% MHF4U, 95% MDM4U. Euclid 2025 top 25%. CEMC Cayley/Fermat gold pins.',
+    transcript: 'Grade 12 HDSB student. 97% MHF4U, 95% MDM4U. Euclid 2026 top 25%. CEMC Cayley/Fermat gold pins.',
   },
   {
     id: 'priya-nair', category: 'teaching_staff',
