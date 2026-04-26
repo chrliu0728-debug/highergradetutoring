@@ -365,7 +365,7 @@
 <script src="students-data.js"></script>
 <script>
 // Visiting this page ends any admin session — it's a student flow.
-sessionStorage.removeItem('highergrade_admin_unlocked');
+fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 
 const emailEl = document.getElementById('mw-email');
 const pwdEl   = document.getElementById('mw-password');
@@ -379,43 +379,36 @@ function showError(m)   { msgEl.className = 'mw-msg err'; msgEl.textContent = m;
 function showOk(m)      { msgEl.className = 'mw-msg ok';  msgEl.textContent = m; }
 function clearMsg()     { msgEl.className = 'mw-msg';     msgEl.textContent = ''; }
 
-function tryClaim() {
+async function tryClaim() {
   clearMsg();
   const email = emailEl.value;
   const pwd   = pwdEl.value;
   if (!email || !pwd) { showError('Enter your camp email and password to claim.'); return; }
 
-  const student = findStudentByLogin(email, pwd);
-  if (!student) { showError("Couldn't find a matching account. Check your email and password."); return; }
-
   btn.disabled = true;
   btn.textContent = 'Casting spell…';
 
-  const res = claimMazeWiz(student.id);
-  if (!res.ok) {
-    btn.disabled = false;
-    btn.textContent = 'Claim my title →';
-    showError(res.error || 'Could not claim the title.');
-    return;
+  try {
+    if (window.dataReady) await window.dataReady;
+    const student = await findStudentByLogin(email, pwd);
+    if (!student) {
+      showError("Couldn't find a matching account. Check your email and password.");
+      btn.disabled = false; btn.textContent = 'Claim my title →';
+      return;
+    }
+    const res = await claimMazeWiz(student.id);
+    if (!res.ok) {
+      btn.disabled = false; btn.textContent = 'Claim my title →';
+      showError(res.error || 'Could not claim the title.');
+      return;
+    }
+    vwSub.textContent = `The title is yours, ${studentFullName(student)}. A new card is waiting on your student dashboard.`;
+    claimView.style.display = 'none';
+    victoryView.classList.add('show');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Claim my title →';
+    showError(e.message || 'Something went wrong. Please try again.');
   }
-
-  // Log the claim in the transactions audit
-  if (typeof logTransaction === 'function') {
-    logTransaction({
-      type: 'earn',
-      scope: 'student',
-      subjectId: student.id,
-      subjectName: studentFullName(student),
-      amount: 0,
-      description: `🧙 Claimed the Maze Wizard title for their class`,
-    });
-  }
-
-  // Auto-sign the student in and show victory
-  setLoggedInStudent(student.id);
-  vwSub.textContent = `The title is yours, ${studentFullName(student)}. A new card is waiting on your student dashboard.`;
-  claimView.style.display = 'none';
-  victoryView.classList.add('show');
 }
 
 btn.addEventListener('click', tryClaim);

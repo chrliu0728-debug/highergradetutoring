@@ -1,9 +1,20 @@
 /* ============================================================
-   STUDENT DATA — HigherGrade Tutoring
-   Shared by register.html, leaderboard.html, and admin-students.html.
-   ============================================================ */
+   STUDENT DATA — HigherGrade Tutoring  (server-backed)
+   ----------------------------------------------------------------
+   The site previously stored everything in localStorage. It now
+   talks to a Flask + SQLite backend at /api/*. Each page should
+   `await window.dataReady` before using any of the read helpers
+   below — the helpers read from in-memory caches that are filled
+   by the bootstrap fetch.
 
-const STUDENT_STORAGE_KEY = 'highergrade_students_v1';
+   API surface is preserved so most call-sites continue to work:
+   getStudents() / getClasses() / getRoles() / getTransactions()
+   / getBaseStatCategories() return synchronously from cache.
+   Mutations are async — they call the server, then refresh
+   the cache. Existing code that calls them without `await` will
+   still appear to work optimistically (the cache is updated
+   synchronously before the network round-trip).
+   ============================================================ */
 
 const STAT_FIELDS = [
   { key: 'privatePoints',     label: 'Current Points',    icon: '💰', short: 'Current' },
@@ -16,18 +27,17 @@ const STAT_FIELDS = [
   { key: 'badWords',          label: 'Bad Words Caught',  icon: '🤬', short: 'Bad Words' },
 ];
 
-// Meta fields (not shown in STAT_FIELDS UI but tracked on stats object)
 const CLICKER_META_DEFAULTS = {
   clickerClicks: 0,
   clickerPointsEarned: 0,
   spiderShown: false,
 };
 
-const LUCK_COST = 800;       // points required per luck point
-const CLICKER_RATE = 100;    // clicks per 1 earned point
-const CLICKER_COOLDOWN_MS = 60; // 0.06s between clicks
-const TRANSFER_KEEP_RATIO = 0.5; // recipient keeps 50% of transfer amount
-const SPIDER_THRESHOLD = 20; // clicker points to trigger spider
+const LUCK_COST = 800;
+const CLICKER_RATE = 100;
+const CLICKER_COOLDOWN_MS = 60;
+const TRANSFER_KEEP_RATIO = 0.5;
+const SPIDER_THRESHOLD = 20;
 
 function defaultStats() {
   const o = {};
@@ -40,44 +50,118 @@ function newStudentId() {
   return 'student-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 }
 
-function getStudents() {
+/* ──────────────────────────────────────────────────────────────
+   In-memory caches. Populated by HG.bootstrap() (see bottom).
+   ────────────────────────────────────────────────────────────── */
+const HG = (window.HG = window.HG || {
+  cache: {
+    students: [],
+    classes: [],
+    roles: [],
+    baseStats: [],
+    transactions: [],
+    staff: [],
+    me: null,         // { kind, student }
+  },
+  ready: false,
+});
+
+async function _api(path, opts = {}) {
+  const init = {
+    method: opts.method || 'GET',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
+  const res = await fetch('/api' + path, init);
+  let data = null;
+  try { data = await res.json(); } catch (_) { /* may be 204 */ }
+  if (!res.ok) {
+    const msg = (data && data.error) || ('HTTP ' + res.status);
+    const err = new Error(msg); err.status = res.status; err.data = data;
+    throw err;
+  }
+  return data || { ok: true };
+}
+
+async function _refresh(key, path, payloadKey) {
   try {
-    const stored = localStorage.getItem(STUDENT_STORAGE_KEY);
-    if (stored) {
-      const arr = JSON.parse(stored);
-      if (Array.isArray(arr)) {
-        // Backfill missing stat fields on older records
-        return arr.map(s => ({
-          ...s,
-          stats: { ...defaultStats(), ...(s.stats || {}) },
-        }));
-      }
-    }
-  } catch (e) { /* fall through */ }
-  return [];
+    const r = await _api(path);
+    HG.cache[key] = r.data || [];
+    return HG.cache[key];
+  } catch (e) {
+    console.warn('refresh', key, 'failed:', e.message);
+    return HG.cache[key];
+  }
 }
 
-function saveStudents(arr) {
-  localStorage.setItem(STUDENT_STORAGE_KEY, JSON.stringify(arr));
+async function _bootstrap() {
+  // Fire all reads in parallel.
+  const [me, students, classes, roles, baseStats, txs, staff] = await Promise.all([
+    _api('/auth/me').catch(() => ({ kind: null, student: null })),
+    _api('/students').catch(() => ({ data: [] })),
+    _api('/classes').catch(() => ({ data: [] })),
+    _api('/roles').catch(() => ({ data: [] })),
+    _api('/base-stats').catch(() => ({ data: [] })),
+    _api('/transactions').catch(() => ({ data: [] })),
+    _api('/staff').catch(() => ({ data: [] })),
+  ]);
+  HG.cache.me            = { kind: me.kind || null, student: me.student || null };
+  HG.cache.students      = students.data || [];
+  HG.cache.classes       = classes.data || [];
+  HG.cache.roles         = roles.data || [];
+  HG.cache.baseStats     = baseStats.data || [];
+  HG.cache.transactions  = txs.data || [];
+  HG.cache.staff         = staff.data || [];
+  HG.ready = true;
 }
 
-function addStudent(student) {
-  const students = getStudents();
-  students.push(student);
-  saveStudents(students);
+window.dataReady = _bootstrap();
+HG.refresh = function () {
+  // Re-runs the bootstrap fetch + replaces window.dataReady so callers
+  // that `await window.dataReady` after a successful login/unlock pick
+  // up freshly-fetched data (e.g. admins seeing redacted fields).
+  window.dataReady = _bootstrap();
+  return window.dataReady;
+};
+
+/* ──────────────────────────────────────────────────────────────
+   Students — sync reads from cache, async writes to server.
+   ────────────────────────────────────────────────────────────── */
+function getStudents() {
+  return HG.cache.students.map(s => ({
+    ...s,
+    stats: { ...defaultStats(), ...(s.stats || {}) },
+  }));
 }
 
-function updateStudent(id, updates) {
-  const students = getStudents();
-  const idx = students.findIndex(s => s.id === id);
+async function saveStudents(arr) {
+  // Bulk-replace path used by all admin-side mutations that compute
+  // a new students array client-side and want to persist it.
+  HG.cache.students = arr;
+  await _api('/students', { method: 'PUT', body: { students: arr } });
+}
+
+async function addStudent(student) {
+  HG.cache.students.push(student);
+  await _api('/students', { method: 'POST', body: student });
+}
+
+async function updateStudent(id, updates) {
+  const idx = HG.cache.students.findIndex(s => s.id === id);
   if (idx < 0) return false;
-  students[idx] = { ...students[idx], ...updates, stats: { ...students[idx].stats, ...(updates.stats || {}) } };
-  saveStudents(students);
+  HG.cache.students[idx] = {
+    ...HG.cache.students[idx],
+    ...updates,
+    stats: { ...HG.cache.students[idx].stats, ...(updates.stats || {}) },
+  };
+  await saveStudents(HG.cache.students);
   return true;
 }
 
-function deleteStudent(id) {
-  saveStudents(getStudents().filter(s => s.id !== id));
+async function deleteStudent(id) {
+  HG.cache.students = HG.cache.students.filter(s => s.id !== id);
+  await _api('/students/' + encodeURIComponent(id), { method: 'DELETE' });
 }
 
 function sortedByTotalPoints(students) {
@@ -96,51 +180,35 @@ function studentFullName(s) {
   return [s.firstName, s.lastName].filter(Boolean).join(' ').trim() || '(no name)';
 }
 
-/* ============================================================
-   Base Stat Categories — global list, admin-managed.
-   Each student stores per-category counts in student.baseStats.
-   Points earned = sum of (count × pointsPerUnit) across categories.
-   These are SEPARATE from the admin-tracked leaderboard stats.
-   ============================================================ */
-
-const BASE_STAT_STORAGE_KEY = 'highergrade_base_stats_v1';
-
-const DEFAULT_BASE_STATS = [
-  { id: 'homework',  name: 'Homework Pages',    icon: '📚', pointsPerUnit: 5 },
-  { id: 'practice',  name: 'Practice Problems', icon: '📝', pointsPerUnit: 2 },
-  { id: 'reading',   name: 'Reading Minutes',   icon: '📖', pointsPerUnit: 1 },
-];
-
+/* ──────────────────────────────────────────────────────────────
+   Base stat categories
+   ────────────────────────────────────────────────────────────── */
 function getBaseStatCategories() {
-  try {
-    const stored = localStorage.getItem(BASE_STAT_STORAGE_KEY);
-    if (stored) {
-      const arr = JSON.parse(stored);
-      if (Array.isArray(arr)) return arr;
-    }
-  } catch (e) { /* fall through */ }
-  return DEFAULT_BASE_STATS.slice();
+  return HG.cache.baseStats.slice();
 }
 
-function saveBaseStatCategories(arr) {
-  localStorage.setItem(BASE_STAT_STORAGE_KEY, JSON.stringify(arr));
+async function saveBaseStatCategories(arr) {
+  HG.cache.baseStats = arr;
+  await _api('/base-stats', { method: 'PUT', body: { baseStats: arr } });
 }
 
-function resetBaseStatCategories() {
-  localStorage.removeItem(BASE_STAT_STORAGE_KEY);
+async function resetBaseStatCategories() {
+  // re-seed defaults via DELETE-then-PUT-empty, then refresh.
+  HG.cache.baseStats = [];
+  await _api('/base-stats', { method: 'PUT', body: { baseStats: [] } });
+  await _refresh('baseStats', '/base-stats');
 }
 
 function newBaseStatId() {
   return 'bs-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 }
 
-function updateStudentBaseStat(studentId, catId, value) {
-  const students = getStudents();
-  const s = students.find(x => x.id === studentId);
+async function updateStudentBaseStat(studentId, catId, value) {
+  const s = HG.cache.students.find(x => x.id === studentId);
   if (!s) return false;
   s.baseStats = s.baseStats || {};
   s.baseStats[catId] = Math.max(0, parseInt(value, 10) || 0);
-  saveStudents(students);
+  await saveStudents(HG.cache.students);
   return true;
 }
 
@@ -154,43 +222,48 @@ function studentBaseStatTotal(student) {
   return total;
 }
 
-/* ============================================================
-   Student login — plain-text password lookup.
-   (Students are warned at signup that admins can view passwords.)
-   ============================================================ */
-
-function findStudentByLogin(email, password) {
-  if (!email || password == null) return null;
-  const target = String(email).trim().toLowerCase();
-  const students = getStudents();
-  return students.find(s =>
-    (s.studentEmail || '').trim().toLowerCase() === target &&
-    s.password === password
-  ) || null;
+/* ──────────────────────────────────────────────────────────────
+   Auth — server-side cookie session.
+   ────────────────────────────────────────────────────────────── */
+async function findStudentByLogin(email, password) {
+  try {
+    const r = await _api('/auth/student/login', {
+      method: 'POST', body: { email, password },
+    });
+    if (r && r.ok && r.student) {
+      HG.cache.me = { kind: 'student', student: r.student };
+      // Make sure new student appears in the cache too.
+      const idx = HG.cache.students.findIndex(s => s.id === r.student.id);
+      if (idx >= 0) HG.cache.students[idx] = r.student;
+      else HG.cache.students.push(r.student);
+      return r.student;
+    }
+  } catch (_) { /* fallthrough → null */ }
+  return null;
 }
-
-const STUDENT_SESSION_KEY = 'highergrade_student_session';
 
 function getLoggedInStudent() {
-  const id = sessionStorage.getItem(STUDENT_SESSION_KEY);
-  if (!id) return null;
-  return getStudents().find(s => s.id === id) || null;
+  return (HG.cache.me && HG.cache.me.student) || null;
 }
 
-function setLoggedInStudent(id) {
-  if (id) sessionStorage.setItem(STUDENT_SESSION_KEY, id);
-  else sessionStorage.removeItem(STUDENT_SESSION_KEY);
+async function setLoggedInStudent(id) {
+  // The server is the source of truth; this helper exists for
+  // call-sites that want to toggle the session manually.
+  if (!id) {
+    await _api('/auth/student/logout', { method: 'POST' });
+    HG.cache.me = { kind: null, student: null };
+    return;
+  }
+  // We can't impersonate a student without their password, so
+  // this branch only refreshes /auth/me.
+  const me = await _api('/auth/me');
+  HG.cache.me = { kind: me.kind || null, student: me.student || null };
 }
 
-/* ============================================================
-   POINT TRANSACTIONS LOG
-   Every action that moves points is recorded here so admins
-   can audit the camp economy.
-   ============================================================ */
-
-const TX_STORAGE_KEY = 'highergrade_transactions_v1';
-const TX_MAX = 2000; // keep the most recent N entries
-
+/* ──────────────────────────────────────────────────────────────
+   Transactions
+   ────────────────────────────────────────────────────────────── */
+const TX_MAX = 2000;
 const TX_TYPES = {
   earn:                { label: 'Admin awarded',        icon: '💰' },
   spend:               { label: 'Marked as spent',      icon: '💸' },
@@ -208,41 +281,18 @@ const TX_TYPES = {
 };
 
 function getTransactions() {
-  try {
-    const stored = localStorage.getItem(TX_STORAGE_KEY);
-    if (stored) {
-      const arr = JSON.parse(stored);
-      if (Array.isArray(arr)) return arr;
-    }
-  } catch (e) { /* fall through */ }
-  return [];
+  return HG.cache.transactions.slice();
 }
 
-function saveTransactions(arr) {
+async function saveTransactions(arr) {
   if (arr.length > TX_MAX) arr = arr.slice(-TX_MAX);
-  try { localStorage.setItem(TX_STORAGE_KEY, JSON.stringify(arr)); } catch (e) { /* full — skip */ }
+  HG.cache.transactions = arr;
+  await _api('/transactions', { method: 'PUT', body: { transactions: arr } });
 }
 
-function clearTransactions() {
-  localStorage.removeItem(TX_STORAGE_KEY);
-}
-
-/* ============================================================
-   FULL DEV RESET — wipe all student-side data back to defaults.
-   Keeps the staff records (those are content, not state).
-   ============================================================ */
-function devResetEverything() {
-  // All student-facing storage keys
-  localStorage.removeItem(STUDENT_STORAGE_KEY);    // students + roles + clicker + base-stats values
-  localStorage.removeItem(CLASS_STORAGE_KEY);      // classes + class points + investment bank
-  localStorage.removeItem(BASE_STAT_STORAGE_KEY);  // base-stat category definitions
-  localStorage.removeItem(ROLES_STORAGE_KEY);      // role types
-  localStorage.removeItem(TX_STORAGE_KEY);         // transactions log
-
-  // Session keys (logged-in student, admin unlock, hunt counter)
-  sessionStorage.removeItem(STUDENT_SESSION_KEY);
-  sessionStorage.removeItem('highergrade_admin_unlocked');
-  sessionStorage.removeItem('highergrade_signin_clicks');
+async function clearTransactions() {
+  HG.cache.transactions = [];
+  await _api('/transactions', { method: 'DELETE' });
 }
 
 function logTransaction(entry) {
@@ -252,79 +302,77 @@ function logTransaction(entry) {
     at: Date.now(),
     ...entry,
   });
+  // Fire-and-forget; cache is updated synchronously inside saveTransactions.
   saveTransactions(arr);
 }
 
-/* ============================================================
-   STUDENT ROLES
-   Admin defines role types; each student may hold zero or more.
-   Roles are stored as an array of role-IDs on the student record.
-   Only the student themselves (and admin) can see them.
-   ============================================================ */
-
-const ROLES_STORAGE_KEY = 'highergrade_roles_v1';
-const MAZEWIZ_ROLE_ID = 'mazewiz';
-const MAZEWIZ_PASSCODE = 'MazeWiz'; // student-facing claim code
-
-const DEFAULT_ROLES = [
-  {
-    id: MAZEWIZ_ROLE_ID,
-    name: 'Maze Wizard',
-    icon: '🧙',
-    color: '#8B5CF6',
-    description: 'The first student from their class to find the hidden staff sign-in page. Grants permission to view classmates\' private stats and roles.',
-    special: true,
-  },
-];
-
-function getRoles() {
-  try {
-    const stored = localStorage.getItem(ROLES_STORAGE_KEY);
-    if (stored) {
-      const arr = JSON.parse(stored);
-      if (Array.isArray(arr)) {
-        // Guarantee the MazeWiz role always exists
-        if (!arr.some(r => r.id === MAZEWIZ_ROLE_ID)) {
-          arr.unshift(DEFAULT_ROLES[0]);
-        }
-        return arr;
-      }
-    }
-  } catch (e) { /* fall through */ }
-  return DEFAULT_ROLES.slice();
+/* ──────────────────────────────────────────────────────────────
+   FULL DEV RESET — wipe student-side state on the server.
+   ────────────────────────────────────────────────────────────── */
+async function devResetEverything() {
+  await _api('/admin/reset', { method: 'POST' });
+  // Clear any stale browser session keys
+  try { sessionStorage.removeItem('highergrade_admin_unlocked'); } catch (_) {}
+  try { sessionStorage.removeItem('highergrade_signin_clicks'); } catch (_) {}
+  // Refresh caches
+  await _bootstrap();
 }
 
-function saveRoles(arr) {
-  localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(arr));
+/* ──────────────────────────────────────────────────────────────
+   Roles
+   ────────────────────────────────────────────────────────────── */
+const MAZEWIZ_ROLE_ID = 'mazewiz';
+const MAZEWIZ_PASSCODE = 'MazeWiz';
+
+function getRoles() {
+  // Guarantee the protected MazeWiz role always shows
+  const arr = HG.cache.roles.slice();
+  if (!arr.some(r => r.id === MAZEWIZ_ROLE_ID)) {
+    arr.unshift({
+      id: MAZEWIZ_ROLE_ID,
+      name: 'Maze Wizard',
+      icon: '🧙',
+      color: '#8B5CF6',
+      description: 'The first student from their class to find the hidden staff sign-in page.',
+      special: true,
+    });
+  }
+  return arr;
+}
+
+async function saveRoles(arr) {
+  HG.cache.roles = arr;
+  await _api('/roles', { method: 'PUT', body: { roles: arr } });
 }
 
 function newRoleId() {
   return 'role-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 }
 
-function addRole(role) {
+async function addRole(role) {
   const arr = getRoles();
   if (arr.some(r => r.id === role.id || r.name.toLowerCase() === (role.name || '').toLowerCase())) {
     return { ok: false, error: 'A role with that ID or name already exists.' };
   }
   arr.push(role);
-  saveRoles(arr);
+  await saveRoles(arr);
   return { ok: true };
 }
 
-function updateRole(id, updates) {
+async function updateRole(id, updates) {
   const arr = getRoles();
   const idx = arr.findIndex(r => r.id === id);
   if (idx < 0) return false;
   arr[idx] = { ...arr[idx], ...updates };
-  saveRoles(arr);
+  await saveRoles(arr);
   return true;
 }
 
-function deleteRole(id) {
-  if (id === MAZEWIZ_ROLE_ID) return false; // protected
-  saveRoles(getRoles().filter(r => r.id !== id));
-  // Remove from every student too
+async function deleteRole(id) {
+  if (id === MAZEWIZ_ROLE_ID) return false;
+  const arr = getRoles().filter(r => r.id !== id);
+  await saveRoles(arr);
+  // Strip from every student
   const students = getStudents();
   let changed = false;
   students.forEach(s => {
@@ -333,26 +381,26 @@ function deleteRole(id) {
       changed = true;
     }
   });
-  if (changed) saveStudents(students);
+  if (changed) await saveStudents(students);
   return true;
 }
 
-function assignRoleToStudent(studentId, roleId) {
+async function assignRoleToStudent(studentId, roleId) {
   const students = getStudents();
   const s = students.find(x => x.id === studentId);
   if (!s) return false;
   s.roles = Array.isArray(s.roles) ? s.roles : [];
   if (!s.roles.includes(roleId)) s.roles.push(roleId);
-  saveStudents(students);
+  await saveStudents(students);
   return true;
 }
 
-function removeRoleFromStudent(studentId, roleId) {
+async function removeRoleFromStudent(studentId, roleId) {
   const students = getStudents();
   const s = students.find(x => x.id === studentId);
   if (!s || !Array.isArray(s.roles)) return false;
   s.roles = s.roles.filter(x => x !== roleId);
-  saveStudents(students);
+  await saveStudents(students);
   return true;
 }
 
@@ -360,231 +408,132 @@ function studentHasRole(student, roleId) {
   return !!(student && Array.isArray(student.roles) && student.roles.includes(roleId));
 }
 
-/* MazeWiz: at most one winner per class. Returns the winning student
-   or null if no-one from that class has claimed it yet. */
 function getMazeWizWinnerForClass(classId) {
   if (!classId) return null;
   const students = getStudents();
   return students.find(s => s.classId === classId && studentHasRole(s, MAZEWIZ_ROLE_ID)) || null;
 }
 
-/* Try to claim the MazeWiz role for a student. Returns status object. */
-function claimMazeWiz(studentId) {
-  const students = getStudents();
-  const s = students.find(x => x.id === studentId);
-  if (!s) return { ok: false, error: 'Student not found.' };
-  if (!s.classId) return { ok: false, error: 'You need to be assigned to a class first — ask an admin.' };
-  if (studentHasRole(s, MAZEWIZ_ROLE_ID)) return { ok: false, error: 'You already hold the Maze Wizard title!' };
-  const winner = getMazeWizWinnerForClass(s.classId);
-  if (winner) {
-    return { ok: false, error: `Too late — ${studentFullName(winner)} already claimed Maze Wizard for your class.`, winner };
+async function claimMazeWiz(studentId) {
+  // Server-side validated; current student must be logged in.
+  try {
+    const r = await _api('/students/me/mazewiz', { method: 'POST' });
+    // Refresh students cache so the new role shows up
+    await _refresh('students', '/students');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not claim the title.' };
   }
-  s.roles = Array.isArray(s.roles) ? s.roles : [];
-  s.roles.push(MAZEWIZ_ROLE_ID);
-  saveStudents(students);
-  return { ok: true };
 }
 
-/* ============================================================
-   Student-facing actions
-   Each returns { ok: bool, error?: string, data?: any }
-   ============================================================ */
-
-function _mutateStudent(id, fn) {
-  const students = getStudents();
-  const s = students.find(x => x.id === id);
-  if (!s) return { ok: false, error: 'Student not found.' };
-  s.stats = { ...defaultStats(), ...(s.stats || {}) };
-  const result = fn(s, students);
-  if (!result || result.ok !== false) saveStudents(students);
-  return result || { ok: true };
-}
-
-function investInLuck(studentId) {
-  const res = _mutateStudent(studentId, s => {
-    const cur = s.stats.privatePoints || 0;
-    if (cur === 0) return { ok: false, error: "You have 0 points! Ask an admin to award you some before you can upgrade your stats." };
-    if (cur < LUCK_COST) return { ok: false, error: `You need ${LUCK_COST} points to invest. You only have ${cur} — keep earning!` };
-    s.stats.privatePoints = cur - LUCK_COST;
-    s.stats.luck = (s.stats.luck || 0) + 1;
-    return { ok: true, data: { newLuck: s.stats.luck, remaining: s.stats.privatePoints } };
-  });
-  if (res && res.ok) {
-    const s = getStudents().find(x => x.id === studentId);
-    logTransaction({
-      type: 'luck',
-      scope: 'student',
-      subjectId: studentId,
-      subjectName: s ? studentFullName(s) : '',
-      amount: -LUCK_COST,
-      description: `Invested ${LUCK_COST} pts → luck now ${res.data.newLuck}`,
-    });
+/* ──────────────────────────────────────────────────────────────
+   Student-side actions  (all server-validated)
+   ────────────────────────────────────────────────────────────── */
+async function investInLuck(_studentId) {
+  try {
+    const r = await _api('/students/me/luck', { method: 'POST' });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not invest.' };
   }
-  return res;
 }
 
-function transferPoints(fromId, toId, amount) {
-  amount = parseInt(amount, 10);
-  if (!amount || amount <= 0) return { ok: false, error: 'Enter a positive amount to transfer.' };
-  if (fromId === toId) return { ok: false, error: "You can't transfer points to yourself." };
-  const students = getStudents();
-  const from = students.find(x => x.id === fromId);
-  const to   = students.find(x => x.id === toId);
-  if (!from) return { ok: false, error: 'Your account was not found.' };
-  if (!to)   return { ok: false, error: 'Recipient not found.' };
-
-  from.stats = { ...defaultStats(), ...(from.stats || {}) };
-  to.stats   = { ...defaultStats(), ...(to.stats   || {}) };
-
-  const cur = from.stats.privatePoints || 0;
-  if (cur === 0) return { ok: false, error: "You have 0 points! Ask an admin to award you some first." };
-  if (cur < amount) return { ok: false, error: `You only have ${cur} points — you can't send ${amount}.` };
-
-  const received = Math.floor(amount * TRANSFER_KEEP_RATIO);
-  from.stats.privatePoints = cur - amount;
-  from.stats.pointExchanges = (from.stats.pointExchanges || 0) + 1;
-  to.stats.privatePoints   = (to.stats.privatePoints || 0) + received;
-  to.stats.totalPointsEarned = (to.stats.totalPointsEarned || 0) + received;
-  saveStudents(students);
-
-  const fromName = studentFullName(from);
-  const toName   = studentFullName(to);
-  logTransaction({
-    type: 'transfer_out',
-    scope: 'student',
-    subjectId: fromId,
-    subjectName: fromName,
-    relatedId: toId,
-    relatedName: toName,
-    amount: -amount,
-    description: `Sent ${amount} pts to ${toName} · ${amount - received} pts lost in transfer`,
-  });
-  logTransaction({
-    type: 'transfer_in',
-    scope: 'student',
-    subjectId: toId,
-    subjectName: toName,
-    relatedId: fromId,
-    relatedName: fromName,
-    amount: received,
-    description: `Received ${received} pts from ${fromName} (${amount} sent, 50% kept)`,
-  });
-
-  return { ok: true, data: { sent: amount, received, lost: amount - received } };
+async function transferPoints(_fromId, toId, amount) {
+  try {
+    const r = await _api('/students/me/transfer', { method: 'POST', body: { toId, amount } });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Transfer failed.' };
+  }
 }
 
-function clickerTap(studentId) {
-  const res = _mutateStudent(studentId, s => {
-    s.stats.clickerClicks = (s.stats.clickerClicks || 0) + 1;
-    let earned = 0;
-    let spider = false;
-    if (s.stats.clickerClicks % CLICKER_RATE === 0) {
-      earned = 1;
-      s.stats.privatePoints = (s.stats.privatePoints || 0) + 1;
-      s.stats.totalPointsEarned = (s.stats.totalPointsEarned || 0) + 1;
-      s.stats.clickerPointsEarned = (s.stats.clickerPointsEarned || 0) + 1;
-      if (s.stats.clickerPointsEarned >= SPIDER_THRESHOLD && !s.stats.spiderShown) {
-        spider = true;
-        s.stats.spiderShown = true;
+async function clickerTap(_studentId) {
+  try {
+    const r = await _api('/students/me/click', { method: 'POST' });
+    // Patch the cache locally to avoid a round-trip per click
+    const me = HG.cache.me && HG.cache.me.student;
+    if (me) {
+      me.stats = me.stats || defaultStats();
+      me.stats.clickerClicks = r.data.clicks;
+      me.stats.clickerPointsEarned = r.data.clickerPointsEarned;
+      if (r.data.earned) {
+        me.stats.privatePoints = (me.stats.privatePoints || 0) + r.data.earned;
+        me.stats.totalPointsEarned = (me.stats.totalPointsEarned || 0) + r.data.earned;
       }
+      const idx = HG.cache.students.findIndex(s => s.id === me.id);
+      if (idx >= 0) HG.cache.students[idx] = { ...HG.cache.students[idx], stats: me.stats };
     }
-    return { ok: true, data: { clicks: s.stats.clickerClicks, earned, spider, clickerPointsEarned: s.stats.clickerPointsEarned } };
-  });
-  if (res && res.ok && res.data.earned > 0) {
-    const s = getStudents().find(x => x.id === studentId);
-    logTransaction({
-      type: 'clicker',
-      scope: 'student',
-      subjectId: studentId,
-      subjectName: s ? studentFullName(s) : '',
-      amount: res.data.earned,
-      description: `Earned ${res.data.earned} pt from clicker (${res.data.clicks} total clicks)`,
-    });
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Click failed.' };
   }
-  return res;
 }
 
-/* Admin: overwrite arbitrary top-level fields on a student (name, email, password, etc.) */
-function updateStudentProfile(id, updates) {
-  const students = getStudents();
-  const idx = students.findIndex(s => s.id === id);
+/* Admin: overwrite arbitrary top-level fields on a student */
+async function updateStudentProfile(id, updates) {
+  const idx = HG.cache.students.findIndex(s => s.id === id);
   if (idx < 0) return false;
-  const current = students[idx];
+  const current = HG.cache.students[idx];
   const statsUpdate = updates.stats;
   const top = { ...updates };
   delete top.stats;
-  students[idx] = { ...current, ...top };
-  if (statsUpdate) students[idx].stats = { ...current.stats, ...statsUpdate };
-  saveStudents(students);
+  HG.cache.students[idx] = { ...current, ...top };
+  if (statsUpdate) HG.cache.students[idx].stats = { ...current.stats, ...statsUpdate };
+  await saveStudents(HG.cache.students);
   return true;
 }
 
-/* Admin penalty actions */
-function applyPenalty(studentId, amount) {
+async function applyPenalty(studentId, amount) {
   amount = parseInt(amount, 10) || 0;
-  const res = _mutateStudent(studentId, s => {
-    s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
-    return { ok: true, data: { amount, remaining: s.stats.privatePoints } };
+  const students = getStudents();
+  const s = students.find(x => x.id === studentId);
+  if (!s) return { ok: false, error: 'Student not found.' };
+  s.stats = { ...defaultStats(), ...(s.stats || {}) };
+  s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
+  await saveStudents(students);
+  logTransaction({
+    type: 'penalty', scope: 'student',
+    subjectId: studentId, subjectName: studentFullName(s),
+    amount: -amount, description: `Admin penalty −${amount} pts`,
   });
-  if (res && res.ok) {
-    const s = getStudents().find(x => x.id === studentId);
-    logTransaction({
-      type: 'penalty',
-      scope: 'student',
-      subjectId: studentId,
-      subjectName: s ? studentFullName(s) : '',
-      amount: -amount,
-      description: `Admin penalty −${amount} pts`,
-    });
-  }
-  return res;
+  return { ok: true, data: { amount, remaining: s.stats.privatePoints } };
 }
 
-function applyCursePenalty(studentId, amount) {
+async function applyCursePenalty(studentId, amount) {
   amount = parseInt(amount, 10) || 0;
-  const res = _mutateStudent(studentId, s => {
-    s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
-    s.stats.badWords = (s.stats.badWords || 0) + 1;
-    return { ok: true, data: { amount, remaining: s.stats.privatePoints, badWords: s.stats.badWords } };
+  const students = getStudents();
+  const s = students.find(x => x.id === studentId);
+  if (!s) return { ok: false, error: 'Student not found.' };
+  s.stats = { ...defaultStats(), ...(s.stats || {}) };
+  s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
+  s.stats.badWords = (s.stats.badWords || 0) + 1;
+  await saveStudents(students);
+  logTransaction({
+    type: 'curse', scope: 'student',
+    subjectId: studentId, subjectName: studentFullName(s),
+    amount: -amount,
+    description: `Curse-word penalty −${amount} pts (bad-word count +1)`,
   });
-  if (res && res.ok) {
-    const s = getStudents().find(x => x.id === studentId);
-    logTransaction({
-      type: 'curse',
-      scope: 'student',
-      subjectId: studentId,
-      subjectName: s ? studentFullName(s) : '',
-      amount: -amount,
-      description: `Curse-word penalty −${amount} pts (bad-word count +1)`,
-    });
-  }
-  return res;
+  return { ok: true, data: { amount, remaining: s.stats.privatePoints, badWords: s.stats.badWords } };
 }
 
-/* ============================================================
-   CLASSES
-   Each class has: id, name, classPoints, classBank
-   Students reference their class via student.classId.
-   1 class point distributes 10 individual points to every member.
-   ============================================================ */
-
-const CLASS_STORAGE_KEY = 'highergrade_classes_v1';
-const CLASS_POINT_TO_INDIVIDUAL = 10; // 1 class pt → 10 individual pts per member
-const CLASS_BANK_DAILY_RATE = 0.05;   // bank grows 5% per day, compounded continuously
+/* ──────────────────────────────────────────────────────────────
+   Classes
+   ────────────────────────────────────────────────────────────── */
+const CLASS_POINT_TO_INDIVIDUAL = 10;
+const CLASS_BANK_DAILY_RATE = 0.05;
 
 function getClasses() {
-  try {
-    const stored = localStorage.getItem(CLASS_STORAGE_KEY);
-    if (stored) {
-      const arr = JSON.parse(stored);
-      if (Array.isArray(arr)) return arr;
-    }
-  } catch (e) { /* fall through */ }
-  return [];
+  return HG.cache.classes.slice();
 }
 
-function saveClasses(arr) {
-  localStorage.setItem(CLASS_STORAGE_KEY, JSON.stringify(arr));
+async function saveClasses(arr) {
+  HG.cache.classes = arr;
+  await _api('/classes', { method: 'PUT', body: { classes: arr } });
 }
 
 function newClassId() {
@@ -601,7 +550,7 @@ function findClassMembers(classId) {
   return getStudents().filter(s => s.classId === classId);
 }
 
-function addClass(name) {
+async function addClass(name) {
   name = String(name || '').trim();
   if (!name) return { ok: false, error: 'Class needs a name.' };
   const classes = getClasses();
@@ -609,68 +558,56 @@ function addClass(name) {
     return { ok: false, error: `A class named "${name}" already exists.` };
   }
   const cls = {
-    id: newClassId(),
-    name,
-    classPoints: 0,
-    classBank: 0,
+    id: newClassId(), name,
+    classPoints: 0, classBank: 0,
     createdAt: new Date().toISOString(),
   };
   classes.push(cls);
-  saveClasses(classes);
+  await saveClasses(classes);
   return { ok: true, data: cls };
 }
 
-function updateClass(id, updates) {
+async function updateClass(id, updates) {
   const classes = getClasses();
   const idx = classes.findIndex(c => c.id === id);
   if (idx < 0) return false;
   classes[idx] = { ...classes[idx], ...updates };
-  saveClasses(classes);
-  // If renamed, refresh denormalized className on every member
+  await saveClasses(classes);
   if (updates.name) {
     const students = getStudents();
     let changed = false;
     students.forEach(s => {
       if (s.classId === id) { s.className = updates.name; changed = true; }
     });
-    if (changed) saveStudents(students);
+    if (changed) await saveStudents(students);
   }
   return true;
 }
 
-function deleteClass(id) {
-  saveClasses(getClasses().filter(c => c.id !== id));
-  // Unassign any students who were in this class
+async function deleteClass(id) {
+  await saveClasses(getClasses().filter(c => c.id !== id));
   const students = getStudents();
   let changed = false;
   students.forEach(s => {
-    if (s.classId === id) {
-      s.classId = null;
-      s.className = '';
-      changed = true;
-    }
+    if (s.classId === id) { s.classId = null; s.className = ''; changed = true; }
   });
-  if (changed) saveStudents(students);
+  if (changed) await saveStudents(students);
 }
 
-function assignStudentToClass(studentId, classId) {
+async function assignStudentToClass(studentId, classId) {
   const students = getStudents();
   const s = students.find(x => x.id === studentId);
   if (!s) return false;
   if (!classId) {
-    s.classId = null;
-    s.className = '';
+    s.classId = null; s.className = '';
   } else {
     const cls = getClassById(classId);
-    s.classId = classId;
-    s.className = cls ? cls.name : '';
+    s.classId = classId; s.className = cls ? cls.name : '';
   }
-  saveStudents(students);
+  await saveStudents(students);
   return true;
 }
 
-/* Bank growth — earns CLASS_BANK_DAILY_RATE per day, compounded continuously.
-   Call before reading or modifying cls.classBank to keep balance current. */
 function refreshClassBank(cls) {
   if (!cls) return;
   const now = Date.now();
@@ -678,12 +615,10 @@ function refreshClassBank(cls) {
   if (!cls.classBank || cls.classBank <= 0) { cls.bankLastUpdate = now; return; }
   const days = (now - cls.bankLastUpdate) / (1000 * 60 * 60 * 24);
   if (days <= 0) return;
-  // Continuous compounding: balance grows by 0.05 per point per day on the running balance
   cls.classBank = cls.classBank * Math.pow(1 + CLASS_BANK_DAILY_RATE, days);
   cls.bankLastUpdate = now;
 }
 
-/* Convenience: returns classes with banks freshly compounded + saves if anything changed. */
 function getClassesWithBankRefresh() {
   const classes = getClasses();
   let dirty = false;
@@ -692,13 +627,11 @@ function getClassesWithBankRefresh() {
     refreshClassBank(cls);
     if (cls.classBank !== before) dirty = true;
   });
-  if (dirty) saveClasses(classes);
+  if (dirty) saveClasses(classes); // fire-and-forget
   return classes;
 }
 
-/* Award (or revoke) class points into the unclaimed pool.
-   These are NOT distributed yet — the class must claim or bank them. */
-function awardClassPoints(classId, delta) {
+async function awardClassPoints(classId, delta) {
   delta = parseInt(delta, 10) || 0;
   if (delta === 0) return { ok: false, error: 'Amount cannot be zero.' };
   const classes = getClasses();
@@ -707,21 +640,16 @@ function awardClassPoints(classId, delta) {
   const newPool = Math.max(0, (cls.classPoints || 0) + delta);
   const actual = newPool - (cls.classPoints || 0);
   cls.classPoints = newPool;
-  saveClasses(classes);
+  await saveClasses(classes);
   logTransaction({
-    type: 'class_award',
-    scope: 'class',
-    subjectId: classId,
-    subjectName: cls.name,
-    amount: actual,
+    type: 'class_award', scope: 'class',
+    subjectId: classId, subjectName: cls.name, amount: actual,
     description: `${actual >= 0 ? '+' : ''}${actual} class pt${Math.abs(actual) === 1 ? '' : 's'} · unclaimed pool now ${newPool}`,
   });
   return { ok: true, data: { delta: actual, unclaimed: newPool } };
 }
 
-/* Claim N (or all) unclaimed class points → distribute ×10 to each member.
-   Pass amount = null to claim all. */
-function claimClassPoints(classId, amount) {
+async function claimClassPoints(classId, amount) {
   const classes = getClasses();
   const cls = classes.find(c => c.id === classId);
   if (!cls) return { ok: false, error: 'Class not found.' };
@@ -732,7 +660,7 @@ function claimClassPoints(classId, amount) {
   if (amount > available) amount = available;
 
   cls.classPoints = available - amount;
-  saveClasses(classes);
+  await saveClasses(classes);
 
   const perMember = amount * CLASS_POINT_TO_INDIVIDUAL;
   const students = getStudents();
@@ -745,21 +673,16 @@ function claimClassPoints(classId, amount) {
       s.stats.totalPointsEarned = (s.stats.totalPointsEarned || 0) + perMember;
     }
   });
-  saveStudents(students);
+  await saveStudents(students);
   logTransaction({
-    type: 'class_claim',
-    scope: 'class',
-    subjectId: classId,
-    subjectName: cls.name,
-    amount: -amount,
+    type: 'class_claim', scope: 'class',
+    subjectId: classId, subjectName: cls.name, amount: -amount,
     description: `Claimed ${amount} class pt${amount === 1 ? '' : 's'} · distributed ${perMember * memberCount} pts across ${memberCount} member${memberCount === 1 ? '' : 's'}`,
   });
   return { ok: true, data: { claimed: amount, perMember, memberCount, totalDistributed: perMember * memberCount } };
 }
 
-/* Bank N (or all) unclaimed class points → moves to investment bank,
-   where they accrue CLASS_BANK_DAILY_RATE per day. */
-function bankClassPoints(classId, amount) {
+async function bankClassPoints(classId, amount) {
   const classes = getClasses();
   const cls = classes.find(c => c.id === classId);
   if (!cls) return { ok: false, error: 'Class not found.' };
@@ -769,24 +692,19 @@ function bankClassPoints(classId, amount) {
   amount = (amount == null) ? available : (parseInt(amount, 10) || 0);
   if (amount <= 0) return { ok: false, error: 'Amount must be positive.' };
   if (amount > available) amount = available;
-
   cls.classPoints = available - amount;
   cls.classBank   = (cls.classBank || 0) + amount;
   cls.bankLastUpdate = Date.now();
-  saveClasses(classes);
+  await saveClasses(classes);
   logTransaction({
-    type: 'class_bank_deposit',
-    scope: 'class',
-    subjectId: classId,
-    subjectName: cls.name,
-    amount,
+    type: 'class_bank_deposit', scope: 'class',
+    subjectId: classId, subjectName: cls.name, amount,
     description: `Deposited ${amount} class pt${amount === 1 ? '' : 's'} to bank · new balance ${cls.classBank.toFixed(2)}`,
   });
   return { ok: true, data: { banked: amount, newBank: cls.classBank } };
 }
 
-/* Withdraw from bank → returns to the unclaimed class-points pool. */
-function withdrawFromBank(classId, amount) {
+async function withdrawFromBank(classId, amount) {
   const classes = getClasses();
   const cls = classes.find(c => c.id === classId);
   if (!cls) return { ok: false, error: 'Class not found.' };
@@ -798,20 +716,16 @@ function withdrawFromBank(classId, amount) {
   }
   cls.classBank   = (cls.classBank || 0) - amount;
   cls.classPoints = (cls.classPoints || 0) + amount;
-  saveClasses(classes);
+  await saveClasses(classes);
   logTransaction({
-    type: 'class_bank_withdraw',
-    scope: 'class',
-    subjectId: classId,
-    subjectName: cls.name,
-    amount: -amount,
+    type: 'class_bank_withdraw', scope: 'class',
+    subjectId: classId, subjectName: cls.name, amount: -amount,
     description: `Withdrew ${amount} pts from bank to unclaimed pool`,
   });
   return { ok: true, data: { withdrawn: amount, newBank: cls.classBank, newUnclaimed: cls.classPoints } };
 }
 
-/* Direct admin override on the bank (rarely needed; kept for parity with old API) */
-function adjustClassBank(classId, delta) {
+async function adjustClassBank(classId, delta) {
   delta = parseInt(delta, 10) || 0;
   const classes = getClasses();
   const cls = classes.find(c => c.id === classId);
@@ -819,13 +733,10 @@ function adjustClassBank(classId, delta) {
   refreshClassBank(cls);
   cls.classBank = Math.max(0, (cls.classBank || 0) + delta);
   cls.bankLastUpdate = Date.now();
-  saveClasses(classes);
+  await saveClasses(classes);
   logTransaction({
-    type: 'class_bank_adjust',
-    scope: 'class',
-    subjectId: classId,
-    subjectName: cls.name,
-    amount: delta,
+    type: 'class_bank_adjust', scope: 'class',
+    subjectId: classId, subjectName: cls.name, amount: delta,
     description: `Admin bank adjustment ${delta >= 0 ? '+' : ''}${delta} · new balance ${cls.classBank.toFixed(2)}`,
   });
   return { ok: true, data: { newBalance: cls.classBank } };

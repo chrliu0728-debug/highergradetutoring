@@ -221,24 +221,23 @@
 <script src="students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
-sessionStorage.removeItem('highergrade_admin_unlocked');
+fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 
 /* Hero navigation — show Home link only if appropriate, Profile link if logged in */
-(function () {
+(async function () {
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
   const homeLink    = document.getElementById('back-home');
   const profileLink = document.getElementById('back-profile');
   const loggedIn    = !!getLoggedInStudent();
   const params      = new URLSearchParams(location.search);
   const fromPortal  = params.get('from') === 'portal';
 
-  // Home link: shown unless the user came from the portal (which has its own Home button)
   if (fromPortal) homeLink.style.display = 'none';
-
-  // Profile link: shown when a student is logged in
   if (loggedIn) profileLink.style.display = '';
 })();
 
-(function () {
+(async function () {
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
   const root = document.getElementById('lb-content');
   const students = sortedByTotalPoints(getStudents());
 

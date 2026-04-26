@@ -56,8 +56,9 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
 
 
 // ── Login-aware navbar (Sign In → Profile when logged in) ────
-(function () {
+(async function () {
   if (typeof getLoggedInStudent !== 'function') return;
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
   const student = getLoggedInStudent();
   if (!student) return;
 
@@ -131,9 +132,10 @@ document.querySelectorAll('.faq-q').forEach(btn => {
 });
 
 // ── Registration form ─────────────────────────────────────────
-(function () {
+(async function () {
   const form = document.getElementById('reg-form');
   if (!form) return;
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
 
   const successEl = document.getElementById('form-success');
 
@@ -191,7 +193,7 @@ document.querySelectorAll('.faq-q').forEach(btn => {
     });
   });
 
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     if (!validate()) {
       form.querySelector('.error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -201,9 +203,11 @@ document.querySelectorAll('.faq-q').forEach(btn => {
     btn.disabled = true;
     btn.textContent = 'Submitting…';
 
-    // Persist student record (used by leaderboard + admin)
+    // Persist student record on the server (used by leaderboard + admin)
     if (typeof addStudent === 'function' && typeof newStudentId === 'function') {
       const fd = new FormData(form);
+      const email = (fd.get('student_email') || '').toString().trim();
+      const password = (fd.get('camp_password') || '').toString();
       const student = {
         id: newStudentId(),
         firstName:   (fd.get('first_name')   || '').toString().trim(),
@@ -211,37 +215,43 @@ document.querySelectorAll('.faq-q').forEach(btn => {
         className:   '',
         dob:         (fd.get('dob')          || '').toString().trim(),
         school:      (fd.get('school')       || '').toString().trim(),
-        studentEmail:(fd.get('student_email')|| '').toString().trim(),
+        studentEmail: email,
         parentFirst: (fd.get('parent_first') || '').toString().trim(),
         parentLast:  (fd.get('parent_last')  || '').toString().trim(),
         parentEmail: (fd.get('parent_email') || '').toString().trim(),
         parentPhone: (fd.get('parent_phone') || '').toString().trim(),
-        password:    (fd.get('camp_password') || '').toString(),
+        password:    password,
         baseStats:   {},
         registeredAt: new Date().toISOString(),
         stats: defaultStats(),
       };
       try {
-        addStudent(student);
+        await addStudent(student);
         // Auto-sign-in so portal works immediately
-        if (typeof setLoggedInStudent === 'function') setLoggedInStudent(student.id);
-      } catch (e) { /* localStorage may be full; non-fatal */ }
+        if (typeof findStudentByLogin === 'function') {
+          await findStudentByLogin(email, password);
+        }
+      } catch (e) {
+        console.warn('Registration server save failed:', e);
+        btn.disabled = false;
+        btn.textContent = 'Submit registration';
+        alert('Sorry, we couldn\'t save your registration. Please try again.');
+        return;
+      }
     }
 
-    // Simulate a brief "send" delay then show success
-    setTimeout(() => {
-      form.style.display = 'none';
-      successEl.classList.add('show');
-      successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 1000);
+    form.style.display = 'none';
+    successEl.classList.add('show');
+    successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 })();
 
 // ── Team rendering + profile modal (about page) ──────────────
-(function () {
+(async function () {
   const container = document.getElementById('team-categories');
   const modal = document.getElementById('team-modal');
   if (!container || !modal || typeof STAFF_CATEGORIES === 'undefined') return;
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
 
   function esc(s) {
     return String(s == null ? '' : s)

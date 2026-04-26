@@ -1,8 +1,10 @@
 # Deploying HigherGrade Tutoring to the Internet
 
-The math camp site is **fully static** (HTML / CSS / JS — every bit of state
-lives in the visitor's `localStorage`), so deployment is just "serve these files
-over HTTPS at your domain."
+The math camp site is a **static frontend + Flask + SQLite backend**.
+Caddy serves the HTML/CSS/JS directly and reverse-proxies `/api/*` to a
+Python service running on `127.0.0.1:5000`. All persistent data
+(students, classes, transactions, staff, etc.) lives in a SQLite file
+at `/var/lib/highergrade/app.db`.
 
 ---
 
@@ -139,46 +141,100 @@ should redirect to the apex domain (or just work — both are configured).
 
 ---
 
+## Step 5d — Install the Python backend (one-time)
+
+```bash
+# 1. System packages
+sudo apt-get install -y python3-venv python3-pip
+
+# 2. Create the DB directory, owned by the gunicorn user
+sudo mkdir -p /var/lib/highergrade
+sudo chown ubuntu:ubuntu /var/lib/highergrade
+
+# 3. Create a virtualenv inside the server folder and install deps
+cd /var/www/highergrade/math_camp/server
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r requirements.txt
+
+# 4. Smoke-test the app once (Ctrl-C after you see "Running on http://127.0.0.1:5000")
+.venv/bin/python app.py
+```
+
+## Step 5e — Install the systemd unit
+
+```bash
+sudo cp /var/www/highergrade/math_camp/deploy/highergrade-api.service \
+        /etc/systemd/system/highergrade-api.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now highergrade-api
+sudo systemctl status highergrade-api --no-pager
+```
+
+You should see `active (running)`. Logs:
+
+```bash
+sudo journalctl -u highergrade-api -f
+```
+
+> **Override the admin passcode**: `sudo systemctl edit highergrade-api`
+> and add:
+> ```
+> [Service]
+> Environment=HIGHERGRADE_ADMIN_PASSCODE=Whatever you want
+> ```
+> Then `sudo systemctl restart highergrade-api`.
+
+## Step 5f — Reload Caddy so it picks up the new `/api/*` route
+
+```bash
+sudo systemctl reload caddy
+curl -sS https://highergradetutoring.ca/api/health
+# → {"ok":true,"ts":1714080000}
+```
+
 ## Routine updates after deployment
 
 Whenever you change the site:
 
 1. **Push your changes to GitHub** from your laptop:
    ```bash
-   cd ~/vscode    # or wherever your local repo is
    git add math_camp/
    git commit -m "Describe your change"
    git push
    ```
 
-2. **Pull the new code on the VM** (SSH in first):
+2. **Pull on the VM and (if backend changed) restart the API**:
    ```bash
-   ssh -i ~/.ssh/oracle_tutoring ubuntu@40.233.122.40
-   cd /var/www/highergrade
-   git pull
-   exit
+   ssh -i ~/.ssh/oracle_tutoring ubuntu@40.233.122.40 << 'EOF'
+   cd /var/www/highergrade && git pull
+   if git diff --name-only HEAD~1..HEAD | grep -q '^math_camp/server/'; then
+     cd math_camp/server
+     .venv/bin/pip install -r requirements.txt
+     sudo systemctl restart highergrade-api
+   fi
+   EOF
    ```
 
-That's it. Caddy serves the new files immediately (HTML/CSS/JS have a
-5-minute cache). No rsync, no scp — `git pull` is your deploy command.
+For frontend-only changes, the `git pull` alone is enough — Caddy
+serves the new HTML/CSS/JS immediately.
 
-### Optional: one-line deploy from your laptop
+### Migrating existing browser localStorage data
 
-You can wrap the `git pull` in a single SSH call so you never have to log
-in interactively just to redeploy:
+If you have student data sitting in your admin browser's localStorage
+from before the migration, see [MIGRATE-LOCALSTORAGE.md](MIGRATE-LOCALSTORAGE.md)
+for a one-time import procedure.
+
+### Database backups
+
+The DB is a single file at `/var/lib/highergrade/app.db`. A safe
+nightly backup cron:
 
 ```bash
-ssh -i ~/.ssh/oracle_tutoring ubuntu@40.233.122.40 'cd /var/www/highergrade && git pull'
+# /etc/cron.daily/highergrade-db-backup
+sqlite3 /var/lib/highergrade/app.db ".backup '/var/backups/highergrade-$(date +\%F).db'"
+find /var/backups -name 'highergrade-*.db' -mtime +30 -delete
 ```
-
-Add an alias to your laptop's shell config to make it muscle-memory:
-
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-alias deploy-tutoring='ssh -i ~/.ssh/oracle_tutoring ubuntu@40.233.122.40 "cd /var/www/highergrade && git pull"'
-```
-
-Then `deploy-tutoring` from anywhere on your laptop after every `git push`.
 
 ---
 

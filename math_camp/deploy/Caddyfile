@@ -8,6 +8,13 @@
 # ──────────────────────────────────────────────────────────────
 
 highergradetutoring.ca, www.highergradetutoring.ca {
+	# ── API: reverse-proxy /api/* to the Flask + SQLite backend ─────
+	# Backend runs as a systemd unit `highergrade-api` listening on
+	# 127.0.0.1:5000. See deploy/highergrade-api.service.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+
 	# Site files live in the math_camp/ subfolder of the cloned GitHub repo.
 	# The repo is cloned to /var/www/highergrade, so the actual webroot is:
 	root * /var/www/highergrade/math_camp

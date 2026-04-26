@@ -658,9 +658,10 @@
 <script src="students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
-sessionStorage.removeItem('highergrade_admin_unlocked');
+fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 
-(function () {
+(async function () {
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
   const loginScreen  = document.getElementById('login-screen');
   const dashScreen   = document.getElementById('dash-screen');
   const loginError   = document.getElementById('login-error');
@@ -694,17 +695,16 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   }
 
   /* ─── Login ─── */
-  function tryLogin() {
+  async function tryLogin() {
     loginError.textContent = '';
     const email = loginEmail.value;
     const pwd = loginPwd.value;
     if (!email || !pwd) { loginError.textContent = 'Please enter your email and password.'; return; }
-    const student = findStudentByLogin(email, pwd);
+    const student = await findStudentByLogin(email, pwd);
     if (!student) {
       loginError.textContent = "Couldn't find a matching account. Check your email and password.";
       return;
     }
-    setLoggedInStudent(student.id);
     renderDashboard();
   }
   loginBtn.addEventListener('click', tryLogin);
@@ -799,8 +799,8 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   })();
   loginEmail.addEventListener('keydown', e => { if (e.key === 'Enter') loginPwd.focus(); });
 
-  logoutBtn.addEventListener('click', () => {
-    setLoggedInStudent(null);
+  logoutBtn.addEventListener('click', async () => {
+    await setLoggedInStudent(null);
     loginEmail.value = ''; loginPwd.value = ''; loginError.textContent = '';
     dashScreen.style.display = 'none';
     loginScreen.style.display = '';
@@ -814,7 +814,6 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   function renderDashboard() {
     const s = currentStudent();
     if (!s) {
-      setLoggedInStudent(null);
       loginScreen.style.display = '';
       dashScreen.style.display = 'none';
       return;
@@ -959,12 +958,14 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
     luckBtn.disabled = pts < LUCK_COST;
   }
 
-  luckBtn.addEventListener('click', () => {
+  luckBtn.addEventListener('click', async () => {
     const s = currentStudent(); if (!s) return;
-    const res = investInLuck(s.id);
+    const res = await investInLuck(s.id);
     if (!res.ok) { flashBanner(luckError, res.error); luckSuccess.classList.remove('show'); return; }
     luckError.classList.remove('show');
     flashBanner(luckSuccess, `🍀 Luck is now ${res.data.newLuck}! ${res.data.remaining.toLocaleString()} pts remaining.`);
+    // Refresh /auth/me so currentStudent() picks up the new stats
+    if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
     renderDashboard();
   });
 
@@ -990,18 +991,19 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   }
   xferAmt.addEventListener('input', updatePreview);
 
-  xferBtn.addEventListener('click', () => {
+  xferBtn.addEventListener('click', async () => {
     const s = currentStudent(); if (!s) return;
     const toId = xferTo.value;
     const amt = parseInt(xferAmt.value, 10);
     if (!toId) { flashBanner(xferError, 'Pick a classmate to send points to.'); return; }
-    const res = transferPoints(s.id, toId, amt);
+    const res = await transferPoints(s.id, toId, amt);
     if (!res.ok) { flashBanner(xferError, res.error); xferSuccess.classList.remove('show'); return; }
     xferError.classList.remove('show');
     const toStudent = getStudents().find(x => x.id === toId);
     flashBanner(xferSuccess, `✅ Sent ${res.data.sent} pts. ${studentFullName(toStudent)} received ${res.data.received} pts (${res.data.lost} lost).`);
     xferAmt.value = '';
     updatePreview();
+    if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
     renderDashboard();
   });
 
@@ -1026,7 +1028,7 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
     clickerTotalEarned.textContent  = (stats.clickerPointsEarned || 0).toLocaleString();
   }
 
-  clickerBtn.addEventListener('click', () => {
+  clickerBtn.addEventListener('click', async () => {
     const now = Date.now();
     if (now - lastClickAt < CLICKER_COOLDOWN_MS) return;
     lastClickAt = now;
@@ -1035,8 +1037,8 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
     clickerCooldownTimer = setTimeout(() => { clickerBtn.disabled = false; }, CLICKER_COOLDOWN_MS);
 
     const s = currentStudent(); if (!s) return;
-    const res = clickerTap(s.id);
-    if (!res.ok) return;
+    const res = await clickerTap(s.id);
+    if (!res || !res.ok) return;
     if (res.data.earned > 0) {
       showToast(`+${res.data.earned} pt earned from clicker!`);
     }

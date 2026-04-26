@@ -608,26 +608,31 @@
 
 <script src="students-data.js"></script>
 <script>
-/* ─────────── Passcode gate (shared session) ─────────── */
-const PASSCODE = 'HigherGrade Tutoring';
-const SESSION_KEY = 'highergrade_admin_unlocked';
-
+/* ─────────── Passcode gate (server-validated) ─────────── */
 const gate = document.getElementById('gate');
 const shell = document.getElementById('admin-shell');
 const passInput = document.getElementById('passcode');
 const unlockBtn = document.getElementById('unlock');
 const gateError = document.getElementById('gate-error');
 
-function unlock() {
-  const entered  = (passInput.value || '').trim().toLowerCase();
-  const expected = PASSCODE.trim().toLowerCase();
-  if (entered === expected) {
-    sessionStorage.setItem(SESSION_KEY, '1');
-    gate.style.display = 'none';
-    shell.classList.add('unlocked');
-    render();
-    return;
-  }
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      if (window.HG && typeof window.HG.refresh === 'function') {
+        try { await window.HG.refresh(); } catch (_) {}
+      }
+      render();
+      return;
+    }
+  } catch (_) {}
   gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
   passInput.value = '';
   passInput.focus();
@@ -636,12 +641,18 @@ function unlock() {
 unlockBtn.addEventListener('click', unlock);
 passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 
-// Share unlock across admin pages — any visit to a non-admin page clears it.
-if (sessionStorage.getItem(SESSION_KEY) === '1') {
-  gate.style.display = 'none';
-  shell.classList.add('unlocked');
-  setTimeout(render, 0);
-}
+(async function () {
+  try {
+    if (window.dataReady) await window.dataReady;
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.kind === 'admin') {
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      setTimeout(render, 0);
+    }
+  } catch (_) {}
+})();
 
 /* ─────────── Admin UI logic ─────────── */
 const container = document.getElementById('students-container');
