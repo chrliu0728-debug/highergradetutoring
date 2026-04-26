@@ -16,9 +16,12 @@ Environment=HIGHERGRADE_DB=/var/lib/highergrade/app.db
 # Override default admin passcode by editing this file with `sudo systemctl edit highergrade-api`
 # Environment=HIGHERGRADE_ADMIN_PASSCODE=YourSecretPasscode
 
-# Use the venv's gunicorn so we don't need to maintain a system-wide install
+# Use the venv's gunicorn so we don't need to maintain a system-wide install.
+# --preload imports the app ONCE in the master before forking workers, so the
+# DB schema/seed bootstrap runs once instead of racing across workers.
 ExecStart=/var/www/highergrade/math_camp/server/.venv/bin/gunicorn \
     --workers 2 \
+    --preload \
     --bind 127.0.0.1:5000 \
     --access-logfile - \
     --error-logfile - \

@@ -18,15 +18,21 @@ def connect():
     conn = sqlite3.connect(DB_PATH, timeout=10, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 
 def init_db():
-    """Create the DB file (and parent dir) if missing, apply schema, seed defaults."""
+    """Create the DB file (and parent dir) if missing, apply schema, seed defaults.
+    Designed to be called ONCE at process start (before gunicorn forks workers)."""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = connect()
     try:
+        # WAL journal is set once on the file; subsequent connections inherit it.
+        # Wrap in try/except so concurrent process starts don't crash.
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+        except sqlite3.OperationalError:
+            pass
         conn.executescript(SCHEMA_PATH.read_text())
         _seed(conn)
     finally:
