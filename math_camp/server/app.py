@@ -451,6 +451,40 @@ def register_routes(app):
             "autoCap": cap,
         })
 
+    @app.route("/api/admin/students/<sid>/grant-crane", methods=["POST"])
+    @require_admin
+    def admin_grant_crane(sid):
+        """Admin override that bypasses the global 11-crane cap.
+        Use this when you need to make sure each class has a Paper Crane
+        holder regardless of how the public claim race plays out."""
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            if CRANE_ROLE_ID in roles:
+                return jsonify(ok=False, error=f"{_full_name(row)} already holds the Paper Crane."), 400
+            roles.append(CRANE_ROLE_ID)
+            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(roles), sid))
+            _log_tx(type="role_assigned", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=0,
+                    description="🕊 Paper Crane granted by admin (bypass)")
+        return jsonify(ok=True)
+
+    @app.route("/api/admin/students/<sid>/revoke-crane", methods=["POST"])
+    @require_admin
+    def admin_revoke_crane(sid):
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            if CRANE_ROLE_ID not in roles:
+                return jsonify(ok=False, error=f"{_full_name(row)} doesn't hold the Paper Crane."), 400
+            roles = [r for r in roles if r != CRANE_ROLE_ID]
+            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(roles), sid))
+        return jsonify(ok=True)
+
     @app.route("/api/admin/students/<sid>/clicker-upgrade", methods=["POST"])
     @require_admin
     def admin_clicker_upgrade(sid):

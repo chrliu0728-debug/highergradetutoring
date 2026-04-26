@@ -567,6 +567,26 @@ async function autoClickerTap() {
   }
 }
 
+async function adminGrantCrane(studentId) {
+  try {
+    const r = await _api('/admin/students/' + encodeURIComponent(studentId) + '/grant-crane', { method: 'POST' });
+    await _refresh('students', '/students');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not grant the crane.' };
+  }
+}
+
+async function adminRevokeCrane(studentId) {
+  try {
+    const r = await _api('/admin/students/' + encodeURIComponent(studentId) + '/revoke-crane', { method: 'POST' });
+    await _refresh('students', '/students');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not revoke the crane.' };
+  }
+}
+
 async function adminUpgradeClicker(studentId) {
   try {
     const r = await _api('/admin/students/' + encodeURIComponent(studentId) + '/clicker-upgrade', { method: 'POST' });

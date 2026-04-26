@@ -780,6 +780,13 @@ function render() {
         <button data-clicker-up>+1 level</button>
         <button data-clicker-down ${(!s.clickerLevel) ? 'disabled' : ''}>−1 level</button>
       </div>
+      <div class="point-action-row" style="background:rgba(236,72,153,.06); border-color:#EC4899;">
+        <strong>🕊 Paper Crane:</strong>
+        <span style="font-size:.86rem;">${(Array.isArray(s.roles) && s.roles.includes(CRANE_ROLE_ID)) ? '<strong style="color:#9D174D;">Holds the crane</strong>' : '<span style="color:var(--muted);">No crane</span>'}</span>
+        ${(Array.isArray(s.roles) && s.roles.includes(CRANE_ROLE_ID))
+          ? `<button data-crane-revoke>Revoke crane</button>`
+          : `<button data-crane-grant>Grant crane (bypass cap)</button>`}
+      </div>
     `;
     list.appendChild(card);
   });
@@ -845,6 +852,30 @@ function render() {
         render();
       });
     });
+
+    const craneGrantBtn  = card.querySelector('[data-crane-grant]');
+    const craneRevokeBtn = card.querySelector('[data-crane-revoke]');
+    if (craneGrantBtn) {
+      craneGrantBtn.addEventListener('click', async () => {
+        craneGrantBtn.disabled = true;
+        const res = await adminGrantCrane(id);
+        craneGrantBtn.disabled = false;
+        if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Grant failed'); return; }
+        showToast('🕊 Crane granted');
+        render();
+      });
+    }
+    if (craneRevokeBtn) {
+      craneRevokeBtn.addEventListener('click', async () => {
+        if (!confirm('Take the Paper Crane back from this student?')) return;
+        craneRevokeBtn.disabled = true;
+        const res = await adminRevokeCrane(id);
+        craneRevokeBtn.disabled = false;
+        if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Revoke failed'); return; }
+        showToast('🕊 Crane revoked');
+        render();
+      });
+    }
 
     const clickerUp   = card.querySelector('[data-clicker-up]');
     const clickerDown = card.querySelector('[data-clicker-down]');
