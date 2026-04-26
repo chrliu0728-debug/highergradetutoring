@@ -225,16 +225,71 @@ If you have student data sitting in your admin browser's localStorage
 from before the migration, see [MIGRATE-LOCALSTORAGE.md](MIGRATE-LOCALSTORAGE.md)
 for a one-time import procedure.
 
-### Database backups
+### Database backups → private GitHub repo
 
-The DB is a single file at `/var/lib/highergrade/app.db`. A safe
-nightly backup cron:
+A nightly cron snapshots the DB and pushes it to a **private**
+backup repo (`chrliu0728-debug/highergrade-backups`). The DB
+contains plaintext passwords and parent contact info, so the backup
+repo MUST stay private — never make it public.
+
+**One-time setup** (already done on the live VM):
 
 ```bash
-# /etc/cron.daily/highergrade-db-backup
-sqlite3 /var/lib/highergrade/app.db ".backup '/var/backups/highergrade-$(date +\%F).db'"
-find /var/backups -name 'highergrade-*.db' -mtime +30 -delete
+# 1. Generate an SSH deploy key on the VM
+ssh-keygen -t ed25519 -N "" -C "highergrade-backups@vm" \
+  -f /home/ubuntu/.ssh/highergrade_backups
+
+# 2. On GitHub: add /home/ubuntu/.ssh/highergrade_backups.pub as a
+#    deploy key on the backups repo, with WRITE access enabled.
+#    Settings → Deploy keys → Add deploy key.
+
+# 3. SSH config alias so the backup script uses the right key
+cat >> /home/ubuntu/.ssh/config <<'EOF'
+
+Host github-backups
+  HostName github.com
+  User git
+  IdentityFile /home/ubuntu/.ssh/highergrade_backups
+  IdentitiesOnly yes
+EOF
+chmod 600 /home/ubuntu/.ssh/config
+ssh-keyscan -t ed25519 github.com >> /home/ubuntu/.ssh/known_hosts
+
+# 4. Clone the (empty) backup repo
+sudo mkdir -p /var/lib/highergrade && sudo chown ubuntu:ubuntu /var/lib/highergrade
+cd /var/lib/highergrade
+git clone github-backups:chrliu0728-debug/highergrade-backups.git backups
+cd backups
+git config user.name  "highergrade-backup-bot"
+git config user.email "highergrade-backup-bot@vm.local"
+
+# 5. Install the backup script + cron
+sudo apt-get install -y sqlite3 cron
+sudo cp /var/www/highergrade/math_camp/deploy/backup-db.sh \
+        /usr/local/bin/highergrade-backup-db.sh
+sudo chmod +x /usr/local/bin/highergrade-backup-db.sh
+sudo touch /var/log/highergrade-backup.log
+sudo chown ubuntu:ubuntu /var/log/highergrade-backup.log
+( crontab -l 2>/dev/null
+  echo "15 3 * * * /usr/local/bin/highergrade-backup-db.sh >> /var/log/highergrade-backup.log 2>&1"
+) | crontab -
 ```
+
+**What the script does** (see [backup-db.sh](backup-db.sh)):
+- `sqlite3 .backup` to a daily-stamped file under `daily/highergrade-YYYY-MM-DD.db`
+- Mirrors the latest into `latest/app.db` for one-step restore
+- Prunes daily dumps older than 60 days
+- Commits + pushes to the backups repo only if anything changed
+
+**Restore from backup**:
+```bash
+git clone git@github.com:chrliu0728-debug/highergrade-backups.git
+sudo systemctl stop highergrade-api
+sudo cp highergrade-backups/latest/app.db /var/lib/highergrade/app.db
+sudo systemctl start highergrade-api
+```
+
+**Manual run** (for testing): `/usr/local/bin/highergrade-backup-db.sh`
 
 ---
 
