@@ -451,14 +451,23 @@
                   </div>
                 </details>
 
-                <!-- Checkbox 2: Photo / Social Media -->
+                <!-- Checkbox 2: Transportation / location -->
+                <label class="checkbox-label" style="margin-top:14px;">
+                  <input type="checkbox" id="consent-transport" name="consent_transport" required />
+                  <span>I/We understand the <strong>camp's host school may change before July 20</strong> and can arrange transportation for the student to <strong>any HDSB school within Oakville</strong>. <span class="req">*</span></span>
+                </label>
+                <div style="background:#FEF3C7; border:1px solid #FDE68A; border-radius:var(--radius-sm); padding:10px 14px; margin-top:6px; font-size:.82rem; line-height:1.5; color:#92400E;">
+                  <strong>Heads up to parents:</strong> we're currently planning to host at Abbey Park High School, but space at HDSB schools is allocated closer to summer. The final location could be any Oakville HDSB school (Abbey Park, Iroquois Ridge, Oakville Trafalgar, White Oaks, etc.). We'll confirm the final venue at least two weeks before camp starts.
+                </div>
+
+                <!-- Checkbox 3: Photo / Social Media -->
                 <label class="checkbox-label" style="margin-top:14px;">
                   <input type="checkbox" id="consent-photo" name="consent_photo" />
                   <span>I/We consent to photographs and videos of the student being taken during the camp and posted on HigherGrade Tutoring's social media and promotional materials. (Optional)</span>
                 </label>
 
               </div>
-              <div class="field-error" id="err-consent">Please agree to the Terms &amp; Conditions to continue.</div>
+              <div class="field-error" id="err-consent">Please agree to the Terms &amp; Conditions and transportation acknowledgement to continue.</div>
             </div>
 
             <div class="form-nav">
@@ -485,7 +494,7 @@
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:380px;text-align:left;font-size:.88rem;color:var(--text-mid);">
             <div style="margin-bottom:8px;">📅 <strong>Camp Dates:</strong> July 20–31, 2026</div>
             <div style="margin-bottom:8px;">📧 <strong>Confirmation:</strong> Check your email</div>
-            <div>📍 <strong>Location:</strong> Abbey Park High School, Oakville</div>
+            <div>📍 <strong>Location:</strong> An HDSB school in Oakville (final venue confirmed by July 6)</div>
           </div>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <a href="student-portal.html" class="btn btn-primary">Go to your student portal →</a>
@@ -502,7 +511,7 @@
           <div class="sidebar-item"><span class="si-icon">📅</span><span><strong>July 20–31, 2026</strong><br>Week 1: Mon–Sat · Week 2: Mon–Thu</span></div>
           <div class="sidebar-item"><span class="si-icon">⏰</span><span><strong>9:00 AM – 3:30 PM</strong> daily</span></div>
           <div class="sidebar-item"><span class="si-icon">🎓</span><span>For <strong>Grade 9 students</strong> — HDSB &amp; all boards welcome</span></div>
-          <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>Abbey Park High School</strong>, Oakville</span></div>
+          <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>An HDSB school in Oakville</strong> — venue subject to change. Plan transportation for any Oakville HDSB campus.</span></div>
           <div class="sidebar-item"><span class="si-icon">💰</span><span><strong>100% free</strong> to attend</span></div>
           <div class="sidebar-item"><span class="si-icon">👥</span><span>Limited to <strong>40 participants</strong></span></div>
         </div>
@@ -649,12 +658,13 @@
   document.getElementById('reg-form').addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    const termsEl  = document.getElementById('consent-terms');
-    const errEl    = document.getElementById('err-consent');
-    const submitEl = document.getElementById('submit-btn');
-    const apiErr   = document.getElementById('err-submit');
+    const termsEl     = document.getElementById('consent-terms');
+    const transportEl = document.getElementById('consent-transport');
+    const errEl       = document.getElementById('err-consent');
+    const submitEl    = document.getElementById('submit-btn');
+    const apiErr      = document.getElementById('err-submit');
 
-    if (!termsEl.checked) {
+    if (!termsEl.checked || !transportEl.checked) {
       errEl.classList.add('show');
       errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
