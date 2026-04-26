@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paper Crane — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    html, body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 45%, #F9A8D4 100%);
+      color: #422006;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(252, 231, 243, .85) 0%, transparent 45%),
+        radial-gradient(circle at 80% 70%, rgba(244, 114, 182, .35) 0%, transparent 40%);
+      z-index: 0;
+    }
+    .cr-wrap {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 30px 20px;
+    }
+    .cr-card {
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid #F472B6;
+      border-radius: 22px;
+      padding: 44px 40px 36px;
+      max-width: 460px; width: 100%;
+      box-shadow: 0 30px 80px rgba(244, 114, 182, .35), 0 0 0 1px rgba(255,255,255,.5) inset;
+      text-align: center;
+      animation: cr-rise .6s cubic-bezier(.2, .9, .3, 1.2);
+    }
+    @keyframes cr-rise {
+      from { opacity: 0; transform: translateY(16px) scale(.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .cr-bird {
+      font-size: 4.5rem;
+      line-height: 1;
+      margin-bottom: 6px;
+      filter: drop-shadow(0 8px 24px rgba(244,114,182,.55));
+      animation: cr-float 4s ease-in-out infinite;
+    }
+    @keyframes cr-float {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50%      { transform: translateY(-10px) rotate(3deg); }
+    }
+    .cr-eyebrow {
+      font-size: .78rem; font-weight: 700;
+      color: #9D174D;
+      text-transform: uppercase; letter-spacing: .25em;
+      margin-bottom: 6px;
+    }
+    .cr-card h1 {
+      font-size: 2rem; font-weight: 900; letter-spacing: -.02em;
+      color: #831843;
+      margin-bottom: 10px;
+    }
+    .cr-card p.sub {
+      font-size: .95rem;
+      color: #6B2D4A;
+      line-height: 1.55;
+      margin-bottom: 24px;
+    }
+    .cr-card label {
+      display: block; text-align: left;
+      font-size: .72rem; font-weight: 700;
+      color: #9D174D;
+      text-transform: uppercase; letter-spacing: .1em;
+      margin-bottom: 6px;
+    }
+    .cr-card input {
+      width: 100%;
+      padding: 13px 16px;
+      font-size: .98rem;
+      border: 1.5px solid rgba(244,114,182,.45);
+      border-radius: 12px;
+      background: rgba(255,255,255,.7);
+      color: #422006;
+      outline: none;
+      margin-bottom: 14px;
+      font-family: inherit;
+    }
+    .cr-card input:focus { border-color: #EC4899; background: white; }
+    .cr-msg { min-height: 1.2em; margin-bottom: 10px; font-size: .86rem; }
+    .cr-msg.err { color: #B91C1C; }
+    .cr-msg.ok  { color: #047857; }
+    .cr-btn {
+      width: 100%;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #EC4899, #DB2777);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem; font-weight: 800;
+      letter-spacing: .02em;
+      cursor: pointer;
+      box-shadow: 0 12px 32px rgba(219,39,119,.45);
+      transition: transform .15s, box-shadow .2s;
+    }
+    .cr-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(219,39,119,.55); }
+    .cr-btn[disabled] { opacity: .55; cursor: wait; transform: none; }
+    .cr-footer { margin-top: 22px; font-size: .82rem; color: #6B2D4A; }
+    .cr-footer a { color: #9D174D; text-decoration: none; font-weight: 700; }
+    .cr-footer a:hover { color: #831843; }
+    .cr-meta {
+      font-size: .78rem; color: #6B2D4A;
+      background: rgba(244,114,182,.12);
+      border: 1px dashed rgba(219, 39, 119, .35);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 14px;
+    }
+    .cr-meta strong { color: #831843; }
+    .view { display: none; }
+    .view.show { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="cr-wrap">
+  <div class="cr-card">
+
+    <!-- Loading state — shown while we fetch /auth/me -->
+    <div class="view show" id="view-loading">
+      <div class="cr-bird">🕊</div>
+      <p class="sub">Folding the crane…</p>
+    </div>
+
+    <!-- Logged-in claim view -->
+    <div class="view" id="view-loggedin">
+      <div class="cr-bird">🕊</div>
+      <div class="cr-eyebrow">You found the crane</div>
+      <h1>Claim the Paper Crane</h1>
+      <p class="sub">A hidden mini-game role. Holders receive secret hints and updates from camp instructors. <strong>Only 11 of these exist across the entire camp</strong>.</p>
+      <div class="cr-meta">Signed in as <strong id="li-name">…</strong></div>
+      <div class="cr-msg" id="li-msg"></div>
+      <button class="cr-btn" id="li-claim-btn">Claim the Crane →</button>
+      <p class="cr-footer"><a href="student-portal.html">← Back to your dashboard</a></p>
+    </div>
+
+    <!-- Logged-out: sign-in form, then auto-claim -->
+    <div class="view" id="view-loggedout">
+      <div class="cr-bird">🕊</div>
+      <div class="cr-eyebrow">You found the crane</div>
+      <h1>Sign in to claim it</h1>
+      <p class="sub">The Paper Crane is a hidden mini-game role with only <strong>11 spots in the entire camp</strong>. Sign in to claim one before they're gone.</p>
+
+      <label>Student email</label>
+      <input type="email" id="lo-email" placeholder="you@school.ca" autocomplete="off" />
+      <label>Password</label>
+      <input type="password" id="lo-password" placeholder="Your camp password" autocomplete="off" />
+
+      <div class="cr-msg" id="lo-msg"></div>
+      <button class="cr-btn" id="lo-claim-btn">Sign in &amp; claim →</button>
+      <p class="cr-footer">No account? <a href="register.html">Register first</a></p>
+    </div>
+
+    <!-- Success -->
+    <div class="view" id="view-success">
+      <div class="cr-bird">🕊✨</div>
+      <div class="cr-eyebrow">Claimed</div>
+      <h1>The crane is yours</h1>
+      <p class="sub" id="success-sub">Watch your dashboard for hints from camp instructors. Each one points you toward the next puzzle.</p>
+      <a class="cr-btn" href="student-portal.html" style="display:inline-block; text-decoration:none; padding-top:14px;">Go to my dashboard →</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="students-data.js"></script>
+<script>
+const elLoading   = document.getElementById('view-loading');
+const elLoggedIn  = document.getElementById('view-loggedin');
+const elLoggedOut = document.getElementById('view-loggedout');
+const elSuccess   = document.getElementById('view-success');
+
+const liName = document.getElementById('li-name');
+const liMsg  = document.getElementById('li-msg');
+const liBtn  = document.getElementById('li-claim-btn');
+
+const loEmail = document.getElementById('lo-email');
+const loPwd   = document.getElementById('lo-password');
+const loMsg   = document.getElementById('lo-msg');
+const loBtn   = document.getElementById('lo-claim-btn');
+
+const successSub = document.getElementById('success-sub');
+
+function showOnly(el) {
+  [elLoading, elLoggedIn, elLoggedOut, elSuccess].forEach(v => v.classList.remove('show'));
+  el.classList.add('show');
+}
+
+function showSuccess(remaining) {
+  if (typeof remaining === 'number') {
+    successSub.innerHTML = `Watch your dashboard for hints from camp instructors. <strong>${remaining}</strong> ${remaining === 1 ? 'crane' : 'cranes'} left in the camp.`;
+  }
+  showOnly(elSuccess);
+  setTimeout(() => { location.href = 'student-portal.html'; }, 2600);
+}
+
+function showError(target, msg) {
+  target.className = 'cr-msg err';
+  target.textContent = msg;
+}
+
+async function doClaim() {
+  liBtn.disabled = true;
+  liBtn.textContent = 'Reaching for the crane…';
+  const res = await claimCraneRole();
+  if (!res.ok) {
+    showError(liMsg, res.error || 'Could not claim the crane.');
+    liBtn.disabled = false;
+    liBtn.textContent = 'Claim the Crane →';
+    return;
+  }
+  showSuccess(res.data && res.data.remaining);
+}
+
+liBtn.addEventListener('click', doClaim);
+
+async function doLogInAndClaim() {
+  loMsg.textContent = '';
+  const email = loEmail.value, pwd = loPwd.value;
+  if (!email || !pwd) {
+    showError(loMsg, 'Enter your camp email and password.');
+    return;
+  }
+  loBtn.disabled = true;
+  loBtn.textContent = 'Signing in…';
+  try {
+    if (window.dataReady) await window.dataReady;
+    const student = await findStudentByLogin(email, pwd);
+    if (!student) {
+      showError(loMsg, "Couldn't find a matching account.");
+      loBtn.disabled = false; loBtn.textContent = 'Sign in & claim →';
+      return;
+    }
+    const res = await claimCraneRole();
+    if (!res.ok) {
+      showError(loMsg, res.error || 'Could not claim the crane.');
+      loBtn.disabled = false; loBtn.textContent = 'Sign in & claim →';
+      return;
+    }
+    showSuccess(res.data && res.data.remaining);
+  } catch (e) {
+    showError(loMsg, e.message || 'Something went wrong.');
+    loBtn.disabled = false; loBtn.textContent = 'Sign in & claim →';
+  }
+}
+
+loBtn.addEventListener('click', doLogInAndClaim);
+loPwd.addEventListener('keydown', e => { if (e.key === 'Enter') doLogInAndClaim(); });
+loEmail.addEventListener('keydown', e => { if (e.key === 'Enter') loPwd.focus(); });
+
+(async function () {
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
+  const me = (window.HG && window.HG.cache && window.HG.cache.me) || {};
+  const student = me.student;
+  if (student) {
+    liName.textContent = (student.firstName || '') + (student.lastName ? ' ' + student.lastName : '');
+    if (Array.isArray(student.roles) && student.roles.includes(CRANE_ROLE_ID)) {
+      successSub.textContent = 'You already hold the Paper Crane. Hints will appear on your dashboard.';
+      showOnly(elSuccess);
+      setTimeout(() => { location.href = 'student-portal.html'; }, 2200);
+      return;
+    }
+    showOnly(elLoggedIn);
+  } else {
+    showOnly(elLoggedOut);
+    loEmail.focus();
+  }
+})();
+</script>
+</body>
+</html>

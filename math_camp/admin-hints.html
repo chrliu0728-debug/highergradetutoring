@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini-Game Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1100px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: flex; gap: 18px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px 28px; margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon { font-size: 2rem; }
+    .admin-welcome h1 { font-size: 1.3rem; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .92rem; color: var(--muted); margin: 0; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 22px;
+    }
+    .panel h2 {
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel .panel-desc {
+      font-size: .85rem; color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .hint-form textarea {
+      width: 100%; min-height: 90px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; font-size: .95rem; font-family: inherit;
+      background: var(--surface2); outline: none; resize: vertical;
+    }
+    .hint-form textarea:focus { border-color: var(--blush); background: white; }
+    .hint-form-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 10px; gap: 12px;
+    }
+    .hint-char-count { font-size: .78rem; color: var(--muted); }
+    .hint-list { display: flex; flex-direction: column; gap: 10px; }
+    .hint-item {
+      display: flex; gap: 14px;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .hint-item-body { flex: 1; font-size: .92rem; line-height: 1.5; white-space: pre-wrap; color: var(--text); }
+    .hint-item-meta { font-size: .76rem; color: var(--muted); margin-top: 6px; }
+    .hint-delete {
+      background: none; border: none; cursor: pointer;
+      color: #c0392b; font-size: 1rem; padding: 4px 8px;
+      border-radius: 6px; align-self: flex-start;
+    }
+    .hint-delete:hover { background: rgba(192,57,43,.08); }
+
+    .role-event {
+      display: flex; gap: 12px; padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: .88rem;
+      align-items: baseline;
+    }
+    .role-event:last-child { border-bottom: none; }
+    .role-event .when { color: var(--muted); font-size: .76rem; min-width: 130px; }
+    .role-event .who  { font-weight: 700; min-width: 160px; }
+    .role-event .what { color: var(--text-mid); flex: 1; }
+
+    .danger-zone {
+      background: rgba(220, 38, 38, .04);
+      border: 1px dashed #DC2626;
+      border-radius: 12px;
+      padding: 20px 22px;
+      margin-top: 12px;
+    }
+    .danger-zone h3 { color: #B91C1C; font-size: 1rem; margin-bottom: 6px; }
+    .danger-zone p  { color: var(--text-mid); font-size: .88rem; line-height: 1.55; margin-bottom: 14px; }
+    .danger-zone .reset-btn {
+      background: #DC2626;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .danger-zone .reset-btn:hover { background: #B91C1C; }
+    .danger-zone .reset-btn[disabled] { opacity: .55; cursor: wait; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--text); color: white;
+      padding: 12px 18px; border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      font-size: .9rem; opacity: 0; pointer-events: none;
+      transition: opacity .2s ease;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage the mini-game.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px; font-size:.78rem; color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="admin-hints.html" class="active">Game</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html">Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">🕊</div>
+    <div>
+      <h1>Mini-game console</h1>
+      <p>Send hints to the 11 Paper-Crane holders, audit who has earned which roles, and reset the camp's student-side state when a new cohort arrives.</p>
+    </div>
+  </div>
+
+  <!-- ── Compose hint ─────────────────────────────────────── -->
+  <div class="panel">
+    <h2>📣 Send a hint</h2>
+    <p class="panel-desc">Posts go straight to the dashboards of every student holding the Paper Crane role. Use it for clue drops, mini-game updates, and time-sensitive announcements.</p>
+    <div class="hint-form">
+      <textarea id="hint-body" placeholder="Type your hint or update here…"></textarea>
+      <div class="hint-form-row">
+        <span class="hint-char-count"><span id="hint-char">0</span> / 2000</span>
+        <button class="btn btn-blue" id="hint-post-btn">Post hint →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Hint history ─────────────────────────────────────── -->
+  <div class="panel">
+    <h2>📜 Recent hints</h2>
+    <p class="panel-desc">Already-posted hints; newest first. Delete to retract one (it disappears from holders' feeds the next time their portal refreshes).</p>
+    <div class="hint-list" id="hints-list"></div>
+  </div>
+
+  <!-- ── Role events ──────────────────────────────────────── -->
+  <div class="panel">
+    <h2>🏅 Role assignment log</h2>
+    <p class="panel-desc">Audit trail of every role granted to a student — Maze Wizard, Money Tree, Clicker upgrades, Paper Crane. Last 200 events.</p>
+    <div id="role-events-list"></div>
+  </div>
+
+  <!-- ── Danger zone (scoped reset) ───────────────────────── -->
+  <div class="panel">
+    <h2>⚠️ Reset camp</h2>
+    <p class="panel-desc">For when you're starting a new cohort. Wipes <strong>students, classes, roles, and points</strong> — and only those. Staff records, transactions, base-stat categories, and hints are preserved. Default roles are re-seeded automatically.</p>
+    <div class="danger-zone">
+      <h3>Danger zone</h3>
+      <p>This cannot be undone. Confirm by typing <strong>RESET</strong> below, then click the button.</p>
+      <input type="text" id="reset-confirm" placeholder='Type "RESET" to enable the button'
+        style="width: 220px; padding: 10px 12px; font-size:.95rem; border:1.5px solid var(--border); border-radius:8px; margin-right:12px;" />
+      <button class="reset-btn" id="reset-btn" disabled>Reset students, classes, roles, points</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="students-data.js"></script>
+<script>
+
+const gate      = document.getElementById('gate');
+const shell     = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+const hintBody  = document.getElementById('hint-body');
+const hintChar  = document.getElementById('hint-char');
+const hintPostBtn = document.getElementById('hint-post-btn');
+const hintsList = document.getElementById('hints-list');
+const roleEventsList = document.getElementById('role-events-list');
+const resetConfirm = document.getElementById('reset-confirm');
+const resetBtn = document.getElementById('reset-btn');
+const toastEl = document.getElementById('toast');
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtTime(ms) {
+  const d = new Date(ms);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      if (window.HG && typeof window.HG.refresh === 'function') {
+        try { await window.HG.refresh(); } catch (_) {}
+      }
+      render();
+      return;
+    }
+  } catch (_) {}
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+(async function () {
+  try {
+    if (window.dataReady) await window.dataReady;
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.kind === 'admin') {
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      setTimeout(render, 0);
+    }
+  } catch (_) {}
+})();
+
+async function render() {
+  await Promise.all([renderHints(), renderRoleEvents()]);
+}
+
+async function renderHints() {
+  const res = await fetchHints();
+  if (!res || !res.ok) {
+    hintsList.innerHTML = `<div style="font-size:.86rem; color:var(--muted);">Couldn't load hints.</div>`;
+    return;
+  }
+  const hints = res.data || [];
+  if (hints.length === 0) {
+    hintsList.innerHTML = `<div style="font-size:.86rem; color:var(--muted);">No hints yet — post one above.</div>`;
+    return;
+  }
+  hintsList.innerHTML = hints.map(h => `
+    <div class="hint-item">
+      <div class="hint-item-body">
+        ${esc(h.body)}
+        <div class="hint-item-meta">${fmtTime(h.createdAt)}</div>
+      </div>
+      <button class="hint-delete" data-hint-id="${esc(h.id)}" title="Delete this hint">✕</button>
+    </div>
+  `).join('');
+  hintsList.querySelectorAll('[data-hint-id]').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!confirm('Delete this hint? Holders will lose it on their next refresh.')) return;
+      const id = b.dataset.hintId;
+      const res = await adminDeleteHint(id);
+      if (res && res.ok) { showToast('Hint deleted'); renderHints(); }
+      else showToast(res && res.error ? res.error : 'Delete failed');
+    });
+  });
+}
+
+async function renderRoleEvents() {
+  const res = await adminListRoleEvents();
+  if (!res || !res.ok) {
+    roleEventsList.innerHTML = `<div style="font-size:.86rem; color:var(--muted); padding:8px;">Couldn't load role events.</div>`;
+    return;
+  }
+  const events = res.data || [];
+  if (events.length === 0) {
+    roleEventsList.innerHTML = `<div style="font-size:.86rem; color:var(--muted); padding:8px;">No role events yet.</div>`;
+    return;
+  }
+  roleEventsList.innerHTML = events.map(e => `
+    <div class="role-event">
+      <span class="when">${fmtTime(e.at)}</span>
+      <span class="who">${esc(e.subjectName || '(unknown)')}</span>
+      <span class="what">${esc(e.description || '')}</span>
+    </div>
+  `).join('');
+}
+
+hintBody.addEventListener('input', () => {
+  hintChar.textContent = hintBody.value.length;
+});
+hintPostBtn.addEventListener('click', async () => {
+  const body = (hintBody.value || '').trim();
+  if (!body) { showToast('Type a hint first.'); return; }
+  hintPostBtn.disabled = true;
+  const res = await adminPostHint(body);
+  hintPostBtn.disabled = false;
+  if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Post failed'); return; }
+  hintBody.value = '';
+  hintChar.textContent = '0';
+  showToast('🕊 Hint posted to crane holders');
+  renderHints();
+});
+
+resetConfirm.addEventListener('input', () => {
+  resetBtn.disabled = resetConfirm.value.trim().toUpperCase() !== 'RESET';
+});
+resetBtn.addEventListener('click', async () => {
+  if (!confirm('FINAL CONFIRM — wipe students, classes, and roles? Staff, transactions, and hints stay.')) return;
+  resetBtn.disabled = true;
+  resetBtn.textContent = 'Resetting…';
+  const res = await adminResetCamp();
+  if (!res || !res.ok) {
+    showToast(res && res.error ? res.error : 'Reset failed');
+    resetBtn.disabled = false;
+    resetBtn.textContent = 'Reset students, classes, roles, points';
+    return;
+  }
+  showToast('✅ Camp reset — students, classes, and roles wiped');
+  resetConfirm.value = '';
+  resetBtn.textContent = 'Reset students, classes, roles, points';
+  setTimeout(() => location.reload(), 800);
+});
+</script>
+</body>
+</html>

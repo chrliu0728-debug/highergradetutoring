@@ -278,6 +278,7 @@ const TX_TYPES = {
   class_bank_deposit:  { label: 'Class bank deposit',   icon: '🏦' },
   class_bank_withdraw: { label: 'Class bank withdraw',  icon: '↩' },
   class_bank_adjust:   { label: 'Class bank adjustment',icon: '🏦' },
+  role_assigned:       { label: 'Role assigned',        icon: '🏅' },
 };
 
 function getTransactions() {
@@ -332,6 +333,9 @@ const CLICKER_ROLE_ID         = 'clicker';
 const MANUAL_DAILY_CAP        = 50;       // max manual-clicker pts per UTC day
 const AUTO_DAILY_CAP_PER_LV   = 14;       // max auto-clicker pts per level per day
 const AUTO_CLICK_INTERVAL_MS  = 60 * 1000; // each auto-clicker fires once per minute
+const CRANE_ROLE_ID           = 'crane';
+const CRANE_GLOBAL_LIMIT      = 11;
+const CRANE_CLICKS_TO_UNLOCK  = 100;       // clicks on the about-page crane emoji to trigger claim flow
 
 function getRoles() {
   // Guarantee the protected MazeWiz role always shows
@@ -451,6 +455,65 @@ async function claimDoorMaze(correct, total) {
     return r;
   } catch (e) {
     return { ok: false, error: e.message || 'Could not claim the reward.' };
+  }
+}
+
+async function claimCraneRole() {
+  try {
+    const r = await _api('/students/me/claim-crane', { method: 'POST' });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    const me = HG.cache.me && HG.cache.me.student;
+    if (me && typeof setLoggedInStudent === 'function') await setLoggedInStudent(me.id);
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not claim the Paper Crane.' };
+  }
+}
+
+async function fetchHints() {
+  try {
+    const r = await _api('/hints');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not load hints.' };
+  }
+}
+
+async function adminPostHint(body) {
+  try {
+    const r = await _api('/admin/hints', { method: 'POST', body: { body } });
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not post hint.' };
+  }
+}
+
+async function adminDeleteHint(id) {
+  try {
+    const r = await _api('/admin/hints/' + encodeURIComponent(id), { method: 'DELETE' });
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not delete hint.' };
+  }
+}
+
+async function adminListRoleEvents() {
+  try {
+    const r = await _api('/admin/role-events');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not load role events.' };
+  }
+}
+
+async function adminResetCamp() {
+  try {
+    const r = await _api('/admin/reset', { method: 'POST' });
+    await _bootstrap();
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Reset failed.' };
   }
 }
 

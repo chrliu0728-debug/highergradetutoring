@@ -40,6 +40,8 @@ TX_MAX                 = 2000
 MAZEWIZ_ROLE_ID        = "mazewiz"
 MONEY_TREE_ROLE_ID     = "money_tree"
 CLICKER_ROLE_ID        = "clicker"
+CRANE_ROLE_ID          = "crane"
+CRANE_GLOBAL_LIMIT     = 11      # only 11 cranes can ever exist across the camp
 DOOR_MAZE_LENGTH       = 300
 MONEY_TREE_COST        = 6000
 
@@ -467,7 +469,7 @@ def register_routes(app):
                 "UPDATE students SET roles = ?, extras = ? WHERE id = ?",
                 (json.dumps(roles), json.dumps(extras), sid),
             )
-            _log_tx(type="earn", scope="student", subjectId=sid,
+            _log_tx(type="role_assigned", scope="student", subjectId=sid,
                     subjectName=_full_name(row), amount=0,
                     description=f"🖱 Clicker role upgraded to Lv {extras['clickerLevel']}")
         return jsonify(ok=True, data={"clickerLevel": extras["clickerLevel"]})
@@ -584,7 +586,7 @@ def register_routes(app):
             if MONEY_TREE_ROLE_ID not in my_roles:
                 my_roles.append(MONEY_TREE_ROLE_ID)
             g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(my_roles), sid))
-            _log_tx(type="earn", scope="student", subjectId=sid,
+            _log_tx(type="role_assigned", scope="student", subjectId=sid,
                     subjectName=_full_name(my_row), amount=0,
                     description="🌳 Claimed the Money Tree (criss-cross door pattern)")
         return jsonify(ok=True)
@@ -646,11 +648,88 @@ def register_routes(app):
             to_roles.append(MONEY_TREE_ROLE_ID)
             g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(from_roles), sid))
             g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(to_roles), to_id))
-            _log_tx(type="earn", scope="student", subjectId=sid,
-                    subjectName=_full_name(from_row),
-                    relatedId=to_id, relatedName=_full_name(to_row),
-                    amount=0, description=f"🌳 Gifted Money Tree to {_full_name(to_row)}")
+            _log_tx(type="role_assigned", scope="student", subjectId=to_id,
+                    subjectName=_full_name(to_row),
+                    relatedId=sid, relatedName=_full_name(from_row),
+                    amount=0, description=f"🌳 Received Money Tree from {_full_name(from_row)}")
         return jsonify(ok=True)
+
+    @app.route("/api/students/me/claim-crane", methods=["POST"])
+    @require_student
+    def claim_crane():
+        """Globally limited to CRANE_GLOBAL_LIMIT (=11) holders across the
+        entire camp. First-come-first-served per camper; once 11 students
+        hold the role, further claims fail with 409."""
+        sid = g.session["studentId"]
+        with g.db:
+            my_row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not my_row:
+                return jsonify(ok=False, error="Student not found."), 404
+            my_roles = json.loads(my_row["roles"] or "[]")
+            if CRANE_ROLE_ID in my_roles:
+                return jsonify(ok=False, error="You already hold the Paper Crane."), 400
+
+            # Count global holders
+            held = 0
+            for r in g.db.execute("SELECT roles FROM students").fetchall():
+                if CRANE_ROLE_ID in json.loads(r["roles"] or "[]"):
+                    held += 1
+            if held >= CRANE_GLOBAL_LIMIT:
+                return jsonify(ok=False, error=f"All {CRANE_GLOBAL_LIMIT} Paper Cranes have been claimed."), 409
+
+            my_roles.append(CRANE_ROLE_ID)
+            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(my_roles), sid))
+            _log_tx(type="role_assigned", scope="student", subjectId=sid,
+                    subjectName=_full_name(my_row), amount=0,
+                    description=f"🕊 Claimed the Paper Crane ({held + 1}/{CRANE_GLOBAL_LIMIT})")
+        return jsonify(ok=True, data={"remaining": CRANE_GLOBAL_LIMIT - held - 1})
+
+    # ── Mini-game hints ────────────────────────────────────────────
+    @app.route("/api/hints", methods=["GET"])
+    def list_hints():
+        """Visible to admins and to students holding the Paper Crane role."""
+        sess = _current_session()
+        if not sess:
+            return jsonify(ok=False, error="Auth required"), 401
+        if sess["kind"] == "student":
+            row = g.db.execute("SELECT roles FROM students WHERE id = ?", (sess["studentId"],)).fetchone()
+            roles = json.loads(row["roles"] or "[]") if row else []
+            if CRANE_ROLE_ID not in roles:
+                return jsonify(ok=False, error="Hints are only visible to Paper Crane holders."), 403
+        elif sess["kind"] != "admin":
+            return jsonify(ok=False, error="Auth required"), 401
+        rows = g.db.execute("SELECT * FROM hints ORDER BY createdAt DESC").fetchall()
+        return jsonify(ok=True, data=[dict(r) for r in rows])
+
+    @app.route("/api/admin/hints", methods=["POST"])
+    @require_admin
+    def create_hint():
+        data = request.get_json(silent=True) or {}
+        body = (data.get("body") or "").strip()
+        if not body:
+            return jsonify(ok=False, error="Hint body cannot be empty."), 400
+        if len(body) > 2000:
+            return jsonify(ok=False, error="Hint body too long (max 2000 chars)."), 400
+        hid = "hint-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        ts  = int(time.time() * 1000)
+        g.db.execute("INSERT INTO hints (id, body, createdAt) VALUES (?, ?, ?)", (hid, body, ts))
+        return jsonify(ok=True, data={"id": hid, "body": body, "createdAt": ts})
+
+    @app.route("/api/admin/hints/<hid>", methods=["DELETE"])
+    @require_admin
+    def delete_hint(hid):
+        g.db.execute("DELETE FROM hints WHERE id = ?", (hid,))
+        return jsonify(ok=True)
+
+    # Role-event audit feed (used by admin-hints.html). Just a filtered
+    # view over transactions — every role grant logs with type='role_assigned'.
+    @app.route("/api/admin/role-events", methods=["GET"])
+    @require_admin
+    def list_role_events():
+        rows = g.db.execute(
+            "SELECT * FROM transactions WHERE type = 'role_assigned' ORDER BY at DESC LIMIT 200"
+        ).fetchall()
+        return jsonify(ok=True, data=[row_to_tx(r) for r in rows])
 
     @app.route("/api/students/me/mazewiz", methods=["POST"])
     @require_student
@@ -676,7 +755,7 @@ def register_routes(app):
 
             roles.append(MAZEWIZ_ROLE_ID)
             g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(roles), sid))
-            _log_tx(type="earn", scope="student", subjectId=sid,
+            _log_tx(type="role_assigned", scope="student", subjectId=sid,
                     subjectName=_full_name(row), amount=0,
                     description="🧙 Claimed the Maze Wizard title for their class")
         return jsonify(ok=True)
@@ -890,18 +969,19 @@ def register_routes(app):
                 imported["staff"] = len(data["staff"])
         return jsonify(ok=True, imported=imported)
 
-    # ── Dev reset ──────────────────────────────────────────────────
+    # ── Camp reset (scoped) ────────────────────────────────────────
+    # Wipes students, classes, and roles (re-seeding the default roles
+    # afterwards). Preserves staff, transactions, base-stat categories,
+    # hints, and admin sessions so the camp can keep its history while
+    # starting fresh on student-side state.
     @app.route("/api/admin/reset", methods=["POST"])
     @require_admin
-    def dev_reset():
+    def admin_reset():
         with g.db:
             g.db.execute("DELETE FROM students")
             g.db.execute("DELETE FROM classes")
-            g.db.execute("DELETE FROM transactions")
-            g.db.execute("DELETE FROM base_stat_categories")
             g.db.execute("DELETE FROM roles")
             g.db.execute("DELETE FROM sessions WHERE kind = 'student'")
-        # Re-seed defaults for the empty tables
         from db import _seed
         with g.db:
             _seed(g.db)

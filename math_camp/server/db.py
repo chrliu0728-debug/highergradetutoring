@@ -66,6 +66,14 @@ DEFAULT_ROLES = [
         "description": "Auto-clicker — taps the click button on your behalf once per minute per level. Stack levels for more daily auto-points. Admin upgrades raise the level.",
         "special": 1,
     },
+    {
+        "id": "crane",
+        "name": "Paper Crane",
+        "icon": "🕊",
+        "color": "#EC4899",
+        "description": "Hidden mini-game role. Receive secret hints and updates from camp instructors that point you toward the next puzzle. Only 11 cranes ever exist across the camp.",
+        "special": 1,
+    },
 ]
 
 DEFAULT_BASE_STATS = [

@@ -87,3 +87,11 @@ CREATE TABLE IF NOT EXISTS sessions (
   createdAt       INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_kind ON sessions(kind);
+
+-- Mini-game hints broadcast by admins; visible to crane-role holders.
+CREATE TABLE IF NOT EXISTS hints (
+  id          TEXT PRIMARY KEY,
+  body        TEXT NOT NULL,
+  createdAt   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hints_at ON hints(createdAt);

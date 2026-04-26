@@ -263,12 +263,50 @@
           Our mascot is a <strong>paper crane 🕊</strong>. If you spot one — physical or digital — there's a clue attached. Most puzzles are math-flavoured; some are pure critical thinking; together they reveal the password.
         </p>
       </div>
-      <div style="border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 50%, #F9A8D4 100%); position:relative;">
-        <div style="font-size:9rem; filter:drop-shadow(0 8px 24px rgba(0,0,0,.2));">🕊</div>
+      <button type="button" id="crane-clicker" aria-label="Tap the paper crane"
+        style="all:unset; cursor:pointer; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 50%, #F9A8D4 100%); position:relative; transition:transform .12s ease;">
+        <div id="crane-emoji" style="font-size:9rem; filter:drop-shadow(0 8px 24px rgba(0,0,0,.2)); transition:transform .12s ease, filter .12s ease;">🕊</div>
         <div style="position:absolute; bottom:18px; left:0; right:0; text-align:center; font-size:.86rem; color:rgba(0,0,0,.55); font-weight:600; letter-spacing:.04em; text-transform:uppercase;">
           Look for the crane
         </div>
-      </div>
+        <div id="crane-counter" style="position:absolute; top:14px; right:16px; font-size:.78rem; font-weight:800; color:#9D174D; background:rgba(255,255,255,.7); padding:4px 10px; border-radius:999px; opacity:0; transition:opacity .25s ease;">
+          0 / 100
+        </div>
+      </button>
+<script>
+(function () {
+  const KEY  = 'highergrade_crane_clicks';
+  const NEED = 100;
+  const btn = document.getElementById('crane-clicker');
+  const emoji = document.getElementById('crane-emoji');
+  const counter = document.getElementById('crane-counter');
+  if (!btn || !emoji || !counter) return;
+  let clicks = parseInt(sessionStorage.getItem(KEY) || '0', 10);
+  if (!Number.isFinite(clicks) || clicks < 0) clicks = 0;
+  let pulseTimer = null;
+  function update() {
+    if (clicks > 0) {
+      counter.style.opacity = '1';
+      counter.textContent = `${Math.min(clicks, NEED)} / ${NEED}`;
+    }
+  }
+  update();
+  btn.addEventListener('click', () => {
+    clicks++;
+    sessionStorage.setItem(KEY, String(clicks));
+    update();
+    // Tiny pulse animation on the emoji each click
+    emoji.style.transform = 'scale(1.12)';
+    if (pulseTimer) clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(() => { emoji.style.transform = ''; }, 110);
+    if (clicks >= NEED) {
+      // Take them to the claim page; reset counter so they can't replay it.
+      sessionStorage.removeItem(KEY);
+      location.href = 'crane.html';
+    }
+  });
+})();
+</script>
     </div>
   </div>
 </section>

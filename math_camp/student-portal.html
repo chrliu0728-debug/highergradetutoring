@@ -698,6 +698,15 @@
       </div>
     </div>
 
+    <!-- ── Paper Crane hints (only visible when the student holds the role) ── -->
+    <div class="action-card" id="crane-hints-card" style="display:none; background:linear-gradient(135deg, rgba(236,72,153,.08), rgba(244,114,182,.04)); border-color:#EC4899;">
+      <div class="ac-head">
+        <h3>🕊 Paper Crane Hints</h3>
+        <p class="ac-sub">Live feed from camp instructors — clues and updates for the mini-game. Only Paper Crane holders see these.</p>
+      </div>
+      <div id="crane-hints-list" style="display:flex; flex-direction:column; gap:10px; max-height:360px; overflow:auto; padding-right:4px;"></div>
+    </div>
+
     <!-- ── Money Tree (only visible when the student holds the role) ── -->
     <div class="action-card" id="money-tree-card" style="display:none; background:linear-gradient(135deg, rgba(16,185,129,.08), rgba(16,185,129,.02)); border-color:#10B981;">
       <div class="ac-head">
@@ -918,6 +927,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderTransferCard(s);
     renderClickerCard(s);
     renderMoneyTreeCard(s);
+    renderCraneHintsCard(s);
   }
 
   /* ─── My Roles (read-only) ─── */
@@ -1269,6 +1279,52 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     flashBanner(mtOk, `🌳 Money Tree gifted to ${studentFullName(toStudent)}.`);
     renderDashboard();
   });
+
+  /* ─── Paper Crane hints feed ─── */
+  const craneHintsCard = document.getElementById('crane-hints-card');
+  const craneHintsList = document.getElementById('crane-hints-list');
+  let craneHintsTimer = null;
+
+  function fmtHintTime(ms) {
+    const d = new Date(ms);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  async function renderCraneHintsCard(s) {
+    if (!craneHintsCard) return;
+    const hasCrane = Array.isArray(s.roles) && s.roles.includes(CRANE_ROLE_ID);
+    if (!hasCrane) {
+      craneHintsCard.style.display = 'none';
+      if (craneHintsTimer) { clearInterval(craneHintsTimer); craneHintsTimer = null; }
+      return;
+    }
+    craneHintsCard.style.display = '';
+    await refreshHints();
+    if (!craneHintsTimer) {
+      craneHintsTimer = setInterval(refreshHints, 60_000); // poll every minute
+    }
+  }
+
+  async function refreshHints() {
+    if (typeof fetchHints !== 'function') return;
+    const res = await fetchHints();
+    if (!res || !res.ok) {
+      craneHintsList.innerHTML = `<div style="font-size:.84rem; color:var(--muted); padding:8px;">No access to hints yet.</div>`;
+      return;
+    }
+    const hints = res.data || [];
+    if (hints.length === 0) {
+      craneHintsList.innerHTML = `<div style="font-size:.84rem; color:var(--muted); padding:8px;">No hints yet — check back later.</div>`;
+      return;
+    }
+    craneHintsList.innerHTML = hints.map(h => `
+      <div style="background:rgba(255,255,255,.85); border:1px solid rgba(236,72,153,.25); border-radius:10px; padding:12px 14px; box-shadow:0 1px 0 rgba(0,0,0,.04);">
+        <div style="font-size:.95rem; line-height:1.5; color:var(--text); white-space:pre-wrap;">${esc(h.body)}</div>
+        <div style="font-size:.72rem; color:var(--muted); margin-top:6px;">🕊 ${fmtHintTime(h.createdAt)}</div>
+      </div>
+    `).join('');
+  }
+  window.addEventListener('beforeunload', () => { if (craneHintsTimer) clearInterval(craneHintsTimer); });
 
   /* ─── Spider ─── */
   function triggerSpider() {
