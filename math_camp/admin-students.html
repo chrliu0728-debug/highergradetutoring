@@ -799,10 +799,19 @@ function render() {
         const students = getStudents();
         const student = students.find(x => x.id === id);
         if (!student) return;
-        student.stats = { ...defaultStats(), ...student.stats, [key]: val };
+        student.stats = { ...defaultStats(), ...student.stats };
+        // If admin raised privatePoints, mirror the increase into totalPointsEarned
+        // so lifetime totals stay accurate.
+        if (key === 'privatePoints') {
+          const prev = student.stats.privatePoints || 0;
+          if (val > prev) {
+            student.stats.totalPointsEarned = (student.stats.totalPointsEarned || 0) + (val - prev);
+          }
+        }
+        student.stats[key] = val;
         saveStudents(students);
         showToast('Stat saved');
-        if (key === 'totalPointsEarned') render();
+        render();
       });
     });
 
@@ -904,6 +913,10 @@ function adjustStat(id, key, delta) {
   if (!s) return;
   s.stats = { ...defaultStats(), ...s.stats };
   s.stats[key] = Math.max(0, (s.stats[key] || 0) + delta);
+  // Increases to privatePoints are lifetime earnings — keep totalPointsEarned in sync.
+  if (key === 'privatePoints' && delta > 0) {
+    s.stats.totalPointsEarned = (s.stats.totalPointsEarned || 0) + delta;
+  }
   saveStudents(students);
   showToast(delta > 0 ? '+1 ' + key : '-1 ' + key);
   render();

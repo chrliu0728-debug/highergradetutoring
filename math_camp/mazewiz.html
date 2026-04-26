@@ -103,8 +103,9 @@
       text-align: center;
     }
 
-    /* ── Smaller flanking dungeon doors ── */
+    /* ── Smaller flanking dungeon doors (interactive) ── */
     .mw-side-door {
+      all: unset;
       position: relative;
       width: 130px;
       height: 300px;
@@ -112,6 +113,22 @@
       align-self: flex-end;
       filter: brightness(.78) saturate(.85);
       animation: mw-rise .8s cubic-bezier(.2, .9, .3, 1.2);
+      cursor: pointer;
+      transition: filter .15s ease, transform .15s ease;
+    }
+    .mw-side-door:hover { filter: brightness(1) saturate(1); transform: translateY(-3px); }
+    .mw-side-door:focus-visible {
+      outline: 3px solid var(--purple-light);
+      outline-offset: 6px;
+      border-radius: 70px 70px 8px 8px;
+    }
+    .mw-side-door.opening .wood-panel {
+      animation: mw-door-swing .35s ease-out;
+    }
+    @keyframes mw-door-swing {
+      0%   { transform: perspective(600px) rotateY(0deg); }
+      50%  { transform: perspective(600px) rotateY(-55deg); filter: brightness(1.4); }
+      100% { transform: perspective(600px) rotateY(0deg); }
     }
     .mw-side-door .stone-arch {
       position: absolute;
@@ -167,6 +184,28 @@
 
     @media (max-width: 760px) {
       .mw-side-door { display: none; }
+    }
+
+    /* Maze progress + end-state cards (live inside .mw-card) */
+    .mw-maze, .mw-maze-end { display: none; }
+    .mw-maze.show, .mw-maze-end.show { display: block; }
+    .mw-maze-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(0,0,0,.35);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 14px 0 18px;
+    }
+    .mw-maze-bar-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #A78BFA, #EC4899);
+      transition: width .3s ease;
+    }
+    .mw-maze-hint {
+      font-size: .82rem;
+      color: rgba(255,255,255,.55);
+      margin-top: 8px;
     }
     @keyframes mw-rise {
       from { opacity: 0; transform: translateY(16px) scale(.97); }
@@ -295,8 +334,8 @@
 <div class="mw-wrap">
   <div class="mw-stage">
 
-    <!-- Smaller flanking dungeon door (left) -->
-    <div class="mw-side-door mw-side-door--left" aria-hidden="true">
+    <!-- Smaller flanking dungeon door (left) — interactive maze button -->
+    <button type="button" class="mw-side-door mw-side-door--left" id="mw-door-left" aria-label="Take the left door">
       <div class="stone-arch">
         <div class="wood-panel">
           <div class="mw-rivet" style="top:10px;left:10px"></div>
@@ -308,7 +347,7 @@
           <div class="mw-handle"></div>
         </div>
       </div>
-    </div>
+    </button>
 
     <!-- Main door: the claim card framed by a stone archway -->
     <div class="mw-portal">
@@ -341,11 +380,40 @@
       <p class="vw-sub" id="vw-sub">The title is yours. A new card is waiting on your student dashboard.</p>
       <a class="vw-go" href="student-portal.html">Go to my dashboard →</a>
     </div>
+
+    <!-- Maze progress (lit while the student is clicking through doors) -->
+    <div class="mw-maze" id="mw-maze">
+      <div class="mw-wizard">🚪</div>
+      <div class="mw-eyebrow">Dungeon descent</div>
+      <h1 id="mw-maze-title">Door 1 of 300</h1>
+      <p class="sub">Pick a door beside you. Reach the bottom of the dungeon and a reward awaits.</p>
+      <div class="mw-maze-bar"><div class="mw-maze-bar-fill" id="mw-maze-bar-fill"></div></div>
+      <p class="mw-footer"><a href="#" id="mw-maze-back">← Back to Maze Wizard claim</a></p>
+    </div>
+
+    <!-- Maze end (300 doors complete) -->
+    <div class="mw-maze-end" id="mw-maze-end">
+      <div class="mw-wizard">🎉</div>
+      <div class="mw-eyebrow">You made it</div>
+      <h1>300 doors conquered</h1>
+      <p class="sub" id="mw-maze-end-sub">Sign in to your camp account to claim <strong>+1,000 points</strong>.</p>
+
+      <label>Student email</label>
+      <input type="email" id="mw-end-email" placeholder="you@school.ca" autocomplete="off" />
+
+      <label>Password</label>
+      <input type="password" id="mw-end-password" placeholder="Your camp password" autocomplete="off" />
+
+      <div class="mw-msg" id="mw-end-msg"></div>
+
+      <button class="mw-claim-btn" id="mw-end-btn">Claim my reward →</button>
+      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+    </div>
   </div>
     </div><!-- /.mw-portal -->
 
-    <!-- Smaller flanking dungeon door (right) -->
-    <div class="mw-side-door mw-side-door--right" aria-hidden="true">
+    <!-- Smaller flanking dungeon door (right) — interactive maze button -->
+    <button type="button" class="mw-side-door mw-side-door--right" id="mw-door-right" aria-label="Take the right door">
       <div class="stone-arch">
         <div class="wood-panel">
           <div class="mw-rivet" style="top:10px;left:10px"></div>
@@ -357,7 +425,7 @@
           <div class="mw-handle"></div>
         </div>
       </div>
-    </div>
+    </button>
 
   </div><!-- /.mw-stage -->
 </div>
@@ -414,6 +482,137 @@ async function tryClaim() {
 btn.addEventListener('click', tryClaim);
 pwdEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryClaim(); });
 emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') pwdEl.focus(); });
+
+/* ───────────────────── Door maze (300-door descent) ─────────────────────
+   Each side door becomes a button. Clicking advances a counter and
+   records 'L' or 'R'. After DOOR_MAZE_LENGTH (=300) clicks the maze-end
+   view appears with a sign-in form that POSTs to /api/students/me/claim-doors,
+   which awards +1000 points and (if the first 11 clicks match the secret
+   pattern) grants the Money Tree role. ─────────────────────────────────── */
+
+const mazeView    = document.getElementById('mw-maze');
+const mazeEndView = document.getElementById('mw-maze-end');
+const mazeTitle   = document.getElementById('mw-maze-title');
+const mazeBarFill = document.getElementById('mw-maze-bar-fill');
+const mazeBack    = document.getElementById('mw-maze-back');
+const mazeEndSub  = document.getElementById('mw-maze-end-sub');
+const endEmail    = document.getElementById('mw-end-email');
+const endPwd      = document.getElementById('mw-end-password');
+const endBtn      = document.getElementById('mw-end-btn');
+const endMsg      = document.getElementById('mw-end-msg');
+const doorL       = document.getElementById('mw-door-left');
+const doorR       = document.getElementById('mw-door-right');
+
+const MAZE_LENGTH = (typeof DOOR_MAZE_LENGTH === 'number') ? DOOR_MAZE_LENGTH : 300;
+
+let mazeClicks  = 0;
+let mazePattern = '';   // string of 'L'/'R' chars, in click order
+let mazeBusy    = false;
+
+function showOnly(el) {
+  [claimView, victoryView, mazeView, mazeEndView].forEach(v => {
+    if (!v) return;
+    if (v === el) { v.style.display = ''; v.classList.add('show'); }
+    else          { v.style.display = 'none'; v.classList.remove('show'); }
+  });
+}
+
+function updateMazeUI() {
+  mazeTitle.textContent = `Door ${Math.min(mazeClicks + 1, MAZE_LENGTH)} of ${MAZE_LENGTH}`;
+  const pct = Math.min(100, (mazeClicks / MAZE_LENGTH) * 100);
+  mazeBarFill.style.width = pct + '%';
+}
+
+function enterMaze() {
+  showOnly(mazeView);
+  updateMazeUI();
+}
+
+function backToClaim() {
+  // Returning to the claim view does NOT reset the maze — they can resume.
+  showOnly(claimView);
+}
+
+function onDoorClick(side, doorEl) {
+  if (mazeBusy) return;
+  if (mazeClicks >= MAZE_LENGTH) return;
+
+  // First click switches the centre card into maze mode.
+  if (mazeClicks === 0 && !mazeView.classList.contains('show')) enterMaze();
+
+  mazeBusy = true;
+  doorEl.classList.add('opening');
+  setTimeout(() => doorEl.classList.remove('opening'), 360);
+
+  mazeClicks++;
+  mazePattern += side;
+  updateMazeUI();
+
+  if (mazeClicks >= MAZE_LENGTH) {
+    setTimeout(() => {
+      showOnly(mazeEndView);
+      endEmail.focus();
+    }, 360);
+  }
+
+  setTimeout(() => { mazeBusy = false; }, 120);
+}
+
+doorL.addEventListener('click', () => onDoorClick('L', doorL));
+doorR.addEventListener('click', () => onDoorClick('R', doorR));
+
+mazeBack.addEventListener('click', e => {
+  e.preventDefault();
+  backToClaim();
+});
+
+/* Maze-end: claim the +1000 reward (and possibly the Money Tree) */
+async function tryMazeClaim() {
+  endMsg.className = 'mw-msg'; endMsg.textContent = '';
+  const email = endEmail.value;
+  const pwd   = endPwd.value;
+  if (!email || !pwd) {
+    endMsg.className = 'mw-msg err';
+    endMsg.textContent = 'Enter your camp email and password to claim.';
+    return;
+  }
+  endBtn.disabled = true;
+  endBtn.textContent = 'Opening the chest…';
+
+  try {
+    if (window.dataReady) await window.dataReady;
+    const student = await findStudentByLogin(email, pwd);
+    if (!student) {
+      endMsg.className = 'mw-msg err';
+      endMsg.textContent = "Couldn't find a matching account.";
+      endBtn.disabled = false;
+      endBtn.textContent = 'Claim my reward →';
+      return;
+    }
+    const res = await claimDoorMaze(mazeClicks, mazePattern.slice(0, 11));
+    if (!res.ok) {
+      endMsg.className = 'mw-msg err';
+      endMsg.textContent = res.error || 'Could not claim the reward.';
+      endBtn.disabled = false;
+      endBtn.textContent = 'Claim my reward →';
+      return;
+    }
+    const moneyTree = !!(res.data && res.data.moneyTreeGranted);
+    endMsg.className = 'mw-msg ok';
+    endMsg.textContent = '✅ +1,000 points awarded' + (moneyTree ? ' · 🌳 Money Tree unlocked!' : '');
+    endBtn.textContent = 'Reward claimed';
+    setTimeout(() => { location.href = 'student-portal.html'; }, 1800);
+  } catch (e) {
+    endMsg.className = 'mw-msg err';
+    endMsg.textContent = e.message || 'Something went wrong. Please try again.';
+    endBtn.disabled = false;
+    endBtn.textContent = 'Claim my reward →';
+  }
+}
+
+endBtn.addEventListener('click', tryMazeClaim);
+endPwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryMazeClaim(); });
+endEmail.addEventListener('keydown', e => { if (e.key === 'Enter') endPwd.focus(); });
 </script>
 </body>
 </html>

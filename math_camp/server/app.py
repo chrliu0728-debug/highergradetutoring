@@ -38,6 +38,10 @@ CLASS_POINT_TO_INDIV   = 10
 CLASS_BANK_DAILY_RATE  = 0.05
 TX_MAX                 = 2000
 MAZEWIZ_ROLE_ID        = "mazewiz"
+MONEY_TREE_ROLE_ID     = "money_tree"
+DOOR_MAZE_REWARD       = 1000
+MONEY_TREE_COST        = 6000
+DOOR_PATTERN           = "RLLLLRLRRLR"  # right=R, left=L, exact 11-click sequence
 
 
 def default_stats():
@@ -352,6 +356,119 @@ def register_routes(app):
             "clicks": stats["clickerClicks"], "earned": earned, "spider": spider,
             "clickerPointsEarned": stats["clickerPointsEarned"],
         })
+
+    @app.route("/api/students/me/claim-doors", methods=["POST"])
+    @require_student
+    def claim_doors():
+        """Reward the student for completing the 300-door maze.
+        Body: { clicks: int (>=300), pattern: 'RLLL...' (first 11 clicks) }
+        - One-time per student (server-tracked via extras.doors_claimed).
+        - Awards DOOR_MAZE_REWARD private points + total.
+        - If `pattern` exactly matches DOOR_PATTERN, also grants the
+          Money Tree role (unless already held)."""
+        data = request.get_json(silent=True) or {}
+        clicks = int(data.get("clicks") or 0)
+        pattern = (data.get("pattern") or "").upper()
+        if clicks < 300:
+            return jsonify(ok=False, error="Maze not complete."), 400
+
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+
+            extras = json.loads(row["extras"] or "{}")
+            if extras.get("doors_claimed"):
+                return jsonify(ok=False, error="You've already claimed this reward."), 400
+
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            stats["privatePoints"]     = stats.get("privatePoints", 0) + DOOR_MAZE_REWARD
+            stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + DOOR_MAZE_REWARD
+
+            roles = json.loads(row["roles"] or "[]")
+            money_tree_granted = False
+            if pattern == DOOR_PATTERN and MONEY_TREE_ROLE_ID not in roles:
+                roles.append(MONEY_TREE_ROLE_ID)
+                money_tree_granted = True
+
+            extras["doors_claimed"] = True
+
+            g.db.execute(
+                "UPDATE students SET stats = ?, roles = ?, extras = ? WHERE id = ?",
+                (json.dumps(stats), json.dumps(roles), json.dumps(extras), sid),
+            )
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=DOOR_MAZE_REWARD,
+                    description=f"🚪 Made it through 300 doors · +{DOOR_MAZE_REWARD} pts"
+                                + (" · 🌳 Money Tree unlocked!" if money_tree_granted else ""))
+        return jsonify(ok=True, data={
+            "awarded": DOOR_MAZE_REWARD,
+            "moneyTreeGranted": money_tree_granted,
+        })
+
+    @app.route("/api/students/me/money-tree/activate", methods=["POST"])
+    @require_student
+    def money_tree_activate():
+        """Spend MONEY_TREE_COST private points and double whatever's left.
+        Removes the role on success (one-time use)."""
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            if MONEY_TREE_ROLE_ID not in roles:
+                return jsonify(ok=False, error="You don't hold the Money Tree."), 400
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            cur = stats.get("privatePoints", 0)
+            if cur < MONEY_TREE_COST:
+                return jsonify(ok=False, error=f"You need at least {MONEY_TREE_COST} private points to activate the Money Tree."), 400
+            new_priv = (cur - MONEY_TREE_COST) * 2
+            stats["privatePoints"] = new_priv
+            roles = [r for r in roles if r != MONEY_TREE_ROLE_ID]
+            g.db.execute(
+                "UPDATE students SET stats = ?, roles = ? WHERE id = ?",
+                (json.dumps(stats), json.dumps(roles), sid),
+            )
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=new_priv - cur,
+                    description=f"🌳 Money Tree activated · spent {MONEY_TREE_COST}, doubled remainder · {cur} → {new_priv}")
+        return jsonify(ok=True, data={"newPrivatePoints": new_priv})
+
+    @app.route("/api/students/me/money-tree/gift", methods=["POST"])
+    @require_student
+    def money_tree_gift():
+        """Transfer the Money Tree role from the signed-in student to another."""
+        data = request.get_json(silent=True) or {}
+        to_id = data.get("toId")
+        if not to_id:
+            return jsonify(ok=False, error="Pick a classmate to gift the Money Tree to."), 400
+        sid = g.session["studentId"]
+        if to_id == sid:
+            return jsonify(ok=False, error="You can't gift the Money Tree to yourself."), 400
+        with g.db:
+            from_row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            to_row   = g.db.execute("SELECT * FROM students WHERE id = ?", (to_id,)).fetchone()
+            if not from_row: return jsonify(ok=False, error="Your account was not found."), 404
+            if not to_row:   return jsonify(ok=False, error="Recipient not found."), 404
+
+            from_roles = json.loads(from_row["roles"] or "[]")
+            if MONEY_TREE_ROLE_ID not in from_roles:
+                return jsonify(ok=False, error="You don't hold the Money Tree."), 400
+            to_roles = json.loads(to_row["roles"] or "[]")
+            if MONEY_TREE_ROLE_ID in to_roles:
+                return jsonify(ok=False, error=f"{_full_name(to_row)} already holds the Money Tree."), 400
+
+            from_roles = [r for r in from_roles if r != MONEY_TREE_ROLE_ID]
+            to_roles.append(MONEY_TREE_ROLE_ID)
+            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(from_roles), sid))
+            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(to_roles), to_id))
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(from_row),
+                    relatedId=to_id, relatedName=_full_name(to_row),
+                    amount=0, description=f"🌳 Gifted Money Tree to {_full_name(to_row)}")
+        return jsonify(ok=True)
 
     @app.route("/api/students/me/mazewiz", methods=["POST"])
     @require_student

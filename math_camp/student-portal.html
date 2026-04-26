@@ -636,6 +636,25 @@
       </div>
     </div>
 
+    <!-- ── Money Tree (only visible when the student holds the role) ── -->
+    <div class="action-card" id="money-tree-card" style="display:none; background:linear-gradient(135deg, rgba(16,185,129,.08), rgba(16,185,129,.02)); border-color:#10B981;">
+      <div class="ac-head">
+        <h3>🌳 Money Tree</h3>
+        <p class="ac-sub">A one-time enchantment. <strong>Spend 6,000 pts</strong> to activate — your remaining private points <strong>double</strong>. Or gift it to a classmate.</p>
+      </div>
+      <div class="xfer-form">
+        <button class="action-btn" id="mt-activate-btn" style="background:#10B981;">Activate · −6,000 pts then ×2</button>
+        <div style="height:1px; background:var(--border); margin:14px 0 4px;"></div>
+        <div>
+          <label for="mt-gift-to">Gift to a classmate</label>
+          <select id="mt-gift-to"></select>
+        </div>
+      </div>
+      <div class="action-error" id="mt-error"></div>
+      <div class="action-success" id="mt-success"></div>
+      <button class="action-btn" id="mt-gift-btn" style="margin-top:12px; background:#0E9F6E;">Gift Money Tree</button>
+    </div>
+
   </div>
 
   <!-- Note about point awards -->
@@ -836,6 +855,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderLuckCard(s);
     renderTransferCard(s);
     renderClickerCard(s);
+    renderMoneyTreeCard(s);
   }
 
   /* ─── My Roles (read-only) ─── */
@@ -1045,6 +1065,55 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     if (res.data.spider) {
       triggerSpider();
     }
+    renderDashboard();
+  });
+
+  /* ─── Money Tree card ─── */
+  const mtCard      = document.getElementById('money-tree-card');
+  const mtActivate  = document.getElementById('mt-activate-btn');
+  const mtGiftTo    = document.getElementById('mt-gift-to');
+  const mtGiftBtn   = document.getElementById('mt-gift-btn');
+  const mtErr       = document.getElementById('mt-error');
+  const mtOk        = document.getElementById('mt-success');
+
+  function renderMoneyTreeCard(s) {
+    if (!mtCard) return;
+    const hasMoneyTree = Array.isArray(s.roles) && s.roles.includes(MONEY_TREE_ROLE_ID);
+    if (!hasMoneyTree) { mtCard.style.display = 'none'; return; }
+
+    mtCard.style.display = '';
+    const cur = (s.stats && s.stats.privatePoints) || 0;
+    mtActivate.disabled = cur < MONEY_TREE_COST;
+    mtActivate.textContent = cur < MONEY_TREE_COST
+      ? `Need ${MONEY_TREE_COST.toLocaleString()} pts (you have ${cur.toLocaleString()})`
+      : `Activate · −${MONEY_TREE_COST.toLocaleString()} pts then ×2 → ${((cur - MONEY_TREE_COST) * 2).toLocaleString()}`;
+
+    const others = getStudents().filter(x => x.id !== s.id);
+    mtGiftTo.innerHTML = '<option value="">Choose a classmate…</option>' +
+      others.map(o => `<option value="${esc(o.id)}">${esc(studentFullName(o))}${o.className ? ' (' + esc(o.className) + ')' : ''}</option>`).join('');
+  }
+
+  mtActivate.addEventListener('click', async () => {
+    if (!confirm(`Activate the Money Tree?\n\nThis will spend ${MONEY_TREE_COST.toLocaleString()} of your private points and double whatever's left. The role will be consumed.`)) return;
+    mtActivate.disabled = true;
+    const res = await activateMoneyTree();
+    if (!res.ok) { flashBanner(mtErr, res.error); mtOk.classList.remove('show'); mtActivate.disabled = false; return; }
+    mtErr.classList.remove('show');
+    flashBanner(mtOk, `🌳 Activated! Private points now ${res.data.newPrivatePoints.toLocaleString()}.`);
+    renderDashboard();
+  });
+
+  mtGiftBtn.addEventListener('click', async () => {
+    const toId = mtGiftTo.value;
+    if (!toId) { flashBanner(mtErr, 'Pick a classmate to gift the Money Tree to.'); return; }
+    const toStudent = getStudents().find(x => x.id === toId);
+    if (!confirm(`Gift the Money Tree to ${studentFullName(toStudent)}? You won't be able to undo this.`)) return;
+    mtGiftBtn.disabled = true;
+    const res = await giftMoneyTree(toId);
+    mtGiftBtn.disabled = false;
+    if (!res.ok) { flashBanner(mtErr, res.error); mtOk.classList.remove('show'); return; }
+    mtErr.classList.remove('show');
+    flashBanner(mtOk, `🌳 Money Tree gifted to ${studentFullName(toStudent)}.`);
     renderDashboard();
   });
 

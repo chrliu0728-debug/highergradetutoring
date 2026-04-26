@@ -49,7 +49,15 @@ DEFAULT_ROLES = [
         "color": "#8B5CF6",
         "description": "The first student from their class to find the hidden staff sign-in page. Grants permission to view classmates' private stats and roles.",
         "special": 1,
-    }
+    },
+    {
+        "id": "money_tree",
+        "name": "Money Tree",
+        "icon": "🌳",
+        "color": "#10B981",
+        "description": "A one-time-use enchantment hidden behind a secret door pattern. Spend 6,000 private points to activate and double whatever you have left. Can also be gifted to another student.",
+        "special": 1,
+    },
 ]
 
 DEFAULT_BASE_STATS = [
@@ -144,13 +152,13 @@ DEFAULT_STAFF = [
 
 
 def _seed(conn):
-    """Insert defaults only if the relevant table is empty."""
-    cur = conn.execute("SELECT COUNT(*) AS n FROM roles")
-    if cur.fetchone()["n"] == 0:
-        conn.executemany(
-            "INSERT INTO roles (id, name, icon, color, description, special) VALUES (:id, :name, :icon, :color, :description, :special)",
-            DEFAULT_ROLES,
-        )
+    """Insert defaults. Roles are upserted so new built-in roles roll out
+    even on DBs that were already seeded earlier. Other tables only seed
+    if empty."""
+    conn.executemany(
+        "INSERT OR IGNORE INTO roles (id, name, icon, color, description, special) VALUES (:id, :name, :icon, :color, :description, :special)",
+        DEFAULT_ROLES,
+    )
 
     cur = conn.execute("SELECT COUNT(*) AS n FROM base_stat_categories")
     if cur.fetchone()["n"] == 0:

@@ -323,6 +323,11 @@ async function devResetEverything() {
    ────────────────────────────────────────────────────────────── */
 const MAZEWIZ_ROLE_ID = 'mazewiz';
 const MAZEWIZ_PASSCODE = 'MazeWiz';
+const MONEY_TREE_ROLE_ID = 'money_tree';
+const MONEY_TREE_COST    = 6000;
+const DOOR_MAZE_LENGTH   = 300;
+const DOOR_MAZE_REWARD   = 1000;
+const DOOR_PATTERN       = 'RLLLLRLRRLR';
 
 function getRoles() {
   // Guarantee the protected MazeWiz role always shows
@@ -423,6 +428,54 @@ async function claimMazeWiz(studentId) {
     return r;
   } catch (e) {
     return { ok: false, error: e.message || 'Could not claim the title.' };
+  }
+}
+
+/* Door maze + Money Tree */
+async function claimDoorMaze(clicks, pattern) {
+  try {
+    const r = await _api('/students/me/claim-doors', {
+      method: 'POST',
+      body: { clicks, pattern },
+    });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    if (typeof setLoggedInStudent === 'function') {
+      const me = HG.cache.me && HG.cache.me.student;
+      if (me) await setLoggedInStudent(me.id);
+    }
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not claim the reward.' };
+  }
+}
+
+async function activateMoneyTree() {
+  try {
+    const r = await _api('/students/me/money-tree/activate', { method: 'POST' });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    const me = HG.cache.me && HG.cache.me.student;
+    if (me && typeof setLoggedInStudent === 'function') await setLoggedInStudent(me.id);
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not activate the Money Tree.' };
+  }
+}
+
+async function giftMoneyTree(toId) {
+  try {
+    const r = await _api('/students/me/money-tree/gift', {
+      method: 'POST',
+      body: { toId },
+    });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    const me = HG.cache.me && HG.cache.me.student;
+    if (me && typeof setLoggedInStudent === 'function') await setLoggedInStudent(me.id);
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not gift the Money Tree.' };
   }
 }
 
