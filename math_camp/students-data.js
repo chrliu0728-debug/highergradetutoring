@@ -436,11 +436,11 @@ async function claimMazeWiz(studentId) {
 }
 
 /* Door maze + Money Tree */
-async function claimDoorMaze(clicks, pattern) {
+async function claimDoorMaze(correct, total) {
   try {
     const r = await _api('/students/me/claim-doors', {
       method: 'POST',
-      body: { clicks, pattern },
+      body: { correct, total },
     });
     await _refresh('students', '/students');
     await _refresh('transactions', '/transactions');
@@ -451,6 +451,19 @@ async function claimDoorMaze(clicks, pattern) {
     return r;
   } catch (e) {
     return { ok: false, error: e.message || 'Could not claim the reward.' };
+  }
+}
+
+async function claimMoneyTreeRole() {
+  try {
+    const r = await _api('/students/me/claim-money-tree', { method: 'POST' });
+    await _refresh('students', '/students');
+    await _refresh('transactions', '/transactions');
+    const me = HG.cache.me && HG.cache.me.student;
+    if (me && typeof setLoggedInStudent === 'function') await setLoggedInStudent(me.id);
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Could not claim the Money Tree.' };
   }
 }
 

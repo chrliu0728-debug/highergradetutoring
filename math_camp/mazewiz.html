@@ -186,9 +186,43 @@
       .mw-side-door { display: none; }
     }
 
+    /* Numeric label inside each side door (math answer choice) */
+    .mw-door-number {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #fff5d8;
+      font-size: 1.7rem;
+      font-weight: 900;
+      letter-spacing: -.02em;
+      font-family: 'Inter', system-ui, sans-serif;
+      text-shadow: 0 0 14px rgba(255, 200, 100, .55), 0 2px 4px rgba(0,0,0,.6);
+      pointer-events: none;
+      z-index: 3;
+      transition: opacity .12s ease;
+    }
+    .mw-side-door.opening .mw-door-number { opacity: 0; }
+
     /* Maze progress + end-state cards (live inside .mw-card) */
-    .mw-maze, .mw-maze-end { display: none; }
-    .mw-maze.show, .mw-maze-end.show { display: block; }
+    .mw-maze, .mw-maze-end, .mw-money-tree { display: none; }
+    .mw-maze.show, .mw-maze-end.show, .mw-money-tree.show { display: block; }
+    .mw-question {
+      font-size: 2.2rem;
+      font-weight: 900;
+      letter-spacing: -.02em;
+      color: #fff;
+      margin: 8px 0 12px;
+      text-shadow: 0 2px 14px rgba(167,139,250,.5);
+    }
+    .mw-correct-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.35);
+      font-size: .78rem;
+      color: rgba(255,255,255,.75);
+      margin-top: 6px;
+    }
     .mw-maze-bar {
       width: 100%;
       height: 10px;
@@ -207,6 +241,67 @@
       color: rgba(255,255,255,.55);
       margin-top: 8px;
     }
+    .mw-hint-box {
+      background: rgba(255, 215, 100, .12);
+      border: 1px dashed rgba(255, 215, 100, .55);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 14px 0 6px;
+      font-size: .85rem;
+      color: #FEF3C7;
+      line-height: 1.5;
+    }
+
+    /* Money Tree mode — body background swaps to a sunlit yellow scene */
+    body.mt-mode {
+      background: linear-gradient(135deg, #FEF3C7 0%, #FBBF24 45%, #F59E0B 100%);
+    }
+    body.mt-mode::before {
+      background:
+        radial-gradient(circle at 20% 30%, rgba(254, 243, 199, .85) 0%, transparent 45%),
+        radial-gradient(circle at 80% 70%, rgba(251, 191, 36, .55)  0%, transparent 40%),
+        radial-gradient(circle at 50% 90%, rgba(252, 211, 77, .65)  0%, transparent 50%);
+    }
+    body.mt-mode .mw-side-door { display: none; }
+    body.mt-mode .mw-portal::before {
+      background:
+        repeating-linear-gradient(0deg,
+          transparent 0, transparent 46px,
+          rgba(146, 64, 14, .45) 46px, rgba(146, 64, 14, .45) 48px),
+        repeating-linear-gradient(90deg,
+          transparent 0, transparent 42px,
+          rgba(146, 64, 14, .35) 42px, rgba(146, 64, 14, .35) 44px),
+        linear-gradient(180deg, #FCD34D 0%, #D97706 70%, #92400E 100%);
+      box-shadow:
+        0 30px 70px rgba(146, 64, 14, .45),
+        inset 0 0 60px rgba(146, 64, 14, .55),
+        inset 0 4px 0 rgba(255,255,255,.18);
+    }
+    body.mt-mode .mw-portal::after {
+      background: linear-gradient(180deg, #FDE68A 0%, #B45309 100%);
+    }
+    body.mt-mode .mw-card {
+      background: rgba(255, 251, 235, .92);
+      border-color: #B45309;
+      color: #422006;
+      box-shadow: 0 30px 80px rgba(146,64,14,.35), 0 0 0 1px rgba(146,64,14,.15) inset;
+    }
+    body.mt-mode .mw-card h1 { color: #78350F; text-shadow: none; }
+    body.mt-mode .mw-card .sub { color: #422006; }
+    body.mt-mode .mw-card label { color: #92400E; }
+    body.mt-mode .mw-card input {
+      background: rgba(255,255,255,.7);
+      color: #422006;
+      border-color: rgba(146,64,14,.35);
+    }
+    body.mt-mode .mw-card input::placeholder { color: rgba(66,32,6,.45); }
+    body.mt-mode .mw-eyebrow { color: #78350F; }
+    body.mt-mode .mw-claim-btn {
+      background: linear-gradient(135deg, #16A34A, #047857);
+      box-shadow: 0 12px 32px rgba(4,120,87,.5);
+    }
+    body.mt-mode .mw-footer { color: rgba(66,32,6,.55); }
+    body.mt-mode .mw-footer a { color: #78350F; }
     @keyframes mw-rise {
       from { opacity: 0; transform: translateY(16px) scale(.97); }
       to   { opacity: 1; transform: translateY(0)    scale(1); }
@@ -335,7 +430,7 @@
   <div class="mw-stage">
 
     <!-- Smaller flanking dungeon door (left) — interactive maze button -->
-    <button type="button" class="mw-side-door mw-side-door--left" id="mw-door-left" aria-label="Take the left door">
+    <button type="button" class="mw-side-door mw-side-door--left" id="mw-door-left" aria-label="Choose the left door">
       <div class="stone-arch">
         <div class="wood-panel">
           <div class="mw-rivet" style="top:10px;left:10px"></div>
@@ -345,6 +440,7 @@
           <div class="mw-rivet" style="bottom:10px;left:10px"></div>
           <div class="mw-rivet" style="bottom:10px;right:10px"></div>
           <div class="mw-handle"></div>
+          <div class="mw-door-number" id="mw-door-left-num">?</div>
         </div>
       </div>
     </button>
@@ -383,12 +479,31 @@
 
     <!-- Maze progress (lit while the student is clicking through doors) -->
     <div class="mw-maze" id="mw-maze">
-      <div class="mw-wizard">🚪</div>
-      <div class="mw-eyebrow">Dungeon descent</div>
-      <h1 id="mw-maze-title">Door 1 of 300</h1>
-      <p class="sub">Pick a door beside you. Reach the bottom of the dungeon and a reward awaits.</p>
+      <div class="mw-eyebrow">Dungeon descent · <span id="mw-maze-title">Door 1 of 300</span></div>
+      <div class="mw-question" id="mw-question">…</div>
+      <p class="sub">Pick the door with the correct answer. Both doors take you deeper — but right answers boost your reward.</p>
       <div class="mw-maze-bar"><div class="mw-maze-bar-fill" id="mw-maze-bar-fill"></div></div>
+      <span class="mw-correct-tag" id="mw-correct-tag">Right so far: 0</span>
       <p class="mw-footer"><a href="#" id="mw-maze-back">← Back to Maze Wizard claim</a></p>
+    </div>
+
+    <!-- Money Tree (criss-cross pattern triggered) — body.mt-mode swaps theme -->
+    <div class="mw-money-tree" id="mw-money-tree">
+      <div class="mw-wizard">🌳</div>
+      <div class="mw-eyebrow">Hidden chamber</div>
+      <h1>The Money Tree</h1>
+      <p class="sub">You found the criss-cross path. <strong>Only one student in the entire camp can ever hold this role</strong> — claim it before someone else does.</p>
+
+      <label>Student email</label>
+      <input type="email" id="mw-mt-email" placeholder="you@school.ca" autocomplete="off" />
+
+      <label>Password</label>
+      <input type="password" id="mw-mt-password" placeholder="Your camp password" autocomplete="off" />
+
+      <div class="mw-msg" id="mw-mt-msg"></div>
+
+      <button class="mw-claim-btn" id="mw-mt-btn">Claim the Money Tree →</button>
+      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
     </div>
 
     <!-- Maze end (300 doors complete) -->
@@ -396,7 +511,7 @@
       <div class="mw-wizard">🎉</div>
       <div class="mw-eyebrow">You made it</div>
       <h1>300 doors conquered</h1>
-      <p class="sub" id="mw-maze-end-sub">Sign in to your camp account to claim <strong>+1,000 points</strong>.</p>
+      <p class="sub" id="mw-maze-end-sub">Sign in to your camp account to claim your reward.</p>
 
       <label>Student email</label>
       <input type="email" id="mw-end-email" placeholder="you@school.ca" autocomplete="off" />
@@ -405,6 +520,7 @@
       <input type="password" id="mw-end-password" placeholder="Your camp password" autocomplete="off" />
 
       <div class="mw-msg" id="mw-end-msg"></div>
+      <div class="mw-hint-box" id="mw-end-hint" style="display:none;"></div>
 
       <button class="mw-claim-btn" id="mw-end-btn">Claim my reward →</button>
       <p class="mw-footer"><a href="index.html">← Back to home</a></p>
@@ -413,7 +529,7 @@
     </div><!-- /.mw-portal -->
 
     <!-- Smaller flanking dungeon door (right) — interactive maze button -->
-    <button type="button" class="mw-side-door mw-side-door--right" id="mw-door-right" aria-label="Take the right door">
+    <button type="button" class="mw-side-door mw-side-door--right" id="mw-door-right" aria-label="Choose the right door">
       <div class="stone-arch">
         <div class="wood-panel">
           <div class="mw-rivet" style="top:10px;left:10px"></div>
@@ -423,6 +539,7 @@
           <div class="mw-rivet" style="bottom:10px;left:10px"></div>
           <div class="mw-rivet" style="bottom:10px;right:10px"></div>
           <div class="mw-handle"></div>
+          <div class="mw-door-number" id="mw-door-right-num">?</div>
         </div>
       </div>
     </button>
@@ -483,79 +600,226 @@ btn.addEventListener('click', tryClaim);
 pwdEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryClaim(); });
 emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') pwdEl.focus(); });
 
-/* ───────────────────── Door maze (300-door descent) ─────────────────────
-   Each side door becomes a button. Clicking advances a counter and
-   records 'L' or 'R'. After DOOR_MAZE_LENGTH (=300) clicks the maze-end
-   view appears with a sign-in form that POSTs to /api/students/me/claim-doors,
-   which awards +1000 points and (if the first 11 clicks match the secret
-   pattern) grants the Money Tree role. ─────────────────────────────────── */
+/* ───────────────────── Door maze (300-door math descent) ────────────────
+   Each door pair is a math question: one door has the correct numeric
+   answer, the other has a plausible wrong answer. Both sides advance
+   the descent — but the % correct over 300 doors determines the reward
+   tier (2100 → 100 pts in 200-pt steps every 5%).
 
-const mazeView    = document.getElementById('mw-maze');
-const mazeEndView = document.getElementById('mw-maze-end');
-const mazeTitle   = document.getElementById('mw-maze-title');
-const mazeBarFill = document.getElementById('mw-maze-bar-fill');
-const mazeBack    = document.getElementById('mw-maze-back');
-const mazeEndSub  = document.getElementById('mw-maze-end-sub');
-const endEmail    = document.getElementById('mw-end-email');
-const endPwd      = document.getElementById('mw-end-password');
-const endBtn      = document.getElementById('mw-end-btn');
-const endMsg      = document.getElementById('mw-end-msg');
-const doorL       = document.getElementById('mw-door-left');
-const doorR       = document.getElementById('mw-door-right');
+   Money Tree: if the student's first 9 answers form the criss-cross
+   pattern R W R W R W R W R (right, wrong, right, wrong, …) — they get
+   diverted to the yellow Money Tree chamber where the role can be
+   claimed. The role is global-once: only one student in the entire
+   camp can ever hold it. The reward (points) is per-student, claimable
+   on the first completion regardless of pattern.
 
-const MAZE_LENGTH = (typeof DOOR_MAZE_LENGTH === 'number') ? DOOR_MAZE_LENGTH : 300;
+   3rd-completion hint: server returns `completions` count; on the
+   third or later descent we surface a Money Tree pattern hint at
+   the maze-end view. ─────────────────────────────────────────────────── */
 
-let mazeClicks  = 0;
-let mazePattern = '';   // string of 'L'/'R' chars, in click order
+const mazeView      = document.getElementById('mw-maze');
+const mazeEndView   = document.getElementById('mw-maze-end');
+const moneyTreeView = document.getElementById('mw-money-tree');
+const mazeTitle     = document.getElementById('mw-maze-title');
+const questionEl    = document.getElementById('mw-question');
+const correctTag    = document.getElementById('mw-correct-tag');
+const mazeBarFill   = document.getElementById('mw-maze-bar-fill');
+const mazeBack      = document.getElementById('mw-maze-back');
+const mazeEndSub    = document.getElementById('mw-maze-end-sub');
+const endHint       = document.getElementById('mw-end-hint');
+const endEmail      = document.getElementById('mw-end-email');
+const endPwd        = document.getElementById('mw-end-password');
+const endBtn        = document.getElementById('mw-end-btn');
+const endMsg        = document.getElementById('mw-end-msg');
+const doorL         = document.getElementById('mw-door-left');
+const doorR         = document.getElementById('mw-door-right');
+const doorLNum      = document.getElementById('mw-door-left-num');
+const doorRNum      = document.getElementById('mw-door-right-num');
+const mtEmail       = document.getElementById('mw-mt-email');
+const mtPwd         = document.getElementById('mw-mt-password');
+const mtBtn         = document.getElementById('mw-mt-btn');
+const mtMsg         = document.getElementById('mw-mt-msg');
+
+const MAZE_LENGTH       = (typeof DOOR_MAZE_LENGTH === 'number') ? DOOR_MAZE_LENGTH : 300;
+const MONEY_TREE_PATTERN = 'RWRWRWRWR';   // 9 doors, alternating right/wrong starting with right
+
+let mazeClicks  = 0;     // doors traversed (1..MAZE_LENGTH)
+let mazeCorrect = 0;     // count of correct answers
+let mazePattern = '';    // 'R' = right answer, 'W' = wrong answer (per door)
+let currentQ    = null;  // { question, correct, left, right, leftIsCorrect }
 let mazeBusy    = false;
 
+function rint(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+
+/* Grade-9-friendly math question generator. All answers are integers. */
+function genMathProblem() {
+  const types = ['add', 'sub', 'mul', 'div', 'square', 'sqrt', 'linear', 'percent', 'order', 'neg'];
+  const t = types[Math.floor(Math.random() * types.length)];
+  let q, ans;
+  switch (t) {
+    case 'add': {
+      const a = rint(15, 99), b = rint(10, 99);
+      q = `${a} + ${b}`; ans = a + b; break;
+    }
+    case 'sub': {
+      const a = rint(40, 120), b = rint(5, a - 1);
+      q = `${a} − ${b}`; ans = a - b; break;
+    }
+    case 'mul': {
+      const a = rint(2, 12), b = rint(2, 12);
+      q = `${a} × ${b}`; ans = a * b; break;
+    }
+    case 'div': {
+      const b = rint(2, 12); ans = rint(2, 12);
+      const a = ans * b;
+      q = `${a} ÷ ${b}`; break;
+    }
+    case 'square': {
+      const a = rint(3, 13);
+      q = `${a}²`; ans = a * a; break;
+    }
+    case 'sqrt': {
+      ans = rint(3, 12);
+      q = `√${ans * ans}`; break;
+    }
+    case 'linear': {
+      const x = rint(2, 10), c = rint(2, 8), b = rint(1, 15);
+      const rhs = c * x + b;
+      q = `${c}x + ${b} = ${rhs},  x = ?`; ans = x; break;
+    }
+    case 'percent': {
+      const pct = [10, 20, 25, 50, 75][rint(0, 4)];
+      const v = rint(2, 10) * 4;
+      q = `${pct}% of ${v}`; ans = (v * pct) / 100; break;
+    }
+    case 'order': {
+      const a = rint(2, 9), b = rint(2, 9), c = rint(2, 9);
+      q = `${a} + ${b} × ${c}`; ans = a + b * c; break;
+    }
+    case 'neg': {
+      const a = rint(1, 20), b = rint(1, 20);
+      q = `−${a} + ${b}`; ans = -a + b; break;
+    }
+  }
+  return { q, ans };
+}
+
+/* Plausible wrong answer — small offset, not equal, kept reasonable. */
+function genWrongAnswer(correct) {
+  const offsets = [-3, -2, -1, 1, 2, 3, 4, -4, 5, -5, 7, -7, 10, -10];
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const w = correct + offsets[Math.floor(Math.random() * offsets.length)];
+    if (w !== correct) return w;
+  }
+  return correct + 1;
+}
+
+function newQuestion() {
+  const { q, ans } = genMathProblem();
+  const wrong = genWrongAnswer(ans);
+  const leftIsCorrect = Math.random() < 0.5;
+  currentQ = {
+    question: q,
+    correct: ans,
+    left:  leftIsCorrect ? ans : wrong,
+    right: leftIsCorrect ? wrong : ans,
+    leftIsCorrect,
+  };
+  questionEl.textContent = q;
+  doorLNum.textContent = String(currentQ.left);
+  doorRNum.textContent = String(currentQ.right);
+}
+
 function showOnly(el) {
-  [claimView, victoryView, mazeView, mazeEndView].forEach(v => {
+  [claimView, victoryView, mazeView, mazeEndView, moneyTreeView].forEach(v => {
     if (!v) return;
     if (v === el) { v.style.display = ''; v.classList.add('show'); }
     else          { v.style.display = 'none'; v.classList.remove('show'); }
   });
+  // Yellow theme is on/off based on whether we're in the Money Tree chamber
+  document.body.classList.toggle('mt-mode', el === moneyTreeView);
 }
 
 function updateMazeUI() {
   mazeTitle.textContent = `Door ${Math.min(mazeClicks + 1, MAZE_LENGTH)} of ${MAZE_LENGTH}`;
   const pct = Math.min(100, (mazeClicks / MAZE_LENGTH) * 100);
   mazeBarFill.style.width = pct + '%';
+  correctTag.textContent = `Right so far: ${mazeCorrect} / ${mazeClicks}`;
 }
 
 function enterMaze() {
+  if (!currentQ) newQuestion();
   showOnly(mazeView);
   updateMazeUI();
 }
 
 function backToClaim() {
-  // Returning to the claim view does NOT reset the maze — they can resume.
+  // Returning does NOT reset the maze — student can resume.
   showOnly(claimView);
 }
 
+function rewardForPct(pct) {
+  if (pct >= 100) return 2100;
+  if (pct >= 95)  return 1900;
+  if (pct >= 90)  return 1700;
+  if (pct >= 85)  return 1500;
+  if (pct >= 80)  return 1300;
+  if (pct >= 75)  return 1100;
+  if (pct >= 70)  return 900;
+  if (pct >= 65)  return 700;
+  if (pct >= 60)  return 500;
+  if (pct >= 55)  return 300;
+  if (pct >= 50)  return 100;
+  return 0;
+}
+
 function onDoorClick(side, doorEl) {
-  if (mazeBusy) return;
+  if (mazeBusy || !currentQ) return;
   if (mazeClicks >= MAZE_LENGTH) return;
 
-  // First click switches the centre card into maze mode.
-  if (mazeClicks === 0 && !mazeView.classList.contains('show')) enterMaze();
+  // First click drops the centre card into maze view AND counts as the first answer.
+  if (mazeClicks === 0 && !mazeView.classList.contains('show')) {
+    enterMaze();
+  }
 
   mazeBusy = true;
   doorEl.classList.add('opening');
   setTimeout(() => doorEl.classList.remove('opening'), 360);
 
+  const chosen = (side === 'L') ? currentQ.left : currentQ.right;
+  const isCorrect = chosen === currentQ.correct;
   mazeClicks++;
-  mazePattern += side;
+  mazePattern += isCorrect ? 'R' : 'W';
+  if (isCorrect) mazeCorrect++;
   updateMazeUI();
 
-  if (mazeClicks >= MAZE_LENGTH) {
+  // Criss-cross detector — first 9 doors only
+  if (mazeClicks === 9 && mazePattern.startsWith(MONEY_TREE_PATTERN)) {
     setTimeout(() => {
-      showOnly(mazeEndView);
-      endEmail.focus();
-    }, 360);
+      showOnly(moneyTreeView);
+      mtEmail.focus();
+      mazeBusy = false;
+    }, 380);
+    return;
   }
 
-  setTimeout(() => { mazeBusy = false; }, 120);
+  if (mazeClicks >= MAZE_LENGTH) {
+    setTimeout(async () => {
+      const pct = (mazeCorrect / MAZE_LENGTH) * 100;
+      const previewPts = rewardForPct(pct);
+      mazeEndSub.innerHTML = `You answered <strong>${mazeCorrect} / ${MAZE_LENGTH}</strong> correctly (${pct.toFixed(1)}%). Sign in to claim <strong>+${previewPts.toLocaleString()} points</strong>.`;
+      showOnly(mazeEndView);
+      endEmail.focus();
+      mazeBusy = false;
+    }, 380);
+    return;
+  }
+
+  // Otherwise: small delay, then load next question
+  setTimeout(() => {
+    newQuestion();
+    mazeBusy = false;
+  }, 220);
 }
 
 doorL.addEventListener('click', () => onDoorClick('L', doorL));
@@ -566,9 +830,15 @@ mazeBack.addEventListener('click', e => {
   backToClaim();
 });
 
-/* Maze-end: claim the +1000 reward (and possibly the Money Tree) */
+// Pre-generate the first question so the very first door click already
+// has a valid answer choice. (The first click just enters the maze;
+// the second click is the first real answer.)
+newQuestion();
+
+/* ── Maze-end claim flow ────────────────────────────────────────── */
 async function tryMazeClaim() {
   endMsg.className = 'mw-msg'; endMsg.textContent = '';
+  endHint.style.display = 'none';
   const email = endEmail.value;
   const pwd   = endPwd.value;
   if (!email || !pwd) {
@@ -578,41 +848,86 @@ async function tryMazeClaim() {
   }
   endBtn.disabled = true;
   endBtn.textContent = 'Opening the chest…';
-
   try {
     if (window.dataReady) await window.dataReady;
     const student = await findStudentByLogin(email, pwd);
     if (!student) {
       endMsg.className = 'mw-msg err';
       endMsg.textContent = "Couldn't find a matching account.";
-      endBtn.disabled = false;
-      endBtn.textContent = 'Claim my reward →';
+      endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
       return;
     }
-    const res = await claimDoorMaze(mazeClicks, mazePattern.slice(0, 11));
+    const res = await claimDoorMaze(mazeCorrect, MAZE_LENGTH);
     if (!res.ok) {
       endMsg.className = 'mw-msg err';
       endMsg.textContent = res.error || 'Could not claim the reward.';
-      endBtn.disabled = false;
-      endBtn.textContent = 'Claim my reward →';
+      endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
       return;
     }
-    const moneyTree = !!(res.data && res.data.moneyTreeGranted);
     endMsg.className = 'mw-msg ok';
-    endMsg.textContent = '✅ +1,000 points awarded' + (moneyTree ? ' · 🌳 Money Tree unlocked!' : '');
+    if (res.data.alreadyRewarded) {
+      endMsg.textContent = `Maze complete (${res.data.percent}%). You've already claimed this reward, but the descent counts.`;
+    } else {
+      endMsg.textContent = `✅ +${(res.data.awarded || 0).toLocaleString()} points awarded · ${res.data.percent}% correct.`;
+    }
+    // Hint after the third (or later) completion
+    if ((res.data.completions || 0) >= 3) {
+      endHint.style.display = '';
+      endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you seek is hidden in the <strong>first 9 doors</strong>. Try alternating <em>right answer</em>, then <em>wrong answer</em>, all the way through — starting with right. Get the criss-cross right and the chamber opens.`;
+    }
     endBtn.textContent = 'Reward claimed';
-    setTimeout(() => { location.href = 'student-portal.html'; }, 1800);
+    setTimeout(() => { location.href = 'student-portal.html'; }, 2400);
   } catch (e) {
     endMsg.className = 'mw-msg err';
     endMsg.textContent = e.message || 'Something went wrong. Please try again.';
-    endBtn.disabled = false;
-    endBtn.textContent = 'Claim my reward →';
+    endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
   }
 }
-
 endBtn.addEventListener('click', tryMazeClaim);
 endPwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryMazeClaim(); });
 endEmail.addEventListener('keydown', e => { if (e.key === 'Enter') endPwd.focus(); });
+
+/* ── Money Tree claim flow ──────────────────────────────────────── */
+async function tryMoneyTreeClaim() {
+  mtMsg.className = 'mw-msg'; mtMsg.textContent = '';
+  const email = mtEmail.value;
+  const pwd   = mtPwd.value;
+  if (!email || !pwd) {
+    mtMsg.className = 'mw-msg err';
+    mtMsg.textContent = 'Enter your camp email and password.';
+    return;
+  }
+  mtBtn.disabled = true;
+  mtBtn.textContent = 'Reaching for the tree…';
+  try {
+    if (window.dataReady) await window.dataReady;
+    const student = await findStudentByLogin(email, pwd);
+    if (!student) {
+      mtMsg.className = 'mw-msg err';
+      mtMsg.textContent = "Couldn't find a matching account.";
+      mtBtn.disabled = false; mtBtn.textContent = 'Claim the Money Tree →';
+      return;
+    }
+    const res = await claimMoneyTreeRole();
+    if (!res.ok) {
+      mtMsg.className = 'mw-msg err';
+      mtMsg.textContent = res.error || 'Could not claim the Money Tree.';
+      mtBtn.disabled = false; mtBtn.textContent = 'Claim the Money Tree →';
+      return;
+    }
+    mtMsg.className = 'mw-msg ok';
+    mtMsg.textContent = '🌳 The Money Tree is yours. Head to your dashboard to use or gift it.';
+    mtBtn.textContent = 'Claimed';
+    setTimeout(() => { location.href = 'student-portal.html'; }, 2200);
+  } catch (e) {
+    mtMsg.className = 'mw-msg err';
+    mtMsg.textContent = e.message || 'Something went wrong. Please try again.';
+    mtBtn.disabled = false; mtBtn.textContent = 'Claim the Money Tree →';
+  }
+}
+mtBtn.addEventListener('click', tryMoneyTreeClaim);
+mtPwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryMoneyTreeClaim(); });
+mtEmail.addEventListener('keydown', e => { if (e.key === 'Enter') mtPwd.focus(); });
 </script>
 </body>
 </html>

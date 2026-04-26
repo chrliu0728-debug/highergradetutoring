@@ -769,14 +769,9 @@ function render() {
                 const lvSuffix = (rid === CLICKER_ROLE_ID && s.clickerLevel) ? ` Lv ${s.clickerLevel}` : '';
                 return `<span class="role-chip" style="background:${r.color || '#E8808A'}">${r.icon || '🏅'} ${escapeHtml(r.name)}${lvSuffix} <button class="role-x" data-role-remove="${escapeHtml(rid)}" title="Remove role">×</button></span>`;
               }).join('')
-            : '<span style="font-size:.82rem; color:var(--muted); font-style:italic;">No roles assigned yet</span>'}
+            : '<span style="font-size:.82rem; color:var(--muted); font-style:italic;">No roles yet — students earn these automatically.</span>'}
         </div>
-        <select class="role-add-select" data-role-add>
-          <option value="">+ Assign role…</option>
-          ${allRoles.filter(r => r.id !== CLICKER_ROLE_ID && !(Array.isArray(s.roles) && s.roles.includes(r.id))).map(r =>
-            `<option value="${escapeHtml(r.id)}">${r.icon || '🏅'} ${escapeHtml(r.name)}</option>`
-          ).join('')}
-        </select>
+        <p style="font-size:.78rem; color:var(--muted); margin-top:6px; font-style:italic;">Roles are earned automatically (e.g. Maze Wizard, Money Tree). Use the Clicker controls below to manage the auto-clicker level.</p>
       </div>
       <div class="point-action-row" style="background:rgba(59,130,246,.06); border-color:#3B82F6;">
         <strong>🖱 Clicker:</strong>

@@ -40,9 +40,30 @@ TX_MAX                 = 2000
 MAZEWIZ_ROLE_ID        = "mazewiz"
 MONEY_TREE_ROLE_ID     = "money_tree"
 CLICKER_ROLE_ID        = "clicker"
-DOOR_MAZE_REWARD       = 1000
+DOOR_MAZE_LENGTH       = 300
 MONEY_TREE_COST        = 6000
-DOOR_PATTERN           = "RLLLLRLRRLR"  # right=R, left=L, exact 11-click sequence
+
+# Tiered reward for completing the 300-door math maze. The pct is
+# (correct / total) * 100. First entry wins; entries are inclusive.
+DOOR_REWARD_TIERS = [
+    (100, 2100),
+    ( 95, 1900),
+    ( 90, 1700),
+    ( 85, 1500),
+    ( 80, 1300),
+    ( 75, 1100),
+    ( 70,  900),
+    ( 65,  700),
+    ( 60,  500),
+    ( 55,  300),
+    ( 50,  100),
+]
+
+def reward_for_pct(pct):
+    for cutoff, pts in DOOR_REWARD_TIERS:
+        if pct >= cutoff:
+            return pts
+    return 0
 MANUAL_DAILY_CAP       = 50              # max manual-clicker pts per UTC day
 AUTO_DAILY_CAP_PER_LV  = 14              # max auto-clicker pts per level per day
 
@@ -472,17 +493,28 @@ def register_routes(app):
     @app.route("/api/students/me/claim-doors", methods=["POST"])
     @require_student
     def claim_doors():
-        """Reward the student for completing the 300-door maze.
-        Body: { clicks: int (>=300), pattern: 'RLLL...' (first 11 clicks) }
-        - One-time per student (server-tracked via extras.doors_claimed).
-        - Awards DOOR_MAZE_REWARD private points + total.
-        - If `pattern` exactly matches DOOR_PATTERN, also grants the
-          Money Tree role (unless already held)."""
+        """Score-based reward for the 300-door math maze.
+
+        Body: { correct: int, total: int }
+          - total must be >= 300
+          - correct in [0, total]
+        Reward = tier(correct/total*100), see DOOR_REWARD_TIERS.
+        First completion: awards points + flips extras.doorsRewarded.
+        Subsequent completions: counts toward extras.doorsCompleted but
+        award nothing (keeps the maze re-playable for fun + the Money
+        Tree pattern hunt without granting unlimited points).
+
+        Server returns `completions` so the client can show the
+        Money-Tree-pattern hint after the third successful descent.
+        """
         data = request.get_json(silent=True) or {}
-        clicks = int(data.get("clicks") or 0)
-        pattern = (data.get("pattern") or "").upper()
-        if clicks < 300:
+        correct = int(data.get("correct") or 0)
+        total   = int(data.get("total")   or 0)
+        if total < DOOR_MAZE_LENGTH:
             return jsonify(ok=False, error="Maze not complete."), 400
+        correct = max(0, min(total, correct))
+        pct = (correct / total) * 100 if total else 0
+        tier_pts = reward_for_pct(pct)
 
         sid = g.session["studentId"]
         with g.db:
@@ -491,33 +523,66 @@ def register_routes(app):
                 return jsonify(ok=False, error="Student not found."), 404
 
             extras = json.loads(row["extras"] or "{}")
-            if extras.get("doors_claimed"):
-                return jsonify(ok=False, error="You've already claimed this reward."), 400
+            already_rewarded = bool(extras.get("doorsRewarded") or extras.get("doors_claimed"))
+            extras["doorsCompleted"] = int(extras.get("doorsCompleted") or 0) + 1
+            completions = extras["doorsCompleted"]
 
-            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
-            stats["privatePoints"]     = stats.get("privatePoints", 0) + DOOR_MAZE_REWARD
-            stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + DOOR_MAZE_REWARD
-
-            roles = json.loads(row["roles"] or "[]")
-            money_tree_granted = False
-            if pattern == DOOR_PATTERN and MONEY_TREE_ROLE_ID not in roles:
-                roles.append(MONEY_TREE_ROLE_ID)
-                money_tree_granted = True
-
-            extras["doors_claimed"] = True
-
-            g.db.execute(
-                "UPDATE students SET stats = ?, roles = ?, extras = ? WHERE id = ?",
-                (json.dumps(stats), json.dumps(roles), json.dumps(extras), sid),
-            )
-            _log_tx(type="earn", scope="student", subjectId=sid,
-                    subjectName=_full_name(row), amount=DOOR_MAZE_REWARD,
-                    description=f"🚪 Made it through 300 doors · +{DOOR_MAZE_REWARD} pts"
-                                + (" · 🌳 Money Tree unlocked!" if money_tree_granted else ""))
+            awarded = 0
+            if not already_rewarded and tier_pts > 0:
+                awarded = tier_pts
+                extras["doorsRewarded"] = True
+                stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+                stats["privatePoints"]     = stats.get("privatePoints", 0) + awarded
+                stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + awarded
+                g.db.execute(
+                    "UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                    (json.dumps(stats), json.dumps(extras), sid),
+                )
+                _log_tx(type="earn", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=awarded,
+                        description=f"🚪 Maze complete · {correct}/{total} ({pct:.0f}%) · +{awarded} pts")
+            else:
+                g.db.execute(
+                    "UPDATE students SET extras = ? WHERE id = ?",
+                    (json.dumps(extras), sid),
+                )
         return jsonify(ok=True, data={
-            "awarded": DOOR_MAZE_REWARD,
-            "moneyTreeGranted": money_tree_granted,
+            "correct": correct,
+            "total":   total,
+            "percent": round(pct, 2),
+            "tierPoints":     tier_pts,
+            "awarded":        awarded,
+            "alreadyRewarded": already_rewarded,
+            "completions":    completions,
         })
+
+    @app.route("/api/students/me/claim-money-tree", methods=["POST"])
+    @require_student
+    def claim_money_tree():
+        """Globally unique role: only one student in the entire DB can
+        ever hold Money Tree. The first student to find the criss-cross
+        door pattern (R W R W R W R W R) and call this endpoint claims
+        it; everyone else gets a 409."""
+        sid = g.session["studentId"]
+        with g.db:
+            # Is anyone already holding Money Tree?
+            rows = g.db.execute("SELECT id, roles FROM students").fetchall()
+            for r in rows:
+                roles = json.loads(r["roles"] or "[]")
+                if MONEY_TREE_ROLE_ID in roles:
+                    return jsonify(ok=False, error="The Money Tree has already been claimed by another student."), 409
+
+            my_row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not my_row:
+                return jsonify(ok=False, error="Student not found."), 404
+            my_roles = json.loads(my_row["roles"] or "[]")
+            if MONEY_TREE_ROLE_ID not in my_roles:
+                my_roles.append(MONEY_TREE_ROLE_ID)
+            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(my_roles), sid))
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(my_row), amount=0,
+                    description="🌳 Claimed the Money Tree (criss-cross door pattern)")
+        return jsonify(ok=True)
 
     @app.route("/api/students/me/money-tree/activate", methods=["POST"])
     @require_student
