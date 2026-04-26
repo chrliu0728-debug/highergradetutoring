@@ -44,26 +44,29 @@ DOOR_MAZE_LENGTH       = 300
 MONEY_TREE_COST        = 6000
 
 # Tiered reward for completing the 300-door math maze. The pct is
-# (correct / total) * 100. First entry wins; entries are inclusive.
+# (correct / scoredDoors) * 100. The scored-door count is MAZE_LENGTH-1
+# because the first floor is a freebie. Each tier is the previous
+# reward × 1.5 + 300, with a 300-pt floor for any completion below 50%.
 DOOR_REWARD_TIERS = [
-    (100, 2100),
-    ( 95, 1900),
-    ( 90, 1700),
-    ( 85, 1500),
-    ( 80, 1300),
-    ( 75, 1100),
-    ( 70,  900),
-    ( 65,  700),
-    ( 60,  500),
-    ( 55,  300),
-    ( 50,  100),
+    (100, 3450),
+    ( 95, 3150),
+    ( 90, 2850),
+    ( 85, 2550),
+    ( 80, 2250),
+    ( 75, 1950),
+    ( 70, 1650),
+    ( 65, 1350),
+    ( 60, 1050),
+    ( 55,  750),
+    ( 50,  450),
 ]
+DOOR_REWARD_FLOOR = 300
 
 def reward_for_pct(pct):
     for cutoff, pts in DOOR_REWARD_TIERS:
         if pct >= cutoff:
             return pts
-    return 0
+    return DOOR_REWARD_FLOOR
 MANUAL_DAILY_CAP       = 50              # max manual-clicker pts per UTC day
 AUTO_DAILY_CAP_PER_LV  = 14              # max auto-clicker pts per level per day
 
@@ -510,7 +513,9 @@ def register_routes(app):
         data = request.get_json(silent=True) or {}
         correct = int(data.get("correct") or 0)
         total   = int(data.get("total")   or 0)
-        if total < DOOR_MAZE_LENGTH:
+        # Scored doors = MAZE_LENGTH - 1 (the first floor is a freebie),
+        # so the client submits 299. Use that as the floor.
+        if total < DOOR_MAZE_LENGTH - 1:
             return jsonify(ok=False, error="Maze not complete."), 400
         correct = max(0, min(total, correct))
         pct = (correct / total) * 100 if total else 0

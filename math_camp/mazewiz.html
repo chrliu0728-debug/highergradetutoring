@@ -643,65 +643,195 @@ const mtMsg         = document.getElementById('mw-mt-msg');
 const MAZE_LENGTH       = (typeof DOOR_MAZE_LENGTH === 'number') ? DOOR_MAZE_LENGTH : 300;
 const MONEY_TREE_PATTERN = 'RWRWRWRWR';   // 9 doors, alternating right/wrong starting with right
 
+// Each Grade 9 unit gets an equal slice of the descent: 60 doors each.
+const UNIT_LABELS = [
+  'Unit 1 · Grade 8 Review',
+  'Unit 2 · Algebra',
+  'Unit 3 · Data',
+  'Unit 4 · Geometry',
+  'Unit 5 · Linear Relations',
+];
+function unitForDoor(doorNum) {
+  if (doorNum <=  60) return 0;
+  if (doorNum <= 120) return 1;
+  if (doorNum <= 180) return 2;
+  if (doorNum <= 240) return 3;
+  return 4;
+}
+
 let mazeClicks  = 0;     // doors traversed (1..MAZE_LENGTH)
-let mazeCorrect = 0;     // count of correct answers
-let mazePattern = '';    // 'R' = right answer, 'W' = wrong answer (per door)
+let mazeCorrect = 0;     // count of correct answers (door 1 excluded — freebie)
+let mazePattern = '';    // 'R'/'W' per scored door — door 1 is excluded too
 let currentQ    = null;  // { question, correct, left, right, leftIsCorrect }
 let mazeBusy    = false;
 
 function rint(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-/* Grade-9-friendly math question generator. All answers are integers. */
-function genMathProblem() {
-  const types = ['add', 'sub', 'mul', 'div', 'square', 'sqrt', 'linear', 'percent', 'order', 'neg'];
-  const t = types[Math.floor(Math.random() * types.length)];
+/* ── Unit 1: Grade 8 Review (arithmetic, integers, fractions, percent) ── */
+function genUnit1() {
+  const t = pick(['add', 'sub', 'mul', 'div', 'square', 'sqrt', 'percent', 'order', 'neg', 'fracOf']);
   let q, ans;
   switch (t) {
-    case 'add': {
-      const a = rint(15, 99), b = rint(10, 99);
-      q = `${a} + ${b}`; ans = a + b; break;
-    }
-    case 'sub': {
-      const a = rint(40, 120), b = rint(5, a - 1);
-      q = `${a} − ${b}`; ans = a - b; break;
-    }
-    case 'mul': {
-      const a = rint(2, 12), b = rint(2, 12);
-      q = `${a} × ${b}`; ans = a * b; break;
-    }
-    case 'div': {
-      const b = rint(2, 12); ans = rint(2, 12);
-      const a = ans * b;
-      q = `${a} ÷ ${b}`; break;
-    }
-    case 'square': {
-      const a = rint(3, 13);
-      q = `${a}²`; ans = a * a; break;
-    }
-    case 'sqrt': {
-      ans = rint(3, 12);
-      q = `√${ans * ans}`; break;
-    }
-    case 'linear': {
-      const x = rint(2, 10), c = rint(2, 8), b = rint(1, 15);
-      const rhs = c * x + b;
-      q = `${c}x + ${b} = ${rhs},  x = ?`; ans = x; break;
-    }
-    case 'percent': {
-      const pct = [10, 20, 25, 50, 75][rint(0, 4)];
-      const v = rint(2, 10) * 4;
-      q = `${pct}% of ${v}`; ans = (v * pct) / 100; break;
-    }
-    case 'order': {
-      const a = rint(2, 9), b = rint(2, 9), c = rint(2, 9);
-      q = `${a} + ${b} × ${c}`; ans = a + b * c; break;
-    }
-    case 'neg': {
-      const a = rint(1, 20), b = rint(1, 20);
-      q = `−${a} + ${b}`; ans = -a + b; break;
+    case 'add':    { const a = rint(15, 99), b = rint(10, 99); q = `${a} + ${b}`; ans = a + b; break; }
+    case 'sub':    { const a = rint(40, 120), b = rint(5, a - 1); q = `${a} − ${b}`; ans = a - b; break; }
+    case 'mul':    { const a = rint(2, 12), b = rint(2, 12); q = `${a} × ${b}`; ans = a * b; break; }
+    case 'div':    { const b = rint(2, 12); ans = rint(2, 12); const a = ans * b; q = `${a} ÷ ${b}`; break; }
+    case 'square': { const a = rint(3, 13); q = `${a}²`; ans = a * a; break; }
+    case 'sqrt':   { ans = rint(3, 12); q = `√${ans * ans}`; break; }
+    case 'percent':{ const pct = pick([10, 20, 25, 50, 75]); const v = rint(2, 10) * 4; q = `${pct}% of ${v}`; ans = (v * pct) / 100; break; }
+    case 'order':  { const a = rint(2, 9), b = rint(2, 9), c = rint(2, 9); q = `${a} + ${b} × ${c}`; ans = a + b * c; break; }
+    case 'neg':    { const a = rint(1, 20), b = rint(1, 20); q = `−${a} + ${b}`; ans = -a + b; break; }
+    case 'fracOf': {
+      const denom = pick([2, 3, 4, 5, 6]);
+      const num = rint(1, denom - 1);
+      const v = denom * rint(2, 12);
+      q = `${num}/${denom} of ${v}`; ans = (v * num) / denom; break;
     }
   }
   return { q, ans };
+}
+
+/* ── Unit 2: Algebra (solving linear, evaluating, distributive) ── */
+function genUnit2() {
+  const t = pick(['solve1', 'solve2', 'evaluate', 'distrib', 'liketerms', 'solveSub']);
+  let q, ans;
+  switch (t) {
+    case 'solve1': {
+      const x = rint(1, 25), b = rint(1, 30);
+      q = `x + ${b} = ${x + b},  x = ?`; ans = x; break;
+    }
+    case 'solveSub': {
+      const x = rint(1, 25), b = rint(1, 25);
+      q = `x − ${b} = ${x - b},  x = ?`; ans = x; break;
+    }
+    case 'solve2': {
+      const x = rint(1, 12), a = rint(2, 8), b = rint(1, 20);
+      q = `${a}x + ${b} = ${a * x + b},  x = ?`; ans = x; break;
+    }
+    case 'evaluate': {
+      const x = rint(2, 10), a = rint(2, 9), b = rint(1, 15);
+      q = `If x = ${x}, then ${a}x + ${b} = ?`; ans = a * x + b; break;
+    }
+    case 'distrib': {
+      const a = rint(2, 8), b = rint(2, 12), c = rint(2, 10);
+      q = `${a}(${b} + ${c}) = ?`; ans = a * (b + c); break;
+    }
+    case 'liketerms': {
+      const a = rint(2, 8), b = rint(2, 8), x = rint(2, 6);
+      q = `If x = ${x}, then ${a}x + ${b}x = ?`; ans = (a + b) * x; break;
+    }
+  }
+  return { q, ans };
+}
+
+/* ── Unit 3: Data (mean, median, mode, range, simple counting) ── */
+function genUnit3() {
+  const t = pick(['mean3', 'mean5', 'median', 'mode', 'range', 'flips']);
+  let q, ans;
+  switch (t) {
+    case 'mean3': {
+      const nums = [rint(2, 30), rint(2, 30), rint(2, 30)];
+      const adj = (3 - (nums.reduce((a, b) => a + b, 0) % 3)) % 3;
+      nums[0] += adj;
+      ans = nums.reduce((a, b) => a + b, 0) / 3;
+      q = `Mean of ${nums.join(', ')}`; break;
+    }
+    case 'mean5': {
+      const nums = [];
+      for (let i = 0; i < 5; i++) nums.push(rint(2, 25));
+      const adj = (5 - (nums.reduce((a, b) => a + b, 0) % 5)) % 5;
+      nums[0] += adj;
+      ans = nums.reduce((a, b) => a + b, 0) / 5;
+      q = `Mean of ${nums.join(', ')}`; break;
+    }
+    case 'median': {
+      const nums = [];
+      for (let i = 0; i < 5; i++) nums.push(rint(1, 30));
+      const sorted = [...nums].sort((a, b) => a - b);
+      ans = sorted[2];
+      q = `Median of ${nums.sort(() => Math.random() - 0.5).join(', ')}`; break;
+    }
+    case 'mode': {
+      const m = rint(2, 15);
+      const others = [rint(1, 20), rint(1, 20), rint(1, 20)].filter(n => n !== m);
+      while (others.length < 3) others.push(rint(20, 30));
+      const nums = [m, m, ...others.slice(0, 3)].sort(() => Math.random() - 0.5);
+      ans = m;
+      q = `Mode of ${nums.join(', ')}`; break;
+    }
+    case 'range': {
+      const nums = [];
+      for (let i = 0; i < 5; i++) nums.push(rint(1, 50));
+      ans = Math.max(...nums) - Math.min(...nums);
+      q = `Range of ${nums.join(', ')}`; break;
+    }
+    case 'flips': {
+      const n = rint(2, 4);
+      ans = Math.pow(2, n);
+      q = `Total possible outcomes flipping ${n} coins`; break;
+    }
+  }
+  return { q, ans };
+}
+
+/* ── Unit 4: Geometry (area, perimeter, volume, Pythagorean, angles) ── */
+function genUnit4() {
+  const t = pick(['rectArea', 'rectPerim', 'triArea', 'volume', 'pyth', 'angleSum', 'compSup', 'squareArea']);
+  let q, ans;
+  switch (t) {
+    case 'rectArea':   { const w = rint(3, 15), h = rint(3, 15); q = `Area of rectangle ${w} × ${h}`; ans = w * h; break; }
+    case 'squareArea': { const s = rint(3, 14); q = `Area of square with side ${s}`; ans = s * s; break; }
+    case 'rectPerim':  { const w = rint(3, 20), h = rint(3, 20); q = `Perimeter of rectangle ${w} × ${h}`; ans = 2 * (w + h); break; }
+    case 'triArea':    { const b = rint(2, 12) * 2, h = rint(2, 14); q = `Area of triangle (base ${b}, height ${h})`; ans = (b * h) / 2; break; }
+    case 'volume':     { const a = rint(2, 8), b = rint(2, 8), c = rint(2, 8); q = `Volume of box ${a}×${b}×${c}`; ans = a * b * c; break; }
+    case 'pyth':       {
+      const trip = pick([[3, 4, 5], [6, 8, 10], [5, 12, 13], [9, 12, 15], [8, 15, 17], [9, 40, 41]]);
+      q = `Hypotenuse of right triangle with legs ${trip[0]} and ${trip[1]}`; ans = trip[2]; break;
+    }
+    case 'angleSum':   {
+      const a = rint(20, 80), b = rint(20, 80);
+      q = `Third angle of triangle with angles ${a}° and ${b}°`; ans = 180 - a - b; break;
+    }
+    case 'compSup':    {
+      const a = rint(20, 80);
+      if (Math.random() < 0.5) { q = `Complement of ${a}°`; ans = 90 - a; }
+      else                     { q = `Supplement of ${a}°`; ans = 180 - a; }
+      break;
+    }
+  }
+  return { q, ans };
+}
+
+/* ── Unit 5: Linear Relations (slope, intercepts, evaluating lines) ── */
+function genUnit5() {
+  const t = pick(['evaluateY', 'findX', 'slope2pt', 'yintercept', 'pointOnLine']);
+  let q, ans;
+  switch (t) {
+    case 'evaluateY':  { const m = rint(1, 6), b = rint(1, 12), x = rint(1, 8);
+      q = `In y = ${m}x + ${b}, find y when x = ${x}`; ans = m * x + b; break;
+    }
+    case 'findX':      { const m = rint(2, 5), b = rint(1, 10), x = rint(1, 8);
+      q = `In y = ${m}x + ${b}, find x when y = ${m * x + b}`; ans = x; break;
+    }
+    case 'slope2pt':   {
+      const m = rint(1, 5), x1 = rint(0, 5), y1 = rint(0, 10), dx = rint(1, 4);
+      const x2 = x1 + dx, y2 = y1 + m * dx;
+      q = `Slope of line through (${x1}, ${y1}) and (${x2}, ${y2})`; ans = m; break;
+    }
+    case 'yintercept': { const m = rint(1, 6), b = rint(1, 15);
+      q = `y-intercept of y = ${m}x + ${b}`; ans = b; break;
+    }
+    case 'pointOnLine':{ const m = rint(1, 4), b = rint(1, 10), x = rint(1, 6);
+      q = `Line y = ${m}x + ${b} passes through (${x}, ?). The y-value is`; ans = m * x + b; break;
+    }
+  }
+  return { q, ans };
+}
+
+const UNIT_GENS = [genUnit1, genUnit2, genUnit3, genUnit4, genUnit5];
+function genQuestionForDoor(doorNum) {
+  return UNIT_GENS[unitForDoor(doorNum)]();
 }
 
 /* Plausible wrong answer — small offset, not equal, kept reasonable. */
@@ -715,7 +845,8 @@ function genWrongAnswer(correct) {
 }
 
 function newQuestion() {
-  const { q, ans } = genMathProblem();
+  const doorNum = Math.min(mazeClicks + 1, MAZE_LENGTH);
+  const { q, ans } = genQuestionForDoor(doorNum);
   const wrong = genWrongAnswer(ans);
   const leftIsCorrect = Math.random() < 0.5;
   currentQ = {
@@ -741,10 +872,16 @@ function showOnly(el) {
 }
 
 function updateMazeUI() {
-  mazeTitle.textContent = `Door ${Math.min(mazeClicks + 1, MAZE_LENGTH)} of ${MAZE_LENGTH}`;
+  const doorNum = Math.min(mazeClicks + 1, MAZE_LENGTH);
+  const unitLabel = UNIT_LABELS[unitForDoor(doorNum)];
+  mazeTitle.textContent = `${unitLabel} · Door ${doorNum} of ${MAZE_LENGTH}`;
   const pct = Math.min(100, (mazeClicks / MAZE_LENGTH) * 100);
   mazeBarFill.style.width = pct + '%';
-  correctTag.textContent = `Right so far: ${mazeCorrect} / ${mazeClicks}`;
+  // Floor 1 is a freebie; the score denominator is "doors traversed past 1".
+  const scored = Math.max(0, mazeClicks - 1);
+  correctTag.textContent = scored === 0
+    ? 'First floor — freebie · score starts on door 2'
+    : `Right so far: ${mazeCorrect} / ${scored}`;
 }
 
 function enterMaze() {
@@ -759,18 +896,18 @@ function backToClaim() {
 }
 
 function rewardForPct(pct) {
-  if (pct >= 100) return 2100;
-  if (pct >= 95)  return 1900;
-  if (pct >= 90)  return 1700;
-  if (pct >= 85)  return 1500;
-  if (pct >= 80)  return 1300;
-  if (pct >= 75)  return 1100;
-  if (pct >= 70)  return 900;
-  if (pct >= 65)  return 700;
-  if (pct >= 60)  return 500;
-  if (pct >= 55)  return 300;
-  if (pct >= 50)  return 100;
-  return 0;
+  if (pct >= 100) return 3450;
+  if (pct >= 95)  return 3150;
+  if (pct >= 90)  return 2850;
+  if (pct >= 85)  return 2550;
+  if (pct >= 80)  return 2250;
+  if (pct >= 75)  return 1950;
+  if (pct >= 70)  return 1650;
+  if (pct >= 65)  return 1350;
+  if (pct >= 60)  return 1050;
+  if (pct >= 55)  return 750;
+  if (pct >= 50)  return 450;
+  return 300;   // floor — every completion is worth at least 300
 }
 
 function onDoorClick(side, doorEl) {
@@ -789,12 +926,16 @@ function onDoorClick(side, doorEl) {
   const chosen = (side === 'L') ? currentQ.left : currentQ.right;
   const isCorrect = chosen === currentQ.correct;
   mazeClicks++;
-  mazePattern += isCorrect ? 'R' : 'W';
-  if (isCorrect) mazeCorrect++;
+  // Floor 1 is the entry door — a freebie. Don't score it and don't
+  // record it in the criss-cross pattern. Doors 2..MAZE_LENGTH count.
+  if (mazeClicks > 1) {
+    mazePattern += isCorrect ? 'R' : 'W';
+    if (isCorrect) mazeCorrect++;
+  }
   updateMazeUI();
 
-  // Criss-cross detector — first 9 doors only
-  if (mazeClicks === 9 && mazePattern.startsWith(MONEY_TREE_PATTERN)) {
+  // Criss-cross detector — fires on the 9th SCORED door (= door 10 overall)
+  if (mazePattern.length === 9 && mazePattern === MONEY_TREE_PATTERN) {
     setTimeout(() => {
       showOnly(moneyTreeView);
       mtEmail.focus();
@@ -805,9 +946,10 @@ function onDoorClick(side, doorEl) {
 
   if (mazeClicks >= MAZE_LENGTH) {
     setTimeout(async () => {
-      const pct = (mazeCorrect / MAZE_LENGTH) * 100;
+      const scored = MAZE_LENGTH - 1;   // 299 scored doors
+      const pct = (mazeCorrect / scored) * 100;
       const previewPts = rewardForPct(pct);
-      mazeEndSub.innerHTML = `You answered <strong>${mazeCorrect} / ${MAZE_LENGTH}</strong> correctly (${pct.toFixed(1)}%). Sign in to claim <strong>+${previewPts.toLocaleString()} points</strong>.`;
+      mazeEndSub.innerHTML = `You answered <strong>${mazeCorrect} / ${scored}</strong> correctly (${pct.toFixed(1)}%). Sign in to claim <strong>+${previewPts.toLocaleString()} points</strong>.`;
       showOnly(mazeEndView);
       endEmail.focus();
       mazeBusy = false;
@@ -857,7 +999,7 @@ async function tryMazeClaim() {
       endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
       return;
     }
-    const res = await claimDoorMaze(mazeCorrect, MAZE_LENGTH);
+    const res = await claimDoorMaze(mazeCorrect, MAZE_LENGTH - 1);
     if (!res.ok) {
       endMsg.className = 'mw-msg err';
       endMsg.textContent = res.error || 'Could not claim the reward.';
