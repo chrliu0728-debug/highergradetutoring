@@ -766,16 +766,23 @@ function render() {
             ? s.roles.map(rid => {
                 const r = allRolesById[rid];
                 if (!r) return '';
-                return `<span class="role-chip" style="background:${r.color || '#E8808A'}">${r.icon || '🏅'} ${escapeHtml(r.name)} <button class="role-x" data-role-remove="${escapeHtml(rid)}" title="Remove role">×</button></span>`;
+                const lvSuffix = (rid === CLICKER_ROLE_ID && s.clickerLevel) ? ` Lv ${s.clickerLevel}` : '';
+                return `<span class="role-chip" style="background:${r.color || '#E8808A'}">${r.icon || '🏅'} ${escapeHtml(r.name)}${lvSuffix} <button class="role-x" data-role-remove="${escapeHtml(rid)}" title="Remove role">×</button></span>`;
               }).join('')
             : '<span style="font-size:.82rem; color:var(--muted); font-style:italic;">No roles assigned yet</span>'}
         </div>
         <select class="role-add-select" data-role-add>
           <option value="">+ Assign role…</option>
-          ${allRoles.filter(r => !(Array.isArray(s.roles) && s.roles.includes(r.id))).map(r =>
+          ${allRoles.filter(r => r.id !== CLICKER_ROLE_ID && !(Array.isArray(s.roles) && s.roles.includes(r.id))).map(r =>
             `<option value="${escapeHtml(r.id)}">${r.icon || '🏅'} ${escapeHtml(r.name)}</option>`
           ).join('')}
         </select>
+      </div>
+      <div class="point-action-row" style="background:rgba(59,130,246,.06); border-color:#3B82F6;">
+        <strong>🖱 Clicker:</strong>
+        <span style="font-size:.86rem;">Lv <strong data-clicker-level>${s.clickerLevel || 0}</strong>${s.clickerLevel ? ` · auto cap +${(s.clickerLevel || 0) * AUTO_DAILY_CAP_PER_LV} pts/day` : ''}</span>
+        <button data-clicker-up>+1 level</button>
+        <button data-clicker-down ${(!s.clickerLevel) ? 'disabled' : ''}>−1 level</button>
       </div>
     `;
     list.appendChild(card);
@@ -842,6 +849,29 @@ function render() {
         render();
       });
     });
+
+    const clickerUp   = card.querySelector('[data-clicker-up]');
+    const clickerDown = card.querySelector('[data-clicker-down]');
+    if (clickerUp) {
+      clickerUp.addEventListener('click', async () => {
+        clickerUp.disabled = true;
+        const res = await adminUpgradeClicker(id);
+        clickerUp.disabled = false;
+        if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Upgrade failed'); return; }
+        showToast('🖱 Clicker → Lv ' + res.data.clickerLevel);
+        render();
+      });
+    }
+    if (clickerDown) {
+      clickerDown.addEventListener('click', async () => {
+        clickerDown.disabled = true;
+        const res = await adminDowngradeClicker(id);
+        clickerDown.disabled = false;
+        if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Downgrade failed'); return; }
+        showToast('🖱 Clicker → Lv ' + res.data.clickerLevel);
+        render();
+      });
+    }
 
     card.querySelector('[data-edit]').addEventListener('click', () => openEditModal(id));
 

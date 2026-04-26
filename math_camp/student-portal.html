@@ -370,6 +370,57 @@
 
     /* Clicker */
     .clicker-wrap { text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+
+    /* The orbiting auto-clicker helpers (one per clicker level) */
+    .clicker-orbit-wrap {
+      position: relative;
+      width: 200px; height: 200px;
+      margin: 16px auto 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .clicker-orbit {
+      position: absolute;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #93C5FD, #3B82F6 65%, #1D4ED8);
+      box-shadow: 0 4px 12px rgba(59,130,246,.5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      animation: clicker-orbit 6s linear infinite;
+      transform-origin: 100px 100px; /* circle radius */
+      top: 50%; left: 50%;
+      margin-top: -15px; margin-left: -15px;
+    }
+    .clicker-orbit.pulse { animation: clicker-orbit 6s linear infinite, clicker-pulse .5s ease-out; }
+    @keyframes clicker-orbit {
+      from { transform: rotate(0deg) translateX(80px) rotate(0deg); }
+      to   { transform: rotate(360deg) translateX(80px) rotate(-360deg); }
+    }
+    @keyframes clicker-pulse {
+      0%   { box-shadow: 0 4px 12px rgba(59,130,246,.5); }
+      50%  { box-shadow: 0 0 0 12px rgba(59,130,246,.2), 0 4px 12px rgba(59,130,246,.5); }
+      100% { box-shadow: 0 4px 12px rgba(59,130,246,.5); }
+    }
+    .clicker-cap-row {
+      font-size: .82rem; color: var(--text-mid);
+      margin-top: 4px;
+    }
+    .clicker-cap-row .cap-bar {
+      height: 6px; border-radius: 999px; background: var(--surface2);
+      margin: 4px 0 8px;
+      overflow: hidden;
+    }
+    .clicker-cap-row .cap-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blush), var(--blush-dark));
+      transition: width .25s ease;
+    }
+    .clicker-cap-row .cap-fill.auto {
+      background: linear-gradient(90deg, #60A5FA, #3B82F6);
+    }
+    .clicker-cap-row .cap-tag { font-weight: 700; }
+    .clicker-cap-row .cap-tag.full { color: #DC2626; }
+
     .clicker-btn {
       width: 140px; height: 140px;
       border-radius: 50%;
@@ -624,13 +675,24 @@
     <div class="action-card">
       <div class="ac-head">
         <h3>🖱 Click for Points</h3>
-        <p class="ac-sub">Every <strong>100 clicks</strong> earns you <strong>1 point</strong>. There's a short cooldown between clicks.</p>
+        <p class="ac-sub">Every <strong>100 clicks</strong> earns you <strong>1 point</strong>. Daily cap of <strong>50 manual points</strong> per day to keep it fair.</p>
       </div>
       <div class="clicker-wrap">
-        <button class="clicker-btn" id="clicker-btn">CLICK!</button>
+        <div class="clicker-orbit-wrap" id="clicker-orbit-wrap">
+          <button class="clicker-btn" id="clicker-btn">CLICK!</button>
+          <!-- orbit helpers injected by JS based on clicker level -->
+        </div>
         <div class="clicker-stats">
           <div><strong id="clicker-progress-text">0 / 100</strong> clicks to next point</div>
           <div class="clicker-progress-bar"><div class="clicker-progress-fill" id="clicker-progress-fill" style="width:0%"></div></div>
+          <div class="clicker-cap-row">
+            Manual today: <span class="cap-tag" id="manual-cap-tag">0 / 50</span>
+            <div class="cap-bar"><div class="cap-fill" id="manual-cap-fill" style="width:0%"></div></div>
+            <div id="auto-cap-line" style="display:none;">
+              Auto today (Lv <strong id="clicker-level-text">0</strong>): <span class="cap-tag" id="auto-cap-tag">0 / 0</span>
+              <div class="cap-bar"><div class="cap-fill auto" id="auto-cap-fill" style="width:0%"></div></div>
+            </div>
+          </div>
           <div style="opacity:.8;">Lifetime clicker clicks: <strong id="clicker-total-clicks">0</strong> · Earned: <strong id="clicker-total-earned">0</strong> pts</div>
         </div>
       </div>
@@ -1028,14 +1090,23 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   });
 
   /* ─── Clicker card ─── */
-  const clickerBtn        = document.getElementById('clicker-btn');
+  const clickerBtn          = document.getElementById('clicker-btn');
   const clickerProgressFill = document.getElementById('clicker-progress-fill');
   const clickerProgressText = document.getElementById('clicker-progress-text');
   const clickerTotalClicks  = document.getElementById('clicker-total-clicks');
   const clickerTotalEarned  = document.getElementById('clicker-total-earned');
+  const orbitWrap           = document.getElementById('clicker-orbit-wrap');
+  const manualCapFill       = document.getElementById('manual-cap-fill');
+  const manualCapTag        = document.getElementById('manual-cap-tag');
+  const autoCapLine         = document.getElementById('auto-cap-line');
+  const autoCapFill         = document.getElementById('auto-cap-fill');
+  const autoCapTag          = document.getElementById('auto-cap-tag');
+  const clickerLevelText    = document.getElementById('clicker-level-text');
 
   let lastClickAt = 0;
   let clickerCooldownTimer = null;
+  let autoTimer = null;
+  let renderedClickerLevel = -1;
 
   function renderClickerCard(s) {
     const stats = s.stats || defaultStats();
@@ -1046,7 +1117,89 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     clickerProgressText.textContent = `${inCycle} / ${CLICKER_RATE}`;
     clickerTotalClicks.textContent  = clicks.toLocaleString();
     clickerTotalEarned.textContent  = (stats.clickerPointsEarned || 0).toLocaleString();
+
+    // Daily caps
+    const manualToday = stats.dailyManualPts || 0;
+    manualCapTag.textContent = `${manualToday} / ${MANUAL_DAILY_CAP}`;
+    manualCapFill.style.width = Math.min(100, (manualToday / MANUAL_DAILY_CAP) * 100) + '%';
+    manualCapTag.classList.toggle('full', manualToday >= MANUAL_DAILY_CAP);
+
+    const level = s.clickerLevel || 0;
+    if (level > 0) {
+      const autoToday = stats.dailyAutoPts || 0;
+      const autoCap   = level * AUTO_DAILY_CAP_PER_LV;
+      autoCapLine.style.display = '';
+      clickerLevelText.textContent = level;
+      autoCapTag.textContent = `${autoToday} / ${autoCap}`;
+      autoCapFill.style.width = Math.min(100, (autoToday / autoCap) * 100) + '%';
+      autoCapTag.classList.toggle('full', autoToday >= autoCap);
+    } else {
+      autoCapLine.style.display = 'none';
+    }
+
+    // Re-render orbit helpers only when level changes (avoid restarting CSS animations every tick)
+    if (level !== renderedClickerLevel) {
+      orbitWrap.querySelectorAll('.clicker-orbit').forEach(el => el.remove());
+      for (let i = 0; i < level; i++) {
+        const orb = document.createElement('div');
+        orb.className = 'clicker-orbit';
+        orb.dataset.idx = String(i);
+        // Stagger each helper's starting angle around the button.
+        orb.style.animationDelay = `${-(i * (6 / Math.max(level, 1)))}s`;
+        orb.textContent = '🖱';
+        orbitWrap.appendChild(orb);
+      }
+      renderedClickerLevel = level;
+    }
+
+    // Manage the auto-clicker timer (only runs when level > 0)
+    if (level > 0 && !autoTimer) startAutoClicker();
+    if (level === 0 && autoTimer) stopAutoClicker();
   }
+
+  function pulseOrbit(idx) {
+    const orb = orbitWrap.querySelector(`.clicker-orbit[data-idx="${idx}"]`);
+    if (!orb) return;
+    orb.classList.add('pulse');
+    setTimeout(() => orb.classList.remove('pulse'), 500);
+  }
+
+  async function fireOneAutoClick(idx) {
+    pulseOrbit(idx);
+    const me = currentStudent(); if (!me) return;
+    const res = await autoClickerTap();
+    if (res && res.ok) {
+      // Update points + caps in the dashboard live without a full re-render
+      const s = currentStudent();
+      if (!s) return;
+      // Patch the displayed numbers directly for snappiness
+      pointsValEl.textContent = (s.stats.privatePoints || 0).toLocaleString();
+      manualCapTag.textContent = `${s.stats.dailyManualPts || 0} / ${MANUAL_DAILY_CAP}`;
+      const level = s.clickerLevel || 0;
+      const autoCap = level * AUTO_DAILY_CAP_PER_LV;
+      autoCapTag.textContent = `${s.stats.dailyAutoPts || 0} / ${autoCap}`;
+      autoCapFill.style.width = Math.min(100, ((s.stats.dailyAutoPts || 0) / Math.max(autoCap, 1)) * 100) + '%';
+    }
+  }
+
+  function startAutoClicker() {
+    autoTimer = setInterval(() => {
+      const s = currentStudent();
+      if (!s) return;
+      const level = s.clickerLevel || 0;
+      // Fire `level` clicks, one per orbit helper, slightly staggered so it
+      // looks alive instead of all firing on the same millisecond.
+      for (let i = 0; i < level; i++) {
+        setTimeout(() => fireOneAutoClick(i), i * 250);
+      }
+    }, AUTO_CLICK_INTERVAL_MS);
+  }
+
+  function stopAutoClicker() {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  }
+  // Stop the auto-clicker on logout / page hide
+  window.addEventListener('beforeunload', stopAutoClicker);
 
   clickerBtn.addEventListener('click', async () => {
     const now = Date.now();

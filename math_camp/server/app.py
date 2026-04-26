@@ -39,9 +39,12 @@ CLASS_BANK_DAILY_RATE  = 0.05
 TX_MAX                 = 2000
 MAZEWIZ_ROLE_ID        = "mazewiz"
 MONEY_TREE_ROLE_ID     = "money_tree"
+CLICKER_ROLE_ID        = "clicker"
 DOOR_MAZE_REWARD       = 1000
 MONEY_TREE_COST        = 6000
 DOOR_PATTERN           = "RLLLLRLRRLR"  # right=R, left=L, exact 11-click sequence
+MANUAL_DAILY_CAP       = 50              # max manual-clicker pts per UTC day
+AUTO_DAILY_CAP_PER_LV  = 14              # max auto-clicker pts per level per day
 
 
 def default_stats():
@@ -333,20 +336,30 @@ def register_routes(app):
     @require_student
     def clicker_tap():
         sid = g.session["studentId"]
+        today = time.strftime("%Y-%m-%d", time.gmtime())
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row: return jsonify(ok=False, error="Student not found."), 404
             stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            # Reset daily counters at the start of a new UTC day.
+            if stats.get("dailyClickerDate") != today:
+                stats["dailyClickerDate"] = today
+                stats["dailyManualPts"]   = 0
+                stats["dailyAutoPts"]     = 0
             stats["clickerClicks"] = stats.get("clickerClicks", 0) + 1
-            earned, spider = 0, False
+            earned, spider, capped = 0, False, False
             if stats["clickerClicks"] % CLICKER_RATE == 0:
-                earned = 1
-                stats["privatePoints"]      = stats.get("privatePoints", 0) + 1
-                stats["totalPointsEarned"]  = stats.get("totalPointsEarned", 0) + 1
-                stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + 1
-                if stats["clickerPointsEarned"] >= SPIDER_THRESHOLD and not stats.get("spiderShown"):
-                    spider = True
-                    stats["spiderShown"] = True
+                if stats.get("dailyManualPts", 0) >= MANUAL_DAILY_CAP:
+                    capped = True   # would have earned, but you've hit today's manual cap
+                else:
+                    earned = 1
+                    stats["dailyManualPts"]      = stats.get("dailyManualPts", 0) + 1
+                    stats["privatePoints"]       = stats.get("privatePoints", 0) + 1
+                    stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + 1
+                    stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + 1
+                    if stats["clickerPointsEarned"] >= SPIDER_THRESHOLD and not stats.get("spiderShown"):
+                        spider = True
+                        stats["spiderShown"] = True
             g.db.execute("UPDATE students SET stats = ? WHERE id = ?", (json.dumps(stats), sid))
             if earned > 0:
                 _log_tx(type="clicker", scope="student", subjectId=sid,
@@ -355,7 +368,106 @@ def register_routes(app):
         return jsonify(ok=True, data={
             "clicks": stats["clickerClicks"], "earned": earned, "spider": spider,
             "clickerPointsEarned": stats["clickerPointsEarned"],
+            "capped": capped,
+            "dailyManualPts": stats.get("dailyManualPts", 0),
+            "manualCap": MANUAL_DAILY_CAP,
         })
+
+    @app.route("/api/students/me/auto-click", methods=["POST"])
+    @require_student
+    def auto_click():
+        """Fired by the student-portal once per minute per clicker level
+        (frontend setInterval). Server-validates that the student holds
+        the clicker role and enforces a per-level daily cap, separate
+        from the manual cap."""
+        sid = g.session["studentId"]
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row: return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            if CLICKER_ROLE_ID not in roles:
+                return jsonify(ok=False, error="No clicker role."), 400
+            extras = json.loads(row["extras"] or "{}")
+            level = int(extras.get("clickerLevel") or 0)
+            if level <= 0:
+                return jsonify(ok=False, error="Clicker level is 0."), 400
+
+            cap = AUTO_DAILY_CAP_PER_LV * level
+
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            if stats.get("dailyClickerDate") != today:
+                stats["dailyClickerDate"] = today
+                stats["dailyManualPts"]   = 0
+                stats["dailyAutoPts"]     = 0
+            stats["autoClickerClicks"] = stats.get("autoClickerClicks", 0) + 1
+
+            earned, capped = 0, False
+            if stats["autoClickerClicks"] % CLICKER_RATE == 0:
+                if stats.get("dailyAutoPts", 0) >= cap:
+                    capped = True
+                else:
+                    earned = 1
+                    stats["dailyAutoPts"]        = stats.get("dailyAutoPts", 0) + 1
+                    stats["privatePoints"]       = stats.get("privatePoints", 0) + 1
+                    stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + 1
+                    stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + 1
+
+            g.db.execute("UPDATE students SET stats = ? WHERE id = ?", (json.dumps(stats), sid))
+            if earned > 0:
+                _log_tx(type="clicker", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=earned,
+                        description=f"Auto-clicker (Lv {level}) +{earned} pt")
+        return jsonify(ok=True, data={
+            "earned": earned, "level": level, "capped": capped,
+            "autoClickerClicks": stats["autoClickerClicks"],
+            "dailyAutoPts": stats.get("dailyAutoPts", 0),
+            "autoCap": cap,
+        })
+
+    @app.route("/api/admin/students/<sid>/clicker-upgrade", methods=["POST"])
+    @require_admin
+    def admin_clicker_upgrade(sid):
+        """Bumps the student's clickerLevel by +1 and ensures the role is
+        present. First call grants the role; each subsequent call is an
+        upgrade (Lv 1 → 2 → 3, …)."""
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row: return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            if CLICKER_ROLE_ID not in roles:
+                roles.append(CLICKER_ROLE_ID)
+            extras = json.loads(row["extras"] or "{}")
+            extras["clickerLevel"] = int(extras.get("clickerLevel") or 0) + 1
+            g.db.execute(
+                "UPDATE students SET roles = ?, extras = ? WHERE id = ?",
+                (json.dumps(roles), json.dumps(extras), sid),
+            )
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=0,
+                    description=f"🖱 Clicker role upgraded to Lv {extras['clickerLevel']}")
+        return jsonify(ok=True, data={"clickerLevel": extras["clickerLevel"]})
+
+    @app.route("/api/admin/students/<sid>/clicker-downgrade", methods=["POST"])
+    @require_admin
+    def admin_clicker_downgrade(sid):
+        """Decreases clickerLevel by 1. Removes the role when level hits 0."""
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row: return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            extras = json.loads(row["extras"] or "{}")
+            level = int(extras.get("clickerLevel") or 0)
+            if level <= 0:
+                return jsonify(ok=False, error="Clicker level is already 0."), 400
+            extras["clickerLevel"] = level - 1
+            if extras["clickerLevel"] == 0:
+                roles = [r for r in roles if r != CLICKER_ROLE_ID]
+            g.db.execute(
+                "UPDATE students SET roles = ?, extras = ? WHERE id = ?",
+                (json.dumps(roles), json.dumps(extras), sid),
+            )
+        return jsonify(ok=True, data={"clickerLevel": extras["clickerLevel"]})
 
     @app.route("/api/students/me/claim-doors", methods=["POST"])
     @require_student

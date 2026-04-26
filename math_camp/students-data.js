@@ -328,6 +328,10 @@ const MONEY_TREE_COST    = 6000;
 const DOOR_MAZE_LENGTH   = 300;
 const DOOR_MAZE_REWARD   = 1000;
 const DOOR_PATTERN       = 'RLLLLRLRRLR';
+const CLICKER_ROLE_ID         = 'clicker';
+const MANUAL_DAILY_CAP        = 50;       // max manual-clicker pts per UTC day
+const AUTO_DAILY_CAP_PER_LV   = 14;       // max auto-clicker pts per level per day
+const AUTO_CLICK_INTERVAL_MS  = 60 * 1000; // each auto-clicker fires once per minute
 
 function getRoles() {
   // Guarantee the protected MazeWiz role always shows
@@ -460,6 +464,50 @@ async function activateMoneyTree() {
     return r;
   } catch (e) {
     return { ok: false, error: e.message || 'Could not activate the Money Tree.' };
+  }
+}
+
+async function autoClickerTap() {
+  // Fire-and-forget, with cache patch on success so the click counter
+  // and points reflect quickly without a full re-fetch.
+  try {
+    const r = await _api('/students/me/auto-click', { method: 'POST' });
+    const me = HG.cache.me && HG.cache.me.student;
+    if (r && r.ok && me) {
+      me.stats = me.stats || defaultStats();
+      me.stats.autoClickerClicks = r.data.autoClickerClicks;
+      me.stats.dailyAutoPts      = r.data.dailyAutoPts;
+      if (r.data.earned) {
+        me.stats.privatePoints       = (me.stats.privatePoints || 0) + r.data.earned;
+        me.stats.totalPointsEarned   = (me.stats.totalPointsEarned || 0) + r.data.earned;
+        me.stats.clickerPointsEarned = (me.stats.clickerPointsEarned || 0) + r.data.earned;
+      }
+      const idx = HG.cache.students.findIndex(s => s.id === me.id);
+      if (idx >= 0) HG.cache.students[idx] = { ...HG.cache.students[idx], stats: me.stats };
+    }
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Auto-click failed.' };
+  }
+}
+
+async function adminUpgradeClicker(studentId) {
+  try {
+    const r = await _api('/admin/students/' + encodeURIComponent(studentId) + '/clicker-upgrade', { method: 'POST' });
+    await _refresh('students', '/students');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Upgrade failed.' };
+  }
+}
+
+async function adminDowngradeClicker(studentId) {
+  try {
+    const r = await _api('/admin/students/' + encodeURIComponent(studentId) + '/clicker-downgrade', { method: 'POST' });
+    await _refresh('students', '/students');
+    return r;
+  } catch (e) {
+    return { ok: false, error: e.message || 'Downgrade failed.' };
   }
 }
 

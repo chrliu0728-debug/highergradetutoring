@@ -58,6 +58,14 @@ DEFAULT_ROLES = [
         "description": "A one-time-use enchantment hidden behind a secret door pattern. Spend 6,000 private points to activate and double whatever you have left. Can also be gifted to another student.",
         "special": 1,
     },
+    {
+        "id": "clicker",
+        "name": "Clicker",
+        "icon": "🖱",
+        "color": "#3B82F6",
+        "description": "Auto-clicker — taps the click button on your behalf once per minute per level. Stack levels for more daily auto-points. Admin upgrades raise the level.",
+        "special": 1,
+    },
 ]
 
 DEFAULT_BASE_STATS = [
