@@ -8,6 +8,19 @@
 # ──────────────────────────────────────────────────────────────
 
 highergradetutoring.ca, www.highergradetutoring.ca {
+	# Compress text responses (applies before either handler below)
+	encode zstd gzip
+
+	# Hardening headers (applied to every response)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "SAMEORIGIN"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		Permissions-Policy        "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
 	# ── API: reverse-proxy /api/* to the Flask + SQLite backend ─────
 	# Backend runs as a systemd unit `highergrade-api` listening on
 	# 127.0.0.1:5000. See deploy/highergrade-api.service.
@@ -15,40 +28,24 @@ highergradetutoring.ca, www.highergradetutoring.ca {
 		reverse_proxy 127.0.0.1:5000
 	}
 
-	# Site files live in the math_camp/ subfolder of the cloned GitHub repo.
-	# The repo is cloned to /var/www/highergrade, so the actual webroot is:
-	root * /var/www/highergrade/math_camp
-	file_server
+	# ── Static site (everything else) ────────────────────────────────
+	handle {
+		root * /var/www/highergrade/math_camp
+		try_files {path} {path}/index.html /index.html
+		file_server
 
-	# Directory request (e.g. "/") → index.html
-	try_files {path} {path}/index.html /index.html
+		# Long-cache fingerprint-able assets
+		@assets path *.png *.jpg *.jpeg *.gif *.svg *.webp *.woff *.woff2 *.ttf
+		header @assets Cache-Control "public, max-age=604800, immutable"
 
-	# Long-cache fingerprint-able assets
-	@assets path *.png *.jpg *.jpeg *.gif *.svg *.webp *.woff *.woff2 *.ttf
-	header @assets Cache-Control "public, max-age=604800, immutable"
+		# HTML/CSS/JS — short cache so updates roll out fast
+		@code path *.html *.css *.js
+		header @code Cache-Control "public, max-age=300, must-revalidate"
 
-	# HTML/CSS/JS — short cache so updates roll out fast
-	@code path *.html *.css *.js
-	header @code Cache-Control "public, max-age=300, must-revalidate"
-
-	# Hardening
-	header {
-		# HSTS — long-cache HTTPS preference
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options    "nosniff"
-		X-Frame-Options           "SAMEORIGIN"
-		Referrer-Policy           "strict-origin-when-cross-origin"
-		Permissions-Policy        "camera=(), microphone=(), geolocation=()"
-		# Don't leak the server software string
-		-Server
+		# Hide dot-files (e.g. .git, .env if you ever sync those by mistake)
+		@hidden path /.* /*/.*
+		respond @hidden 404
 	}
-
-	# Hide dot-files (e.g. .git, .env if you ever sync those by mistake)
-	@hidden path /.* /*/.*
-	respond @hidden 404
-
-	# Compress text responses
-	encode zstd gzip
 
 	# Access log goes to systemd journal (no file permissions to manage).
 	# View with:  sudo journalctl -u caddy -f
