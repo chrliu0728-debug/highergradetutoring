@@ -675,7 +675,7 @@
     <div class="action-card">
       <div class="ac-head">
         <h3>🖱 Click for Points</h3>
-        <p class="ac-sub">Every <strong>100 clicks</strong> earns you <strong>1 point</strong>. Daily cap of <strong>50 manual points</strong> per day to keep it fair.</p>
+        <p class="ac-sub">Every <strong>100 clicks</strong> earns you <strong>1 point</strong>, capped at <strong>50 manual points</strong> per day. The Clicker role adds passive points on top: <strong>+1 every 6 minutes per level</strong>, working in the background even when the tab is closed.</p>
       </div>
       <div class="clicker-wrap">
         <div class="clicker-orbit-wrap" id="clicker-orbit-wrap">
@@ -1167,48 +1167,41 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     if (level === 0 && autoTimer) stopAutoClicker();
   }
 
-  function pulseOrbit(idx) {
-    const orb = orbitWrap.querySelector(`.clicker-orbit[data-idx="${idx}"]`);
-    if (!orb) return;
-    orb.classList.add('pulse');
-    setTimeout(() => orb.classList.remove('pulse'), 500);
+  function pulseAllOrbits() {
+    orbitWrap.querySelectorAll('.clicker-orbit').forEach(orb => {
+      orb.classList.add('pulse');
+      setTimeout(() => orb.classList.remove('pulse'), 500);
+    });
   }
 
-  async function fireOneAutoClick(idx) {
-    pulseOrbit(idx);
+  async function tickAutoAccrual() {
     const me = currentStudent(); if (!me) return;
+    if (!Array.isArray(me.roles) || !me.roles.includes(CLICKER_ROLE_ID)) return;
     const res = await autoClickerTap();
-    if (res && res.ok) {
-      // Update points + caps in the dashboard live without a full re-render
+    if (res && res.ok && res.data && res.data.earned > 0) {
       const s = currentStudent();
       if (!s) return;
-      // Patch the displayed numbers directly for snappiness
       pointsValEl.textContent = (s.stats.privatePoints || 0).toLocaleString();
       manualCapTag.textContent = `${s.stats.dailyManualPts || 0} / ${MANUAL_DAILY_CAP}`;
       const level = s.clickerLevel || 0;
       const autoCap = level * AUTO_DAILY_CAP_PER_LV;
       autoCapTag.textContent = `${s.stats.dailyAutoPts || 0} / ${autoCap}`;
       autoCapFill.style.width = Math.min(100, ((s.stats.dailyAutoPts || 0) / Math.max(autoCap, 1)) * 100) + '%';
+      pulseAllOrbits();
+      showToast(`+${res.data.earned} pt${res.data.earned === 1 ? '' : 's'} from auto-clicker`);
     }
   }
 
   function startAutoClicker() {
-    autoTimer = setInterval(() => {
-      const s = currentStudent();
-      if (!s) return;
-      const level = s.clickerLevel || 0;
-      // Fire `level` clicks, one per orbit helper, slightly staggered so it
-      // looks alive instead of all firing on the same millisecond.
-      for (let i = 0; i < level; i++) {
-        setTimeout(() => fireOneAutoClick(i), i * 250);
-      }
-    }, AUTO_CLICK_INTERVAL_MS);
+    // Run once on entry to settle any time the student was offline,
+    // then poll on the 6-minute cadence to pick up new ticks.
+    tickAutoAccrual();
+    autoTimer = setInterval(tickAutoAccrual, AUTO_INTERVAL_MS);
   }
 
   function stopAutoClicker() {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
   }
-  // Stop the auto-clicker on logout / page hide
   window.addEventListener('beforeunload', stopAutoClicker);
 
   clickerBtn.addEventListener('click', async () => {

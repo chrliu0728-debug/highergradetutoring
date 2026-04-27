@@ -402,12 +402,23 @@ def register_routes(app):
     @app.route("/api/students/me/auto-click", methods=["POST"])
     @require_student
     def auto_click():
-        """Fired by the student-portal once per minute per clicker level
-        (frontend setInterval). Server-validates that the student holds
-        the clicker role and enforces a per-level daily cap, separate
-        from the manual cap."""
+        """Time-based passive auto-accrual. Replaces the old per-minute
+        UI-click trigger — the 'clickers don't actually click' issue.
+
+        Each clicker level grants the student 1 point every AUTO_INTERVAL_MIN
+        (=6) minutes of real time, regardless of whether the portal tab is
+        open. When the student hits this endpoint we look at the elapsed
+        time since their last accrual, work out how many ticks they've
+        earned, multiply by their level, then cap at the per-day ceiling
+        (AUTO_DAILY_CAP_PER_LV * level). The lastAutoAt timestamp is
+        always advanced to now so they can't stockpile across the cap."""
+        AUTO_INTERVAL_MIN = 6
+        AUTO_INTERVAL_MS  = AUTO_INTERVAL_MIN * 60 * 1000
+
         sid = g.session["studentId"]
-        today = time.strftime("%Y-%m-%d", time.gmtime())
+        now_ms = int(time.time() * 1000)
+        today  = time.strftime("%Y-%m-%d", time.gmtime())
+
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row: return jsonify(ok=False, error="Student not found."), 404
@@ -426,29 +437,56 @@ def register_routes(app):
                 stats["dailyClickerDate"] = today
                 stats["dailyManualPts"]   = 0
                 stats["dailyAutoPts"]     = 0
-            stats["autoClickerClicks"] = stats.get("autoClickerClicks", 0) + 1
 
-            earned, capped = 0, False
-            if stats["autoClickerClicks"] % CLICKER_RATE == 0:
-                if stats.get("dailyAutoPts", 0) >= cap:
-                    capped = True
-                else:
-                    earned = 1
-                    stats["dailyAutoPts"]        = stats.get("dailyAutoPts", 0) + 1
-                    stats["privatePoints"]       = stats.get("privatePoints", 0) + 1
-                    stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + 1
-                    stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + 1
+            last = int(extras.get("lastAutoAt") or 0)
+            if last <= 0:
+                # First accrual — set baseline; nothing earned yet.
+                extras["lastAutoAt"] = now_ms
+                g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                             (json.dumps(extras), sid))
+                return jsonify(ok=True, data={
+                    "earned": 0, "level": level,
+                    "dailyAutoPts": stats.get("dailyAutoPts", 0),
+                    "autoCap": cap,
+                    "nextTickInSec": AUTO_INTERVAL_MIN * 60,
+                    "intervalMin": AUTO_INTERVAL_MIN,
+                })
 
-            g.db.execute("UPDATE students SET stats = ? WHERE id = ?", (json.dumps(stats), sid))
+            elapsed = max(0, now_ms - last)
+            ticks   = elapsed // AUTO_INTERVAL_MS
+            potential = int(ticks) * level
+
+            remaining_cap = max(0, cap - stats.get("dailyAutoPts", 0))
+            earned = min(potential, remaining_cap)
+
+            if earned > 0:
+                stats["dailyAutoPts"]        = stats.get("dailyAutoPts", 0) + earned
+                stats["privatePoints"]       = stats.get("privatePoints", 0) + earned
+                stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + earned
+                stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + earned
+
+            # Always advance the timestamp to "now" so partial intervals don't
+            # accumulate across the cap. The next tick window starts fresh.
+            extras["lastAutoAt"] = now_ms
+
+            g.db.execute("UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                         (json.dumps(stats), json.dumps(extras), sid))
+
             if earned > 0:
                 _log_tx(type="clicker", scope="student", subjectId=sid,
                         subjectName=_full_name(row), amount=earned,
-                        description=f"Auto-clicker (Lv {level}) +{earned} pt")
+                        description=f"Auto-clicker (Lv {level}) +{earned} pt"
+                                    + (" · cap reached" if earned >= remaining_cap and earned < potential else ""))
+
+        next_tick_sec = AUTO_INTERVAL_MIN * 60
         return jsonify(ok=True, data={
-            "earned": earned, "level": level, "capped": capped,
-            "autoClickerClicks": stats["autoClickerClicks"],
+            "earned": earned,
+            "level":  level,
             "dailyAutoPts": stats.get("dailyAutoPts", 0),
             "autoCap": cap,
+            "nextTickInSec": next_tick_sec,
+            "intervalMin": AUTO_INTERVAL_MIN,
+            "capped": (earned >= remaining_cap and potential > remaining_cap),
         })
 
     @app.route("/api/admin/students/<sid>/grant-crane", methods=["POST"])

@@ -332,7 +332,10 @@ const DOOR_PATTERN       = 'RLLLLRLRRLR';
 const CLICKER_ROLE_ID         = 'clicker';
 const MANUAL_DAILY_CAP        = 50;       // max manual-clicker pts per UTC day
 const AUTO_DAILY_CAP_PER_LV   = 14;       // max auto-clicker pts per level per day
-const AUTO_CLICK_INTERVAL_MS  = 60 * 1000; // each auto-clicker fires once per minute
+const AUTO_INTERVAL_MIN       = 6;         // passive accrual cadence (minutes per tick per level)
+const AUTO_INTERVAL_MS        = AUTO_INTERVAL_MIN * 60 * 1000;
+// Backwards-compat alias kept while the portal page is still loading old code paths
+const AUTO_CLICK_INTERVAL_MS  = AUTO_INTERVAL_MS;
 const CRANE_ROLE_ID           = 'crane';
 const CRANE_GLOBAL_LIMIT      = 11;
 const CRANE_CLICKS_TO_UNLOCK  = 100;       // clicks on the about-page crane emoji to trigger claim flow
@@ -544,15 +547,16 @@ async function activateMoneyTree() {
 }
 
 async function autoClickerTap() {
-  // Fire-and-forget, with cache patch on success so the click counter
-  // and points reflect quickly without a full re-fetch.
+  // Time-based passive accrual. The server checks how long it's been
+  // since the student's last call and grants 1 point per AUTO_INTERVAL_MIN
+  // per clicker level (capped at the per-day ceiling). Safe to call as
+  // often as you want — extra calls inside the interval just no-op.
   try {
     const r = await _api('/students/me/auto-click', { method: 'POST' });
     const me = HG.cache.me && HG.cache.me.student;
-    if (r && r.ok && me) {
+    if (r && r.ok && me && r.data) {
       me.stats = me.stats || defaultStats();
-      me.stats.autoClickerClicks = r.data.autoClickerClicks;
-      me.stats.dailyAutoPts      = r.data.dailyAutoPts;
+      me.stats.dailyAutoPts = r.data.dailyAutoPts;
       if (r.data.earned) {
         me.stats.privatePoints       = (me.stats.privatePoints || 0) + r.data.earned;
         me.stats.totalPointsEarned   = (me.stats.totalPointsEarned || 0) + r.data.earned;
@@ -563,7 +567,7 @@ async function autoClickerTap() {
     }
     return r;
   } catch (e) {
-    return { ok: false, error: e.message || 'Auto-click failed.' };
+    return { ok: false, error: e.message || 'Auto-accrual failed.' };
   }
 }
 
