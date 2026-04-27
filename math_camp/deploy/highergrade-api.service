@@ -13,8 +13,11 @@ WorkingDirectory=/var/www/highergrade/math_camp/server
 # Database file — kept outside the git checkout so it survives `git pull`
 Environment=HIGHERGRADE_DB=/var/lib/highergrade/app.db
 
-# Override default admin passcode by editing this file with `sudo systemctl edit highergrade-api`
-# Environment=HIGHERGRADE_ADMIN_PASSCODE=YourSecretPasscode
+# Secrets (Gmail SMTP credentials, custom admin passcode, etc.) live in
+# /etc/highergrade.env on the VM — root:root chmod 600. The leading `-`
+# makes it optional, so the unit still starts in a fresh dev environment
+# without the file. See deploy/DEPLOY.md → "Email setup" for the schema.
+EnvironmentFile=-/etc/highergrade.env
 
 # Use the venv's gunicorn so we don't need to maintain a system-wide install.
 # --preload imports the app ONCE in the master before forking workers, so the

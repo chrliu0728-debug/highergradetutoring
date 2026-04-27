@@ -225,6 +225,54 @@ If you have student data sitting in your admin browser's localStorage
 from before the migration, see [MIGRATE-LOCALSTORAGE.md](MIGRATE-LOCALSTORAGE.md)
 for a one-time import procedure.
 
+### Email setup (Gmail SMTP)
+
+The site sends three kinds of emails through `lucas.liu.ca2009@gmail.com`:
+
+1. **Registration confirmation** — sent to each student/parent when they register.
+2. **Contact form** — `support.html → /api/contact` posts here.
+3. **Sponsor inquiries** — Bronze/Gold/Platinum tier buttons on the
+   support page POST to `/api/sponsor-inquiry`.
+
+The Flask app reads SMTP credentials from `/etc/highergrade.env`, which
+the systemd unit pulls in via `EnvironmentFile`. The file is **not**
+committed to git — its contents only exist on the VM.
+
+**One-time setup on the VM** (skip the comments when you paste):
+
+```bash
+# 1. Generate a Gmail app password for lucas.liu.ca2009@gmail.com:
+#    https://myaccount.google.com/apppasswords
+#    (requires 2-step verification on the Google account first.)
+
+# 2. Drop the credentials into a root-owned, mode-600 env file:
+sudo tee /etc/highergrade.env > /dev/null <<'EOF'
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=lucas.liu.ca2009@gmail.com
+SMTP_PASS=your-16-char-app-password
+SMTP_FROM=HigherGrade Tutoring <lucas.liu.ca2009@gmail.com>
+ORGANIZER_EMAIL=lucas.liu.ca2009@gmail.com
+SITE_URL=https://highergradetutoring.ca
+EOF
+sudo chown root:root /etc/highergrade.env
+sudo chmod 600 /etc/highergrade.env
+
+# 3. Restart so the API process picks up the new env vars
+sudo systemctl restart highergrade-api
+
+# 4. Verify SMTP is wired up by sending a test contact form from
+#    https://highergradetutoring.ca/support.html — the message should
+#    arrive at lucas.liu.ca2009@gmail.com within a few seconds.
+```
+
+If `/etc/highergrade.env` is absent or `SMTP_USER`/`SMTP_PASS` are empty,
+the email helper logs a warning and skips the send — registration and
+contact-form HTTP responses still succeed, but no email goes out.
+
+To rotate the Gmail app password later, just edit `/etc/highergrade.env`
+and `sudo systemctl restart highergrade-api`. No code change required.
+
 ### Database backups → private GitHub repo
 
 A nightly cron snapshots the DB and pushes it to a **private**

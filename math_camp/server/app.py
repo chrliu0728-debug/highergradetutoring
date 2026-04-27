@@ -8,7 +8,9 @@ prefix while continuing to serve the static site directly.
 import json
 import os
 import secrets
+import smtplib
 import time
+from email.message import EmailMessage
 from functools import wraps
 
 from flask import Flask, g, jsonify, request, make_response
@@ -20,6 +22,18 @@ from db import (
 )
 
 ADMIN_PASSCODE = os.environ.get("HIGHERGRADE_ADMIN_PASSCODE", "HigherGrade Tutoring")
+
+# ── SMTP / email config ─────────────────────────────────────────────
+# All four are pulled from the systemd EnvironmentFile (/etc/highergrade.env)
+# on the VM so the Gmail app password never lands in git. Gmail SMTP defaults.
+SMTP_HOST       = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT       = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER       = os.environ.get("SMTP_USER", "")
+SMTP_PASS       = os.environ.get("SMTP_PASS", "")
+SMTP_FROM       = os.environ.get("SMTP_FROM",
+                                 "HigherGrade Tutoring <lucas.liu.ca2009@gmail.com>")
+ORGANIZER_EMAIL = os.environ.get("ORGANIZER_EMAIL", "lucas.liu.ca2009@gmail.com")
+SITE_URL        = os.environ.get("SITE_URL", "https://highergradetutoring.ca")
 COOKIE_NAME    = "hg_session"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 SECURE_COOKIE  = os.environ.get("HIGHERGRADE_SECURE_COOKIE", "1") != "0"
@@ -111,6 +125,63 @@ def create_app():
     return app
 
 
+# ── Email helper ──────────────────────────────────────────────────────
+
+def send_email(to, subject, body, reply_to=None):
+    """Best-effort SMTP send. If credentials aren't configured we log
+    and return False — never raise — so the caller's HTTP path is safe."""
+    if not SMTP_USER or not SMTP_PASS:
+        return False
+    msg = EmailMessage()
+    msg["From"]    = SMTP_FROM
+    msg["To"]      = to
+    msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    msg.set_content(body)
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.ehlo()
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASS)
+            s.send_message(msg)
+        return True
+    except Exception as e:  # noqa: BLE001 — we want to swallow everything
+        # Log and continue — registration / contact responses still succeed
+        try:
+            from flask import current_app
+            current_app.logger.warning("SMTP send to %s failed: %s", to, e)
+        except Exception:
+            pass
+        return False
+
+
+def _send_registration_confirm(student_email, name, parent_email=None):
+    subject = "You're registered for HigherGrade Tutoring Summer Camp 2026 🎉"
+    body = (
+        f"Hi {name or 'there'},\n\n"
+        f"Thanks for registering for HigherGrade Tutoring's Summer Camp 2026!\n\n"
+        f"📅 Camp dates: July 20 – July 31, 2026 (Mon–Fri, both weeks)\n"
+        f"⏰ Hours: 9:00 AM – 3:30 PM daily\n"
+        f"📍 Location: An HDSB school in Oakville (final venue confirmed by July 6)\n"
+        f"💰 Cost: Free — fully funded\n\n"
+        f"A few things to know:\n"
+        f"• The host school may shift before camp starts — please make sure\n"
+        f"  parents/guardians can arrange transport to any HDSB school in\n"
+        f"  Oakville (Abbey Park, Iroquois Ridge, Oakville Trafalgar,\n"
+        f"  White Oaks, etc.).\n"
+        f"• Sign in to your dashboard at {SITE_URL}/student-portal.html\n"
+        f"  to track points, see your class, and find the hidden mini-game.\n"
+        f"• Questions? Reply to this email — it goes straight to the organizers.\n\n"
+        f"See you July 20!\n"
+        f"— The HigherGrade Tutoring team\n"
+    )
+    if student_email:
+        send_email(student_email, subject, body, reply_to=ORGANIZER_EMAIL)
+    if parent_email and parent_email.lower() != (student_email or "").lower():
+        send_email(parent_email, subject, body, reply_to=ORGANIZER_EMAIL)
+
+
 # ── Auth helpers ──────────────────────────────────────────────────────
 
 def _new_token():
@@ -171,6 +242,76 @@ def register_routes(app):
     @app.route("/api/health")
     def health():
         return jsonify(ok=True, ts=int(time.time()))
+
+    # ── Public email endpoints ─────────────────────────────────────
+    @app.route("/api/contact", methods=["POST"])
+    def contact_form():
+        data = request.get_json(silent=True) or {}
+        name    = (data.get("name") or "").strip()
+        email   = (data.get("email") or "").strip()
+        org     = (data.get("org") or "").strip()
+        type_   = (data.get("type") or "General Inquiry").strip()
+        message = (data.get("message") or "").strip()
+        if not name or not email or not message:
+            return jsonify(ok=False, error="Name, email, and message are required."), 400
+        if "@" not in email or len(message) > 5000 or len(name) > 200:
+            return jsonify(ok=False, error="Invalid input."), 400
+
+        subject = f"[Contact form] {type_} from {name}"
+        body = (
+            f"Name: {name}\n"
+            f"Email: {email}\n"
+            f"Organization / School: {org or '(not provided)'}\n"
+            f"Inquiry type: {type_}\n\n"
+            f"Message:\n{message}\n\n"
+            f"---\nSent from {SITE_URL}/support.html\n"
+        )
+        sent = send_email(ORGANIZER_EMAIL, subject, body, reply_to=email)
+        if not sent:
+            return jsonify(
+                ok=False,
+                error=f"Couldn't send right now. Please email {ORGANIZER_EMAIL} directly."
+            ), 502
+        return jsonify(ok=True)
+
+    @app.route("/api/sponsor-inquiry", methods=["POST"])
+    def sponsor_inquiry():
+        data = request.get_json(silent=True) or {}
+        tier = (data.get("tier") or "").strip().lower()
+        name = (data.get("name") or "").strip()
+        email = (data.get("email") or "").strip()
+        org = (data.get("org") or "").strip()
+        notes = (data.get("notes") or "").strip()
+
+        tier_titles = {
+            "supporter": "Become a Supporter ($100+)",
+            "partner":   "Become a Partner ($500+)",
+            "title":     "Become Title Sponsor ($1,000+)",
+        }
+        title = tier_titles.get(tier, "Sponsorship inquiry")
+
+        if not name or not email:
+            return jsonify(ok=False, error="Name and email are required."), 400
+        if "@" not in email or len(name) > 200:
+            return jsonify(ok=False, error="Invalid input."), 400
+
+        body = (
+            f"Sponsorship interest: {title}\n\n"
+            f"Name: {name}\n"
+            f"Email: {email}\n"
+            f"Organization: {org or '(not provided)'}\n"
+            + (f"\nNotes from sender:\n{notes}\n" if notes else "")
+            + f"\n---\nThis person clicked the {title} button on the support page.\n"
+            f"Reply to this email to reach them — Reply-To is set to their address.\n"
+            f"Sent from {SITE_URL}/support.html\n"
+        )
+        sent = send_email(ORGANIZER_EMAIL, title, body, reply_to=email)
+        if not sent:
+            return jsonify(
+                ok=False,
+                error=f"Couldn't send right now. Please email {ORGANIZER_EMAIL} directly."
+            ), 502
+        return jsonify(ok=True)
 
     # ── Auth ───────────────────────────────────────────────────────
     @app.route("/api/auth/me", methods=["GET"])
@@ -264,6 +405,14 @@ def register_routes(app):
         data = request.get_json(silent=True) or {}
         s = _normalize_student(data)
         _insert_student(s)
+        # Best-effort registration confirmation email — never blocks creation.
+        student_email = (data.get("studentEmail") or data.get("student_email") or "").strip()
+        parent_email  = (data.get("parentEmail")  or data.get("parent_email")  or "").strip()
+        full_name = ((data.get("firstName") or "") + " " + (data.get("lastName") or "")).strip()
+        try:
+            _send_registration_confirm(student_email, full_name, parent_email or None)
+        except Exception:  # noqa: BLE001
+            pass
         return jsonify(ok=True, data=s)
 
     @app.route("/api/students", methods=["PUT"])

@@ -168,7 +168,7 @@ Your donation to this category covers the printed certificates, the medals and s
           <ul class="tier-perks">
             <li>A shout-out during our closing ceremony</li>
           </ul>
-          <a href="#contact-sponsor" class="btn btn-ghost btn-full">Get in Touch →</a>
+          <button type="button" class="btn btn-ghost btn-full" data-sponsor-tier="supporter" data-sponsor-title="Become a Supporter">Get in Touch →</button>
         </div>
       </div>
       <div class="support-tier featured reveal">
@@ -186,7 +186,7 @@ Your donation to this category covers the printed certificates, the medals and s
             <li>Feature post on our social channels</li>
             <li>Tax receipt (if applicable)</li>
           </ul>
-          <a href="#contact-sponsor" class="btn btn-blue btn-full">Become a Partner →</a>
+          <button type="button" class="btn btn-blue btn-full" data-sponsor-tier="partner" data-sponsor-title="Become a Partner">Become a Partner →</button>
         </div>
       </div>
       <div class="support-tier reveal">
@@ -204,7 +204,7 @@ Your donation to this category covers the printed certificates, the medals and s
             <li>Dedicated social media campaign</li>
             <li>Detailed impact report after camp</li>
           </ul>
-          <a href="#contact-sponsor" class="btn btn-navy btn-full">Become Title Sponsor →</a>
+          <button type="button" class="btn btn-navy btn-full" data-sponsor-tier="title" data-sponsor-title="Become Title Sponsor">Become Title Sponsor →</button>
         </div>
       </div>
     </div>
@@ -291,12 +291,38 @@ Your donation to this category covers the printed certificates, the medals and s
       </form>
       <div id="contact-success" style="display:none;text-align:center;padding:32px 0;">
         <div style="font-size:2.5rem;margin-bottom:12px;">🎉</div>
-        <h3 style="font-size:1.3rem;font-weight:800;margin-bottom:8px;">Almost done!</h3>
-        <p style="color:var(--muted);">Your email app should have opened with your message pre-filled. Hit send there — and we'll reply within 48 hours.</p>
+        <h3 style="font-size:1.3rem;font-weight:800;margin-bottom:8px;">Message sent!</h3>
+        <p style="color:var(--muted);">Thanks — we'll reply within 48 hours.</p>
       </div>
+      <div id="contact-error" style="display:none;background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B;border-radius:10px;padding:12px 14px;margin-top:12px;font-size:.9rem;"></div>
     </div>
   </div>
 </section>
+
+<!-- ─────────────────── SPONSOR-TIER QUICK MODAL ─────────────────── -->
+<div id="sponsor-modal" style="display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.5);">
+  <div style="background:var(--surface); border-radius:16px; max-width:440px; width:100%; padding:32px 28px; box-shadow:0 30px 80px rgba(0,0,0,.35); position:relative;">
+    <button type="button" id="sponsor-modal-close"
+      style="position:absolute; top:14px; right:14px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--muted); line-height:1; padding:4px 8px;">✕</button>
+    <h3 id="sponsor-modal-title" style="font-size:1.3rem; margin-bottom:6px;">Become a Partner</h3>
+    <p style="color:var(--muted); font-size:.92rem; margin-bottom:18px;">Send us your contact info and we'll reach out within 48 hours.</p>
+    <label style="font-size:.78rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:5px;">Your name <span style="color:#DC2626;">*</span></label>
+    <input type="text" id="sponsor-name" placeholder="Full name" required
+      style="width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:10px; margin-bottom:12px; background:var(--surface2); font-size:.95rem; outline:none;" />
+    <label style="font-size:.78rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:5px;">Email <span style="color:#DC2626;">*</span></label>
+    <input type="email" id="sponsor-email" placeholder="you@example.com" required
+      style="width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:10px; margin-bottom:12px; background:var(--surface2); font-size:.95rem; outline:none;" />
+    <label style="font-size:.78rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:5px;">Organization (optional)</label>
+    <input type="text" id="sponsor-org" placeholder="e.g. ABC Company"
+      style="width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:10px; margin-bottom:14px; background:var(--surface2); font-size:.95rem; outline:none;" />
+    <div id="sponsor-error" style="display:none; background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:.86rem;"></div>
+    <button type="button" id="sponsor-send-btn" class="btn btn-blue btn-full" style="justify-content:center;">Send →</button>
+    <div id="sponsor-success" style="display:none; text-align:center; padding:18px 0 0;">
+      <div style="font-size:2.2rem;">🎉</div>
+      <p style="color:var(--text-mid); margin-top:6px;">Thanks — we'll be in touch within 48 hours.</p>
+    </div>
+  </div>
+</div>
 
 <!-- ─────────────────── FOOTER ─────────────────── -->
 <footer>
@@ -363,7 +389,7 @@ Your donation to this category covers the printed certificates, the medals and s
     });
   })();
 
-  function handleContact(e) {
+  async function handleContact(e) {
     e.preventDefault();
     const form = e.target;
     const btn = form.querySelector('[type="submit"]');
@@ -377,22 +403,110 @@ Your donation to this category covers the printed certificates, the medals and s
     const type    = fd.get('type')    || 'General Inquiry';
     const message = fd.get('message') || '';
 
-    const subject = `HigherGrade Tutoring — ${type} from ${name}`;
-    const body =
-      `Name: ${name}\n` +
-      `Email: ${email}\n` +
-      `Organization / School: ${org}\n` +
-      `Type: ${type}\n\n` +
-      `Message:\n${message}`;
-
-    const mailto = `mailto:lucas.liu.ca2009@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
-
-    setTimeout(() => {
-      document.getElementById('contact-form').style.display = 'none';
-      document.getElementById('contact-success').style.display = 'block';
-    }, 600);
+    const errEl     = document.getElementById('contact-error');
+    const successEl = document.getElementById('contact-success');
+    const formEl    = document.getElementById('contact-form');
+    const submitBtn = formEl.querySelector('button[type="submit"]');
+    errEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, org, type, message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        errEl.textContent = data.error || `Couldn't send (HTTP ${res.status}). Please email lucas.liu.ca2009@gmail.com directly.`;
+        errEl.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Message →';
+        return;
+      }
+      formEl.style.display = 'none';
+      successEl.style.display = 'block';
+    } catch (err) {
+      errEl.textContent = 'Network error — please try again or email lucas.liu.ca2009@gmail.com directly.';
+      errEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Message →';
+    }
   }
+
+  // ── Sponsor-tier quick modal ──
+  (function () {
+    const modal     = document.getElementById('sponsor-modal');
+    const closeBtn  = document.getElementById('sponsor-modal-close');
+    const titleEl   = document.getElementById('sponsor-modal-title');
+    const nameEl    = document.getElementById('sponsor-name');
+    const emailEl   = document.getElementById('sponsor-email');
+    const orgEl     = document.getElementById('sponsor-org');
+    const sendBtn   = document.getElementById('sponsor-send-btn');
+    const errEl     = document.getElementById('sponsor-error');
+    const successEl = document.getElementById('sponsor-success');
+    let currentTier = '';
+
+    function open(tier, title) {
+      currentTier = tier;
+      titleEl.textContent = title;
+      nameEl.value = ''; emailEl.value = ''; orgEl.value = '';
+      errEl.style.display = 'none';
+      successEl.style.display = 'none';
+      sendBtn.style.display = '';
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send →';
+      modal.style.display = 'flex';
+      setTimeout(() => nameEl.focus(), 50);
+    }
+    function close() { modal.style.display = 'none'; }
+
+    document.querySelectorAll('[data-sponsor-tier]').forEach(btn => {
+      btn.addEventListener('click', () => open(btn.dataset.sponsorTier, btn.dataset.sponsorTitle || 'Sponsorship inquiry'));
+    });
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.style.display !== 'none') close(); });
+
+    sendBtn.addEventListener('click', async () => {
+      const name = (nameEl.value || '').trim();
+      const email = (emailEl.value || '').trim();
+      const org = (orgEl.value || '').trim();
+      if (!name || !email) {
+        errEl.textContent = 'Name and email are required.';
+        errEl.style.display = 'block';
+        return;
+      }
+      errEl.style.display = 'none';
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/sponsor-inquiry', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier: currentTier, name, email, org }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          errEl.textContent = data.error || `Couldn't send (HTTP ${res.status}).`;
+          errEl.style.display = 'block';
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send →';
+          return;
+        }
+        sendBtn.style.display = 'none';
+        successEl.style.display = '';
+        setTimeout(close, 2200);
+      } catch (err) {
+        errEl.textContent = 'Network error — please try again.';
+        errEl.style.display = 'block';
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send →';
+      }
+    });
+  })();
 </script>
 </body>
 </html>
