@@ -300,7 +300,17 @@ Your donation to this category covers the printed certificates, the medals and s
 </section>
 
 <!-- ─────────────────── SPONSOR-TIER QUICK MODAL ─────────────────── -->
-<div id="sponsor-modal" style="display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.5);">
+<style>
+  #sponsor-modal {
+    display: none;
+    position: fixed; inset: 0; z-index: 1000;
+    align-items: center; justify-content: center;
+    padding: 20px;
+    background: rgba(0,0,0,.5);
+  }
+  #sponsor-modal.open { display: flex; }
+</style>
+<div id="sponsor-modal">
   <div style="background:var(--surface); border-radius:16px; max-width:440px; width:100%; padding:32px 28px; box-shadow:0 30px 80px rgba(0,0,0,.35); position:relative;">
     <button type="button" id="sponsor-modal-close"
       style="position:absolute; top:14px; right:14px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--muted); line-height:1; padding:4px 8px;">✕</button>
@@ -457,17 +467,17 @@ Your donation to this category covers the printed certificates, the medals and s
       sendBtn.style.display = '';
       sendBtn.disabled = false;
       sendBtn.textContent = 'Send →';
-      modal.style.display = 'flex';
+      modal.classList.add('open');
       setTimeout(() => nameEl.focus(), 50);
     }
-    function close() { modal.style.display = 'none'; }
+    function close() { modal.classList.remove('open'); }
 
     document.querySelectorAll('[data-sponsor-tier]').forEach(btn => {
       btn.addEventListener('click', () => open(btn.dataset.sponsorTier, btn.dataset.sponsorTitle || 'Sponsorship inquiry'));
     });
     closeBtn.addEventListener('click', close);
     modal.addEventListener('click', e => { if (e.target === modal) close(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.style.display !== 'none') close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('open')) close(); });
 
     sendBtn.addEventListener('click', async () => {
       const name = (nameEl.value || '').trim();

@@ -651,6 +651,27 @@ img[src*="placeholder"] {
   padding: 20px;
 }
 .team-modal.open { display: flex; }
+
+/* ────────────────────────────────────────────────────────────────────
+   Lock background scroll while any modal/overlay is showing.
+   `:has()` is supported in every current browser (Safari 15.4+,
+   Chrome 105+, Firefox 121+). One rule covers every modal pattern
+   used across the site.
+   ──────────────────────────────────────────────────────────────────── */
+html:has(.team-modal.open),
+html:has(.unit-modal.open),
+html:has(.edit-modal.open),
+html:has(.spider-overlay.show),
+html:has(#sponsor-modal.open) {
+  overflow: hidden;
+}
+body:has(.team-modal.open),
+body:has(.unit-modal.open),
+body:has(.edit-modal.open),
+body:has(.spider-overlay.show),
+body:has(#sponsor-modal.open) {
+  overflow: hidden;
+}
 .team-modal-backdrop {
   position: absolute; inset: 0;
   background: rgba(20, 10, 25, 0.55);
