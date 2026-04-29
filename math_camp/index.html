@@ -29,20 +29,36 @@
       letter-spacing: .08em; margin-top: 4px;
     }
 
-    /* Clickable unit cards — inherit .card styling but drop native button chrome */
-    button.unit-card {
+    /* Clickable unit / why cards — inherit .card styling but drop native button chrome */
+    button.unit-card,
+    button.why-card {
       display: block; width: 100%;
       font: inherit; color: inherit; text-align: left;
       cursor: pointer;
       border: 1px solid var(--border);
       transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s, border-color .2s;
     }
-    button.unit-card:hover {
+    button.unit-card:hover,
+    button.why-card:hover {
       transform: translateY(-4px);
       box-shadow: 0 14px 36px rgba(0,0,0,.12);
       border-color: var(--blush);
     }
-    button.unit-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
+    button.unit-card:focus-visible,
+    button.why-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
+
+    /* Topic pills inside a unit card become their own clickable buttons */
+    button.topic-pill {
+      font: inherit; color: var(--text-mid); cursor: pointer;
+      transition: border-color .15s, background .15s, color .15s, transform .15s;
+    }
+    button.topic-pill:hover {
+      border-color: var(--blush);
+      background: var(--blush-bg);
+      color: var(--blush-dark);
+      transform: translateY(-1px);
+    }
+    button.topic-pill:focus-visible { outline: 2px solid var(--blush); outline-offset: 2px; }
 
     /* Unit detail modal */
     .unit-modal {
@@ -206,22 +222,23 @@
       <h2 class="section-title">A different kind of<br>math experience</h2>
       <p class="section-desc">Structured like a real course, run entirely by students. We cover the full MTH1W curriculum at pace — with daily problem sets, peer teaching, and a final exam.</p>
     </div>
+    <p style="text-align:center; color:var(--muted); font-size:.88rem; margin: -8px auto 20px;">👆 Click a card to read more</p>
     <div class="grid-3">
-      <div class="card">
+      <button class="card why-card" data-why="led">
         <div class="card-icon" style="background:rgba(232,128,138,.1);">🧠</div>
         <h3>Student-Led Everything</h3>
         <p>Every session, lesson, and problem set is planned and facilitated by Grade 11 and 12 HDSB students who've already aced this material. Real peer learning — no adults running the show.</p>
-      </div>
-      <div class="card">
+      </button>
+      <button class="card why-card" data-why="coverage">
         <div class="card-icon" style="background:rgba(107,191,160,.1);">📚</div>
         <h3>Full MTH1W Coverage</h3>
         <p>We cover the entire Grade 9 math course across 10 intensive days — Grade 8 Review, Algebra, Data, Geometry, and Linear Relations.</p>
-      </div>
-      <div class="card">
+      </button>
+      <button class="card why-card" data-why="problems">
         <div class="card-icon" style="background:rgba(232,128,138,.1);">✏️</div>
         <h3>Daily Problem Sets</h3>
         <p>Hundreds of curated homework questions — tiered by difficulty — to reinforce every concept the same day it's taught. Come ready to work.</p>
-      </div>
+      </button>
     </div>
   </div>
 </section>
@@ -240,50 +257,50 @@
         <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">🔄</div>
         <h3>Unit 1 — Grade 8 Review</h3>
         <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Rational Numbers</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Powers &amp; Roots</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Inequalities</div>
+          <button type="button" class="topic-pill" data-topic="rational" style="font-size:.78rem; padding:4px 10px;">Rational Numbers</button>
+          <button type="button" class="topic-pill" data-topic="powers" style="font-size:.78rem; padding:4px 10px;">Powers &amp; Roots</button>
+          <button type="button" class="topic-pill" data-topic="ineq8" style="font-size:.78rem; padding:4px 10px;">Inequalities</button>
         </div>
       </button>
       <button class="card unit-card" data-unit="2" style="border-top: 3px solid var(--mint);">
         <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📈</div>
         <h3>Unit 2 — Algebra</h3>
         <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Simplifying Expressions</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Solving Equations</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Relations</div>
+          <button type="button" class="topic-pill" data-topic="simplify" style="font-size:.78rem; padding:4px 10px;">Simplifying Expressions</button>
+          <button type="button" class="topic-pill" data-topic="solve-eq" style="font-size:.78rem; padding:4px 10px;">Solving Equations</button>
+          <button type="button" class="topic-pill" data-topic="relations" style="font-size:.78rem; padding:4px 10px;">Relations</button>
         </div>
       </button>
       <button class="card unit-card" data-unit="3" style="border-top: 3px solid var(--blush);">
         <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📊</div>
         <h3>Unit 3 — Data</h3>
         <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Data Literacy</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Statistics</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Mathematical Modelling</div>
+          <button type="button" class="topic-pill" data-topic="data-lit" style="font-size:.78rem; padding:4px 10px;">Data Literacy</button>
+          <button type="button" class="topic-pill" data-topic="stats" style="font-size:.78rem; padding:4px 10px;">Statistics</button>
+          <button type="button" class="topic-pill" data-topic="modelling" style="font-size:.78rem; padding:4px 10px;">Mathematical Modelling</button>
         </div>
       </button>
       <button class="card unit-card" data-unit="4" style="border-top: 3px solid var(--mint);">
         <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📐</div>
         <h3>Unit 4 — Geometry</h3>
         <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Measurement</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Pythagorean Theorem</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Shape Areas</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Geometric Properties</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Coordinate Geometry</div>
+          <button type="button" class="topic-pill" data-topic="measurement" style="font-size:.78rem; padding:4px 10px;">Measurement</button>
+          <button type="button" class="topic-pill" data-topic="pythag" style="font-size:.78rem; padding:4px 10px;">Pythagorean Theorem</button>
+          <button type="button" class="topic-pill" data-topic="areas" style="font-size:.78rem; padding:4px 10px;">Shape Areas</button>
+          <button type="button" class="topic-pill" data-topic="geom-props" style="font-size:.78rem; padding:4px 10px;">Geometric Properties</button>
+          <button type="button" class="topic-pill" data-topic="coord-geom" style="font-size:.78rem; padding:4px 10px;">Coordinate Geometry</button>
         </div>
       </button>
       <button class="card unit-card" data-unit="5" style="border-top: 3px solid var(--blush); grid-column: span 2 / span 2;">
         <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📉</div>
         <h3>Unit 5 — Linear Relations</h3>
         <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Linear Equations</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Slope-Intercept Form</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Graphing Equations</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Solving Linear Equations</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Parallel &amp; Perpendicular Lines</div>
-          <div class="topic-pill" style="font-size:.78rem; padding:4px 10px;">Linear Inequalities</div>
+          <button type="button" class="topic-pill" data-topic="linear-eq" style="font-size:.78rem; padding:4px 10px;">Linear Equations</button>
+          <button type="button" class="topic-pill" data-topic="slope-int" style="font-size:.78rem; padding:4px 10px;">Slope-Intercept Form</button>
+          <button type="button" class="topic-pill" data-topic="graphing" style="font-size:.78rem; padding:4px 10px;">Graphing Equations</button>
+          <button type="button" class="topic-pill" data-topic="solve-linear" style="font-size:.78rem; padding:4px 10px;">Solving Linear Equations</button>
+          <button type="button" class="topic-pill" data-topic="parallel-perp" style="font-size:.78rem; padding:4px 10px;">Parallel &amp; Perpendicular Lines</button>
+          <button type="button" class="topic-pill" data-topic="lin-ineq" style="font-size:.78rem; padding:4px 10px;">Linear Inequalities</button>
         </div>
       </button>
     </div>
@@ -546,14 +563,320 @@
     },
   };
 
-  function openUnit(n) {
-    const u = UNITS[n];
-    if (!u) return;
-    iconEl.textContent    = u.icon;
-    eyebrowEl.textContent = u.eyebrow;
-    titleEl.textContent   = u.title;
-    ledeEl.textContent    = u.lede;
-    bodyEl.innerHTML      = u.body;
+  const WHY = {
+    led: {
+      icon: '🧠', eyebrow: 'Why Us · Peer Learning',
+      title: 'Student-Led Everything',
+      lede: 'Every minute of camp — lessons, problem sets, reviews, even the final exam — is designed and delivered by Grade 11 and 12 HDSB students who finished MTH1W with top marks.',
+      body: `
+        <h4>Why this matters</h4>
+        <p>Older students remember exactly which parts of Grade 9 math felt confusing the first time, and they explain those parts the way they wish someone had explained them. The vibe is closer to a study group than a classroom.</p>
+        <h4>What it looks like in practice</h4>
+        <p>Each period is led by 1–2 instructors who walk through worked examples, then run guided practice on the board, then circulate while you work. There's a faculty advisor on site for safety and support, but they don't run the math.</p>
+        <h4>Who's behind it</h4>
+        <p>Our team is made up of HDSB students currently in Grade 11/12 with strong track records in MPM2D, MCR3U, and MHF4U. Many have tutored privately or volunteered in school math help rooms.</p>
+      `
+    },
+    coverage: {
+      icon: '📚', eyebrow: 'Why Us · Curriculum',
+      title: 'Full MTH1W Coverage',
+      lede: 'We cover the entire Ontario Grade 9 De-streamed Math curriculum (MTH1W) across 10 intensive days — every strand, every expectation.',
+      body: `
+        <h4>The five strands we cover</h4>
+        <p><strong>Number</strong> — rational numbers, powers, roots, exponent laws.</p>
+        <p><strong>Algebra</strong> — simplifying expressions, solving equations, introducing relations.</p>
+        <p><strong>Data</strong> — data literacy, descriptive statistics, mathematical modelling.</p>
+        <p><strong>Geometry &amp; Measurement</strong> — Pythagorean theorem, shape areas and surface areas, geometric properties, coordinate geometry.</p>
+        <p><strong>Linear Relations</strong> — the biggest unit: forms of linear equations, slope, graphing, applications, parallel/perpendicular lines, linear inequalities.</p>
+        <h4>Why an accelerated pace?</h4>
+        <p>Grade 9 math, when stretched over a full school year, often feels disconnected. Doing it intensively over 10 days lets you see how the strands actually connect — algebra into linear relations, measurement into coordinate geometry — instead of forgetting Unit 1 by the time Unit 5 hits.</p>
+      `
+    },
+    problems: {
+      icon: '✏️', eyebrow: 'Why Us · Practice',
+      title: 'Daily Problem Sets',
+      lede: 'Hundreds of curated practice questions, tiered by difficulty, handed out fresh each day. Math is a skill — you build it by doing problems, not by watching someone else do them.',
+      body: `
+        <h4>How the sets are built</h4>
+        <p>Most days you'll get 60–100 questions split across <em>easy</em> (build the muscle), <em>medium</em> (combine two ideas), and <em>thinking</em> (apply the concept somewhere unfamiliar). Hardest days have ~200 mixed problems, but with three hours of in-class time to work through them.</p>
+        <h4>How we use them</h4>
+        <p>Problem sets are reviewed the next morning during Period 1 — full solutions on the board, plus one-on-one help from instructors. We don't grade them. The point is reps and feedback, not marks.</p>
+        <h4>What you should bring</h4>
+        <p>A notebook, a couple of pencils, and the willingness to be wrong on the first try. That's how you actually learn math.</p>
+      `
+    }
+  };
+
+  const TOPICS = {
+    /* Unit 1 — Grade 8 Review */
+    rational: {
+      icon: '🔢', eyebrow: 'Unit 1 · Topic',
+      title: 'Rational Numbers',
+      lede: 'Any number you can write as a fraction of two integers — including negatives, decimals that terminate, and decimals that repeat. The foundation for almost everything else in Grade 9 math.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Add, subtract, multiply, and divide fractions, decimals, and integers — including mixing them in the same expression.</p>
+        <p>Apply the order of operations (BEDMAS) when negatives, fractions, and exponents are all in play.</p>
+        <p>Convert between fraction, decimal, and percent forms fluidly.</p>
+        <h4>Where it shows up later</h4>
+        <p>Solving equations in Unit 2, computing slope in Unit 5, and basically every word problem all year. If your fraction arithmetic is shaky, fix it here.</p>
+      `
+    },
+    powers: {
+      icon: '⚡', eyebrow: 'Unit 1 · Topic',
+      title: 'Powers & Roots',
+      lede: 'Exponents are repeated multiplication; roots are the inverse. Together they let you write very big and very small numbers compactly and reason about them quickly.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Apply exponent laws — product, quotient, power-of-a-power, zero exponent, negative exponent.</p>
+        <p>Estimate square and cube roots that aren't perfect, and explain why √2 is irrational.</p>
+        <p>Read and write numbers in scientific notation (e.g., 6.02 × 10²³).</p>
+        <h4>Why it matters</h4>
+        <p>Exponent rules return in MPM2D and every grade after. The cleaner your habits here, the less rework later.</p>
+      `
+    },
+    ineq8: {
+      icon: '⚖️', eyebrow: 'Unit 1 · Topic',
+      title: 'Inequalities (Intro)',
+      lede: 'Like equations, but instead of "equals" we have "less than", "greater than", "at most", or "at least". One small twist: multiplying or dividing by a negative flips the sign.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Read inequality statements written as words, symbols, or number lines, and translate between them.</p>
+        <p>Solve simple one-variable inequalities like 3x − 5 ≥ 7, and graph the solution on a number line.</p>
+        <p>Recognize when a solution is an interval (e.g., x &gt; 4) vs. a single value.</p>
+        <h4>Where it shows up later</h4>
+        <p>Linear inequalities (Unit 5) and constraint problems in MPM2D.</p>
+      `
+    },
+
+    /* Unit 2 — Algebra */
+    simplify: {
+      icon: '🧮', eyebrow: 'Unit 2 · Topic',
+      title: 'Simplifying Expressions',
+      lede: 'Rewriting an algebraic expression so it has fewer terms or factors, without changing what it means. Step zero before solving.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Combine like terms — only terms with the exact same variable part can merge.</p>
+        <p>Apply the distributive property in both directions: a(b + c) = ab + ac, and factoring out a GCF.</p>
+        <p>Substitute given values for variables and evaluate carefully (watch the negatives).</p>
+        <h4>Common slip-ups</h4>
+        <p>Treating 3x and 3x² as like terms (they aren't), or forgetting to distribute the negative when an expression has a − sign in front of a bracket.</p>
+      `
+    },
+    'solve-eq': {
+      icon: '🟰', eyebrow: 'Unit 2 · Topic',
+      title: 'Solving Equations',
+      lede: 'Finding the value of the variable that makes the equation true. The whole game: do the same thing to both sides until the variable is alone.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Solve one-step and two-step linear equations.</p>
+        <p>Solve equations with the variable on both sides, with brackets, or with fractions and decimals.</p>
+        <p>Check your answer by substituting it back in.</p>
+        <h4>Strategy</h4>
+        <p>Always plan the inverse-operation order before you start: undo addition/subtraction first, then multiplication/division. With brackets, decide whether to distribute or to multiply through by the LCD first — both work.</p>
+      `
+    },
+    relations: {
+      icon: '🔗', eyebrow: 'Unit 2 · Topic',
+      title: 'Relations',
+      lede: 'A relation is any pairing between two sets — usually called <em>x</em> values and <em>y</em> values. The setup that turns into "functions" later, and the bridge into Unit 5.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Read a relation given as a table, a set of ordered pairs, a graph, or a rule.</p>
+        <p>Convert between those four representations.</p>
+        <p>Spot a linear relation: equal x-step produces equal y-step (constant first differences).</p>
+        <h4>Where it shows up later</h4>
+        <p>Everywhere in Unit 5 and in every math course after. Get fluent here.</p>
+      `
+    },
+
+    /* Unit 3 — Data */
+    'data-lit': {
+      icon: '🔍', eyebrow: 'Unit 3 · Topic',
+      title: 'Data Literacy',
+      lede: 'Reading data critically — knowing what a chart actually says, what it leaves out, and when someone is using a graph to mislead you.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Identify misleading axes (truncated y-axes, inconsistent scales, dual-axis tricks).</p>
+        <p>Tell the difference between correlation and causation.</p>
+        <p>Pick the right chart type for a question — bar, line, scatter, histogram, box plot.</p>
+        <h4>Why it matters</h4>
+        <p>Most "math in real life" is data interpretation. The Ontario curriculum leans hard into this strand because it's the most directly useful — for school, for work, for being a citizen who reads news.</p>
+      `
+    },
+    stats: {
+      icon: '📊', eyebrow: 'Unit 3 · Topic',
+      title: 'Statistics',
+      lede: 'Summarizing a dataset with a few numbers — central tendency (mean, median, mode) and spread (range).',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Compute mean, median, mode, and range from a list or a frequency table.</p>
+        <p>Choose the best measure of centre for a given dataset — median for skewed data, mean for symmetric, mode for categorical.</p>
+        <p>Explain how an outlier moves each measure (a lot for the mean, barely for the median).</p>
+      `
+    },
+    modelling: {
+      icon: '🧩', eyebrow: 'Unit 3 · Topic',
+      title: 'Mathematical Modelling',
+      lede: 'Translating a real-world situation into a mathematical statement you can actually solve. The hardest part of word problems — and the most useful skill in this course.',
+      body: `
+        <h4>The four-step loop</h4>
+        <p><strong>1. Understand</strong> the situation in plain words. <strong>2. Model</strong> with a variable, equation, or graph. <strong>3. Solve.</strong> <strong>4. Interpret</strong> — does the answer make sense in the original context?</p>
+        <h4>Common contexts</h4>
+        <p>Cell-phone plans (linear), filling tanks at constant rates, comparing two pricing options. We'll do all of these.</p>
+      `
+    },
+
+    /* Unit 4 — Geometry */
+    measurement: {
+      icon: '📏', eyebrow: 'Unit 4 · Topic',
+      title: 'Measurement',
+      lede: 'Units, conversions, and the difference between length, area, and volume. Sounds simple — but trip on this and the rest of geometry falls over.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Convert between metric units (mm ↔ cm ↔ m ↔ km), and between metric and imperial when needed.</p>
+        <p>Know that area scales with the square of length, volume with the cube — so doubling a side multiplies area by 4 and volume by 8.</p>
+        <p>Use significant figures sensibly — don't write 7 decimal places for a measurement made with a ruler.</p>
+      `
+    },
+    pythag: {
+      icon: '📐', eyebrow: 'Unit 4 · Topic',
+      title: 'Pythagorean Theorem',
+      lede: 'In a right-angled triangle, a² + b² = c², where c is the hypotenuse (the side across from the 90° angle). The single most-used identity in Grade 9.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Find the missing side of a right triangle given the other two.</p>
+        <p>Recognize when a problem secretly has a right triangle in it (ladders against walls, distances on a grid, diagonals of rectangles).</p>
+        <p>Decide if three given lengths actually form a right triangle.</p>
+        <h4>Where it shows up later</h4>
+        <p>Distance formula in coordinate geometry (same equation, different costume), and trigonometry in MPM2D.</p>
+      `
+    },
+    areas: {
+      icon: '🟦', eyebrow: 'Unit 4 · Topic',
+      title: 'Shape Areas',
+      lede: 'Computing the area of triangles, quadrilaterals, circles, and composite shapes — and the surface area / volume of common 3D solids.',
+      body: `
+        <h4>2D formulas you should know cold</h4>
+        <p>Triangle: ½ × b × h. Parallelogram: b × h. Trapezoid: ½ (a + b) h. Circle: π r².</p>
+        <h4>3D formulas you should know cold</h4>
+        <p>Rectangular prism, cylinder, cone, pyramid, sphere — surface area and volume each.</p>
+        <h4>The real skill</h4>
+        <p>Composite shapes — break the unfamiliar shape into familiar ones, sum (or subtract) the areas. Practice this until it's reflexive.</p>
+      `
+    },
+    'geom-props': {
+      icon: '📐', eyebrow: 'Unit 4 · Topic',
+      title: 'Geometric Properties',
+      lede: 'The angle relationships that fall out of parallel lines, transversals, and triangle sums. Most "find the missing angle" problems use one of three or four facts.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Use vertically opposite, supplementary, and complementary angles.</p>
+        <p>Use co-interior, alternate, and corresponding angles when a transversal cuts parallel lines.</p>
+        <p>Use triangle angle sum (180°) and exterior angle theorems.</p>
+        <h4>Strategy</h4>
+        <p>When a diagram has lots of angles, mark every angle you can deduce in one step. Repeat. Most problems crack within 2–3 rounds.</p>
+      `
+    },
+    'coord-geom': {
+      icon: '🗺️', eyebrow: 'Unit 4 · Topic',
+      title: 'Coordinate Geometry',
+      lede: 'Geometry done on the Cartesian plane — distance, midpoint, and slope between two points. Half algebra, half geometry, all useful.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Plot points and read coordinates correctly (x then y).</p>
+        <p>Compute distance between two points using d = √((x₂ − x₁)² + (y₂ − y₁)²) — yes, that's just Pythagoras.</p>
+        <p>Compute midpoint as the average of x's and the average of y's.</p>
+        <p>Compute slope as rise over run (y₂ − y₁) / (x₂ − x₁).</p>
+        <h4>Where it shows up later</h4>
+        <p>All of Unit 5, and basically every math course after.</p>
+      `
+    },
+
+    /* Unit 5 — Linear Relations */
+    'linear-eq': {
+      icon: '📐', eyebrow: 'Unit 5 · Topic',
+      title: 'Linear Equations',
+      lede: 'An equation whose graph is a straight line. The defining property: equal change in x produces equal change in y.',
+      body: `
+        <h4>The three forms you'll meet</h4>
+        <p><strong>Slope-intercept</strong>: y = mx + b — easiest to graph.</p>
+        <p><strong>Point-slope</strong>: y − y₁ = m(x − x₁) — easiest to write when you know slope and one point.</p>
+        <p><strong>Standard</strong>: Ax + By = C — easiest to find intercepts.</p>
+        <h4>What you should be able to do</h4>
+        <p>Convert fluently between all three forms, and pick whichever makes the current problem easiest.</p>
+      `
+    },
+    'slope-int': {
+      icon: '📈', eyebrow: 'Unit 5 · Topic',
+      title: 'Slope-Intercept Form',
+      lede: 'y = mx + b. m is the slope (steepness), b is the y-intercept (where the line crosses the y-axis). Read the equation, sketch the line in seconds.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Identify slope and y-intercept from any equation written in this form.</p>
+        <p>Graph a line from y = mx + b in under 30 seconds: plot (0, b), then use rise/run to plot a second point.</p>
+        <p>Build the equation when given a graph or a table — read off b, compute m.</p>
+        <h4>Real-world meaning</h4>
+        <p>b is the starting value, m is the rate of change. Cell plan: b is the monthly fee, m is the per-minute charge.</p>
+      `
+    },
+    graphing: {
+      icon: '📊', eyebrow: 'Unit 5 · Topic',
+      title: 'Graphing Equations',
+      lede: 'Turning an equation into a picture. Several reliable strategies depending on what form the equation is in.',
+      body: `
+        <h4>Three reliable strategies</h4>
+        <p><strong>Slope-intercept method</strong> — start at the y-intercept, use rise/run.</p>
+        <p><strong>Two-intercept method</strong> — set y = 0 to find x-intercept, set x = 0 to find y-intercept, draw the line through both.</p>
+        <p><strong>Table of values</strong> — plug in three x's, plot the points, draw through them.</p>
+        <h4>Tip</h4>
+        <p>Always plot at least three points (not two), so you'd notice if you made an arithmetic mistake — three colinear points means you're probably right.</p>
+      `
+    },
+    'solve-linear': {
+      icon: '🛠️', eyebrow: 'Unit 5 · Topic',
+      title: 'Solving Linear Equations',
+      lede: 'A more advanced version of Unit 2 solving — same logic, but now with brackets, fractions on both sides, and word-problem framing.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Solve multi-step equations with variables on both sides, including those with nested brackets.</p>
+        <p>Clear fractions early by multiplying both sides by the LCD.</p>
+        <p>Translate a word problem into an equation, solve it, then verify the answer makes sense (units, magnitude, sign).</p>
+        <h4>Common slip-ups</h4>
+        <p>Forgetting to apply an operation to <em>every</em> term on a side, or distributing a negative incorrectly.</p>
+      `
+    },
+    'parallel-perp': {
+      icon: '🪡', eyebrow: 'Unit 5 · Topic',
+      title: 'Parallel & Perpendicular Lines',
+      lede: 'Two lines are parallel when they have the same slope. They are perpendicular when their slopes multiply to −1 (i.e., one is the negative reciprocal of the other).',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Decide whether two given lines are parallel, perpendicular, or neither.</p>
+        <p>Find the equation of a line parallel (or perpendicular) to a given line, passing through a given point.</p>
+        <p>Use these properties to solve geometry problems on the coordinate plane (e.g., showing a quadrilateral is a rectangle).</p>
+      `
+    },
+    'lin-ineq': {
+      icon: '⛔', eyebrow: 'Unit 5 · Topic',
+      title: 'Linear Inequalities',
+      lede: 'Inequalities that involve a linear expression. Solve them like equations, with one twist: flip the inequality sign whenever you multiply or divide by a negative.',
+      body: `
+        <h4>What you should be able to do</h4>
+        <p>Solve linear inequalities and write the answer in interval, set-builder, and number-line form.</p>
+        <p>Graph linear inequalities in two variables (e.g., y &gt; 2x + 1) — dashed line for strict, solid for inclusive, shade the correct half-plane.</p>
+        <p>Translate inequality word problems ("at most", "no more than", "at least") into mathematical statements.</p>
+      `
+    }
+  };
+
+  function openModal(data) {
+    if (!data) return;
+    iconEl.textContent    = data.icon;
+    eyebrowEl.textContent = data.eyebrow;
+    titleEl.textContent   = data.title;
+    ledeEl.innerHTML      = data.lede;
+    bodyEl.innerHTML      = data.body;
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
@@ -566,7 +889,19 @@
   }
 
   document.querySelectorAll('.unit-card').forEach(btn => {
-    btn.addEventListener('click', () => openUnit(btn.dataset.unit));
+    btn.addEventListener('click', e => {
+      if (e.target.closest('.topic-pill')) return;
+      openModal(UNITS[btn.dataset.unit]);
+    });
+  });
+  document.querySelectorAll('.topic-pill').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openModal(TOPICS[btn.dataset.topic]);
+    });
+  });
+  document.querySelectorAll('.why-card').forEach(btn => {
+    btn.addEventListener('click', () => openModal(WHY[btn.dataset.why]));
   });
   backdrop.addEventListener('click', closeUnit);
   closeBtn.addEventListener('click', closeUnit);
