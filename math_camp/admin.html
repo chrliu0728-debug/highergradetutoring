@@ -348,6 +348,7 @@
     <a href="admin-base-stats.html">Base Stats</a>
     <a href="admin-transactions.html">Transactions</a>
     <a href="admin-hints.html">Game</a>
+    <a href="admin-registrations.html">Registrations</a>
     <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
     <a href="index.html" data-admin-logout>Log out</a>
@@ -359,6 +360,16 @@
       <h1>Welcome — let's manage the team</h1>
       <p>Use the tabs above to switch between sections. Most changes save automatically as soon as you make them.</p>
     </div>
+  </div>
+
+  <!-- ── Camp-wide controls: point freeze ── -->
+  <div id="freeze-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm); display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
+    <div style="flex:1; min-width:260px;">
+      <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Camp-wide controls</div>
+      <h2 style="font-size:1.1rem; margin:0 0 4px;">🧊 Point transactions <span id="freeze-status" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);">— loading…</span></h2>
+      <p style="font-size:.88rem; color:var(--muted); margin:0; line-height:1.5;">When frozen, students cannot earn or lose points from clicker, transfers, money tree, doors, mazewiz, or crane. Admin transactions still work for record-keeping. Use this during exams or while you're auditing balances.</p>
+    </div>
+    <button id="freeze-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:170px;">Loading…</button>
   </div>
 
   <div class="admin-header">
@@ -834,6 +845,68 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
     location.href = a.getAttribute('href') || 'index.html';
   });
 });
+
+/* ── Point-transaction freeze toggle ── */
+(function () {
+  const statusEl = document.getElementById('freeze-status');
+  const btnEl    = document.getElementById('freeze-btn');
+  const cardEl   = document.getElementById('freeze-card');
+  if (!statusEl || !btnEl || !cardEl) return;
+
+  function paint(frozen) {
+    if (frozen) {
+      statusEl.textContent = '— FROZEN';
+      statusEl.style.color = '#B91C1C';
+      btnEl.textContent = 'Unfreeze 🔓';
+      btnEl.style.background = '#16A34A';
+      btnEl.style.color = 'white';
+      btnEl.style.borderColor = '#16A34A';
+      cardEl.style.background = 'rgba(220, 38, 38, .04)';
+      cardEl.style.borderColor = '#FCA5A5';
+    } else {
+      statusEl.textContent = '— LIVE';
+      statusEl.style.color = '#0F8A56';
+      btnEl.textContent = 'Freeze all transactions 🔒';
+      btnEl.style.background = '#DC2626';
+      btnEl.style.color = 'white';
+      btnEl.style.borderColor = '#DC2626';
+      cardEl.style.background = 'var(--surface)';
+      cardEl.style.borderColor = 'var(--border)';
+    }
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/settings/points-frozen', { credentials: 'same-origin' });
+      const j = await r.json();
+      paint(!!j.frozen);
+    } catch (_) {
+      statusEl.textContent = '— unavailable';
+    }
+  }
+
+  btnEl.addEventListener('click', async () => {
+    const wasFrozen = btnEl.textContent.startsWith('Unfreeze');
+    if (!wasFrozen && !confirm('Freeze all point transactions across the camp?\n\nStudents will see a "frozen" message when they try to earn or lose points until you unfreeze.')) return;
+    btnEl.disabled = true;
+    try {
+      const r = await fetch('/api/admin/settings/points-frozen', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frozen: !wasFrozen }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'failed');
+      paint(!!j.frozen);
+    } catch (err) {
+      alert('Failed to update: ' + err.message);
+    } finally {
+      btnEl.disabled = false;
+    }
+  });
+
+  load();
+})();
 </script>
 </body>
 </html>

@@ -234,6 +234,40 @@ def require_student(fn):
     return wrapper
 
 
+def _meta_get(key, default=None):
+    row = g.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def _meta_set(key, value):
+    g.db.execute(
+        "INSERT INTO meta (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+
+
+def _points_frozen():
+    return _meta_get("points_frozen", "0") == "1"
+
+
+def block_when_frozen(fn):
+    """Reject the request with 423 Locked if point transactions are frozen.
+    Admin sessions still bypass — they can edit transactions if needed."""
+    @wraps(fn)
+    def wrapper(*a, **kw):
+        s = _current_session()
+        is_admin = bool(s and s["kind"] == "admin")
+        if not is_admin and _points_frozen():
+            return jsonify(
+                ok=False,
+                frozen=True,
+                error="Point transactions are currently frozen by an admin.",
+            ), 423
+        return fn(*a, **kw)
+    return wrapper
+
+
 # ── Route registry ────────────────────────────────────────────────────
 
 def register_routes(app):
@@ -444,6 +478,7 @@ def register_routes(app):
     # ── Student-side actions (server-validated) ────────────────────
     @app.route("/api/students/me/transfer", methods=["POST"])
     @require_student
+    @block_when_frozen
     def transfer():
         data = request.get_json(silent=True) or {}
         to_id = data.get("toId")
@@ -490,6 +525,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/luck", methods=["POST"])
     @require_student
+    @block_when_frozen
     def invest_luck():
         sid = g.session["studentId"]
         with g.db:
@@ -509,6 +545,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/click", methods=["POST"])
     @require_student
+    @block_when_frozen
     def clicker_tap():
         sid = g.session["studentId"]
         today = time.strftime("%Y-%m-%d", time.gmtime())
@@ -550,6 +587,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/auto-click", methods=["POST"])
     @require_student
+    @block_when_frozen
     def auto_click():
         """Time-based passive auto-accrual. Replaces the old per-minute
         UI-click trigger — the 'clickers don't actually click' issue.
@@ -687,6 +725,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/claim-doors", methods=["POST"])
     @require_student
+    @block_when_frozen
     def claim_doors():
         """Score-based reward for the 300-door math maze.
 
@@ -755,6 +794,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/claim-money-tree", methods=["POST"])
     @require_student
+    @block_when_frozen
     def claim_money_tree():
         """Globally unique role: only one student in the entire DB can
         ever hold Money Tree. The first student to find the criss-cross
@@ -783,6 +823,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/money-tree/activate", methods=["POST"])
     @require_student
+    @block_when_frozen
     def money_tree_activate():
         """Spend MONEY_TREE_COST private points and double whatever's left.
         Removes the role on success (one-time use)."""
@@ -812,6 +853,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/money-tree/gift", methods=["POST"])
     @require_student
+    @block_when_frozen
     def money_tree_gift():
         """Transfer the Money Tree role from the signed-in student to another."""
         data = request.get_json(silent=True) or {}
@@ -846,6 +888,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/claim-crane", methods=["POST"])
     @require_student
+    @block_when_frozen
     def claim_crane():
         """Unlimited — any student who completes the claim flow earns the
         Paper Crane. Each student can still only hold one."""
@@ -914,6 +957,7 @@ def register_routes(app):
 
     @app.route("/api/students/me/mazewiz", methods=["POST"])
     @require_student
+    @block_when_frozen
     def claim_mazewiz():
         sid = g.session["studentId"]
         with g.db:
@@ -1149,6 +1193,84 @@ def register_routes(app):
                     )
                 imported["staff"] = len(data["staff"])
         return jsonify(ok=True, imported=imported)
+
+    # ── Settings: point-transaction freeze ─────────────────────────
+    @app.route("/api/settings/points-frozen", methods=["GET"])
+    def settings_points_frozen():
+        return jsonify(ok=True, frozen=_points_frozen())
+
+    @app.route("/api/admin/settings/points-frozen", methods=["POST"])
+    @require_admin
+    def settings_points_frozen_set():
+        data = request.get_json(silent=True) or {}
+        frozen = bool(data.get("frozen"))
+        _meta_set("points_frozen", "1" if frozen else "0")
+        return jsonify(ok=True, frozen=frozen)
+
+    # ── Camp registration intake ────────────────────────────────────
+    @app.route("/api/camp/register", methods=["POST"])
+    def camp_register():
+        d = request.get_json(silent=True) or {}
+        first = (d.get("first_name") or "").strip()
+        last  = (d.get("last_name")  or "").strip()
+        if not first or not last:
+            return jsonify(ok=False, error="First and last name are required."), 400
+        rid = "reg-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO registrations
+               (id, createdAt, firstName, lastName, dob, studentEmail, school,
+                parentFirst, parentLast, relationship, parentPhone, parentEmail,
+                emerg1Name, emerg1Phone, emerg1Relationship,
+                hobbies, whyJoin, consentPhoto)
+               VALUES
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                rid, int(time.time()),
+                first, last,
+                (d.get("dob") or "").strip() or None,
+                (d.get("student_email") or "").strip() or None,
+                (d.get("school") or "").strip() or None,
+                (d.get("parent_first") or "").strip() or None,
+                (d.get("parent_last")  or "").strip() or None,
+                (d.get("relationship") or "").strip() or None,
+                (d.get("parent_phone") or "").strip() or None,
+                (d.get("parent_email") or "").strip() or None,
+                (d.get("emerg1_name") or "").strip() or None,
+                (d.get("emerg1_phone") or "").strip() or None,
+                (d.get("emerg1_relationship") or "").strip() or None,
+                (d.get("hobbies") or None),
+                (d.get("why_join") or None),
+                1 if d.get("consent_photo") else 0,
+            ),
+        )
+        try:
+            _send_registration_confirm(
+                (d.get("student_email") or "").strip(),
+                f"{first} {last}".strip(),
+                (d.get("parent_email") or "").strip() or None,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        return jsonify(ok=True, id=rid)
+
+    @app.route("/api/admin/registrations", methods=["GET"])
+    @require_admin
+    def admin_list_registrations():
+        rows = g.db.execute(
+            "SELECT * FROM registrations ORDER BY createdAt DESC"
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["consentPhoto"] = bool(d.get("consentPhoto"))
+            out.append(d)
+        return jsonify(ok=True, data=out)
+
+    @app.route("/api/admin/registrations/<rid>", methods=["DELETE"])
+    @require_admin
+    def admin_delete_registration(rid):
+        g.db.execute("DELETE FROM registrations WHERE id = ?", (rid,))
+        return jsonify(ok=True)
 
     # ── Camp reset (scoped) ────────────────────────────────────────
     # Wipes students, classes, and roles (re-seeding the default roles

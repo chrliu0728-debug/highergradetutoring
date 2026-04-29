@@ -47,18 +47,12 @@
     button.unit-card:focus-visible,
     button.why-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
 
-    /* Topic pills inside a unit card become their own clickable buttons */
+    /* Topic pills inside a unit card become their own clickable buttons —
+       look identical to the original div pills */
     button.topic-pill {
-      font: inherit; color: var(--text-mid); cursor: pointer;
-      transition: border-color .15s, background .15s, color .15s, transform .15s;
+      font: inherit; cursor: pointer;
     }
-    button.topic-pill:hover {
-      border-color: var(--blush);
-      background: var(--blush-bg);
-      color: var(--blush-dark);
-      transform: translateY(-1px);
-    }
-    button.topic-pill:focus-visible { outline: 2px solid var(--blush); outline-offset: 2px; }
+    button.topic-pill:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
 
     /* Unit detail modal */
     .unit-modal {

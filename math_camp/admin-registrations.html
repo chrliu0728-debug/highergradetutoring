@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registrations Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="logo.webp" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1500px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: flex; gap: 18px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px 28px; margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon { font-size: 2rem; }
+    .admin-welcome h1 { font-size: 1.3rem; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .92rem; color: var(--muted); margin: 0; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+    .panel-head {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px;
+      margin-bottom: 12px;
+    }
+    .panel-head h2 { font-size: 1.05rem; }
+    .panel-head .count { font-size: .85rem; color: var(--muted); }
+    .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-tidy {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 14px; font-size: .85rem;
+      border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .btn-tidy:hover { background: var(--blush-bg); border-color: var(--blush); color: var(--blush-dark); }
+
+    .search-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      align-items: center; margin-bottom: 14px;
+    }
+    .search-row input {
+      flex: 1; min-width: 220px;
+      padding: 9px 14px; font-size: .9rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none;
+    }
+    .search-row input:focus { border-color: var(--blush); background: white; }
+
+    .reg-table-wrap { overflow-x: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px; }
+    table.reg-table {
+      width: 100%; border-collapse: collapse; font-size: .82rem; min-width: 1700px;
+    }
+    table.reg-table th,
+    table.reg-table td {
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+      text-align: left; vertical-align: top;
+      white-space: nowrap;
+    }
+    table.reg-table td.wrap { white-space: normal; max-width: 280px; }
+    table.reg-table th {
+      background: var(--surface2);
+      font-weight: 700; font-size: .76rem;
+      letter-spacing: .04em; text-transform: uppercase;
+      color: var(--text-mid);
+      position: sticky; top: 0; z-index: 1;
+    }
+    table.reg-table tr:hover td { background: rgba(232,128,138,.04); }
+    table.reg-table .row-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+    table.reg-table .delete-btn {
+      background: none; border: none; cursor: pointer;
+      color: #c0392b; font-size: .9rem; padding: 4px 8px; border-radius: 6px;
+    }
+    table.reg-table .delete-btn:hover { background: rgba(192,57,43,.08); }
+    .empty {
+      padding: 40px 20px; text-align: center; color: var(--muted); font-size: .92rem;
+    }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--text); color: white;
+      padding: 12px 18px; border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      font-size: .9rem; opacity: 0; pointer-events: none;
+      transition: opacity .2s ease; z-index: 1000;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to view registrations.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px; font-size:.78rem; color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="admin-hints.html">Game</a>
+    <a href="admin-registrations.html" class="active">Registrations</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html" data-admin-logout>Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">📋</div>
+    <div>
+      <h1>Camper registrations</h1>
+      <p>Spreadsheet view of every signup submitted from the public registration form. Search the table, export to CSV, or delete a row.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>📋 All registrations</h2>
+        <span class="count" id="reg-count">—</span>
+      </div>
+      <div class="panel-actions">
+        <button class="btn-tidy" id="refresh-btn">↻ Refresh</button>
+        <button class="btn-tidy" id="export-btn">⬇ Download CSV</button>
+      </div>
+    </div>
+
+    <div class="search-row">
+      <input id="search-input" placeholder="Search by name, school, email, phone…" />
+    </div>
+
+    <div class="reg-table-wrap">
+      <table class="reg-table" id="reg-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Submitted</th>
+            <th>Camper</th>
+            <th>DOB</th>
+            <th>Student email</th>
+            <th>School</th>
+            <th>Parent / Guardian</th>
+            <th>Relationship</th>
+            <th>Parent phone</th>
+            <th>Parent email</th>
+            <th>Emergency contact</th>
+            <th>Em. relationship</th>
+            <th>Em. phone</th>
+            <th>Photo consent</th>
+            <th class="wrap">Hobbies</th>
+            <th class="wrap">Why join</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="reg-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const gate      = document.getElementById('gate');
+const shell     = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+const tbody     = document.getElementById('reg-tbody');
+const countEl   = document.getElementById('reg-count');
+const searchEl  = document.getElementById('search-input');
+const refreshBtn= document.getElementById('refresh-btn');
+const exportBtn = document.getElementById('export-btn');
+const toastEl   = document.getElementById('toast');
+
+let DATA = [];
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtTime(unix) {
+  if (!unix) return '';
+  const d = new Date(unix * 1000);
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      load();
+      return;
+    }
+  } catch (_) {}
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+}
+(async function () {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      load();
+    } else {
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = '';
+      shell.classList.remove('unlocked');
+    }
+  } catch (_) {}
+})();
+
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest('a[data-admin-logout]');
+  if (!a) return;
+  e.preventDefault();
+  sessionStorage.removeItem('hg_admin_unlocked');
+  try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+  window.location.href = a.getAttribute('href') || 'index.html';
+});
+
+async function load() {
+  try {
+    const r = await fetch('/api/admin/registrations', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Failed');
+    DATA = j.data || [];
+    render();
+  } catch (err) {
+    countEl.textContent = 'Failed to load: ' + err.message;
+  }
+}
+
+function render() {
+  const q = (searchEl.value || '').trim().toLowerCase();
+  const rows = q
+    ? DATA.filter(r => JSON.stringify(r).toLowerCase().includes(q))
+    : DATA;
+  countEl.textContent = `${rows.length} registration${rows.length === 1 ? '' : 's'}`;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="17" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td class="row-num">${i + 1}</td>
+      <td>${esc(fmtTime(r.createdAt))}</td>
+      <td><strong>${esc((r.firstName || '') + ' ' + (r.lastName || ''))}</strong></td>
+      <td>${esc(r.dob || '')}</td>
+      <td>${esc(r.studentEmail || '')}</td>
+      <td>${esc(r.school || '')}</td>
+      <td>${esc(((r.parentFirst || '') + ' ' + (r.parentLast || '')).trim())}</td>
+      <td>${esc(r.relationship || '')}</td>
+      <td>${esc(r.parentPhone || '')}</td>
+      <td>${esc(r.parentEmail || '')}</td>
+      <td>${esc(r.emerg1Name || '')}</td>
+      <td>${esc(r.emerg1Relationship || '')}</td>
+      <td>${esc(r.emerg1Phone || '')}</td>
+      <td>${r.consentPhoto ? '✅ yes' : '—'}</td>
+      <td class="wrap">${esc(r.hobbies || '')}</td>
+      <td class="wrap">${esc(r.whyJoin || '')}</td>
+      <td><button class="delete-btn" data-id="${esc(r.id)}" title="Delete">🗑</button></td>
+    </tr>
+  `).join('');
+}
+
+tbody.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-btn');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (!confirm('Delete this registration permanently?')) return;
+  try {
+    const r = await fetch('/api/admin/registrations/' + encodeURIComponent(id), {
+      method: 'DELETE', credentials: 'same-origin',
+    });
+    if (!r.ok) throw new Error('Failed');
+    DATA = DATA.filter(x => x.id !== id);
+    render();
+    showToast('Registration deleted.');
+  } catch (err) {
+    showToast('Delete failed.');
+  }
+});
+
+searchEl.addEventListener('input', render);
+refreshBtn.addEventListener('click', load);
+
+exportBtn.addEventListener('click', () => {
+  const cols = [
+    ['createdAt',   'Submitted (UTC)'],
+    ['firstName',   'First name'],
+    ['lastName',    'Last name'],
+    ['dob',         'DOB'],
+    ['studentEmail','Student email'],
+    ['school',      'School'],
+    ['parentFirst', 'Parent first'],
+    ['parentLast',  'Parent last'],
+    ['relationship','Relationship'],
+    ['parentPhone', 'Parent phone'],
+    ['parentEmail', 'Parent email'],
+    ['emerg1Name',         'Emergency contact'],
+    ['emerg1Relationship', 'Emergency relationship'],
+    ['emerg1Phone',        'Emergency phone'],
+    ['consentPhoto',       'Photo consent'],
+    ['hobbies',     'Hobbies'],
+    ['whyJoin',     'Why join'],
+  ];
+  const escCsv = (s) => {
+    const v = s == null ? '' : String(s);
+    if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  };
+  const lines = [cols.map(c => c[1]).join(',')];
+  DATA.forEach(r => {
+    lines.push(cols.map(([k]) => {
+      let v = r[k];
+      if (k === 'createdAt') v = v ? new Date(v * 1000).toISOString() : '';
+      if (k === 'consentPhoto') v = v ? 'yes' : 'no';
+      return escCsv(v);
+    }).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `highergrade-registrations-${ts}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>

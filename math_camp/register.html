@@ -303,12 +303,12 @@
             </div>
 
             <hr class="form-divider" />
-            <div class="form-section-title">🚨 Emergency Contacts</div>
-            <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px;">Please provide two emergency contacts we can reach if needed.</p>
+            <div class="form-section-title">🚨 Emergency Contact</div>
+            <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px;">Please provide one emergency contact we can reach if needed.</p>
 
-            <!-- Emergency Contact 1 -->
+            <!-- Emergency Contact -->
             <div class="emerg-block">
-              <div class="emerg-block-title">Emergency Contact 1</div>
+              <div class="emerg-block-title">Emergency Contact</div>
               <div class="field-row">
                 <div class="field">
                   <label>Full Name <span class="req">*</span></label>
@@ -337,35 +337,10 @@
               </div>
             </div>
 
-            <!-- Emergency Contact 2 -->
-            <div class="emerg-block" style="margin-top:12px;">
-              <div class="emerg-block-title">Emergency Contact 2</div>
-              <div class="field-row">
-                <div class="field">
-                  <label>Full Name <span class="req">*</span></label>
-                  <input type="text" id="emerg2-name" name="emerg2_name" placeholder="e.g. Linda Patel" required />
-                  <div class="field-error" id="err-emerg2-name">Please enter a name.</div>
-                </div>
-                <div class="field">
-                  <label>Relationship to Camper <span class="req">*</span></label>
-                  <select id="emerg2-relationship" name="emerg2_relationship" required>
-                    <option value="">Select…</option>
-                    <option>Parent</option>
-                    <option>Guardian</option>
-                    <option>Grandparent</option>
-                    <option>Aunt / Uncle</option>
-                    <option>Sibling (18+)</option>
-                    <option>Family Friend</option>
-                    <option>Other</option>
-                  </select>
-                  <div class="field-error" id="err-emerg2-relationship">Please select a relationship.</div>
-                </div>
-              </div>
-              <div class="field">
-                <label>Phone Number <span class="req">*</span></label>
-                <input type="tel" id="emerg2-phone" name="emerg2_phone" placeholder="e.g. (416) 555-0789" required />
-                <div class="field-error" id="err-emerg2-phone">Please enter a phone number.</div>
-              </div>
+            <!-- Location notice for parents -->
+            <div style="margin-top:18px; background:#FFF8E5; border:1px solid #F0D580; border-radius: var(--radius-sm); padding: 14px 18px; font-size:.88rem; color:#5A4500; line-height:1.55;">
+              <strong>📍 Heads up — camp location is subject to change.</strong><br>
+              We currently plan to run camp at Abbey Park High School, but the venue may change while we finalize details. <strong>The camp will always be in Oakville</strong>, but please be prepared to drop off / pick up at a different Oakville site if needed. We'll email registered families at least two weeks before Day 1 with the confirmed address.
             </div>
 
             <div class="form-nav">
@@ -581,9 +556,6 @@
       ['emerg1-name',         'err-emerg1-name',         'required'],
       ['emerg1-relationship', 'err-emerg1-relationship', 'required'],
       ['emerg1-phone',        'err-emerg1-phone',        'required'],
-      ['emerg2-name',         'err-emerg2-name',         'required'],
-      ['emerg2-relationship', 'err-emerg2-relationship', 'required'],
-      ['emerg2-phone',        'err-emerg2-phone',        'required'],
     ],
     3: [],
     4: [],
@@ -647,10 +619,7 @@
         </div>
         <div style="grid-column:1/-1;"><strong>Parent Email:</strong> ${get('parent-email')}</div>
         <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
-          <strong>Emergency Contact 1:</strong> ${get('emerg1-name')} (${get('emerg1-relationship')}) · ${get('emerg1-phone')}
-        </div>
-        <div style="grid-column:1/-1;">
-          <strong>Emergency Contact 2:</strong> ${get('emerg2-name')} (${get('emerg2-relationship')}) · ${get('emerg2-phone')}
+          <strong>Emergency Contact:</strong> ${get('emerg1-name')} (${get('emerg1-relationship')}) · ${get('emerg1-phone')}
         </div>
       </div>
     `;
@@ -686,9 +655,6 @@
       emerg1_name:         get('emerg1-name'),
       emerg1_phone:        get('emerg1-phone'),
       emerg1_relationship: get('emerg1-relationship'),
-      emerg2_name:         get('emerg2-name'),
-      emerg2_phone:        get('emerg2-phone'),
-      emerg2_relationship: get('emerg2-relationship'),
       hobbies:             document.getElementById('hobbies')?.value?.trim() || null,
       why_join:            document.getElementById('why-join')?.value?.trim() || null,
       consent_photo:       document.getElementById('consent-photo').checked,

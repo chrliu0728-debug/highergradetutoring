@@ -95,3 +95,32 @@ CREATE TABLE IF NOT EXISTS hints (
   createdAt   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_hints_at ON hints(createdAt);
+
+-- Generic key/value store for runtime feature flags (e.g. point-freeze).
+CREATE TABLE IF NOT EXISTS meta (
+  key         TEXT PRIMARY KEY,
+  value       TEXT
+);
+
+-- Camp registrations submitted from /register.html.
+CREATE TABLE IF NOT EXISTS registrations (
+  id                  TEXT PRIMARY KEY,
+  createdAt           INTEGER NOT NULL,
+  firstName           TEXT,
+  lastName            TEXT,
+  dob                 TEXT,
+  studentEmail        TEXT,
+  school              TEXT,
+  parentFirst         TEXT,
+  parentLast          TEXT,
+  relationship        TEXT,
+  parentPhone         TEXT,
+  parentEmail         TEXT,
+  emerg1Name          TEXT,
+  emerg1Phone         TEXT,
+  emerg1Relationship  TEXT,
+  hobbies             TEXT,
+  whyJoin             TEXT,
+  consentPhoto        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
