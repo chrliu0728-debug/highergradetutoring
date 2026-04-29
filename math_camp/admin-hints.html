@@ -184,7 +184,7 @@
     <a href="admin-hints.html" class="active">Game</a>
     <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
-    <a href="index.html">Log out</a>
+    <a href="index.html" data-admin-logout>Log out</a>
   </nav>
 
   <div class="admin-welcome">
@@ -283,6 +283,7 @@ async function unlock() {
       body: JSON.stringify({ passcode: entered }),
     });
     if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
       gate.style.display = 'none';
       shell.classList.add('unlocked');
       if (window.HG && typeof window.HG.refresh === 'function') {
@@ -299,15 +300,24 @@ async function unlock() {
 unlockBtn.addEventListener('click', unlock);
 passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+}
 (async function () {
   try {
     if (window.dataReady) await window.dataReady;
     const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
     const j = await r.json().catch(() => ({}));
     if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
       gate.style.display = 'none';
       shell.classList.add('unlocked');
       setTimeout(render, 0);
+    } else {
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = '';
+      shell.classList.remove('unlocked');
     }
   } catch (_) {}
 })();
@@ -401,6 +411,16 @@ resetBtn.addEventListener('click', async () => {
   resetConfirm.value = '';
   resetBtn.textContent = 'Reset students, classes, roles, points';
   setTimeout(() => location.reload(), 800);
+});
+
+// ── Admin "Log out" link: clear the cookie + the optimistic flag ───
+document.querySelectorAll('a[data-admin-logout]').forEach(a => {
+  a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    sessionStorage.removeItem('hg_admin_unlocked');
+    try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+    location.href = a.getAttribute('href') || 'index.html';
+  });
 });
 </script>
 </body>

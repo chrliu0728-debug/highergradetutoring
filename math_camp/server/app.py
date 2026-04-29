@@ -55,7 +55,7 @@ MAZEWIZ_ROLE_ID        = "mazewiz"
 MONEY_TREE_ROLE_ID     = "money_tree"
 CLICKER_ROLE_ID        = "clicker"
 CRANE_ROLE_ID          = "crane"
-CRANE_GLOBAL_LIMIT     = 11      # only 11 cranes can ever exist across the camp
+CRANE_GLOBAL_LIMIT     = None    # unlimited — any student who completes the claim flow gets one
 DOOR_MAZE_LENGTH       = 300
 MONEY_TREE_COST        = 6000
 
@@ -638,39 +638,8 @@ def register_routes(app):
             "capped": (earned >= remaining_cap and potential > remaining_cap),
         })
 
-    @app.route("/api/admin/students/<sid>/grant-crane", methods=["POST"])
-    @require_admin
-    def admin_grant_crane(sid):
-        """Admin override that bypasses the global 11-crane cap.
-        Use this when you need to make sure each class has a Paper Crane
-        holder regardless of how the public claim race plays out."""
-        with g.db:
-            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
-            if not row:
-                return jsonify(ok=False, error="Student not found."), 404
-            roles = json.loads(row["roles"] or "[]")
-            if CRANE_ROLE_ID in roles:
-                return jsonify(ok=False, error=f"{_full_name(row)} already holds the Paper Crane."), 400
-            roles.append(CRANE_ROLE_ID)
-            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(roles), sid))
-            _log_tx(type="role_assigned", scope="student", subjectId=sid,
-                    subjectName=_full_name(row), amount=0,
-                    description="🕊 Paper Crane granted by admin (bypass)")
-        return jsonify(ok=True)
-
-    @app.route("/api/admin/students/<sid>/revoke-crane", methods=["POST"])
-    @require_admin
-    def admin_revoke_crane(sid):
-        with g.db:
-            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
-            if not row:
-                return jsonify(ok=False, error="Student not found."), 404
-            roles = json.loads(row["roles"] or "[]")
-            if CRANE_ROLE_ID not in roles:
-                return jsonify(ok=False, error=f"{_full_name(row)} doesn't hold the Paper Crane."), 400
-            roles = [r for r in roles if r != CRANE_ROLE_ID]
-            g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(roles), sid))
-        return jsonify(ok=True)
+    # Admin grant/revoke endpoints removed — Paper Crane has no cap any more,
+    # so any interested student can just claim it themselves.
 
     @app.route("/api/admin/students/<sid>/clicker-upgrade", methods=["POST"])
     @require_admin
@@ -878,9 +847,8 @@ def register_routes(app):
     @app.route("/api/students/me/claim-crane", methods=["POST"])
     @require_student
     def claim_crane():
-        """Globally limited to CRANE_GLOBAL_LIMIT (=11) holders across the
-        entire camp. First-come-first-served per camper; once 11 students
-        hold the role, further claims fail with 409."""
+        """Unlimited — any student who completes the claim flow earns the
+        Paper Crane. Each student can still only hold one."""
         sid = g.session["studentId"]
         with g.db:
             my_row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
@@ -890,20 +858,12 @@ def register_routes(app):
             if CRANE_ROLE_ID in my_roles:
                 return jsonify(ok=False, error="You already hold the Paper Crane."), 400
 
-            # Count global holders
-            held = 0
-            for r in g.db.execute("SELECT roles FROM students").fetchall():
-                if CRANE_ROLE_ID in json.loads(r["roles"] or "[]"):
-                    held += 1
-            if held >= CRANE_GLOBAL_LIMIT:
-                return jsonify(ok=False, error=f"All {CRANE_GLOBAL_LIMIT} Paper Cranes have been claimed."), 409
-
             my_roles.append(CRANE_ROLE_ID)
             g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(my_roles), sid))
             _log_tx(type="role_assigned", scope="student", subjectId=sid,
                     subjectName=_full_name(my_row), amount=0,
-                    description=f"🕊 Claimed the Paper Crane ({held + 1}/{CRANE_GLOBAL_LIMIT})")
-        return jsonify(ok=True, data={"remaining": CRANE_GLOBAL_LIMIT - held - 1})
+                    description="🕊 Claimed the Paper Crane")
+        return jsonify(ok=True, data={"remaining": None})
 
     # ── Mini-game hints ────────────────────────────────────────────
     @app.route("/api/hints", methods=["GET"])

@@ -350,7 +350,7 @@
     <a href="admin-hints.html">Game</a>
     <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
-    <a href="index.html">Log out</a>
+    <a href="index.html" data-admin-logout>Log out</a>
   </nav>
 
   <div class="admin-welcome">
@@ -505,6 +505,7 @@ async function unlock() {
       body: JSON.stringify({ passcode: enteredRaw }),
     });
     if (res.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
       gate.style.display = 'none';
       shell.classList.add('unlocked');
       if (window.HG && typeof window.HG.refresh === 'function') {
@@ -522,16 +523,30 @@ async function unlock() {
 unlockBtn.addEventListener('click', unlock);
 passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 
-// On load: if we already have an admin session cookie, skip the gate.
+// Optimistic-unlock: if this tab already entered the passcode, hide the
+// gate immediately on every subsequent admin page load. We still verify
+// with the server in the background; if the server says we're not admin
+// any more (cookie expired, manual logout), the gate comes back.
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+}
 (async function () {
   try {
     if (window.dataReady) await window.dataReady;
     const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
     const j = await r.json().catch(() => ({}));
     if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
       gate.style.display = 'none';
       shell.classList.add('unlocked');
       setTimeout(render, 0);
+    } else {
+      // Server says we're not admin — clear the optimistic flag and
+      // show the gate again (in case we'd hidden it).
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = '';
+      shell.classList.remove('unlocked');
     }
   } catch (_) { /* fall through — show gate */ }
 })();
@@ -809,6 +824,16 @@ document.getElementById('export-btn').addEventListener('click', () => {
   btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
   update();
 })();
+
+// ── Admin "Log out" link: clear the cookie + the optimistic flag ───
+document.querySelectorAll('a[data-admin-logout]').forEach(a => {
+  a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    sessionStorage.removeItem('hg_admin_unlocked');
+    try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+    location.href = a.getAttribute('href') || 'index.html';
+  });
+});
 </script>
 </body>
 </html>

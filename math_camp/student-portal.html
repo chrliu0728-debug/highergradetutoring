@@ -12,18 +12,29 @@
 
     .portal-shell { max-width: 980px; margin: 0 auto; padding: 32px 20px 60px; }
 
+    /* When the LOGIN view is showing, lock the whole body so students
+       can't scroll up/down past the login card. JS adds the class. */
+    body.login-locked {
+      overflow: hidden;
+      height: 100vh;
+    }
+
     /* ── Login ── */
-    /* A positioned stage holds both the visible student login-card and the
-       hidden staff sign-in card stacked underneath it. */
+    /* The stage fills the viewport (fixed) and centers the login card +
+       the hidden staff sign-in card stacked underneath it. */
     .login-stage {
-      position: relative;
-      max-width: 420px;
-      margin: 80px auto;
-      min-height: 560px;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 0;
     }
     .login-card {
-      position: absolute;
-      top: 0; left: 0; right: 0;
+      position: relative;
+      width: 100%;
+      max-width: 420px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 18px;
@@ -42,7 +53,10 @@
     /* Hidden staff sign-in sits in the same spot, behind the login card */
     .staff-hidden {
       position: absolute;
-      top: 0; left: 0; right: 0;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      max-width: 420px;
       background: linear-gradient(135deg, var(--navy), var(--navy-mid));
       color: white;
       border-radius: 18px;
@@ -81,13 +95,17 @@
     }
     .staff-hidden .staff-go:hover { background: var(--blush-dark); transform: translateY(-1px); }
     .login-card .logo-bubble {
-      width: 64px; height: 64px;
-      border-radius: 50%;
-      margin: 0 auto 16px;
-      background: linear-gradient(135deg, var(--blush), var(--mint));
+      width: 96px; height: 96px;
+      border-radius: 22px;
+      margin: 0 auto 18px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.8rem;
-      box-shadow: 0 8px 24px rgba(232, 128, 138, 0.3);
+      box-shadow: 0 8px 24px rgba(232, 128, 138, 0.18);
+      overflow: hidden;
+      background: white;
+    }
+    .login-card .logo-bubble img {
+      width: 100%; height: 100%;
+      object-fit: contain;
     }
     .login-card h1 { font-size: 1.5rem; margin-bottom: 6px; letter-spacing: -.02em; }
     .login-card p.sub { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
@@ -544,7 +562,7 @@
     }
   </style>
 </head>
-<body>
+<body class="login-locked">
 
 <!-- ─────────── Login ─────────── -->
 <div id="login-screen">
@@ -561,7 +579,7 @@
 
     <!-- Student login card (silently draggable after 9 clicks on Sign in) -->
     <div class="login-card" id="login-card">
-      <div class="logo-bubble">🎓</div>
+      <div class="logo-bubble"><img src="logo.webp" alt="HigherGrade Tutoring" /></div>
       <h1>Student Portal</h1>
       <p class="sub">Sign in with your camp email and password.</p>
 
@@ -890,11 +908,21 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   })();
   loginEmail.addEventListener('keydown', e => { if (e.key === 'Enter') loginPwd.focus(); });
 
+  function showLogin() {
+    dashScreen.style.display = 'none';
+    loginScreen.style.display = '';
+    document.body.classList.add('login-locked');
+  }
+  function showDashboard() {
+    loginScreen.style.display = 'none';
+    dashScreen.style.display = '';
+    document.body.classList.remove('login-locked');
+  }
+
   logoutBtn.addEventListener('click', async () => {
     await setLoggedInStudent(null);
     loginEmail.value = ''; loginPwd.value = ''; loginError.textContent = '';
-    dashScreen.style.display = 'none';
-    loginScreen.style.display = '';
+    showLogin();
   });
 
   /* ─── Dashboard rendering ─── */
@@ -905,12 +933,10 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   function renderDashboard() {
     const s = currentStudent();
     if (!s) {
-      loginScreen.style.display = '';
-      dashScreen.style.display = 'none';
+      showLogin();
       return;
     }
-    loginScreen.style.display = 'none';
-    dashScreen.style.display = '';
+    showDashboard();
 
     greetingEl.textContent = `Welcome, ${studentFullName(s)}!`;
     dashSubEl.textContent = [

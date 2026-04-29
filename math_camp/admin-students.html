@@ -522,7 +522,7 @@
     <a href="admin-hints.html">Game</a>
     <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
-    <a href="index.html">Log out</a>
+    <a href="index.html" data-admin-logout>Log out</a>
   </nav>
 
   <div class="admin-welcome">
@@ -626,6 +626,7 @@ async function unlock() {
       body: JSON.stringify({ passcode: entered }),
     });
     if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
       gate.style.display = 'none';
       shell.classList.add('unlocked');
       if (window.HG && typeof window.HG.refresh === 'function') {
@@ -643,15 +644,25 @@ async function unlock() {
 unlockBtn.addEventListener('click', unlock);
 passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 
+// Optimistic-unlock — see admin.html for the rationale.
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+}
 (async function () {
   try {
     if (window.dataReady) await window.dataReady;
     const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
     const j = await r.json().catch(() => ({}));
     if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
       gate.style.display = 'none';
       shell.classList.add('unlocked');
       setTimeout(render, 0);
+    } else {
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = '';
+      shell.classList.remove('unlocked');
     }
   } catch (_) {}
 })();
@@ -784,9 +795,7 @@ function render() {
       <div class="point-action-row" style="background:rgba(236,72,153,.06); border-color:#EC4899;">
         <strong>🕊 Paper Crane:</strong>
         <span style="font-size:.86rem;">${(Array.isArray(s.roles) && s.roles.includes(CRANE_ROLE_ID)) ? '<strong style="color:#9D174D;">Holds the crane</strong>' : '<span style="color:var(--muted);">No crane</span>'}</span>
-        ${(Array.isArray(s.roles) && s.roles.includes(CRANE_ROLE_ID))
-          ? `<button data-crane-revoke>Revoke crane</button>`
-          : `<button data-crane-grant>Grant crane (bypass cap)</button>`}
+        <span style="font-size:.78rem;color:var(--muted);font-style:italic;">No cap — students self-claim through the about-page mini-game.</span>
       </div>
     `;
     list.appendChild(card);
@@ -853,30 +862,6 @@ function render() {
         render();
       });
     });
-
-    const craneGrantBtn  = card.querySelector('[data-crane-grant]');
-    const craneRevokeBtn = card.querySelector('[data-crane-revoke]');
-    if (craneGrantBtn) {
-      craneGrantBtn.addEventListener('click', async () => {
-        craneGrantBtn.disabled = true;
-        const res = await adminGrantCrane(id);
-        craneGrantBtn.disabled = false;
-        if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Grant failed'); return; }
-        showToast('🕊 Crane granted');
-        render();
-      });
-    }
-    if (craneRevokeBtn) {
-      craneRevokeBtn.addEventListener('click', async () => {
-        if (!confirm('Take the Paper Crane back from this student?')) return;
-        craneRevokeBtn.disabled = true;
-        const res = await adminRevokeCrane(id);
-        craneRevokeBtn.disabled = false;
-        if (!res || !res.ok) { showToast(res && res.error ? res.error : 'Revoke failed'); return; }
-        showToast('🕊 Crane revoked');
-        render();
-      });
-    }
 
     const clickerUp   = card.querySelector('[data-clicker-up]');
     const clickerDown = card.querySelector('[data-clicker-down]');
@@ -1205,6 +1190,16 @@ document.getElementById('export-csv-btn').addEventListener('click', () => {
   btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
   update();
 })();
+
+// ── Admin "Log out" link: clear the cookie + the optimistic flag ───
+document.querySelectorAll('a[data-admin-logout]').forEach(a => {
+  a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    sessionStorage.removeItem('hg_admin_unlocked');
+    try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+    location.href = a.getAttribute('href') || 'index.html';
+  });
+});
 </script>
 </body>
 </html>
