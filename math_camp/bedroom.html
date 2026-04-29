@@ -8,24 +8,27 @@
   <link rel="icon" type="image/webp" href="logo.webp" />
   <style>
     :root {
-      /* These three tokens get rewritten by JS each phase.
-         Scene CSS reads them so colors animate smoothly. */
+      /* Phase-driven tokens — JS rewrites these */
       --sky-top:    #BFE2F2;
       --sky-bottom: #FFE6C2;
       --sun-x: 50%;
       --sun-y: 60%;
       --sun-color: #FFE6A0;
       --sun-opacity: 1;
-      --window-glow: rgba(255, 220, 160, 0.55);
-      --room-tint:  rgba(255, 240, 220, 0.0);
-      --room-shade: 1.0;        /* multiplier for room brightness */
-      --lamp-on: 0;             /* 0 = off, 1 = on */
+      --window-glow: rgba(255, 220, 160, 0.45);
+      --room-tint:  rgba(0, 0, 0, 0.0);
+      --room-shade: 1.0;
+      --lamp-on: 0;
+      --wall:        #2E423B;
+      --wall-shadow: #243531;
+      --carpet:      #C7B391;
+      --carpet-deep: #B09872;
     }
 
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; padding: 0; }
     body {
-      background: #1a1424;
+      background: #0d0712;
       color: #FAF6EE;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       overflow: hidden;
@@ -34,75 +37,362 @@
 
     .stage {
       position: fixed; inset: 0;
-      display: flex; align-items: flex-end; justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       overflow: hidden;
     }
 
+    /* Wider room — ~16:9 viewport */
     .room {
       position: relative;
-      width: min(1100px, 100vw);
-      height: min(720px, 100vh);
+      width: 100vw;
+      height: 100vh;
       filter: brightness(var(--room-shade));
       transition: filter 1.5s ease;
     }
-
-    /* Tint overlay above the whole scene to push warmth/cool */
     .room::after {
       content: ''; position: absolute; inset: 0;
       background: var(--room-tint);
       pointer-events: none;
-      transition: background 1.5s ease;
       mix-blend-mode: multiply;
+      transition: background 1.5s ease;
       z-index: 99;
     }
 
-    /* ── Walls ─────────────────────────────────────────── */
-    .back-wall {
+    /* ── Walls + ceiling ── */
+    .ceiling {
       position: absolute; left: 0; right: 0; top: 0;
-      height: 70%;
-      background: linear-gradient(180deg, #C4A78F 0%, #B5957A 100%);
+      height: 14%;
+      background: linear-gradient(180deg, #1a1f1d 0%, #2a3431 100%);
+      z-index: 1;
+    }
+    .ceiling::after {
+      content: ''; position: absolute; inset: 0;
+      background:
+        linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.4) 100%);
+    }
+    .wall {
+      position: absolute; left: 0; right: 0;
+      top: 14%; height: 60%;
+      background:
+        radial-gradient(ellipse at 20% 60%, rgba(0,0,0,0.55), transparent 50%),
+        radial-gradient(ellipse at 80% 60%, rgba(0,0,0,0.55), transparent 50%),
+        linear-gradient(180deg, var(--wall) 0%, var(--wall-shadow) 100%);
     }
     .floor {
-      position: absolute; left: 0; right: 0; bottom: 0; top: 70%;
+      position: absolute; left: 0; right: 0; bottom: 0; top: 74%;
       background:
-        repeating-linear-gradient( 90deg,
-          #6B4D34 0, #6B4D34 88px,
-          #5D4128 88px, #5D4128 92px,
-          #74563B 92px, #74563B 178px,
-          #5D4128 178px, #5D4128 182px),
-        linear-gradient(180deg, #6B4D34 0, #4A2E18 100%);
+        radial-gradient(ellipse at 50% 0%, var(--carpet) 0%, var(--carpet-deep) 80%);
+      box-shadow: inset 0 8px 22px rgba(0,0,0,0.35);
     }
-    .skirting {
-      position: absolute; left: 0; right: 0; top: calc(70% - 10px);
-      height: 10px;
-      background: linear-gradient(180deg, #8B6A4D, #5C3F26);
-      border-bottom: 2px solid #3D2A18;
-      z-index: 2;
+    /* subtle carpet pattern */
+    .floor::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        repeating-linear-gradient(0deg,
+          rgba(0,0,0,0.05) 0 2px, transparent 2px 6px),
+        repeating-linear-gradient(90deg,
+          rgba(0,0,0,0.04) 0 1px, transparent 1px 4px);
+      opacity: 0.6;
     }
 
-    /* ── Window ────────────────────────────────────────── */
+    /* ── Ceiling fan + light ── */
+    .fan {
+      position: absolute;
+      left: 50%; top: 11%;
+      transform: translateX(-50%);
+      z-index: 5;
+    }
+    .fan .mount {
+      width: 14px; height: 50px;
+      background: linear-gradient(180deg, #1a1f1d, #0a0d0c);
+      margin: 0 auto;
+      border-radius: 0 0 4px 4px;
+    }
+    .fan .hub {
+      width: 60px; height: 60px;
+      background: radial-gradient(circle at 40% 35%, #4a3526 0%, #251915 70%);
+      border-radius: 50%;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.55);
+      position: relative;
+      margin: -8px auto 0;
+    }
+    .fan .blades {
+      position: absolute; left: 50%; top: 50%;
+      width: 360px; height: 360px;
+      transform: translate(-50%, -50%);
+      animation: fan-spin 3.4s linear infinite;
+      pointer-events: none;
+    }
+    .fan .blade {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 170px; height: 30px;
+      transform-origin: 0% 50%;
+      background: linear-gradient(180deg, #4a3526 0%, #2a1d14 100%);
+      border-radius: 4px 8px 8px 4px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.5);
+      opacity: 0.85;
+    }
+    .fan .blade:nth-child(1) { transform: translate(0, -50%) rotate(0deg); }
+    .fan .blade:nth-child(2) { transform: translate(0, -50%) rotate(72deg); }
+    .fan .blade:nth-child(3) { transform: translate(0, -50%) rotate(144deg); }
+    .fan .blade:nth-child(4) { transform: translate(0, -50%) rotate(216deg); }
+    .fan .blade:nth-child(5) { transform: translate(0, -50%) rotate(288deg); }
+    @keyframes fan-spin {
+      0%   { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    .fan .light {
+      position: absolute; left: 50%; bottom: -28px;
+      transform: translateX(-50%);
+      width: 76px; height: 44px;
+      background: radial-gradient(ellipse at 50% 30%, #fff5d4 0%, #d8b572 60%, #6c4a22 100%);
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      box-shadow: 0 0 30px rgba(255,210,140, calc(var(--lamp-on) * 0.55 + 0.15));
+      z-index: 1;
+    }
+    .fan .light-glow {
+      position: absolute; left: 50%; bottom: -180px;
+      width: 540px; height: 360px;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse at 50% 0%, rgba(255,220,150, 0.22) 0%, transparent 60%);
+      pointer-events: none;
+      opacity: calc(var(--lamp-on) * 0.7 + 0.15);
+      transition: opacity 2s ease;
+      z-index: 0;
+    }
+
+    /* ── Bed (centered, large) ── */
+    .bed {
+      position: absolute;
+      left: 50%; bottom: 8%;
+      transform: translateX(-50%);
+      width: min(620px, 50vw);
+      height: 280px;
+      z-index: 6;
+    }
+    .bed .headboard {
+      position: absolute;
+      left: 4%; right: 4%; bottom: 100px;
+      height: 130px;
+      background: linear-gradient(180deg, #5a3d28 0%, #3a2818 100%);
+      border-radius: 10px 10px 4px 4px;
+      box-shadow:
+        inset 0 -10px 20px rgba(0,0,0,0.4),
+        0 6px 14px rgba(0,0,0,0.35);
+    }
+    .bed .headboard::before,
+    .bed .headboard::after {
+      content: ''; position: absolute;
+      top: 14%; bottom: 18%;
+      width: 2px;
+      background: rgba(0,0,0,0.45);
+    }
+    .bed .headboard::before { left: 33%; }
+    .bed .headboard::after  { right: 33%; }
+    .bed .frame-bed {
+      position: absolute; left: 0; bottom: 0; right: 0;
+      height: 90px;
+      background: linear-gradient(180deg, #4a3220 0%, #2a1a0e 100%);
+      border-radius: 6px;
+      box-shadow: 0 14px 26px rgba(0,0,0,0.45);
+    }
+    .bed .mattress {
+      position: absolute; left: 12px; right: 12px; bottom: 70px;
+      height: 60px;
+      background: linear-gradient(180deg, #FAF6EE 0%, #D8CDB7 100%);
+      border-radius: 6px 6px 4px 4px;
+      box-shadow: inset 0 -6px 10px rgba(0,0,0,0.18);
+    }
+    .bed .blanket {
+      position: absolute;
+      left: 12px; right: 12px;
+      bottom: 84px;
+      height: 110px;
+      background:
+        repeating-linear-gradient(45deg,
+          #5C4434 0 12px, #6E5340 12px 22px),
+        linear-gradient(180deg, #6E5340 0%, #4A3424 100%);
+      border-radius: 8px;
+      box-shadow:
+        inset 0 -10px 18px rgba(0,0,0,0.28),
+        0 6px 14px rgba(0,0,0,0.35);
+    }
+    .bed .blanket::after {
+      content: ''; position: absolute;
+      left: 12%; right: 12%; bottom: -8px;
+      height: 14px;
+      background:
+        repeating-linear-gradient(45deg,
+          #4A3424 0 10px, #382617 10px 20px);
+      border-radius: 0 0 8px 8px;
+    }
+    .bed .pillow-row {
+      position: absolute;
+      left: 6%; right: 6%; bottom: 130px;
+      height: 70px;
+      display: flex; gap: 6px; align-items: center; justify-content: center;
+    }
+    .bed .pillow {
+      flex: 1; height: 100%;
+      border-radius: 14px;
+      box-shadow:
+        inset 0 -6px 8px rgba(0,0,0,0.1),
+        0 4px 8px rgba(0,0,0,0.25);
+    }
+    .bed .pillow.tan   { background: linear-gradient(180deg, #E8D9B8, #B8A172); }
+    .bed .pillow.cream { background: linear-gradient(180deg, #FAF6EE, #C8BBA0); }
+    .bed .pillow.brown { background: linear-gradient(180deg, #6E5340, #3A2818); }
+
+    /* ── Nightstands ── */
+    .nightstand {
+      position: absolute;
+      bottom: 9%;
+      width: 110px; height: 160px;
+      z-index: 7;
+    }
+    .nightstand.left  { left: 16%;  }
+    .nightstand.right { right: 16%; }
+    .nightstand .body {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, #3a2818 0%, #1f1409 100%);
+      border-radius: 5px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.45);
+    }
+    .nightstand .top {
+      position: absolute; left: -4px; right: -4px; top: 0;
+      height: 8px;
+      background: linear-gradient(180deg, #4a3220 0%, #2a1a0e 100%);
+      border-radius: 4px 4px 0 0;
+    }
+    .nightstand .drawer {
+      position: absolute; left: 8%; right: 8%; top: 25%;
+      height: 28%;
+      background: #2a1a0e;
+      border-radius: 3px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    .nightstand .drawer::after {
+      content: ''; position: absolute;
+      width: 16px; height: 5px; background: #B89060;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      border-radius: 2px;
+    }
+
+    /* ── Bedside lamps ── */
+    .lamp {
+      position: absolute;
+      bottom: calc(9% + 160px);
+      width: 70px;
+      z-index: 8;
+    }
+    .lamp.left  { left: calc(16% + 20px); }
+    .lamp.right { right: calc(16% + 20px); }
+    .lamp .shade {
+      position: relative;
+      width: 70px; height: 50px;
+      background: linear-gradient(180deg, #6e5230 0%, #4a3520 100%);
+      clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%);
+    }
+    .lamp .shade.on {
+      background: linear-gradient(180deg, #FFE9A8 0%, #FFAA66 100%);
+      box-shadow: 0 0 36px rgba(255, 210, 140, 0.7);
+    }
+    .lamp .stand {
+      width: 4px; height: 24px;
+      background: #1a1009;
+      margin: -2px auto 0;
+    }
+    .lamp .base {
+      width: 32px; height: 6px;
+      background: #1a1009;
+      border-radius: 2px;
+      margin: 0 auto;
+    }
+    .lamp .glow {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 360px; height: 360px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(255,220,150, 0.55) 0%, rgba(255,220,150, 0) 60%);
+      pointer-events: none;
+      opacity: calc(var(--lamp-on) * 1);
+      transition: opacity 2s ease;
+      z-index: -1;
+    }
+
+    /* ── Picture frame above headboard ── */
+    .frame {
+      position: absolute;
+      left: 50%; top: 22%;
+      transform: translateX(-50%);
+      width: 240px; height: 130px;
+      background: #1a1009;
+      padding: 8px;
+      border-radius: 4px;
+      box-shadow:
+        0 6px 16px rgba(0,0,0,0.45),
+        inset 0 0 0 2px #4a3220;
+      z-index: 4;
+    }
+    .frame .matte {
+      width: 100%; height: 100%;
+      background: linear-gradient(180deg, #FAEDD3 0%, #E8C9A0 60%, #C29472 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 4px #FAF6EE;
+    }
+    .frame .mtn-back {
+      position: absolute; bottom: 22%; left: 0; right: 0;
+      height: 0;
+      border-bottom: 60px solid #6E5340;
+      border-left: 60px solid transparent;
+      border-right: 60px solid transparent;
+      width: 50%;
+      margin-left: 25%;
+    }
+    .frame .mtn-front-l, .frame .mtn-front-r {
+      position: absolute; bottom: 22%;
+      width: 0; height: 0;
+      border-bottom: 50px solid #4A3424;
+      border-left: 40px solid transparent;
+      border-right: 40px solid transparent;
+    }
+    .frame .mtn-front-l { left: 5%; }
+    .frame .mtn-front-r { right: 5%; }
+    .frame .water {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
+      background: linear-gradient(180deg, #6BA8C2 0%, #2E5A78 100%);
+    }
+    .frame .sun-pic {
+      position: absolute; right: 22%; top: 18%;
+      width: 18px; height: 18px;
+      background: #FFD485;
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(255,212,133,0.6);
+    }
+
+    /* ── Window with vertical blinds ── */
     .window {
       position: absolute;
-      width: 280px; height: 240px;
-      left: 8%;
-      top: 14%;
-      border-radius: 6px 6px 4px 4px;
+      right: 4%; top: 16%;
+      width: 200px; height: 260px;
       box-shadow:
-        0 0 0 12px #DCC4A8,
-        0 0 0 14px #8B6A4D,
-        0 18px 28px var(--window-glow);
+        0 0 0 10px #1a1009,
+        0 0 0 12px #3a2818,
+        0 22px 36px var(--window-glow);
       transition: box-shadow 1.5s ease;
       overflow: hidden;
       z-index: 3;
     }
-    .sky {
+    .window .sky {
       position: absolute; inset: 0;
       background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
       transition: background 1.5s ease;
     }
-    .sun {
+    .window .sun {
       position: absolute;
-      width: 80px; height: 80px;
+      width: 70px; height: 70px;
       left: var(--sun-x); top: var(--sun-y);
       transform: translate(-50%, -50%);
       border-radius: 50%;
@@ -111,389 +401,142 @@
       filter: blur(0.5px);
       transition: top 2s ease, left 2s ease, background 2s ease, opacity 2s ease;
     }
-    .stars {
+    .window .stars {
       position: absolute; inset: 0;
       background:
-        radial-gradient(1.4px 1.4px at 20% 30%, #fff, transparent),
+        radial-gradient(1.4px 1.4px at 18% 30%, #fff, transparent),
         radial-gradient(1px 1px at 60% 14%, #fff, transparent),
-        radial-gradient(1.6px 1.6px at 80% 40%, #fff, transparent),
+        radial-gradient(1.6px 1.6px at 78% 40%, #fff, transparent),
         radial-gradient(1px 1px at 35% 55%, #fff, transparent),
         radial-gradient(1.2px 1.2px at 70% 70%, #fff, transparent),
         radial-gradient(1px 1px at 15% 75%, #fff, transparent),
-        radial-gradient(1.4px 1.4px at 90% 20%, #fff, transparent),
-        radial-gradient(1px 1px at 50% 25%, #fff, transparent);
+        radial-gradient(1.4px 1.4px at 90% 22%, #fff, transparent),
+        radial-gradient(1px 1px at 50% 28%, #fff, transparent);
       opacity: 0;
       transition: opacity 2s ease;
-      pointer-events: none;
     }
-    .clouds {
+    /* Vertical blinds — translucent slats over the sky */
+    .window .blinds {
       position: absolute; inset: 0;
+      display: flex; gap: 1px;
       pointer-events: none;
-      opacity: 0.85;
-      transition: opacity 2s ease;
     }
-    .cloud {
-      position: absolute;
-      background: rgba(255, 255, 255, 0.78);
-      border-radius: 50px;
-      filter: blur(0.6px);
-      animation: drift 90s linear infinite;
-    }
-    .cloud:nth-child(1) { width: 70px; height: 18px; top: 30%; left: -30%; animation-duration: 110s; }
-    .cloud:nth-child(2) { width: 50px; height: 14px; top: 55%; left: -50%; animation-duration: 140s; animation-delay: -40s; }
-    .cloud:nth-child(3) { width: 90px; height: 22px; top: 18%; left: -80%; animation-duration: 160s; animation-delay: -90s; }
-    @keyframes drift {
-      0%   { transform: translateX(0); }
-      100% { transform: translateX(420px); }
+    .window .blinds .slat {
+      flex: 1;
+      background: linear-gradient(180deg, rgba(248,242,228,0.78) 0%, rgba(220,210,190,0.62) 100%);
+      box-shadow: inset -2px 0 0 rgba(0,0,0,0.08);
     }
 
-    /* Window cross-frame */
-    .window-frame {
-      position: absolute; inset: 0; pointer-events: none;
-      z-index: 2;
-    }
-    .window-frame::before, .window-frame::after {
-      content: ''; position: absolute;
-      background: #DCC4A8;
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
-    }
-    .window-frame::before {
-      left: 50%; top: 0; bottom: 0;
-      width: 8px; transform: translateX(-50%);
-    }
-    .window-frame::after {
-      top: 50%; left: 0; right: 0;
-      height: 8px; transform: translateY(-50%);
-    }
-    .window-sill {
-      position: absolute;
-      left: calc(8% - 18px); top: calc(14% + 240px + 10px);
-      width: 316px; height: 14px;
-      background: linear-gradient(180deg, #DCC4A8, #B89476);
-      border-radius: 3px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-      z-index: 4;
-    }
-    .curtain {
-      position: absolute;
-      top: calc(14% - 14px);
-      width: 70px; height: 264px;
-      background: repeating-linear-gradient(180deg, #B85B6E 0 12px, #C26B7A 12px 26px);
-      box-shadow: inset -4px 0 6px rgba(0,0,0,0.15);
-      z-index: 4;
-    }
-    .curtain-l { left: calc(8% - 30px); border-radius: 8px 0 0 4px; }
-    .curtain-r { left: calc(8% + 280px - 40px); border-radius: 0 8px 4px 0; }
-
-    /* Plant on the windowsill */
+    /* ── Plants ── */
     .plant {
       position: absolute;
-      left: calc(8% + 215px); top: calc(14% + 240px - 60px);
-      z-index: 5;
+      bottom: 2%;
+      z-index: 6;
     }
     .plant .pot {
-      width: 50px; height: 38px;
-      background: linear-gradient(180deg, #A56248, #6B3A24);
-      border-radius: 4px 4px 8px 8px;
+      width: 64px; height: 50px;
+      background: linear-gradient(180deg, #6e3f24 0%, #3e2114 100%);
+      border-radius: 4px 4px 14px 14px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
     }
     .plant .leaves {
-      position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%);
-      width: 70px; height: 52px;
+      position: relative;
+      width: 110px; height: 130px;
+      margin: 0 auto -10px;
     }
     .plant .leaf {
-      position: absolute; width: 24px; height: 36px;
-      background: #5BA871;
-      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-    }
-    .plant .leaf:nth-child(1) { left: 8px; top: 14px; transform: rotate(-22deg); background: #4F9A65; }
-    .plant .leaf:nth-child(2) { left: 22px; top: 0;   transform: rotate(0deg);   }
-    .plant .leaf:nth-child(3) { left: 36px; top: 14px; transform: rotate(20deg);  background: #4F9A65; }
-
-    /* ── Picture frame on wall ─────────────────────────── */
-    .frame {
       position: absolute;
-      width: 130px; height: 96px;
-      right: 12%; top: 15%;
-      background: #5C3F26;
-      padding: 8px;
-      border-radius: 4px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-      z-index: 3;
+      width: 16px; height: 70px;
+      background: linear-gradient(180deg, #5BA871 0%, #2E5C3F 100%);
+      border-radius: 50% 50% 0 0 / 80% 80% 0 0;
+      transform-origin: 50% 100%;
+      bottom: 0;
     }
-    .frame .matte {
-      width: 100%; height: 100%;
-      background: linear-gradient(180deg, #FAEDD3 0%, #E8C9A0 100%);
-      position: relative;
-      overflow: hidden;
-    }
-    /* tiny pixel mountain in the picture */
-    .frame .matte::before {
-      content: '';
-      position: absolute; left: 8%; bottom: 18%;
-      width: 0; height: 0;
-      border-left: 26px solid transparent;
-      border-right: 26px solid transparent;
-      border-bottom: 32px solid #6B4D34;
-    }
-    .frame .matte::after {
-      content: '';
-      position: absolute; left: 38%; bottom: 18%;
-      width: 0; height: 0;
-      border-left: 32px solid transparent;
-      border-right: 32px solid transparent;
-      border-bottom: 42px solid #4A2E18;
-    }
+    .plant .leaf:nth-child(1) { left: 18px;  transform: rotate(-30deg); }
+    .plant .leaf:nth-child(2) { left: 30px;  transform: rotate(-15deg); height: 80px; }
+    .plant .leaf:nth-child(3) { left: 46px;  transform: rotate(0deg);   height: 92px; }
+    .plant .leaf:nth-child(4) { left: 62px;  transform: rotate(15deg);  height: 80px; }
+    .plant .leaf:nth-child(5) { left: 76px;  transform: rotate(30deg);  }
+    .plant .leaf:nth-child(6) { left: 38px;  transform: rotate(-8deg);  height: 58px; background: #4F9A65; }
+    .plant .leaf:nth-child(7) { left: 56px;  transform: rotate(8deg);   height: 60px; background: #4F9A65; }
+    .plant.l { left: 3%; }
+    .plant.r { right: 3%; }
+    .plant.r .leaves { width: 130px; height: 150px; }
 
-    /* ── Wall clock ────────────────────────────────────── */
+    /* Smaller plant on the left nightstand */
+    .mini-plant {
+      position: absolute;
+      left: calc(16% + 6px); bottom: calc(9% + 160px);
+      z-index: 9;
+    }
+    .mini-plant .pot {
+      width: 26px; height: 18px;
+      background: linear-gradient(180deg, #6e3f24, #3e2114);
+      border-radius: 2px 2px 5px 5px;
+      margin: 0 auto;
+    }
+    .mini-plant .leaves {
+      position: relative; width: 36px; height: 28px; margin: 0 auto -3px;
+    }
+    .mini-plant .leaf {
+      position: absolute; width: 9px; height: 22px;
+      background: #4F9A65;
+      border-radius: 50% 50% 0 0 / 80% 80% 0 0;
+      transform-origin: 50% 100%; bottom: 0;
+    }
+    .mini-plant .leaf:nth-child(1) { left: 4px;  transform: rotate(-35deg); }
+    .mini-plant .leaf:nth-child(2) { left: 14px; transform: rotate(0deg);   height: 26px; }
+    .mini-plant .leaf:nth-child(3) { left: 24px; transform: rotate(35deg);  }
+
+    /* ── Wall clock ── */
     .clock {
       position: absolute;
-      width: 110px; height: 110px;
-      left: 50%; top: 12%;
-      transform: translateX(-50%);
-      background: radial-gradient(circle at 30% 30%, #FFFAF0, #ECE0CA);
+      left: 14%; top: 18%;
+      width: 88px; height: 88px;
+      background: radial-gradient(circle at 30% 30%, #FFFAF0, #DCCDB0);
       border-radius: 50%;
-      box-shadow: 0 0 0 6px #5C3F26, 0 6px 14px rgba(0,0,0,0.3);
+      box-shadow: 0 0 0 5px #1a1009, 0 6px 14px rgba(0,0,0,0.5);
       z-index: 4;
     }
     .clock .num {
       position: absolute; left: 50%; top: 50%;
-      width: 8px; height: 14px;
-      transform: translate(-50%, -52px);
-      background: #2C1F12;
-      border-radius: 2px;
+      width: 6px; height: 10px;
+      transform: translate(-50%, -38px);
+      background: #2C1F12; border-radius: 1px;
     }
-    .clock .num.three { transform: translate(46px, -50%); width: 14px; height: 8px; }
-    .clock .num.six   { transform: translate(-50%, 38px); }
-    .clock .num.nine  { transform: translate(-58px, -50%); width: 14px; height: 8px; }
+    .clock .num.three { transform: translate(34px, -50%); width: 10px; height: 6px; }
+    .clock .num.six   { transform: translate(-50%, 28px); }
+    .clock .num.nine  { transform: translate(-44px, -50%); width: 10px; height: 6px; }
     .clock .hand {
       position: absolute; left: 50%; top: 50%;
       transform-origin: 50% 100%;
       background: #2C1F12;
-      border-radius: 4px;
+      border-radius: 3px;
     }
-    .clock .hand.hour { width: 5px; height: 30px; transform: translate(-50%, -100%) rotate(0deg); }
-    .clock .hand.minute { width: 4px; height: 42px; transform: translate(-50%, -100%) rotate(0deg); background: #4A2E18; }
-    .clock .hand.second { width: 2px; height: 46px; transform: translate(-50%, -100%) rotate(0deg); background: #B83232; }
+    .clock .hand.hour   { width: 4px; height: 22px; transform: translate(-50%, -100%); }
+    .clock .hand.minute { width: 3px; height: 32px; transform: translate(-50%, -100%); background: #4A2E18; }
+    .clock .hand.second { width: 1.5px; height: 36px; transform: translate(-50%, -100%); background: #B83232; }
     .clock .center {
       position: absolute; left: 50%; top: 50%;
-      width: 8px; height: 8px;
-      background: #2C1F12;
-      border-radius: 50%;
+      width: 7px; height: 7px;
+      background: #2C1F12; border-radius: 50%;
       transform: translate(-50%, -50%);
       z-index: 2;
     }
     .clock .digital {
-      position: absolute; left: 50%; bottom: -28px;
+      position: absolute; left: 50%; bottom: -26px;
       transform: translateX(-50%);
       font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
-      font-size: 12px;
+      font-size: 11px;
       color: #FAF6EE;
-      background: rgba(20, 14, 36, 0.65);
-      padding: 3px 8px;
+      background: rgba(0, 0, 0, 0.55);
+      padding: 2px 8px;
       border-radius: 6px;
       letter-spacing: 0.06em;
       white-space: nowrap;
     }
 
-    /* ── Bed ───────────────────────────────────────────── */
-    .bed {
-      position: absolute;
-      right: 6%; bottom: 8%;
-      width: 360px; height: 200px;
-      z-index: 5;
-    }
-    .bed .frame-bed {
-      position: absolute; left: 0; bottom: 0;
-      width: 100%; height: 70px;
-      background: linear-gradient(180deg, #8B6A4D, #5C3F26);
-      border-radius: 6px;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-    }
-    .bed .mattress {
-      position: absolute; left: 8px; right: 8px; bottom: 50px;
-      height: 50px;
-      background: linear-gradient(180deg, #FAF6EE, #E5DCC9);
-      border-radius: 6px;
-    }
-    .bed .blanket {
-      position: absolute; left: 8px; right: 70px; bottom: 60px;
-      height: 84px;
-      background:
-        repeating-linear-gradient(45deg,
-          #C26B7A 0 18px, #B85B6E 18px 36px);
-      border-radius: 8px 0 8px 0;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.25);
-      transform: rotate(-1.2deg);
-    }
-    .bed .pillow {
-      position: absolute; right: 0; bottom: 76px;
-      width: 100px; height: 60px;
-      background: linear-gradient(180deg, #FAF6EE, #E0D4BC);
-      border-radius: 14px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
-      transform: rotate(4deg);
-    }
-    .bed .pillow.pillow2 {
-      right: 14px; bottom: 90px;
-      width: 84px; height: 50px;
-      background: linear-gradient(180deg, #F2D7DA, #D5A7AC);
-      transform: rotate(-3deg);
-    }
-
-    /* ── Nightstand + lamp ─────────────────────────────── */
-    .nightstand {
-      position: absolute;
-      right: 8%; bottom: 8%;
-      width: 110px; height: 130px;
-      transform: translateX(120%);
-      z-index: 4;
-    }
-    .nightstand .body {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      height: 100%;
-      background: linear-gradient(180deg, #74563B, #5C3F26);
-      border-radius: 4px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-    .nightstand .drawer {
-      position: absolute;
-      left: 8px; right: 8px; top: 50%;
-      height: 38px;
-      background: #4A2E18;
-      border-radius: 3px;
-    }
-    .nightstand .drawer::after {
-      content: ''; position: absolute;
-      width: 14px; height: 5px; background: #C5A074;
-      left: 50%; top: 50%; transform: translate(-50%, -50%);
-      border-radius: 2px;
-    }
-    .lamp {
-      position: absolute;
-      left: 50%; bottom: 130px;
-      transform: translateX(-50%);
-      width: 80px;
-      z-index: 6;
-    }
-    .lamp .shade {
-      width: 80px; height: 60px;
-      background: linear-gradient(180deg, #E8C870, #C49A3F);
-      clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%);
-      position: relative;
-      z-index: 2;
-    }
-    .lamp .shade.on {
-      background: linear-gradient(180deg, #FFE9A8, #FFB877);
-      box-shadow: 0 0 24px rgba(255, 220, 140, 0.6);
-    }
-    .lamp .stand {
-      width: 6px; height: 38px;
-      background: #2C1F12;
-      margin: -2px auto 0;
-      position: relative; z-index: 1;
-    }
-    .lamp .base {
-      width: 36px; height: 8px;
-      background: #2C1F12;
-      border-radius: 3px;
-      margin: 0 auto;
-      position: relative; z-index: 1;
-    }
-    .lamp .glow {
-      position: absolute;
-      left: 50%; top: 100%;
-      width: 380px; height: 380px;
-      transform: translate(-50%, -50%);
-      background: radial-gradient(circle, rgba(255,225,160,0.55) 0%, rgba(255,225,160,0) 60%);
-      pointer-events: none;
-      opacity: calc(var(--lamp-on) * 1);
-      transition: opacity 2s ease;
-      z-index: 0;
-    }
-
-    /* Floor lamp / tall lamp on nightstand has been replaced; rug below */
-    .rug {
-      position: absolute;
-      left: 30%; right: 22%; bottom: 5%;
-      height: 60px;
-      background:
-        repeating-linear-gradient(90deg, #B45B6E 0 12px, #8E3F50 12px 24px);
-      border-radius: 30px;
-      box-shadow: inset 0 0 0 6px #6B2B3A, 0 4px 8px rgba(0,0,0,0.2);
-      z-index: 1;
-    }
-
-    /* ── Bookshelf ─────────────────────────────────────── */
-    .shelf {
-      position: absolute;
-      left: 10%; bottom: 10%;
-      width: 180px; height: 220px;
-      z-index: 4;
-    }
-    .shelf .case {
-      position: absolute; inset: 0;
-      background: linear-gradient(180deg, #74563B, #4A2E18);
-      border-radius: 4px;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.25);
-    }
-    .shelf .row {
-      position: absolute; left: 8px; right: 8px;
-      height: 56px;
-      display: flex; gap: 4px;
-      padding: 4px 0;
-      border-bottom: 4px solid #2C1F12;
-    }
-    .shelf .row:nth-child(1) { top: 8px; }
-    .shelf .row:nth-child(2) { top: 76px; }
-    .shelf .row:nth-child(3) { top: 144px; border-bottom: none; }
-    .shelf .book {
-      flex: 0 0 auto;
-      width: 14px; height: 100%;
-      border-radius: 1px 1px 0 0;
-    }
-    .b-r { background: #B83232; } .b-g { background: #4F9A65; } .b-b { background: #4A6FA5; }
-    .b-y { background: #C49A3F; } .b-p { background: #8157A5; } .b-o { background: #C36A3B; }
-    .b-c { background: #4A8FA5; } .b-w { background: #FAF6EE; }
-
-    /* Mug on shelf */
-    .mug {
-      position: absolute; right: 14px; top: 28px;
-      width: 22px; height: 22px;
-      background: #FAF6EE;
-      border-radius: 3px 3px 4px 4px;
-      box-shadow: inset -4px -4px 0 #ECE0CA;
-    }
-    .mug::after {
-      content: ''; position: absolute;
-      right: -6px; top: 4px;
-      width: 8px; height: 12px;
-      border: 3px solid #FAF6EE;
-      border-radius: 50%;
-      background: transparent;
-    }
-
-    /* ── Door ──────────────────────────────────────────── */
-    .door {
-      position: absolute;
-      right: 30%; top: 10%;
-      width: 120px; height: 240px;
-      z-index: 3;
-    }
-    .door .panel {
-      position: absolute; inset: 0;
-      background: linear-gradient(180deg, #74563B 0%, #5C3F26 100%);
-      border: 4px solid #4A2E18;
-      border-radius: 4px 4px 0 0;
-    }
-    .door .knob {
-      position: absolute; right: 12px; top: 50%;
-      width: 10px; height: 10px;
-      background: radial-gradient(circle, #ECC15A, #8C6A1C);
-      border-radius: 50%;
-      transform: translateY(-50%);
-    }
-
-    /* ── Toast (song change) ───────────────────────────── */
+    /* ── Toast (song change) ── */
     .song-toast {
       position: fixed;
       right: 24px; bottom: 24px;
@@ -501,7 +544,7 @@
       color: #FAF6EE;
       padding: 14px 18px 14px 16px;
       border-radius: 12px;
-      box-shadow: 0 18px 38px rgba(0,0,0,0.45);
+      box-shadow: 0 18px 38px rgba(0,0,0,0.55);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 230, 160, 0.18);
@@ -513,10 +556,7 @@
       z-index: 200;
       pointer-events: none;
     }
-    .song-toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
+    .song-toast.show { transform: translateY(0); opacity: 1; }
     .song-toast .icon {
       font-size: 22px;
       width: 36px; height: 36px;
@@ -534,7 +574,7 @@
     .song-toast .title  { font-weight: 600; font-size: .95rem; }
     .song-toast .artist { font-size: .82rem; color: rgba(250, 246, 238, 0.7); }
 
-    /* ── Music control (small floating button) ─────────── */
+    /* ── Music control ── */
     .music-controls {
       position: fixed;
       right: 24px; top: 24px;
@@ -554,7 +594,7 @@
     }
     .music-controls button:hover { background: rgba(40, 28, 60, 0.9); transform: scale(1.06); }
 
-    /* Start-overlay for autoplay-allow click */
+    /* Start overlay */
     .start-overlay {
       position: fixed; inset: 0;
       display: flex; align-items: center; justify-content: center;
@@ -586,7 +626,6 @@
       font-size: .95rem;
     }
 
-    /* exit hint top-left */
     .exit-link {
       position: fixed; top: 18px; left: 20px;
       font-size: .78rem; color: rgba(250, 246, 238, 0.5);
@@ -594,6 +633,16 @@
       letter-spacing: 0.04em;
     }
     .exit-link:hover { color: rgba(250, 246, 238, 0.9); }
+
+    @media (max-width: 720px) {
+      .frame { width: 180px; height: 100px; top: 22%; }
+      .window { width: 140px; height: 200px; }
+      .nightstand { width: 80px; height: 120px; }
+      .lamp { width: 56px; }
+      .lamp .shade { width: 56px; height: 40px; }
+      .clock { width: 64px; height: 64px; left: 6%; top: 20%; }
+      .plant.l, .plant.r { transform: scale(0.7); transform-origin: bottom; }
+    }
   </style>
 </head>
 <body>
@@ -602,36 +651,9 @@
 
 <div class="stage">
   <div class="room">
-    <div class="back-wall"></div>
+    <div class="ceiling"></div>
+    <div class="wall"></div>
     <div class="floor"></div>
-    <div class="skirting"></div>
-
-    <!-- Window -->
-    <div class="window">
-      <div class="sky"></div>
-      <div class="clouds">
-        <div class="cloud"></div>
-        <div class="cloud"></div>
-        <div class="cloud"></div>
-      </div>
-      <div class="stars" id="stars"></div>
-      <div class="sun" id="sun"></div>
-      <div class="window-frame"></div>
-    </div>
-    <div class="window-sill"></div>
-    <div class="curtain curtain-l"></div>
-    <div class="curtain curtain-r"></div>
-    <div class="plant">
-      <div class="leaves">
-        <div class="leaf"></div>
-        <div class="leaf"></div>
-        <div class="leaf"></div>
-      </div>
-      <div class="pot"></div>
-    </div>
-
-    <!-- Picture frame -->
-    <div class="frame"><div class="matte"></div></div>
 
     <!-- Wall clock -->
     <div class="clock" aria-label="Clock">
@@ -646,48 +668,110 @@
       <div class="digital" id="digital">--:--</div>
     </div>
 
-    <!-- Door -->
-    <div class="door"><div class="panel"></div><div class="knob"></div></div>
-
-    <!-- Bookshelf -->
-    <div class="shelf">
-      <div class="case"></div>
-      <div class="row">
-        <div class="book b-r"></div><div class="book b-g"></div><div class="book b-y"></div>
-        <div class="book b-b"></div><div class="book b-p"></div><div class="book b-w"></div>
-        <div class="book b-c"></div><div class="book b-o"></div><div class="book b-r"></div>
-      </div>
-      <div class="row">
-        <div class="book b-b"></div><div class="book b-y"></div><div class="book b-g"></div>
-        <div class="book b-r"></div><div class="book b-c"></div><div class="book b-p"></div>
-        <div class="book b-w"></div>
-      </div>
-      <div class="row">
-        <div class="book b-o"></div><div class="book b-r"></div><div class="book b-y"></div>
-        <div class="book b-g"></div><div class="book b-b"></div><div class="book b-c"></div>
-        <div class="mug"></div>
+    <!-- Picture above headboard -->
+    <div class="frame">
+      <div class="matte">
+        <div class="sun-pic"></div>
+        <div class="mtn-back"></div>
+        <div class="mtn-front-l"></div>
+        <div class="mtn-front-r"></div>
+        <div class="water"></div>
       </div>
     </div>
 
-    <!-- Rug -->
-    <div class="rug"></div>
+    <!-- Window with vertical blinds -->
+    <div class="window">
+      <div class="sky"></div>
+      <div class="stars" id="stars"></div>
+      <div class="sun" id="sun"></div>
+      <div class="blinds">
+        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
+        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
+        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
+        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
+      </div>
+    </div>
 
-    <!-- Nightstand & lamp -->
-    <div class="nightstand"><div class="body"></div><div class="drawer"></div></div>
-    <div class="lamp">
-      <div class="glow"></div>
-      <div class="shade" id="lamp-shade"></div>
-      <div class="stand"></div>
-      <div class="base"></div>
+    <!-- Ceiling fan with light -->
+    <div class="fan">
+      <div class="mount"></div>
+      <div class="hub">
+        <div class="blades">
+          <div class="blade"></div><div class="blade"></div><div class="blade"></div>
+          <div class="blade"></div><div class="blade"></div>
+        </div>
+      </div>
+      <div class="light"></div>
+      <div class="light-glow"></div>
     </div>
 
     <!-- Bed -->
     <div class="bed">
+      <div class="headboard"></div>
       <div class="frame-bed"></div>
       <div class="mattress"></div>
       <div class="blanket"></div>
-      <div class="pillow"></div>
-      <div class="pillow pillow2"></div>
+      <div class="pillow-row">
+        <div class="pillow tan"></div>
+        <div class="pillow cream"></div>
+        <div class="pillow brown"></div>
+        <div class="pillow cream"></div>
+        <div class="pillow tan"></div>
+      </div>
+    </div>
+
+    <!-- Nightstands -->
+    <div class="nightstand left">
+      <div class="top"></div>
+      <div class="body"></div>
+      <div class="drawer"></div>
+    </div>
+    <div class="nightstand right">
+      <div class="top"></div>
+      <div class="body"></div>
+      <div class="drawer"></div>
+    </div>
+
+    <!-- Bedside lamps -->
+    <div class="lamp left">
+      <div class="glow"></div>
+      <div class="shade" id="lamp-shade-l"></div>
+      <div class="stand"></div>
+      <div class="base"></div>
+    </div>
+    <div class="lamp right">
+      <div class="glow"></div>
+      <div class="shade" id="lamp-shade-r"></div>
+      <div class="stand"></div>
+      <div class="base"></div>
+    </div>
+
+    <!-- Mini plant on left nightstand -->
+    <div class="mini-plant">
+      <div class="leaves">
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+      </div>
+      <div class="pot"></div>
+    </div>
+
+    <!-- Floor plants -->
+    <div class="plant l">
+      <div class="leaves">
+        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
+        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
+        <div class="leaf"></div>
+      </div>
+      <div class="pot"></div>
+    </div>
+    <div class="plant r">
+      <div class="leaves">
+        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
+        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
+        <div class="leaf"></div>
+      </div>
+      <div class="pot"></div>
     </div>
   </div>
 </div>
@@ -708,7 +792,7 @@
   </div>
 </div>
 
-<!-- Start overlay (browser autoplay requires a click) -->
+<!-- Start overlay -->
 <div class="start-overlay" id="start-overlay">
   <div class="card">
     <h2>Welcome back.</h2>
@@ -720,63 +804,49 @@
 <audio id="player" preload="auto"></audio>
 
 <script>
-/* ============================================================
-   1. Time-of-day state machine
-   ============================================================
-   Real-life-clock driven. Phases:
-     – day:   8:00 → 19:00
-     – dusk: 19:00 → 21:00
-     – night:21:00 → 6:00
-     – dawn:  6:00 → 8:00
-
-   Each phase mutates the CSS custom properties so the scene
-   transitions smoothly.
-*/
+/* ── 1. Time-of-day phases ─────────────────────────────────────── */
 const ROOT = document.documentElement;
-const sunEl    = document.getElementById('sun');
-const starsEl  = document.getElementById('stars');
-const lampShade= document.getElementById('lamp-shade');
+const sunEl     = document.getElementById('sun');
+const starsEl   = document.getElementById('stars');
+const lampShadeL= document.getElementById('lamp-shade-l');
+const lampShadeR= document.getElementById('lamp-shade-r');
 
 const PHASES = {
   day: {
     skyTop: '#8FCDEA', skyBottom: '#FFE6BC',
     sunX: '52%', sunY: '28%', sunColor: '#FFEAA0', sunOp: 1,
-    windowGlow: 'rgba(255, 220, 160, 0.55)',
+    windowGlow: 'rgba(255, 220, 160, 0.45)',
     roomTint: 'rgba(255, 244, 226, 0.0)',
     roomShade: 1.0,
     lampOn: 0,
     starsOp: 0,
-    cloudsOp: 0.85,
   },
   dusk: {
     skyTop: '#E58F6A', skyBottom: '#FAC58A',
     sunX: '70%', sunY: '70%', sunColor: '#FF7E55', sunOp: 1,
     windowGlow: 'rgba(255, 130, 80, 0.55)',
     roomTint: 'rgba(255, 150, 90, 0.10)',
-    roomShade: 0.8,
+    roomShade: 0.78,
     lampOn: 0.6,
-    starsOp: 0.0,
-    cloudsOp: 0.55,
+    starsOp: 0,
   },
   night: {
     skyTop: '#0E1733', skyBottom: '#2A2447',
     sunX: '30%', sunY: '30%', sunColor: '#E8E3F8', sunOp: 0.85,
     windowGlow: 'rgba(60, 80, 140, 0.45)',
     roomTint: 'rgba(20, 30, 70, 0.45)',
-    roomShade: 0.45,
+    roomShade: 0.42,
     lampOn: 1.0,
     starsOp: 1,
-    cloudsOp: 0.15,
   },
   dawn: {
     skyTop: '#A86F8E', skyBottom: '#FFD4A0',
     sunX: '32%', sunY: '76%', sunColor: '#FFB97A', sunOp: 0.9,
     windowGlow: 'rgba(255, 180, 130, 0.5)',
     roomTint: 'rgba(255, 180, 140, 0.06)',
-    roomShade: 0.78,
-    lampOn: 0.4,
-    starsOp: 0.0,
-    cloudsOp: 0.4,
+    roomShade: 0.74,
+    lampOn: 0.45,
+    starsOp: 0,
   },
 };
 
@@ -805,21 +875,17 @@ function applyPhase(force) {
   ROOT.style.setProperty('--room-shade',  p.roomShade);
   ROOT.style.setProperty('--lamp-on',     p.lampOn);
   starsEl.style.opacity = p.starsOp;
-  document.querySelector('.clouds').style.opacity = p.cloudsOp;
-  if (p.lampOn >= 0.5) lampShade.classList.add('on');
-  else                 lampShade.classList.remove('on');
+  if (p.lampOn >= 0.5) { lampShadeL.classList.add('on'); lampShadeR.classList.add('on'); }
+  else                 { lampShadeL.classList.remove('on'); lampShadeR.classList.remove('on'); }
 }
 applyPhase(true);
 setInterval(applyPhase, 30 * 1000);
 
-/* ============================================================
-   2. Clock — both analog hands and digital readout
-   ============================================================ */
-const handHour   = document.getElementById('hand-hour');
-const handMin    = document.getElementById('hand-minute');
-const handSec    = document.getElementById('hand-second');
-const digitalEl  = document.getElementById('digital');
-
+/* ── 2. Wall clock ─────────────────────────────────────────────── */
+const handHour  = document.getElementById('hand-hour');
+const handMin   = document.getElementById('hand-minute');
+const handSec   = document.getElementById('hand-second');
+const digitalEl = document.getElementById('digital');
 function tick() {
   const now = new Date();
   const ms  = now.getMilliseconds();
@@ -834,9 +900,7 @@ function tick() {
 tick();
 setInterval(tick, 1000);
 
-/* ============================================================
-   3. Music playlist — three tracks, looping
-   ============================================================ */
+/* ── 3. Music playlist ─────────────────────────────────────────── */
 const PLAYLIST = [
   { file: 'VibeDepot - Relax.mp3',                title: 'Relax',                artist: 'VibeDepot' },
   { file: 'Amarent - Hacienda (Suno Remix).mp3',  title: 'Hacienda (Suno Remix)', artist: 'Amarent'  },
@@ -859,7 +923,6 @@ function loadTrack(i, autoplay) {
   if (autoplay) player.play().catch(() => {});
   showSongToast(track);
 }
-
 function showSongToast(track) {
   toastTitle.textContent  = track.title;
   toastArtist.textContent = track.artist;
@@ -867,26 +930,16 @@ function showSongToast(track) {
   clearTimeout(showSongToast._t);
   showSongToast._t = setTimeout(() => toastEl.classList.remove('show'), 4500);
 }
-
 player.addEventListener('ended', () => loadTrack(trackIndex + 1, true));
-
 playPauseBtn.addEventListener('click', () => {
-  if (player.paused) {
-    player.play().catch(() => {});
-    playPauseBtn.textContent = '⏸';
-  } else {
-    player.pause();
-    playPauseBtn.textContent = '▶';
-  }
+  if (player.paused) { player.play().catch(() => {}); playPauseBtn.textContent = '⏸'; }
+  else               { player.pause(); playPauseBtn.textContent = '▶'; }
 });
 player.addEventListener('play',  () => { playPauseBtn.textContent = '⏸'; });
 player.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
-
 skipBtn.addEventListener('click', () => loadTrack(trackIndex + 1, !player.paused));
 
-/* ============================================================
-   4. Start overlay — browsers block autoplay until first click
-   ============================================================ */
+/* ── 4. Start overlay (autoplay gesture) ───────────────────────── */
 const startOverlay = document.getElementById('start-overlay');
 const startBtn     = document.getElementById('start-btn');
 function start() {
@@ -895,9 +948,7 @@ function start() {
   setTimeout(() => startOverlay.remove(), 600);
 }
 startBtn.addEventListener('click', start);
-startOverlay.addEventListener('click', (e) => {
-  if (e.target === startOverlay) start();
-});
+startOverlay.addEventListener('click', (e) => { if (e.target === startOverlay) start(); });
 </script>
 </body>
 </html>

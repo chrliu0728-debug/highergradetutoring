@@ -30,7 +30,7 @@
     }
 
     /* Clickable unit / why cards — inherit .card styling but drop native button chrome */
-    button.unit-card,
+    .unit-card,
     button.why-card {
       display: block; width: 100%;
       font: inherit; color: inherit; text-align: left;
@@ -38,13 +38,13 @@
       border: 1px solid var(--border);
       transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s, border-color .2s;
     }
-    button.unit-card:hover,
+    .unit-card:hover,
     button.why-card:hover {
       transform: translateY(-4px);
       box-shadow: 0 14px 36px rgba(0,0,0,.12);
       border-color: var(--blush);
     }
-    button.unit-card:focus-visible,
+    .unit-card:focus-visible,
     button.why-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
 
     /* Topic pills inside a unit card become their own clickable buttons —
@@ -247,7 +247,7 @@
     </div>
     <p style="text-align:center; color:var(--muted); font-size:.88rem; margin: -18px auto 20px;">👆 Click any unit for more details</p>
     <div class="grid-3" style="gap:16px; margin-top: 8px;">
-      <button class="card unit-card" data-unit="1" style="border-top: 3px solid var(--blush);">
+      <div role="button" tabindex="0" class="card unit-card" data-unit="1" style="border-top: 3px solid var(--blush);">
         <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">🔄</div>
         <h3>Unit 1 — Grade 8 Review</h3>
         <div class="topics-wrap" style="margin-top:10px; gap:6px;">
@@ -255,7 +255,7 @@
           <button type="button" class="topic-pill" data-topic="powers" style="font-size:.78rem; padding:4px 10px;">Powers &amp; Roots</button>
           <button type="button" class="topic-pill" data-topic="ineq8" style="font-size:.78rem; padding:4px 10px;">Inequalities</button>
         </div>
-      </button>
+      </div>
       <button class="card unit-card" data-unit="2" style="border-top: 3px solid var(--mint);">
         <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📈</div>
         <h3>Unit 2 — Algebra</h3>
@@ -264,7 +264,7 @@
           <button type="button" class="topic-pill" data-topic="solve-eq" style="font-size:.78rem; padding:4px 10px;">Solving Equations</button>
           <button type="button" class="topic-pill" data-topic="relations" style="font-size:.78rem; padding:4px 10px;">Relations</button>
         </div>
-      </button>
+      </div>
       <button class="card unit-card" data-unit="3" style="border-top: 3px solid var(--blush);">
         <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📊</div>
         <h3>Unit 3 — Data</h3>
@@ -273,7 +273,7 @@
           <button type="button" class="topic-pill" data-topic="stats" style="font-size:.78rem; padding:4px 10px;">Statistics</button>
           <button type="button" class="topic-pill" data-topic="modelling" style="font-size:.78rem; padding:4px 10px;">Mathematical Modelling</button>
         </div>
-      </button>
+      </div>
       <button class="card unit-card" data-unit="4" style="border-top: 3px solid var(--mint);">
         <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📐</div>
         <h3>Unit 4 — Geometry</h3>
@@ -284,7 +284,7 @@
           <button type="button" class="topic-pill" data-topic="geom-props" style="font-size:.78rem; padding:4px 10px;">Geometric Properties</button>
           <button type="button" class="topic-pill" data-topic="coord-geom" style="font-size:.78rem; padding:4px 10px;">Coordinate Geometry</button>
         </div>
-      </button>
+      </div>
       <button class="card unit-card" data-unit="5" style="border-top: 3px solid var(--blush); grid-column: span 2 / span 2;">
         <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📉</div>
         <h3>Unit 5 — Linear Relations</h3>
@@ -296,7 +296,7 @@
           <button type="button" class="topic-pill" data-topic="parallel-perp" style="font-size:.78rem; padding:4px 10px;">Parallel &amp; Perpendicular Lines</button>
           <button type="button" class="topic-pill" data-topic="lin-ineq" style="font-size:.78rem; padding:4px 10px;">Linear Inequalities</button>
         </div>
-      </button>
+      </div>
     </div>
 
     <!-- ── Unit detail modal ── -->
@@ -886,6 +886,12 @@
     btn.addEventListener('click', e => {
       if (e.target.closest('.topic-pill')) return;
       openModal(UNITS[btn.dataset.unit]);
+    });
+    btn.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.topic-pill')) {
+        e.preventDefault();
+        openModal(UNITS[btn.dataset.unit]);
+      }
     });
   });
   document.querySelectorAll('.topic-pill').forEach(btn => {
