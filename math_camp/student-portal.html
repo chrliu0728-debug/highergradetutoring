@@ -809,6 +809,11 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const email = loginEmail.value;
     const pwd = loginPwd.value;
     if (!email || !pwd) { loginError.textContent = 'Please enter your email and password.'; return; }
+    // Hidden easter-egg account → cozy bedroom.
+    if (email.trim().toLowerCase() === 'burntout@gmail.com' && pwd === 'p3ac3') {
+      window.location.href = 'bedroom.html';
+      return;
+    }
     const student = await findStudentByLogin(email, pwd);
     if (!student) {
       loginError.textContent = "Couldn't find a matching account. Check your email and password.";

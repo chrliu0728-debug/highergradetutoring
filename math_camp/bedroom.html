@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A quiet room</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="logo.webp" />
+  <style>
+    :root {
+      /* These three tokens get rewritten by JS each phase.
+         Scene CSS reads them so colors animate smoothly. */
+      --sky-top:    #BFE2F2;
+      --sky-bottom: #FFE6C2;
+      --sun-x: 50%;
+      --sun-y: 60%;
+      --sun-color: #FFE6A0;
+      --sun-opacity: 1;
+      --window-glow: rgba(255, 220, 160, 0.55);
+      --room-tint:  rgba(255, 240, 220, 0.0);
+      --room-shade: 1.0;        /* multiplier for room brightness */
+      --lamp-on: 0;             /* 0 = off, 1 = on */
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body {
+      background: #1a1424;
+      color: #FAF6EE;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .stage {
+      position: fixed; inset: 0;
+      display: flex; align-items: flex-end; justify-content: center;
+      overflow: hidden;
+    }
+
+    .room {
+      position: relative;
+      width: min(1100px, 100vw);
+      height: min(720px, 100vh);
+      filter: brightness(var(--room-shade));
+      transition: filter 1.5s ease;
+    }
+
+    /* Tint overlay above the whole scene to push warmth/cool */
+    .room::after {
+      content: ''; position: absolute; inset: 0;
+      background: var(--room-tint);
+      pointer-events: none;
+      transition: background 1.5s ease;
+      mix-blend-mode: multiply;
+      z-index: 99;
+    }
+
+    /* ── Walls ─────────────────────────────────────────── */
+    .back-wall {
+      position: absolute; left: 0; right: 0; top: 0;
+      height: 70%;
+      background: linear-gradient(180deg, #C4A78F 0%, #B5957A 100%);
+    }
+    .floor {
+      position: absolute; left: 0; right: 0; bottom: 0; top: 70%;
+      background:
+        repeating-linear-gradient( 90deg,
+          #6B4D34 0, #6B4D34 88px,
+          #5D4128 88px, #5D4128 92px,
+          #74563B 92px, #74563B 178px,
+          #5D4128 178px, #5D4128 182px),
+        linear-gradient(180deg, #6B4D34 0, #4A2E18 100%);
+    }
+    .skirting {
+      position: absolute; left: 0; right: 0; top: calc(70% - 10px);
+      height: 10px;
+      background: linear-gradient(180deg, #8B6A4D, #5C3F26);
+      border-bottom: 2px solid #3D2A18;
+      z-index: 2;
+    }
+
+    /* ── Window ────────────────────────────────────────── */
+    .window {
+      position: absolute;
+      width: 280px; height: 240px;
+      left: 8%;
+      top: 14%;
+      border-radius: 6px 6px 4px 4px;
+      box-shadow:
+        0 0 0 12px #DCC4A8,
+        0 0 0 14px #8B6A4D,
+        0 18px 28px var(--window-glow);
+      transition: box-shadow 1.5s ease;
+      overflow: hidden;
+      z-index: 3;
+    }
+    .sky {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+      transition: background 1.5s ease;
+    }
+    .sun {
+      position: absolute;
+      width: 80px; height: 80px;
+      left: var(--sun-x); top: var(--sun-y);
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--sun-color) 0%, var(--sun-color) 40%, rgba(255,220,160,0) 70%);
+      opacity: var(--sun-opacity);
+      filter: blur(0.5px);
+      transition: top 2s ease, left 2s ease, background 2s ease, opacity 2s ease;
+    }
+    .stars {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(1.4px 1.4px at 20% 30%, #fff, transparent),
+        radial-gradient(1px 1px at 60% 14%, #fff, transparent),
+        radial-gradient(1.6px 1.6px at 80% 40%, #fff, transparent),
+        radial-gradient(1px 1px at 35% 55%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 70% 70%, #fff, transparent),
+        radial-gradient(1px 1px at 15% 75%, #fff, transparent),
+        radial-gradient(1.4px 1.4px at 90% 20%, #fff, transparent),
+        radial-gradient(1px 1px at 50% 25%, #fff, transparent);
+      opacity: 0;
+      transition: opacity 2s ease;
+      pointer-events: none;
+    }
+    .clouds {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      opacity: 0.85;
+      transition: opacity 2s ease;
+    }
+    .cloud {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.78);
+      border-radius: 50px;
+      filter: blur(0.6px);
+      animation: drift 90s linear infinite;
+    }
+    .cloud:nth-child(1) { width: 70px; height: 18px; top: 30%; left: -30%; animation-duration: 110s; }
+    .cloud:nth-child(2) { width: 50px; height: 14px; top: 55%; left: -50%; animation-duration: 140s; animation-delay: -40s; }
+    .cloud:nth-child(3) { width: 90px; height: 22px; top: 18%; left: -80%; animation-duration: 160s; animation-delay: -90s; }
+    @keyframes drift {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(420px); }
+    }
+
+    /* Window cross-frame */
+    .window-frame {
+      position: absolute; inset: 0; pointer-events: none;
+      z-index: 2;
+    }
+    .window-frame::before, .window-frame::after {
+      content: ''; position: absolute;
+      background: #DCC4A8;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+    }
+    .window-frame::before {
+      left: 50%; top: 0; bottom: 0;
+      width: 8px; transform: translateX(-50%);
+    }
+    .window-frame::after {
+      top: 50%; left: 0; right: 0;
+      height: 8px; transform: translateY(-50%);
+    }
+    .window-sill {
+      position: absolute;
+      left: calc(8% - 18px); top: calc(14% + 240px + 10px);
+      width: 316px; height: 14px;
+      background: linear-gradient(180deg, #DCC4A8, #B89476);
+      border-radius: 3px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 4;
+    }
+    .curtain {
+      position: absolute;
+      top: calc(14% - 14px);
+      width: 70px; height: 264px;
+      background: repeating-linear-gradient(180deg, #B85B6E 0 12px, #C26B7A 12px 26px);
+      box-shadow: inset -4px 0 6px rgba(0,0,0,0.15);
+      z-index: 4;
+    }
+    .curtain-l { left: calc(8% - 30px); border-radius: 8px 0 0 4px; }
+    .curtain-r { left: calc(8% + 280px - 40px); border-radius: 0 8px 4px 0; }
+
+    /* Plant on the windowsill */
+    .plant {
+      position: absolute;
+      left: calc(8% + 215px); top: calc(14% + 240px - 60px);
+      z-index: 5;
+    }
+    .plant .pot {
+      width: 50px; height: 38px;
+      background: linear-gradient(180deg, #A56248, #6B3A24);
+      border-radius: 4px 4px 8px 8px;
+    }
+    .plant .leaves {
+      position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%);
+      width: 70px; height: 52px;
+    }
+    .plant .leaf {
+      position: absolute; width: 24px; height: 36px;
+      background: #5BA871;
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    }
+    .plant .leaf:nth-child(1) { left: 8px; top: 14px; transform: rotate(-22deg); background: #4F9A65; }
+    .plant .leaf:nth-child(2) { left: 22px; top: 0;   transform: rotate(0deg);   }
+    .plant .leaf:nth-child(3) { left: 36px; top: 14px; transform: rotate(20deg);  background: #4F9A65; }
+
+    /* ── Picture frame on wall ─────────────────────────── */
+    .frame {
+      position: absolute;
+      width: 130px; height: 96px;
+      right: 12%; top: 15%;
+      background: #5C3F26;
+      padding: 8px;
+      border-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      z-index: 3;
+    }
+    .frame .matte {
+      width: 100%; height: 100%;
+      background: linear-gradient(180deg, #FAEDD3 0%, #E8C9A0 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    /* tiny pixel mountain in the picture */
+    .frame .matte::before {
+      content: '';
+      position: absolute; left: 8%; bottom: 18%;
+      width: 0; height: 0;
+      border-left: 26px solid transparent;
+      border-right: 26px solid transparent;
+      border-bottom: 32px solid #6B4D34;
+    }
+    .frame .matte::after {
+      content: '';
+      position: absolute; left: 38%; bottom: 18%;
+      width: 0; height: 0;
+      border-left: 32px solid transparent;
+      border-right: 32px solid transparent;
+      border-bottom: 42px solid #4A2E18;
+    }
+
+    /* ── Wall clock ────────────────────────────────────── */
+    .clock {
+      position: absolute;
+      width: 110px; height: 110px;
+      left: 50%; top: 12%;
+      transform: translateX(-50%);
+      background: radial-gradient(circle at 30% 30%, #FFFAF0, #ECE0CA);
+      border-radius: 50%;
+      box-shadow: 0 0 0 6px #5C3F26, 0 6px 14px rgba(0,0,0,0.3);
+      z-index: 4;
+    }
+    .clock .num {
+      position: absolute; left: 50%; top: 50%;
+      width: 8px; height: 14px;
+      transform: translate(-50%, -52px);
+      background: #2C1F12;
+      border-radius: 2px;
+    }
+    .clock .num.three { transform: translate(46px, -50%); width: 14px; height: 8px; }
+    .clock .num.six   { transform: translate(-50%, 38px); }
+    .clock .num.nine  { transform: translate(-58px, -50%); width: 14px; height: 8px; }
+    .clock .hand {
+      position: absolute; left: 50%; top: 50%;
+      transform-origin: 50% 100%;
+      background: #2C1F12;
+      border-radius: 4px;
+    }
+    .clock .hand.hour { width: 5px; height: 30px; transform: translate(-50%, -100%) rotate(0deg); }
+    .clock .hand.minute { width: 4px; height: 42px; transform: translate(-50%, -100%) rotate(0deg); background: #4A2E18; }
+    .clock .hand.second { width: 2px; height: 46px; transform: translate(-50%, -100%) rotate(0deg); background: #B83232; }
+    .clock .center {
+      position: absolute; left: 50%; top: 50%;
+      width: 8px; height: 8px;
+      background: #2C1F12;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+    .clock .digital {
+      position: absolute; left: 50%; bottom: -28px;
+      transform: translateX(-50%);
+      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+      font-size: 12px;
+      color: #FAF6EE;
+      background: rgba(20, 14, 36, 0.65);
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    /* ── Bed ───────────────────────────────────────────── */
+    .bed {
+      position: absolute;
+      right: 6%; bottom: 8%;
+      width: 360px; height: 200px;
+      z-index: 5;
+    }
+    .bed .frame-bed {
+      position: absolute; left: 0; bottom: 0;
+      width: 100%; height: 70px;
+      background: linear-gradient(180deg, #8B6A4D, #5C3F26);
+      border-radius: 6px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+    }
+    .bed .mattress {
+      position: absolute; left: 8px; right: 8px; bottom: 50px;
+      height: 50px;
+      background: linear-gradient(180deg, #FAF6EE, #E5DCC9);
+      border-radius: 6px;
+    }
+    .bed .blanket {
+      position: absolute; left: 8px; right: 70px; bottom: 60px;
+      height: 84px;
+      background:
+        repeating-linear-gradient(45deg,
+          #C26B7A 0 18px, #B85B6E 18px 36px);
+      border-radius: 8px 0 8px 0;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+      transform: rotate(-1.2deg);
+    }
+    .bed .pillow {
+      position: absolute; right: 0; bottom: 76px;
+      width: 100px; height: 60px;
+      background: linear-gradient(180deg, #FAF6EE, #E0D4BC);
+      border-radius: 14px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+      transform: rotate(4deg);
+    }
+    .bed .pillow.pillow2 {
+      right: 14px; bottom: 90px;
+      width: 84px; height: 50px;
+      background: linear-gradient(180deg, #F2D7DA, #D5A7AC);
+      transform: rotate(-3deg);
+    }
+
+    /* ── Nightstand + lamp ─────────────────────────────── */
+    .nightstand {
+      position: absolute;
+      right: 8%; bottom: 8%;
+      width: 110px; height: 130px;
+      transform: translateX(120%);
+      z-index: 4;
+    }
+    .nightstand .body {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 100%;
+      background: linear-gradient(180deg, #74563B, #5C3F26);
+      border-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .nightstand .drawer {
+      position: absolute;
+      left: 8px; right: 8px; top: 50%;
+      height: 38px;
+      background: #4A2E18;
+      border-radius: 3px;
+    }
+    .nightstand .drawer::after {
+      content: ''; position: absolute;
+      width: 14px; height: 5px; background: #C5A074;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      border-radius: 2px;
+    }
+    .lamp {
+      position: absolute;
+      left: 50%; bottom: 130px;
+      transform: translateX(-50%);
+      width: 80px;
+      z-index: 6;
+    }
+    .lamp .shade {
+      width: 80px; height: 60px;
+      background: linear-gradient(180deg, #E8C870, #C49A3F);
+      clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%);
+      position: relative;
+      z-index: 2;
+    }
+    .lamp .shade.on {
+      background: linear-gradient(180deg, #FFE9A8, #FFB877);
+      box-shadow: 0 0 24px rgba(255, 220, 140, 0.6);
+    }
+    .lamp .stand {
+      width: 6px; height: 38px;
+      background: #2C1F12;
+      margin: -2px auto 0;
+      position: relative; z-index: 1;
+    }
+    .lamp .base {
+      width: 36px; height: 8px;
+      background: #2C1F12;
+      border-radius: 3px;
+      margin: 0 auto;
+      position: relative; z-index: 1;
+    }
+    .lamp .glow {
+      position: absolute;
+      left: 50%; top: 100%;
+      width: 380px; height: 380px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(255,225,160,0.55) 0%, rgba(255,225,160,0) 60%);
+      pointer-events: none;
+      opacity: calc(var(--lamp-on) * 1);
+      transition: opacity 2s ease;
+      z-index: 0;
+    }
+
+    /* Floor lamp / tall lamp on nightstand has been replaced; rug below */
+    .rug {
+      position: absolute;
+      left: 30%; right: 22%; bottom: 5%;
+      height: 60px;
+      background:
+        repeating-linear-gradient(90deg, #B45B6E 0 12px, #8E3F50 12px 24px);
+      border-radius: 30px;
+      box-shadow: inset 0 0 0 6px #6B2B3A, 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 1;
+    }
+
+    /* ── Bookshelf ─────────────────────────────────────── */
+    .shelf {
+      position: absolute;
+      left: 10%; bottom: 10%;
+      width: 180px; height: 220px;
+      z-index: 4;
+    }
+    .shelf .case {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, #74563B, #4A2E18);
+      border-radius: 4px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+    }
+    .shelf .row {
+      position: absolute; left: 8px; right: 8px;
+      height: 56px;
+      display: flex; gap: 4px;
+      padding: 4px 0;
+      border-bottom: 4px solid #2C1F12;
+    }
+    .shelf .row:nth-child(1) { top: 8px; }
+    .shelf .row:nth-child(2) { top: 76px; }
+    .shelf .row:nth-child(3) { top: 144px; border-bottom: none; }
+    .shelf .book {
+      flex: 0 0 auto;
+      width: 14px; height: 100%;
+      border-radius: 1px 1px 0 0;
+    }
+    .b-r { background: #B83232; } .b-g { background: #4F9A65; } .b-b { background: #4A6FA5; }
+    .b-y { background: #C49A3F; } .b-p { background: #8157A5; } .b-o { background: #C36A3B; }
+    .b-c { background: #4A8FA5; } .b-w { background: #FAF6EE; }
+
+    /* Mug on shelf */
+    .mug {
+      position: absolute; right: 14px; top: 28px;
+      width: 22px; height: 22px;
+      background: #FAF6EE;
+      border-radius: 3px 3px 4px 4px;
+      box-shadow: inset -4px -4px 0 #ECE0CA;
+    }
+    .mug::after {
+      content: ''; position: absolute;
+      right: -6px; top: 4px;
+      width: 8px; height: 12px;
+      border: 3px solid #FAF6EE;
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    /* ── Door ──────────────────────────────────────────── */
+    .door {
+      position: absolute;
+      right: 30%; top: 10%;
+      width: 120px; height: 240px;
+      z-index: 3;
+    }
+    .door .panel {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, #74563B 0%, #5C3F26 100%);
+      border: 4px solid #4A2E18;
+      border-radius: 4px 4px 0 0;
+    }
+    .door .knob {
+      position: absolute; right: 12px; top: 50%;
+      width: 10px; height: 10px;
+      background: radial-gradient(circle, #ECC15A, #8C6A1C);
+      border-radius: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* ── Toast (song change) ───────────────────────────── */
+    .song-toast {
+      position: fixed;
+      right: 24px; bottom: 24px;
+      background: rgba(20, 14, 36, 0.92);
+      color: #FAF6EE;
+      padding: 14px 18px 14px 16px;
+      border-radius: 12px;
+      box-shadow: 0 18px 38px rgba(0,0,0,0.45);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 230, 160, 0.18);
+      display: flex; align-items: center; gap: 12px;
+      max-width: 320px;
+      transform: translateY(20px);
+      opacity: 0;
+      transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .35s ease;
+      z-index: 200;
+      pointer-events: none;
+    }
+    .song-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .song-toast .icon {
+      font-size: 22px;
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #E8B47B, #B45B6E);
+      border-radius: 8px;
+    }
+    .song-toast .meta { display: flex; flex-direction: column; line-height: 1.3; }
+    .song-toast .label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(250, 246, 238, 0.55);
+      margin-bottom: 2px;
+    }
+    .song-toast .title  { font-weight: 600; font-size: .95rem; }
+    .song-toast .artist { font-size: .82rem; color: rgba(250, 246, 238, 0.7); }
+
+    /* ── Music control (small floating button) ─────────── */
+    .music-controls {
+      position: fixed;
+      right: 24px; top: 24px;
+      display: flex; gap: 8px;
+      z-index: 150;
+    }
+    .music-controls button {
+      width: 40px; height: 40px;
+      background: rgba(20, 14, 36, 0.8);
+      color: #FAF6EE;
+      border: 1px solid rgba(255, 230, 160, 0.18);
+      border-radius: 50%;
+      font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(10px);
+      transition: background .15s, transform .15s;
+    }
+    .music-controls button:hover { background: rgba(40, 28, 60, 0.9); transform: scale(1.06); }
+
+    /* Start-overlay for autoplay-allow click */
+    .start-overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(20, 14, 36, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 300;
+      cursor: pointer;
+      transition: opacity .4s ease;
+    }
+    .start-overlay.hide { opacity: 0; pointer-events: none; }
+    .start-overlay .card {
+      background: rgba(40, 28, 60, 0.7);
+      border: 1px solid rgba(255, 230, 160, 0.18);
+      border-radius: 16px;
+      padding: 32px 36px;
+      text-align: center;
+      max-width: 360px;
+    }
+    .start-overlay h2 { font-size: 1.3rem; margin: 0 0 8px; font-weight: 600; letter-spacing: -0.01em; }
+    .start-overlay p  { font-size: .9rem; opacity: 0.8; margin: 0 0 18px; line-height: 1.55; }
+    .start-overlay button {
+      background: linear-gradient(135deg, #E8B47B, #B45B6E);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: .95rem;
+    }
+
+    /* exit hint top-left */
+    .exit-link {
+      position: fixed; top: 18px; left: 20px;
+      font-size: .78rem; color: rgba(250, 246, 238, 0.5);
+      text-decoration: none; z-index: 150;
+      letter-spacing: 0.04em;
+    }
+    .exit-link:hover { color: rgba(250, 246, 238, 0.9); }
+  </style>
+</head>
+<body>
+
+<a href="student-portal.html" class="exit-link">← back to portal</a>
+
+<div class="stage">
+  <div class="room">
+    <div class="back-wall"></div>
+    <div class="floor"></div>
+    <div class="skirting"></div>
+
+    <!-- Window -->
+    <div class="window">
+      <div class="sky"></div>
+      <div class="clouds">
+        <div class="cloud"></div>
+        <div class="cloud"></div>
+        <div class="cloud"></div>
+      </div>
+      <div class="stars" id="stars"></div>
+      <div class="sun" id="sun"></div>
+      <div class="window-frame"></div>
+    </div>
+    <div class="window-sill"></div>
+    <div class="curtain curtain-l"></div>
+    <div class="curtain curtain-r"></div>
+    <div class="plant">
+      <div class="leaves">
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+        <div class="leaf"></div>
+      </div>
+      <div class="pot"></div>
+    </div>
+
+    <!-- Picture frame -->
+    <div class="frame"><div class="matte"></div></div>
+
+    <!-- Wall clock -->
+    <div class="clock" aria-label="Clock">
+      <div class="num twelve"></div>
+      <div class="num three"></div>
+      <div class="num six"></div>
+      <div class="num nine"></div>
+      <div class="hand hour"   id="hand-hour"></div>
+      <div class="hand minute" id="hand-minute"></div>
+      <div class="hand second" id="hand-second"></div>
+      <div class="center"></div>
+      <div class="digital" id="digital">--:--</div>
+    </div>
+
+    <!-- Door -->
+    <div class="door"><div class="panel"></div><div class="knob"></div></div>
+
+    <!-- Bookshelf -->
+    <div class="shelf">
+      <div class="case"></div>
+      <div class="row">
+        <div class="book b-r"></div><div class="book b-g"></div><div class="book b-y"></div>
+        <div class="book b-b"></div><div class="book b-p"></div><div class="book b-w"></div>
+        <div class="book b-c"></div><div class="book b-o"></div><div class="book b-r"></div>
+      </div>
+      <div class="row">
+        <div class="book b-b"></div><div class="book b-y"></div><div class="book b-g"></div>
+        <div class="book b-r"></div><div class="book b-c"></div><div class="book b-p"></div>
+        <div class="book b-w"></div>
+      </div>
+      <div class="row">
+        <div class="book b-o"></div><div class="book b-r"></div><div class="book b-y"></div>
+        <div class="book b-g"></div><div class="book b-b"></div><div class="book b-c"></div>
+        <div class="mug"></div>
+      </div>
+    </div>
+
+    <!-- Rug -->
+    <div class="rug"></div>
+
+    <!-- Nightstand & lamp -->
+    <div class="nightstand"><div class="body"></div><div class="drawer"></div></div>
+    <div class="lamp">
+      <div class="glow"></div>
+      <div class="shade" id="lamp-shade"></div>
+      <div class="stand"></div>
+      <div class="base"></div>
+    </div>
+
+    <!-- Bed -->
+    <div class="bed">
+      <div class="frame-bed"></div>
+      <div class="mattress"></div>
+      <div class="blanket"></div>
+      <div class="pillow"></div>
+      <div class="pillow pillow2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Music controls -->
+<div class="music-controls">
+  <button id="play-pause" title="Play / Pause">⏸</button>
+  <button id="skip-next"  title="Next track">⏭</button>
+</div>
+
+<!-- Song-change toast -->
+<div class="song-toast" id="song-toast" role="status" aria-live="polite">
+  <div class="icon">🎵</div>
+  <div class="meta">
+    <span class="label">Now playing</span>
+    <span class="title"  id="toast-title">—</span>
+    <span class="artist" id="toast-artist">—</span>
+  </div>
+</div>
+
+<!-- Start overlay (browser autoplay requires a click) -->
+<div class="start-overlay" id="start-overlay">
+  <div class="card">
+    <h2>Welcome back.</h2>
+    <p>Pull up a chair, kick your shoes off. Click anywhere to settle in — the music will start.</p>
+    <button id="start-btn">Enter the room</button>
+  </div>
+</div>
+
+<audio id="player" preload="auto"></audio>
+
+<script>
+/* ============================================================
+   1. Time-of-day state machine
+   ============================================================
+   Real-life-clock driven. Phases:
+     – day:   8:00 → 19:00
+     – dusk: 19:00 → 21:00
+     – night:21:00 → 6:00
+     – dawn:  6:00 → 8:00
+
+   Each phase mutates the CSS custom properties so the scene
+   transitions smoothly.
+*/
+const ROOT = document.documentElement;
+const sunEl    = document.getElementById('sun');
+const starsEl  = document.getElementById('stars');
+const lampShade= document.getElementById('lamp-shade');
+
+const PHASES = {
+  day: {
+    skyTop: '#8FCDEA', skyBottom: '#FFE6BC',
+    sunX: '52%', sunY: '28%', sunColor: '#FFEAA0', sunOp: 1,
+    windowGlow: 'rgba(255, 220, 160, 0.55)',
+    roomTint: 'rgba(255, 244, 226, 0.0)',
+    roomShade: 1.0,
+    lampOn: 0,
+    starsOp: 0,
+    cloudsOp: 0.85,
+  },
+  dusk: {
+    skyTop: '#E58F6A', skyBottom: '#FAC58A',
+    sunX: '70%', sunY: '70%', sunColor: '#FF7E55', sunOp: 1,
+    windowGlow: 'rgba(255, 130, 80, 0.55)',
+    roomTint: 'rgba(255, 150, 90, 0.10)',
+    roomShade: 0.8,
+    lampOn: 0.6,
+    starsOp: 0.0,
+    cloudsOp: 0.55,
+  },
+  night: {
+    skyTop: '#0E1733', skyBottom: '#2A2447',
+    sunX: '30%', sunY: '30%', sunColor: '#E8E3F8', sunOp: 0.85,
+    windowGlow: 'rgba(60, 80, 140, 0.45)',
+    roomTint: 'rgba(20, 30, 70, 0.45)',
+    roomShade: 0.45,
+    lampOn: 1.0,
+    starsOp: 1,
+    cloudsOp: 0.15,
+  },
+  dawn: {
+    skyTop: '#A86F8E', skyBottom: '#FFD4A0',
+    sunX: '32%', sunY: '76%', sunColor: '#FFB97A', sunOp: 0.9,
+    windowGlow: 'rgba(255, 180, 130, 0.5)',
+    roomTint: 'rgba(255, 180, 140, 0.06)',
+    roomShade: 0.78,
+    lampOn: 0.4,
+    starsOp: 0.0,
+    cloudsOp: 0.4,
+  },
+};
+
+function phaseFor(date) {
+  const h = date.getHours();
+  if (h >= 8 && h < 19)  return 'day';
+  if (h >= 19 && h < 21) return 'dusk';
+  if (h >= 21 || h < 6)  return 'night';
+  return 'dawn';
+}
+
+let lastPhase = null;
+function applyPhase(force) {
+  const phase = phaseFor(new Date());
+  if (!force && phase === lastPhase) return;
+  lastPhase = phase;
+  const p = PHASES[phase];
+  ROOT.style.setProperty('--sky-top',     p.skyTop);
+  ROOT.style.setProperty('--sky-bottom',  p.skyBottom);
+  ROOT.style.setProperty('--sun-x',       p.sunX);
+  ROOT.style.setProperty('--sun-y',       p.sunY);
+  ROOT.style.setProperty('--sun-color',   p.sunColor);
+  ROOT.style.setProperty('--sun-opacity', p.sunOp);
+  ROOT.style.setProperty('--window-glow', p.windowGlow);
+  ROOT.style.setProperty('--room-tint',   p.roomTint);
+  ROOT.style.setProperty('--room-shade',  p.roomShade);
+  ROOT.style.setProperty('--lamp-on',     p.lampOn);
+  starsEl.style.opacity = p.starsOp;
+  document.querySelector('.clouds').style.opacity = p.cloudsOp;
+  if (p.lampOn >= 0.5) lampShade.classList.add('on');
+  else                 lampShade.classList.remove('on');
+}
+applyPhase(true);
+setInterval(applyPhase, 30 * 1000);
+
+/* ============================================================
+   2. Clock — both analog hands and digital readout
+   ============================================================ */
+const handHour   = document.getElementById('hand-hour');
+const handMin    = document.getElementById('hand-minute');
+const handSec    = document.getElementById('hand-second');
+const digitalEl  = document.getElementById('digital');
+
+function tick() {
+  const now = new Date();
+  const ms  = now.getMilliseconds();
+  const s   = now.getSeconds() + ms / 1000;
+  const m   = now.getMinutes() + s / 60;
+  const h   = (now.getHours() % 12) + m / 60;
+  handSec.style.transform  = `translate(-50%, -100%) rotate(${s * 6}deg)`;
+  handMin.style.transform  = `translate(-50%, -100%) rotate(${m * 6}deg)`;
+  handHour.style.transform = `translate(-50%, -100%) rotate(${h * 30}deg)`;
+  digitalEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+tick();
+setInterval(tick, 1000);
+
+/* ============================================================
+   3. Music playlist — three tracks, looping
+   ============================================================ */
+const PLAYLIST = [
+  { file: 'VibeDepot - Relax.mp3',                title: 'Relax',                artist: 'VibeDepot' },
+  { file: 'Amarent - Hacienda (Suno Remix).mp3',  title: 'Hacienda (Suno Remix)', artist: 'Amarent'  },
+  { file: 'VibeDepot - Yoga Music.mp3',           title: 'Yoga Music',            artist: 'VibeDepot' },
+];
+
+const player    = document.getElementById('player');
+const toastEl   = document.getElementById('song-toast');
+const toastTitle  = document.getElementById('toast-title');
+const toastArtist = document.getElementById('toast-artist');
+const playPauseBtn = document.getElementById('play-pause');
+const skipBtn      = document.getElementById('skip-next');
+let trackIndex = 0;
+
+function loadTrack(i, autoplay) {
+  trackIndex = ((i % PLAYLIST.length) + PLAYLIST.length) % PLAYLIST.length;
+  const track = PLAYLIST[trackIndex];
+  player.src = encodeURI(track.file);
+  player.loop = false;
+  if (autoplay) player.play().catch(() => {});
+  showSongToast(track);
+}
+
+function showSongToast(track) {
+  toastTitle.textContent  = track.title;
+  toastArtist.textContent = track.artist;
+  toastEl.classList.add('show');
+  clearTimeout(showSongToast._t);
+  showSongToast._t = setTimeout(() => toastEl.classList.remove('show'), 4500);
+}
+
+player.addEventListener('ended', () => loadTrack(trackIndex + 1, true));
+
+playPauseBtn.addEventListener('click', () => {
+  if (player.paused) {
+    player.play().catch(() => {});
+    playPauseBtn.textContent = '⏸';
+  } else {
+    player.pause();
+    playPauseBtn.textContent = '▶';
+  }
+});
+player.addEventListener('play',  () => { playPauseBtn.textContent = '⏸'; });
+player.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
+
+skipBtn.addEventListener('click', () => loadTrack(trackIndex + 1, !player.paused));
+
+/* ============================================================
+   4. Start overlay — browsers block autoplay until first click
+   ============================================================ */
+const startOverlay = document.getElementById('start-overlay');
+const startBtn     = document.getElementById('start-btn');
+function start() {
+  startOverlay.classList.add('hide');
+  loadTrack(0, true);
+  setTimeout(() => startOverlay.remove(), 600);
+}
+startBtn.addEventListener('click', start);
+startOverlay.addEventListener('click', (e) => {
+  if (e.target === startOverlay) start();
+});
+</script>
+</body>
+</html>
