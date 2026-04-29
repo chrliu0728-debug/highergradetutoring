@@ -9,19 +9,19 @@
   <link rel="stylesheet" href="style.css" />
   <style>
     #countdown {
-      display: flex; gap: 14px; margin-top: 28px; flex-wrap: wrap;
+      display: flex; gap: clamp(8px, 1.4vw, 14px); margin-top: clamp(14px, 2.4vh, 24px); flex-wrap: wrap;
     }
     #countdown span {
       background: rgba(255,255,255,.12);
       border: 1px solid rgba(255,255,255,.2);
       border-radius: 10px;
-      padding: 12px 16px;
+      padding: clamp(8px, 1.2vh, 12px) clamp(10px, 1.4vw, 16px);
       text-align: center;
-      font-size: 1.5rem;
+      font-size: clamp(1.1rem, 2.6vw, 1.5rem);
       font-weight: 900;
       color: white;
       line-height: 1;
-      min-width: 64px;
+      min-width: clamp(52px, 7vw, 64px);
     }
     #countdown small {
       display: block; font-size: .62rem; font-weight: 500;
@@ -154,12 +154,12 @@
         <span class="cal-icon">📅</span>
         July 20 – July 31, 2026 &nbsp;·&nbsp; 10 Days of Math
       </div>
-      <div class="hero-dates" style="margin-top:10px;">
+      <div class="hero-dates" style="margin-top:8px;">
         <span class="cal-icon">📍</span>
         Abbey Park High School &nbsp;·&nbsp; HDSB &amp; other boards welcome
       </div>
       <div id="countdown" aria-label="Countdown to camp start"></div>
-      <div class="hero-buttons" style="margin-top: 32px;">
+      <div class="hero-buttons" style="margin-top: clamp(16px, 2.6vh, 28px);">
         <a href="register.html" class="btn btn-primary">Register for Free →</a>
         <a href="about.html"    class="btn btn-outline">Learn More</a>
       </div>
