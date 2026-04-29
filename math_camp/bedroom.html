@@ -132,8 +132,8 @@
     /* sisal-style rug */
     .rug {
       position: absolute;
-      left: 18%; right: 18%; bottom: 4%;
-      height: 90px;
+      left: 14%; right: 14%; bottom: 3%;
+      height: 130px;
       background:
         repeating-linear-gradient(45deg, #C19E6E 0 6px, #A98554 6px 12px);
       border-radius: 6px;
@@ -146,9 +146,9 @@
     /* ── Big center window with horizontal blinds ── */
     .big-window {
       position: absolute;
-      left: 50%; top: 14%;
+      left: 50%; top: 13%;
       transform: translateX(-50%);
-      width: 360px; height: 360px;
+      width: 480px; height: 440px;
       box-shadow:
         0 0 0 10px var(--soft-white),
         0 0 0 14px #B8A062,
@@ -165,7 +165,7 @@
     }
     .big-window .sun {
       position: absolute;
-      width: 100px; height: 100px;
+      width: 130px; height: 130px;
       left: var(--sun-x); top: var(--sun-y);
       transform: translate(-50%, -50%);
       border-radius: 50%;
@@ -236,8 +236,8 @@
     /* ── Small left-wall window ── */
     .small-window {
       position: absolute;
-      left: 4%; top: 16%;
-      width: 100px; height: 120px;
+      left: 3%; top: 16%;
+      width: 140px; height: 170px;
       box-shadow:
         0 0 0 6px var(--soft-white),
         0 0 0 9px #B8A062,
@@ -261,11 +261,11 @@
     /* Two small framed pictures on left wall */
     .mini-frame {
       position: absolute;
-      width: 50px; height: 60px;
-      left: 1.5%;
+      width: 75px; height: 90px;
+      left: 14%;
       background: var(--warm-wood-d);
-      padding: 4px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      padding: 5px;
+      box-shadow: 0 5px 12px rgba(0,0,0,0.28);
       z-index: 4;
     }
     .mini-frame .matte {
@@ -274,8 +274,8 @@
       box-shadow: inset 0 0 0 2px var(--soft-white);
       position: relative;
     }
-    .mini-frame.f1 { top: 38%; }
-    .mini-frame.f2 { top: 50%; }
+    .mini-frame.f1 { top: 16%; left: 19%; }
+    .mini-frame.f2 { top: 33%; left: 19%; }
     .mini-frame .matte::before {
       content: ''; position: absolute;
       bottom: 30%; left: 20%;
@@ -288,8 +288,8 @@
     /* Wall shelf above desk — with plant + books */
     .shelf {
       position: absolute;
-      left: 12%; top: 32%;
-      width: 130px; height: 60px;
+      left: 4%; top: 50%;
+      width: 180px; height: 80px;
       z-index: 4;
     }
     .shelf .board {
@@ -344,34 +344,34 @@
     /* ── Study desk on the LEFT ── */
     .desk {
       position: absolute;
-      left: 12%; bottom: 16%;
-      width: 200px;
+      left: 4%; bottom: 18%;
+      width: 280px;
       z-index: 5;
     }
     .desk .top {
       position: relative;
-      width: 100%; height: 14px;
+      width: 100%; height: 18px;
       background: linear-gradient(180deg, var(--soft-white) 0%, #D5C58A 100%);
       border-radius: 3px;
       box-shadow: 0 5px 10px rgba(0,0,0,0.18);
     }
     .desk .leg {
       position: absolute;
-      bottom: -90px;
-      width: 6px; height: 92px;
+      bottom: -120px;
+      width: 8px; height: 122px;
       background: linear-gradient(180deg, var(--warm-wood), var(--warm-wood-d));
     }
-    .desk .leg.l { left: 6px; }
-    .desk .leg.r { right: 6px; }
+    .desk .leg.l { left: 8px; }
+    .desk .leg.r { right: 8px; }
     .desk-items {
-      position: absolute; left: 0; right: 0; bottom: 14px;
-      height: 70px;
+      position: absolute; left: 0; right: 0; bottom: 18px;
+      height: 100px;
       pointer-events: none;
-      display: flex; align-items: end; gap: 8px;
-      padding: 0 10px;
+      display: flex; align-items: end; gap: 12px;
+      padding: 0 14px;
     }
     .alarm-d {
-      width: 22px; height: 24px;
+      width: 32px; height: 34px;
       background: linear-gradient(180deg, #2C2A20, #4A4540);
       border-radius: 3px;
       position: relative;
@@ -397,36 +397,36 @@
       font-weight: 700;
     }
     .desk-lamp-arm {
-      width: 40px; height: 64px;
+      width: 56px; height: 92px;
       position: relative;
     }
     .desk-lamp-arm .head {
-      position: absolute; top: 0; left: 8px;
-      width: 26px; height: 18px;
+      position: absolute; top: 0; left: 12px;
+      width: 36px; height: 24px;
       background: linear-gradient(135deg, var(--cream), var(--soft-white));
       border-radius: 12px 12px 14px 4px;
       transform: rotate(-12deg);
       box-shadow: 0 0 calc(14px + var(--lamp-on) * 26px) rgba(255, 230, 170, calc(0.4 + var(--lamp-on) * 0.5));
     }
     .desk-lamp-arm .arm {
-      position: absolute; left: 18px; top: 12px;
-      width: 3px; height: 32px;
+      position: absolute; left: 26px; top: 18px;
+      width: 4px; height: 50px;
       background: var(--warm-wood-d);
       transform-origin: bottom center;
       transform: rotate(20deg);
     }
     .desk-lamp-arm .base {
-      position: absolute; left: 12px; bottom: 0;
-      width: 22px; height: 6px;
+      position: absolute; left: 16px; bottom: 0;
+      width: 30px; height: 8px;
       background: #2C2A20;
       border-radius: 50%;
     }
     .laptop {
-      width: 60px; height: 38px;
+      width: 84px; height: 54px;
       position: relative;
     }
     .laptop .screen {
-      width: 100%; height: 28px;
+      width: 100%; height: 42px;
       background: linear-gradient(180deg, #2C2A20 0%, #4A4540 100%);
       border-radius: 3px 3px 1px 1px;
       position: relative;
@@ -439,71 +439,71 @@
       opacity: 0.6;
     }
     .laptop .deck {
-      width: 100%; height: 4px;
+      width: 100%; height: 6px;
       background: #2C2A20;
       border-radius: 0 0 5px 5px;
     }
     .desk-plant {
-      width: 28px; height: 36px;
+      width: 40px; height: 50px;
       position: relative;
     }
     .desk-plant .pot {
-      width: 24px; height: 16px;
+      width: 34px; height: 22px;
       background: linear-gradient(180deg, var(--pot-clay), #874730);
       border-radius: 3px 3px 6px 6px;
       margin: auto;
       position: absolute; bottom: 0; left: 2px;
     }
     .desk-plant .leaves {
-      position: absolute; bottom: 14px; left: 0;
-      width: 28px; height: 26px;
+      position: absolute; bottom: 20px; left: 0;
+      width: 40px; height: 34px;
     }
     .desk-plant .leaf {
       position: absolute;
-      width: 7px; height: 18px;
+      width: 10px; height: 26px;
       background: var(--leaf);
       border-radius: 50% 50% 0 0;
       transform-origin: bottom center;
     }
-    .desk-plant .leaf:nth-child(1) { left: 2px;  bottom: 0; transform: rotate(-30deg); }
-    .desk-plant .leaf:nth-child(2) { left: 10px; bottom: 0; transform: rotate(0deg); height: 22px; }
-    .desk-plant .leaf:nth-child(3) { left: 18px; bottom: 0; transform: rotate(30deg); }
+    .desk-plant .leaf:nth-child(1) { left: 4px;  bottom: 0; transform: rotate(-30deg); }
+    .desk-plant .leaf:nth-child(2) { left: 14px; bottom: 0; transform: rotate(0deg); height: 32px; }
+    .desk-plant .leaf:nth-child(3) { left: 26px; bottom: 0; transform: rotate(30deg); }
 
     /* Wicker chair */
     .chair {
       position: absolute;
-      left: calc(12% + 60px);
-      bottom: 6%;
-      width: 64px; height: 110px;
+      left: calc(4% + 100px);
+      bottom: 5%;
+      width: 90px; height: 150px;
       z-index: 6;
     }
     .chair .seat {
       position: absolute; left: 0; right: 0; top: 50%;
-      height: 12px;
+      height: 16px;
       background:
         repeating-linear-gradient(45deg, var(--warm-wood) 0 4px, var(--warm-wood-d) 4px 6px);
-      border-radius: 4px;
+      border-radius: 5px;
     }
     .chair .back {
-      position: absolute; left: 6px; right: 6px; top: 0;
-      height: 56px;
+      position: absolute; left: 8px; right: 8px; top: 0;
+      height: 78px;
       background:
         repeating-linear-gradient(0deg, var(--warm-wood) 0 4px, var(--warm-wood-d) 4px 5px);
-      border-radius: 8px 8px 4px 4px;
+      border-radius: 10px 10px 4px 4px;
     }
     .chair .leg {
       position: absolute; bottom: 0;
-      width: 4px; height: 50px;
+      width: 5px; height: 70px;
       background: var(--warm-wood-d);
     }
-    .chair .leg.l { left: 6px; }
-    .chair .leg.r { right: 6px; }
+    .chair .leg.l { left: 8px; }
+    .chair .leg.r { right: 8px; }
 
     /* ── Tall closet on the RIGHT ── */
     .closet {
       position: absolute;
-      right: 5%; top: 16%;
-      width: 170px; height: 460px;
+      right: 4%; top: 14%;
+      width: 230px; height: 540px;
       z-index: 4;
     }
     .closet .body {
@@ -543,10 +543,10 @@
     /* Picture above closet — yellow/orange */
     .pic-r {
       position: absolute;
-      right: 5%; top: 6%;
-      width: 110px; height: 70px;
+      right: 4%; top: 4%;
+      width: 150px; height: 90px;
       background: var(--warm-wood-d);
-      padding: 6px;
+      padding: 7px;
       z-index: 4;
       box-shadow: 0 5px 12px rgba(0,0,0,0.25);
     }
@@ -560,12 +560,12 @@
     /* White floor lamp on the right */
     .floor-lamp {
       position: absolute;
-      right: calc(5% + 175px); bottom: 4%;
-      width: 50px; height: 220px;
+      right: 18%; bottom: 4%;
+      width: 64px; height: 280px;
       z-index: 6;
     }
     .floor-lamp .shade {
-      width: 50px; height: 36px;
+      width: 64px; height: 46px;
       background: linear-gradient(180deg,
         rgba(248, 242, 220, calc(0.85 + var(--lamp-on) * 0.15)) 0%,
         rgba(220, 205, 160, calc(0.95 + var(--lamp-on) * 0.05)) 100%);
@@ -573,12 +573,12 @@
       box-shadow: 0 0 calc(20px + var(--lamp-on) * 50px) rgba(255, 220, 140, calc(0.35 + var(--lamp-on) * 0.55));
     }
     .floor-lamp .pole {
-      width: 4px; height: 170px;
+      width: 5px; height: 220px;
       background: linear-gradient(180deg, #D6C788 0%, #8E7A40 100%);
       margin: 0 auto;
     }
     .floor-lamp .base {
-      width: 36px; height: 8px;
+      width: 46px; height: 10px;
       background: #D6C788;
       border-radius: 2px;
       margin: 0 auto;
@@ -605,12 +605,12 @@
       pointer-events: none;
     }
     .ceiling-light .mount {
-      width: 8px; height: 18px;
+      width: 10px; height: 24px;
       background: var(--warm-wood-d);
       margin: 0 auto;
     }
     .ceiling-light .dome {
-      width: 56px; height: 26px;
+      width: 76px; height: 36px;
       margin: -2px auto 0;
       background: linear-gradient(180deg,
         rgba(255, 240, 200, calc(0.7 + var(--lamp-on) * 0.3)) 0%,
@@ -630,29 +630,29 @@
     /* ── Bed (lower right) ── */
     .bed {
       position: absolute;
-      right: 18%;
+      right: 22%;
       bottom: 4%;
-      width: min(520px, 38vw);
-      height: 240px;
+      width: min(640px, 44vw);
+      height: 320px;
       z-index: 6;
     }
     .bed .frame-bed {
       position: absolute; left: 0; bottom: 0; right: 0;
-      height: 70px;
+      height: 92px;
       background: linear-gradient(180deg, var(--warm-wood) 0%, var(--warm-wood-d) 100%);
       border-radius: 5px;
       box-shadow: 0 12px 22px rgba(0,0,0,0.30);
     }
     .bed .mattress {
-      position: absolute; left: 8px; right: 8px; bottom: 56px;
-      height: 50px;
+      position: absolute; left: 10px; right: 10px; bottom: 76px;
+      height: 64px;
       background: linear-gradient(180deg, var(--soft-white) 0%, #DACCAE 100%);
       border-radius: 5px;
       box-shadow: inset 0 -6px 10px rgba(0,0,0,0.16);
     }
     .bed .blanket {
-      position: absolute; left: 8px; right: 8px; bottom: 70px;
-      height: 90px;
+      position: absolute; left: 10px; right: 10px; bottom: 90px;
+      height: 120px;
       background:
         repeating-linear-gradient(45deg,
           #F2DC7E 0 12px, #E8CB58 12px 22px),
@@ -670,8 +670,8 @@
       border-radius: 0 0 6px 6px;
     }
     .bed .pillow-row {
-      position: absolute; left: 6%; right: 6%; bottom: 110px;
-      height: 60px;
+      position: absolute; left: 6%; right: 6%; bottom: 142px;
+      height: 80px;
       display: flex; gap: 6px; align-items: center; justify-content: center;
     }
     .bed .pillow {
@@ -695,11 +695,11 @@
     /* Monstera near desk/chair */
     .monstera {
       position: absolute;
-      left: 28%; bottom: 1.5%;
+      left: 26%; bottom: 1.5%;
       z-index: 6;
     }
-    .monstera .pot { width: 70px; height: 56px; margin: 0 auto; }
-    .monstera .stems { position: relative; width: 150px; height: 170px; margin: 0 auto -8px; }
+    .monstera .pot { width: 100px; height: 78px; margin: 0 auto; }
+    .monstera .stems { position: relative; width: 200px; height: 230px; margin: 0 auto -10px; }
     .monstera .leaf {
       position: absolute;
       background: radial-gradient(circle at 30% 30%, #6FA45B 0%, #2F5A3A 100%);
@@ -723,10 +723,10 @@
       border-radius: 5px 5px 0 0;
       transform: rotate(15deg);
     }
-    .monstera .leaf:nth-child(1) { left: 8px;  bottom: 0;  width: 56px; height: 56px; transform: rotate(-30deg); }
-    .monstera .leaf:nth-child(2) { left: 46px; bottom: 28px; width: 64px; height: 64px; transform: rotate(-5deg); }
-    .monstera .leaf:nth-child(3) { left: 78px; bottom: 70px; width: 50px; height: 50px; transform: rotate(20deg); }
-    .monstera .leaf:nth-child(4) { left: 26px; bottom: 80px; width: 46px; height: 46px; transform: rotate(-40deg); }
+    .monstera .leaf:nth-child(1) { left: 12px;  bottom: 0;   width: 76px; height: 76px; transform: rotate(-30deg); }
+    .monstera .leaf:nth-child(2) { left: 64px;  bottom: 36px; width: 88px; height: 88px; transform: rotate(-5deg); }
+    .monstera .leaf:nth-child(3) { left: 110px; bottom: 100px; width: 70px; height: 70px; transform: rotate(20deg); }
+    .monstera .leaf:nth-child(4) { left: 36px;  bottom: 110px; width: 64px; height: 64px; transform: rotate(-40deg); }
 
     /* Snake plant on the floor near closet */
     .snake {
@@ -736,13 +736,13 @@
       z-index: 5;
     }
     .snake .pot {
-      width: 60px; height: 50px; margin: 0 auto;
+      width: 80px; height: 66px; margin: 0 auto;
       background: linear-gradient(180deg, var(--soft-white) 0%, #B8A062 100%);
     }
-    .snake .stems { position: relative; width: 70px; height: 170px; margin: 0 auto -8px; }
+    .snake .stems { position: relative; width: 96px; height: 230px; margin: 0 auto -10px; }
     .snake .leaf {
       position: absolute; bottom: 0;
-      width: 11px;
+      width: 14px;
       background:
         linear-gradient(90deg, #E8C45A 0%, transparent 8%, transparent 92%, #E8C45A 100%),
         linear-gradient(180deg, #6FA478 0%, #2F5A3A 100%);
@@ -750,17 +750,17 @@
       transform-origin: 50% 100%;
       box-shadow: inset -2px 0 4px rgba(0,0,0,0.22);
     }
-    .snake .leaf:nth-child(1) { left: 6px;  height: 130px; transform: rotate(-10deg); }
-    .snake .leaf:nth-child(2) { left: 18px; height: 160px; transform: rotate(-3deg); }
-    .snake .leaf:nth-child(3) { left: 30px; height: 180px; transform: rotate(2deg); }
-    .snake .leaf:nth-child(4) { left: 42px; height: 150px; transform: rotate(8deg); }
-    .snake .leaf:nth-child(5) { left: 52px; height: 120px; transform: rotate(15deg); }
+    .snake .leaf:nth-child(1) { left: 8px;  height: 180px; transform: rotate(-10deg); }
+    .snake .leaf:nth-child(2) { left: 24px; height: 220px; transform: rotate(-3deg); }
+    .snake .leaf:nth-child(3) { left: 40px; height: 240px; transform: rotate(2deg); }
+    .snake .leaf:nth-child(4) { left: 56px; height: 200px; transform: rotate(8deg); }
+    .snake .leaf:nth-child(5) { left: 70px; height: 160px; transform: rotate(15deg); }
 
     /* Wicker basket on floor near bed */
     .basket {
       position: absolute;
-      right: calc(18% + 540px); bottom: 4%;
-      width: 50px; height: 36px;
+      right: calc(22% + 660px); bottom: 4%;
+      width: 70px; height: 50px;
       z-index: 5;
       background:
         repeating-linear-gradient(0deg, var(--warm-wood) 0 3px, var(--warm-wood-d) 3px 5px);
@@ -776,9 +776,9 @@
     }
     .basket-plant {
       position: absolute;
-      right: calc(18% + 555px); bottom: calc(4% + 30px);
+      right: calc(22% + 680px); bottom: calc(4% + 42px);
       z-index: 6;
-      width: 24px; height: 30px;
+      width: 34px; height: 42px;
     }
     .basket-plant .leaf {
       position: absolute; bottom: 0;
@@ -786,15 +786,18 @@
       border-radius: 50% 50% 0 0;
       transform-origin: bottom center;
     }
-    .basket-plant .leaf:nth-child(1) { left: 2px;  height: 22px; transform: rotate(-30deg); }
-    .basket-plant .leaf:nth-child(2) { left: 9px;  height: 26px; transform: rotate(0deg); }
-    .basket-plant .leaf:nth-child(3) { left: 16px; height: 22px; transform: rotate(30deg); }
+    .basket-plant .leaf {
+      width: 7px;
+    }
+    .basket-plant .leaf:nth-child(1) { left: 4px;  height: 30px; transform: rotate(-30deg); }
+    .basket-plant .leaf:nth-child(2) { left: 14px; height: 36px; transform: rotate(0deg); }
+    .basket-plant .leaf:nth-child(3) { left: 24px; height: 30px; transform: rotate(30deg); }
 
     /* ── Wall clock ── */
     .clock {
       position: absolute;
-      right: 16%; top: 14%;
-      width: 70px; height: 70px;
+      right: 30%; top: 14%;
+      width: 92px; height: 92px;
       background: radial-gradient(circle at 30% 30%, #FFFAF0, #DCCDB0);
       border-radius: 50%;
       box-shadow: 0 0 0 4px var(--warm-wood-d), 0 6px 12px rgba(0,0,0,0.4);
@@ -802,22 +805,22 @@
     }
     .clock .num {
       position: absolute; left: 50%; top: 50%;
-      width: 5px; height: 8px;
-      transform: translate(-50%, -28px);
+      width: 6px; height: 10px;
+      transform: translate(-50%, -38px);
       background: #2C1F12; border-radius: 1px;
     }
-    .clock .num.three { transform: translate(26px, -50%); width: 8px; height: 5px; }
-    .clock .num.six   { transform: translate(-50%, 22px); }
-    .clock .num.nine  { transform: translate(-34px, -50%); width: 8px; height: 5px; }
+    .clock .num.three { transform: translate(36px, -50%); width: 10px; height: 6px; }
+    .clock .num.six   { transform: translate(-50%, 30px); }
+    .clock .num.nine  { transform: translate(-46px, -50%); width: 10px; height: 6px; }
     .clock .hand {
       position: absolute; left: 50%; top: 50%;
       transform-origin: 50% 100%;
       background: #2C1F12;
       border-radius: 2px;
     }
-    .clock .hand.hour   { width: 3px; height: 17px; transform: translate(-50%, -100%); }
-    .clock .hand.minute { width: 2.5px; height: 26px; transform: translate(-50%, -100%); background: #4A2E18; }
-    .clock .hand.second { width: 1.2px; height: 28px; transform: translate(-50%, -100%); background: #B83232; }
+    .clock .hand.hour   { width: 4px; height: 24px; transform: translate(-50%, -100%); }
+    .clock .hand.minute { width: 3px; height: 36px; transform: translate(-50%, -100%); background: #4A2E18; }
+    .clock .hand.second { width: 1.5px; height: 38px; transform: translate(-50%, -100%); background: #B83232; }
     .clock .center {
       position: absolute; left: 50%; top: 50%;
       width: 6px; height: 6px;
