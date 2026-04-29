@@ -8,28 +8,32 @@
   <link rel="icon" type="image/webp" href="logo.webp" />
   <style>
     :root {
-      /* Phase-driven tokens — JS rewrites these */
-      --sky-top:    #BFE2F2;
-      --sky-bottom: #FFE6C2;
+      /* Warm palette — feels like a candlelit cabin */
+      --wall-top:    #5C3925;   /* darker rich brown at the top of the wall */
+      --wall-mid:    #8C5832;   /* warm caramel mid-wall */
+      --wall-low:    #B07A48;   /* honey near the floor */
+      --floor-near:  #E2BC8A;
+      --floor-far:   #B6864F;
+      --ceiling:     #2E1A10;
+
+      /* Phase-driven tokens (rewritten by JS each phase) */
+      --sky-top:    #FFD9A8;
+      --sky-bottom: #FFE6BC;
       --sun-x: 50%;
-      --sun-y: 60%;
+      --sun-y: 30%;
       --sun-color: #FFE6A0;
       --sun-opacity: 1;
-      --window-glow: rgba(255, 220, 160, 0.45);
-      --room-tint:  rgba(0, 0, 0, 0.0);
+      --window-glow: rgba(255, 200, 130, 0.55);
+      --warmth:    0;             /* 0 → 1 — pulls the whole room more amber at night */
       --room-shade: 1.0;
       --lamp-on: 0;
-      --wall:        #2E423B;
-      --wall-shadow: #243531;
-      --carpet:      #C7B391;
-      --carpet-deep: #B09872;
     }
 
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; padding: 0; }
     body {
-      background: #0d0712;
-      color: #FAF6EE;
+      background: #1a0e08;
+      color: #FAF0E0;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       overflow: hidden;
       user-select: none;
@@ -37,65 +41,189 @@
 
     .stage {
       position: fixed; inset: 0;
-      display: flex; align-items: center; justify-content: center;
+      display: flex; align-items: stretch; justify-content: center;
       overflow: hidden;
     }
-
-    /* Wider room — ~16:9 viewport */
     .room {
       position: relative;
-      width: 100vw;
-      height: 100vh;
+      width: 100vw; height: 100vh;
       filter: brightness(var(--room-shade));
       transition: filter 1.5s ease;
     }
+    /* Warm overlay — multiplies the whole room amber when lamps are on */
     .room::after {
       content: ''; position: absolute; inset: 0;
-      background: var(--room-tint);
+      background:
+        radial-gradient(ellipse at 25% 65%, rgba(255, 180, 100, calc(var(--warmth) * 0.40)) 0%, transparent 50%),
+        radial-gradient(ellipse at 75% 65%, rgba(255, 180, 100, calc(var(--warmth) * 0.40)) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 18%, rgba(255, 200, 130, calc(var(--warmth) * 0.32)) 0%, transparent 60%);
       pointer-events: none;
-      mix-blend-mode: multiply;
-      transition: background 1.5s ease;
-      z-index: 99;
+      mix-blend-mode: screen;
+      transition: background 2s ease;
+      z-index: 90;
     }
 
-    /* ── Walls + ceiling ── */
+    /* ── Walls + floor ── */
     .ceiling {
       position: absolute; left: 0; right: 0; top: 0;
-      height: 14%;
-      background: linear-gradient(180deg, #1a1f1d 0%, #2a3431 100%);
-      z-index: 1;
-    }
-    .ceiling::after {
-      content: ''; position: absolute; inset: 0;
-      background:
-        linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.4) 100%);
+      height: 12%;
+      background: linear-gradient(180deg, var(--ceiling) 0%, #4a2818 100%);
+      box-shadow: inset 0 -8px 16px rgba(0,0,0,0.45);
     }
     .wall {
       position: absolute; left: 0; right: 0;
-      top: 14%; height: 60%;
+      top: 12%; height: 60%;
       background:
-        radial-gradient(ellipse at 20% 60%, rgba(0,0,0,0.55), transparent 50%),
-        radial-gradient(ellipse at 80% 60%, rgba(0,0,0,0.55), transparent 50%),
-        linear-gradient(180deg, var(--wall) 0%, var(--wall-shadow) 100%);
+        radial-gradient(ellipse at 50% 100%, rgba(255, 195, 130, 0.18), transparent 60%),
+        linear-gradient(180deg, var(--wall-top) 0%, var(--wall-mid) 55%, var(--wall-low) 100%);
+    }
+    /* Faint vertical wallpaper texture */
+    .wall::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(255,255,255,0.025) 0 1px, transparent 1px 22px);
+      opacity: 0.7;
+    }
+    .wall::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: 0;
+      height: 14px;
+      background: linear-gradient(180deg, #6E4528 0%, #3A2110 100%);
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.35);
     }
     .floor {
-      position: absolute; left: 0; right: 0; bottom: 0; top: 74%;
-      background:
-        radial-gradient(ellipse at 50% 0%, var(--carpet) 0%, var(--carpet-deep) 80%);
-      box-shadow: inset 0 8px 22px rgba(0,0,0,0.35);
+      position: absolute; left: 0; right: 0; bottom: 0; top: 72%;
+      background: radial-gradient(ellipse at 50% -10%, var(--floor-near) 0%, var(--floor-far) 80%);
+      box-shadow: inset 0 12px 30px rgba(0,0,0,0.35);
     }
-    /* subtle carpet pattern */
     .floor::before {
       content: ''; position: absolute; inset: 0;
       background:
         repeating-linear-gradient(0deg,
-          rgba(0,0,0,0.05) 0 2px, transparent 2px 6px),
-        repeating-linear-gradient(90deg,
-          rgba(0,0,0,0.04) 0 1px, transparent 1px 4px);
-      opacity: 0.6;
+          rgba(0,0,0,0.05) 0 2px, transparent 2px 7px);
+      opacity: 0.5;
     }
 
-    /* ── Ceiling fan + light ── */
+    /* ── Picture above bed ── */
+    .frame {
+      position: absolute;
+      left: 50%; top: 18%;
+      transform: translateX(-50%);
+      width: 280px; height: 150px;
+      background: #2a1810;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow:
+        0 10px 22px rgba(0,0,0,0.55),
+        inset 0 0 0 3px #6E4528;
+      z-index: 4;
+    }
+    .frame .matte {
+      width: 100%; height: 100%;
+      background: linear-gradient(180deg, #FFE9C2 0%, #F5BC78 50%, #C68545 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 4px #FAF0E0;
+    }
+    .frame .sun-pic {
+      position: absolute; right: 22%; top: 22%;
+      width: 22px; height: 22px;
+      background: #FFD485;
+      border-radius: 50%;
+      box-shadow: 0 0 16px rgba(255,212,133,0.7);
+    }
+    .frame .mtn-back {
+      position: absolute; bottom: 24%; left: 22%;
+      width: 0; height: 0;
+      border-bottom: 60px solid #6E4528;
+      border-left: 56px solid transparent;
+      border-right: 56px solid transparent;
+    }
+    .frame .mtn-front-l {
+      position: absolute; bottom: 24%; left: 4%;
+      width: 0; height: 0;
+      border-bottom: 50px solid #4A2818;
+      border-left: 38px solid transparent;
+      border-right: 38px solid transparent;
+    }
+    .frame .mtn-front-r {
+      position: absolute; bottom: 24%; right: 4%;
+      width: 0; height: 0;
+      border-bottom: 48px solid #4A2818;
+      border-left: 36px solid transparent;
+      border-right: 36px solid transparent;
+    }
+    .frame .water {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      height: 24%;
+      background: linear-gradient(180deg, #B07A48 0%, #6E4528 100%);
+    }
+
+    /* ── Window with warm sky ── */
+    .window {
+      position: absolute;
+      right: 6%; top: 18%;
+      width: 220px; height: 260px;
+      box-shadow:
+        0 0 0 12px #4A2818,
+        0 0 0 16px #2a1810,
+        0 24px 40px var(--window-glow);
+      transition: box-shadow 1.5s ease;
+      overflow: hidden;
+      z-index: 3;
+      border-radius: 4px;
+    }
+    .window .sky {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+      transition: background 1.5s ease;
+    }
+    .window .sun {
+      position: absolute;
+      width: 80px; height: 80px;
+      left: var(--sun-x); top: var(--sun-y);
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--sun-color) 0%, var(--sun-color) 38%, rgba(255,220,160,0) 70%);
+      opacity: var(--sun-opacity);
+      filter: blur(0.5px);
+      transition: top 2s ease, left 2s ease, background 2s ease, opacity 2s ease;
+    }
+    .window .stars {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(1.6px 1.6px at 18% 28%, #fff, transparent),
+        radial-gradient(1px 1px at 60% 14%, #fff, transparent),
+        radial-gradient(1.8px 1.8px at 78% 38%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 35% 55%, #fff, transparent),
+        radial-gradient(1.4px 1.4px at 70% 70%, #fff, transparent),
+        radial-gradient(1px 1px at 15% 75%, #fff, transparent),
+        radial-gradient(1.6px 1.6px at 90% 22%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 50% 28%, #fff, transparent);
+      opacity: 0;
+      transition: opacity 2s ease;
+    }
+    .window .frame-cross {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+    .window .frame-cross::before,
+    .window .frame-cross::after {
+      content: ''; position: absolute;
+      background: #4A2818;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+    }
+    .window .frame-cross::before { left: 50%; top: 0; bottom: 0; width: 8px; transform: translateX(-50%); }
+    .window .frame-cross::after  { top: 50%; left: 0; right: 0; height: 8px; transform: translateY(-50%); }
+    .window-sill {
+      position: absolute;
+      right: calc(6% - 14px); top: calc(18% + 260px + 12px);
+      width: 248px; height: 12px;
+      background: linear-gradient(180deg, #B07A48, #6E4528);
+      border-radius: 3px;
+      z-index: 4;
+    }
+
+    /* ── Ceiling fan with warm light ── */
     .fan {
       position: absolute;
       left: 50%; top: 11%;
@@ -103,14 +231,14 @@
       z-index: 5;
     }
     .fan .mount {
-      width: 14px; height: 50px;
-      background: linear-gradient(180deg, #1a1f1d, #0a0d0c);
+      width: 12px; height: 38px;
+      background: #2a1810;
       margin: 0 auto;
       border-radius: 0 0 4px 4px;
     }
     .fan .hub {
-      width: 60px; height: 60px;
-      background: radial-gradient(circle at 40% 35%, #4a3526 0%, #251915 70%);
+      width: 56px; height: 56px;
+      background: radial-gradient(circle at 40% 35%, #6E4528 0%, #2a1810 80%);
       border-radius: 50%;
       box-shadow: 0 8px 18px rgba(0,0,0,0.55);
       position: relative;
@@ -118,20 +246,19 @@
     }
     .fan .blades {
       position: absolute; left: 50%; top: 50%;
-      width: 360px; height: 360px;
+      width: 320px; height: 320px;
       transform: translate(-50%, -50%);
-      animation: fan-spin 3.4s linear infinite;
+      animation: fan-spin 4s linear infinite;
       pointer-events: none;
     }
     .fan .blade {
       position: absolute;
       left: 50%; top: 50%;
-      width: 170px; height: 30px;
+      width: 150px; height: 26px;
       transform-origin: 0% 50%;
-      background: linear-gradient(180deg, #4a3526 0%, #2a1d14 100%);
+      background: linear-gradient(180deg, #6E4528 0%, #2a1810 100%);
       border-radius: 4px 8px 8px 4px;
       box-shadow: 0 6px 12px rgba(0,0,0,0.5);
-      opacity: 0.85;
     }
     .fan .blade:nth-child(1) { transform: translate(0, -50%) rotate(0deg); }
     .fan .blade:nth-child(2) { transform: translate(0, -50%) rotate(72deg); }
@@ -143,31 +270,33 @@
       100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
     .fan .light {
-      position: absolute; left: 50%; bottom: -28px;
+      position: absolute; left: 50%; bottom: -36px;
       transform: translateX(-50%);
-      width: 76px; height: 44px;
-      background: radial-gradient(ellipse at 50% 30%, #fff5d4 0%, #d8b572 60%, #6c4a22 100%);
+      width: 84px; height: 56px;
+      background: radial-gradient(ellipse at 50% 30%,
+        rgba(255, 240, 200, calc(0.5 + var(--lamp-on) * 0.5)) 0%,
+        rgba(255, 200, 120, calc(0.7 + var(--lamp-on) * 0.3)) 60%,
+        #6E4528 100%);
       border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-      box-shadow: 0 0 30px rgba(255,210,140, calc(var(--lamp-on) * 0.55 + 0.15));
+      box-shadow: 0 0 calc(20px + var(--lamp-on) * 50px) rgba(255, 210, 140, calc(0.35 + var(--lamp-on) * 0.55));
       z-index: 1;
     }
     .fan .light-glow {
-      position: absolute; left: 50%; bottom: -180px;
-      width: 540px; height: 360px;
+      position: absolute; left: 50%; bottom: -200px;
+      width: 720px; height: 480px;
       transform: translateX(-50%);
-      background: radial-gradient(ellipse at 50% 0%, rgba(255,220,150, 0.22) 0%, transparent 60%);
+      background: radial-gradient(ellipse at 50% 0%, rgba(255, 200, 130, calc(0.18 + var(--lamp-on) * 0.32)) 0%, transparent 60%);
       pointer-events: none;
-      opacity: calc(var(--lamp-on) * 0.7 + 0.15);
-      transition: opacity 2s ease;
+      transition: background 2s ease;
       z-index: 0;
     }
 
-    /* ── Bed (centered, large) ── */
+    /* ── Bed centered ── */
     .bed {
       position: absolute;
-      left: 50%; bottom: 8%;
+      left: 50%; bottom: 6%;
       transform: translateX(-50%);
-      width: min(620px, 50vw);
+      width: min(640px, 50vw);
       height: 280px;
       z-index: 6;
     }
@@ -175,33 +304,33 @@
       position: absolute;
       left: 4%; right: 4%; bottom: 100px;
       height: 130px;
-      background: linear-gradient(180deg, #5a3d28 0%, #3a2818 100%);
-      border-radius: 10px 10px 4px 4px;
+      background: linear-gradient(180deg, #6E4528 0%, #4A2818 100%);
+      border-radius: 12px 12px 4px 4px;
       box-shadow:
         inset 0 -10px 20px rgba(0,0,0,0.4),
-        0 6px 14px rgba(0,0,0,0.35);
+        0 6px 14px rgba(0,0,0,0.4);
     }
     .bed .headboard::before,
     .bed .headboard::after {
       content: ''; position: absolute;
       top: 14%; bottom: 18%;
       width: 2px;
-      background: rgba(0,0,0,0.45);
+      background: rgba(0,0,0,0.4);
     }
     .bed .headboard::before { left: 33%; }
     .bed .headboard::after  { right: 33%; }
     .bed .frame-bed {
       position: absolute; left: 0; bottom: 0; right: 0;
       height: 90px;
-      background: linear-gradient(180deg, #4a3220 0%, #2a1a0e 100%);
+      background: linear-gradient(180deg, #5C3925 0%, #2a1810 100%);
       border-radius: 6px;
       box-shadow: 0 14px 26px rgba(0,0,0,0.45);
     }
     .bed .mattress {
       position: absolute; left: 12px; right: 12px; bottom: 70px;
       height: 60px;
-      background: linear-gradient(180deg, #FAF6EE 0%, #D8CDB7 100%);
-      border-radius: 6px 6px 4px 4px;
+      background: linear-gradient(180deg, #FAF0E0 0%, #E5D4B0 100%);
+      border-radius: 6px;
       box-shadow: inset 0 -6px 10px rgba(0,0,0,0.18);
     }
     .bed .blanket {
@@ -211,8 +340,8 @@
       height: 110px;
       background:
         repeating-linear-gradient(45deg,
-          #5C4434 0 12px, #6E5340 12px 22px),
-        linear-gradient(180deg, #6E5340 0%, #4A3424 100%);
+          #B86A38 0 12px, #C97A45 12px 22px),
+        linear-gradient(180deg, #C97A45 0%, #874E26 100%);
       border-radius: 8px;
       box-shadow:
         inset 0 -10px 18px rgba(0,0,0,0.28),
@@ -224,7 +353,7 @@
       height: 14px;
       background:
         repeating-linear-gradient(45deg,
-          #4A3424 0 10px, #382617 10px 20px);
+          #874E26 0 10px, #5C3925 10px 20px);
       border-radius: 0 0 8px 8px;
     }
     .bed .pillow-row {
@@ -240,14 +369,14 @@
         inset 0 -6px 8px rgba(0,0,0,0.1),
         0 4px 8px rgba(0,0,0,0.25);
     }
-    .bed .pillow.tan   { background: linear-gradient(180deg, #E8D9B8, #B8A172); }
-    .bed .pillow.cream { background: linear-gradient(180deg, #FAF6EE, #C8BBA0); }
-    .bed .pillow.brown { background: linear-gradient(180deg, #6E5340, #3A2818); }
+    .bed .pillow.cream { background: linear-gradient(180deg, #FFF4DD, #DEC8A0); }
+    .bed .pillow.tan   { background: linear-gradient(180deg, #F4D6A4, #B98A57); }
+    .bed .pillow.warm  { background: linear-gradient(180deg, #C97A45, #6E4528); }
 
     /* ── Nightstands ── */
     .nightstand {
       position: absolute;
-      bottom: 9%;
+      bottom: 7%;
       width: 110px; height: 160px;
       z-index: 7;
     }
@@ -255,247 +384,83 @@
     .nightstand.right { right: 16%; }
     .nightstand .body {
       position: absolute; inset: 0;
-      background: linear-gradient(180deg, #3a2818 0%, #1f1409 100%);
+      background: linear-gradient(180deg, #4A2818 0%, #2a1810 100%);
       border-radius: 5px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.45);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5);
     }
     .nightstand .top {
-      position: absolute; left: -4px; right: -4px; top: 0;
+      position: absolute; left: -6px; right: -6px; top: 0;
       height: 8px;
-      background: linear-gradient(180deg, #4a3220 0%, #2a1a0e 100%);
+      background: linear-gradient(180deg, #6E4528 0%, #4A2818 100%);
       border-radius: 4px 4px 0 0;
     }
     .nightstand .drawer {
-      position: absolute; left: 8%; right: 8%; top: 25%;
+      position: absolute; left: 8%; right: 8%; top: 28%;
       height: 28%;
-      background: #2a1a0e;
+      background: #2a1810;
       border-radius: 3px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
     }
     .nightstand .drawer::after {
       content: ''; position: absolute;
-      width: 16px; height: 5px; background: #B89060;
+      width: 16px; height: 5px; background: #C49060;
       left: 50%; top: 50%; transform: translate(-50%, -50%);
       border-radius: 2px;
     }
 
-    /* ── Bedside lamps ── */
+    /* ── Bedside lamps — bright + glowing ── */
     .lamp {
       position: absolute;
-      bottom: calc(9% + 160px);
-      width: 70px;
+      bottom: calc(7% + 160px);
+      width: 80px;
       z-index: 8;
     }
-    .lamp.left  { left: calc(16% + 20px); }
-    .lamp.right { right: calc(16% + 20px); }
+    .lamp.left  { left: calc(16% + 15px); }
+    .lamp.right { right: calc(16% + 15px); }
     .lamp .shade {
       position: relative;
-      width: 70px; height: 50px;
-      background: linear-gradient(180deg, #6e5230 0%, #4a3520 100%);
-      clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%);
-    }
-    .lamp .shade.on {
-      background: linear-gradient(180deg, #FFE9A8 0%, #FFAA66 100%);
-      box-shadow: 0 0 36px rgba(255, 210, 140, 0.7);
+      width: 80px; height: 60px;
+      background: linear-gradient(180deg,
+        rgba(255, 232, 180, calc(0.65 + var(--lamp-on) * 0.35)) 0%,
+        rgba(255, 175, 95, calc(0.85 + var(--lamp-on) * 0.15)) 100%);
+      clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%);
+      box-shadow: 0 0 calc(28px + var(--lamp-on) * 60px) rgba(255, 200, 130, calc(0.45 + var(--lamp-on) * 0.5));
+      transition: background 2s ease, box-shadow 2s ease;
     }
     .lamp .stand {
-      width: 4px; height: 24px;
-      background: #1a1009;
+      width: 4px; height: 28px;
+      background: #2a1810;
       margin: -2px auto 0;
     }
     .lamp .base {
-      width: 32px; height: 6px;
-      background: #1a1009;
+      width: 36px; height: 8px;
+      background: #2a1810;
       border-radius: 2px;
       margin: 0 auto;
     }
     .lamp .glow {
       position: absolute;
-      left: 50%; top: 50%;
-      width: 360px; height: 360px;
+      left: 50%; top: 30%;
+      width: 460px; height: 460px;
       transform: translate(-50%, -50%);
-      background: radial-gradient(circle, rgba(255,220,150, 0.55) 0%, rgba(255,220,150, 0) 60%);
+      background: radial-gradient(circle,
+        rgba(255, 210, 140, calc(0.55 + var(--lamp-on) * 0.30)) 0%,
+        rgba(255, 200, 120, calc(0.18 + var(--lamp-on) * 0.20)) 30%,
+        rgba(255, 200, 120, 0) 65%);
       pointer-events: none;
-      opacity: calc(var(--lamp-on) * 1);
-      transition: opacity 2s ease;
+      transition: background 2s ease;
       z-index: -1;
+      mix-blend-mode: screen;
     }
-
-    /* ── Picture frame above headboard ── */
-    .frame {
-      position: absolute;
-      left: 50%; top: 22%;
-      transform: translateX(-50%);
-      width: 240px; height: 130px;
-      background: #1a1009;
-      padding: 8px;
-      border-radius: 4px;
-      box-shadow:
-        0 6px 16px rgba(0,0,0,0.45),
-        inset 0 0 0 2px #4a3220;
-      z-index: 4;
-    }
-    .frame .matte {
-      width: 100%; height: 100%;
-      background: linear-gradient(180deg, #FAEDD3 0%, #E8C9A0 60%, #C29472 100%);
-      position: relative;
-      overflow: hidden;
-      box-shadow: inset 0 0 0 4px #FAF6EE;
-    }
-    .frame .mtn-back {
-      position: absolute; bottom: 22%; left: 0; right: 0;
-      height: 0;
-      border-bottom: 60px solid #6E5340;
-      border-left: 60px solid transparent;
-      border-right: 60px solid transparent;
-      width: 50%;
-      margin-left: 25%;
-    }
-    .frame .mtn-front-l, .frame .mtn-front-r {
-      position: absolute; bottom: 22%;
-      width: 0; height: 0;
-      border-bottom: 50px solid #4A3424;
-      border-left: 40px solid transparent;
-      border-right: 40px solid transparent;
-    }
-    .frame .mtn-front-l { left: 5%; }
-    .frame .mtn-front-r { right: 5%; }
-    .frame .water {
-      position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
-      background: linear-gradient(180deg, #6BA8C2 0%, #2E5A78 100%);
-    }
-    .frame .sun-pic {
-      position: absolute; right: 22%; top: 18%;
-      width: 18px; height: 18px;
-      background: #FFD485;
-      border-radius: 50%;
-      box-shadow: 0 0 12px rgba(255,212,133,0.6);
-    }
-
-    /* ── Window with vertical blinds ── */
-    .window {
-      position: absolute;
-      right: 4%; top: 16%;
-      width: 200px; height: 260px;
-      box-shadow:
-        0 0 0 10px #1a1009,
-        0 0 0 12px #3a2818,
-        0 22px 36px var(--window-glow);
-      transition: box-shadow 1.5s ease;
-      overflow: hidden;
-      z-index: 3;
-    }
-    .window .sky {
-      position: absolute; inset: 0;
-      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
-      transition: background 1.5s ease;
-    }
-    .window .sun {
-      position: absolute;
-      width: 70px; height: 70px;
-      left: var(--sun-x); top: var(--sun-y);
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      background: radial-gradient(circle, var(--sun-color) 0%, var(--sun-color) 40%, rgba(255,220,160,0) 70%);
-      opacity: var(--sun-opacity);
-      filter: blur(0.5px);
-      transition: top 2s ease, left 2s ease, background 2s ease, opacity 2s ease;
-    }
-    .window .stars {
-      position: absolute; inset: 0;
-      background:
-        radial-gradient(1.4px 1.4px at 18% 30%, #fff, transparent),
-        radial-gradient(1px 1px at 60% 14%, #fff, transparent),
-        radial-gradient(1.6px 1.6px at 78% 40%, #fff, transparent),
-        radial-gradient(1px 1px at 35% 55%, #fff, transparent),
-        radial-gradient(1.2px 1.2px at 70% 70%, #fff, transparent),
-        radial-gradient(1px 1px at 15% 75%, #fff, transparent),
-        radial-gradient(1.4px 1.4px at 90% 22%, #fff, transparent),
-        radial-gradient(1px 1px at 50% 28%, #fff, transparent);
-      opacity: 0;
-      transition: opacity 2s ease;
-    }
-    /* Vertical blinds — translucent slats over the sky */
-    .window .blinds {
-      position: absolute; inset: 0;
-      display: flex; gap: 1px;
-      pointer-events: none;
-    }
-    .window .blinds .slat {
-      flex: 1;
-      background: linear-gradient(180deg, rgba(248,242,228,0.78) 0%, rgba(220,210,190,0.62) 100%);
-      box-shadow: inset -2px 0 0 rgba(0,0,0,0.08);
-    }
-
-    /* ── Plants ── */
-    .plant {
-      position: absolute;
-      bottom: 2%;
-      z-index: 6;
-    }
-    .plant .pot {
-      width: 64px; height: 50px;
-      background: linear-gradient(180deg, #6e3f24 0%, #3e2114 100%);
-      border-radius: 4px 4px 14px 14px;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
-    }
-    .plant .leaves {
-      position: relative;
-      width: 110px; height: 130px;
-      margin: 0 auto -10px;
-    }
-    .plant .leaf {
-      position: absolute;
-      width: 16px; height: 70px;
-      background: linear-gradient(180deg, #5BA871 0%, #2E5C3F 100%);
-      border-radius: 50% 50% 0 0 / 80% 80% 0 0;
-      transform-origin: 50% 100%;
-      bottom: 0;
-    }
-    .plant .leaf:nth-child(1) { left: 18px;  transform: rotate(-30deg); }
-    .plant .leaf:nth-child(2) { left: 30px;  transform: rotate(-15deg); height: 80px; }
-    .plant .leaf:nth-child(3) { left: 46px;  transform: rotate(0deg);   height: 92px; }
-    .plant .leaf:nth-child(4) { left: 62px;  transform: rotate(15deg);  height: 80px; }
-    .plant .leaf:nth-child(5) { left: 76px;  transform: rotate(30deg);  }
-    .plant .leaf:nth-child(6) { left: 38px;  transform: rotate(-8deg);  height: 58px; background: #4F9A65; }
-    .plant .leaf:nth-child(7) { left: 56px;  transform: rotate(8deg);   height: 60px; background: #4F9A65; }
-    .plant.l { left: 3%; }
-    .plant.r { right: 3%; }
-    .plant.r .leaves { width: 130px; height: 150px; }
-
-    /* Smaller plant on the left nightstand */
-    .mini-plant {
-      position: absolute;
-      left: calc(16% + 6px); bottom: calc(9% + 160px);
-      z-index: 9;
-    }
-    .mini-plant .pot {
-      width: 26px; height: 18px;
-      background: linear-gradient(180deg, #6e3f24, #3e2114);
-      border-radius: 2px 2px 5px 5px;
-      margin: 0 auto;
-    }
-    .mini-plant .leaves {
-      position: relative; width: 36px; height: 28px; margin: 0 auto -3px;
-    }
-    .mini-plant .leaf {
-      position: absolute; width: 9px; height: 22px;
-      background: #4F9A65;
-      border-radius: 50% 50% 0 0 / 80% 80% 0 0;
-      transform-origin: 50% 100%; bottom: 0;
-    }
-    .mini-plant .leaf:nth-child(1) { left: 4px;  transform: rotate(-35deg); }
-    .mini-plant .leaf:nth-child(2) { left: 14px; transform: rotate(0deg);   height: 26px; }
-    .mini-plant .leaf:nth-child(3) { left: 24px; transform: rotate(35deg);  }
 
     /* ── Wall clock ── */
     .clock {
       position: absolute;
       left: 14%; top: 18%;
-      width: 88px; height: 88px;
+      width: 92px; height: 92px;
       background: radial-gradient(circle at 30% 30%, #FFFAF0, #DCCDB0);
       border-radius: 50%;
-      box-shadow: 0 0 0 5px #1a1009, 0 6px 14px rgba(0,0,0,0.5);
+      box-shadow: 0 0 0 5px #2a1810, 0 6px 14px rgba(0,0,0,0.55);
       z-index: 4;
     }
     .clock .num {
@@ -504,18 +469,18 @@
       transform: translate(-50%, -38px);
       background: #2C1F12; border-radius: 1px;
     }
-    .clock .num.three { transform: translate(34px, -50%); width: 10px; height: 6px; }
-    .clock .num.six   { transform: translate(-50%, 28px); }
-    .clock .num.nine  { transform: translate(-44px, -50%); width: 10px; height: 6px; }
+    .clock .num.three { transform: translate(36px, -50%); width: 10px; height: 6px; }
+    .clock .num.six   { transform: translate(-50%, 30px); }
+    .clock .num.nine  { transform: translate(-46px, -50%); width: 10px; height: 6px; }
     .clock .hand {
       position: absolute; left: 50%; top: 50%;
       transform-origin: 50% 100%;
       background: #2C1F12;
       border-radius: 3px;
     }
-    .clock .hand.hour   { width: 4px; height: 22px; transform: translate(-50%, -100%); }
-    .clock .hand.minute { width: 3px; height: 32px; transform: translate(-50%, -100%); background: #4A2E18; }
-    .clock .hand.second { width: 1.5px; height: 36px; transform: translate(-50%, -100%); background: #B83232; }
+    .clock .hand.hour   { width: 4px; height: 24px; transform: translate(-50%, -100%); }
+    .clock .hand.minute { width: 3px; height: 34px; transform: translate(-50%, -100%); background: #4A2818; }
+    .clock .hand.second { width: 1.5px; height: 38px; transform: translate(-50%, -100%); background: #B83232; }
     .clock .center {
       position: absolute; left: 50%; top: 50%;
       width: 7px; height: 7px;
@@ -528,7 +493,7 @@
       transform: translateX(-50%);
       font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
       font-size: 11px;
-      color: #FAF6EE;
+      color: #FAF0E0;
       background: rgba(0, 0, 0, 0.55);
       padding: 2px 8px;
       border-radius: 6px;
@@ -536,18 +501,75 @@
       white-space: nowrap;
     }
 
+    /* ── Plants ── */
+    .plant {
+      position: absolute;
+      bottom: 1%;
+      z-index: 6;
+    }
+    .plant .pot {
+      width: 64px; height: 50px;
+      background: linear-gradient(180deg, #8E5028 0%, #4A2818 100%);
+      border-radius: 4px 4px 14px 14px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+    }
+    .plant .leaves {
+      position: relative;
+      width: 110px; height: 130px;
+      margin: 0 auto -10px;
+    }
+    .plant .leaf {
+      position: absolute;
+      width: 16px; height: 70px;
+      background: linear-gradient(180deg, #6FB17F 0%, #345E3F 100%);
+      border-radius: 50% 50% 0 0 / 80% 80% 0 0;
+      transform-origin: 50% 100%;
+      bottom: 0;
+    }
+    .plant .leaf:nth-child(1) { left: 18px;  transform: rotate(-30deg); }
+    .plant .leaf:nth-child(2) { left: 30px;  transform: rotate(-15deg); height: 80px; }
+    .plant .leaf:nth-child(3) { left: 46px;  transform: rotate(0deg);   height: 92px; }
+    .plant .leaf:nth-child(4) { left: 62px;  transform: rotate(15deg);  height: 80px; }
+    .plant .leaf:nth-child(5) { left: 76px;  transform: rotate(30deg);  }
+    .plant.l { left: 3%; }
+    .plant.r { right: 3%; }
+
+    .mini-plant {
+      position: absolute;
+      left: calc(16% + 6px); bottom: calc(7% + 160px);
+      z-index: 9;
+    }
+    .mini-plant .pot {
+      width: 26px; height: 18px;
+      background: linear-gradient(180deg, #8E5028, #4A2818);
+      border-radius: 2px 2px 5px 5px;
+      margin: 0 auto;
+    }
+    .mini-plant .leaves {
+      position: relative; width: 36px; height: 28px; margin: 0 auto -3px;
+    }
+    .mini-plant .leaf {
+      position: absolute; width: 9px; height: 22px;
+      background: #5BA871;
+      border-radius: 50% 50% 0 0 / 80% 80% 0 0;
+      transform-origin: 50% 100%; bottom: 0;
+    }
+    .mini-plant .leaf:nth-child(1) { left: 4px;  transform: rotate(-35deg); }
+    .mini-plant .leaf:nth-child(2) { left: 14px; transform: rotate(0deg); height: 26px; }
+    .mini-plant .leaf:nth-child(3) { left: 24px; transform: rotate(35deg); }
+
     /* ── Toast (song change) ── */
     .song-toast {
       position: fixed;
       right: 24px; bottom: 24px;
-      background: rgba(20, 14, 36, 0.92);
-      color: #FAF6EE;
+      background: rgba(46, 26, 16, 0.92);
+      color: #FAF0E0;
       padding: 14px 18px 14px 16px;
       border-radius: 12px;
       box-shadow: 0 18px 38px rgba(0,0,0,0.55);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 230, 160, 0.18);
+      border: 1px solid rgba(255, 200, 130, 0.22);
       display: flex; align-items: center; gap: 12px;
       max-width: 320px;
       transform: translateY(20px);
@@ -568,13 +590,13 @@
     .song-toast .label {
       font-size: 10px; text-transform: uppercase;
       letter-spacing: 0.12em;
-      color: rgba(250, 246, 238, 0.55);
+      color: rgba(250, 240, 224, 0.55);
       margin-bottom: 2px;
     }
     .song-toast .title  { font-weight: 600; font-size: .95rem; }
-    .song-toast .artist { font-size: .82rem; color: rgba(250, 246, 238, 0.7); }
+    .song-toast .artist { font-size: .82rem; color: rgba(250, 240, 224, 0.7); }
 
-    /* ── Music control ── */
+    /* Music control */
     .music-controls {
       position: fixed;
       right: 24px; top: 24px;
@@ -583,22 +605,22 @@
     }
     .music-controls button {
       width: 40px; height: 40px;
-      background: rgba(20, 14, 36, 0.8);
-      color: #FAF6EE;
-      border: 1px solid rgba(255, 230, 160, 0.18);
+      background: rgba(46, 26, 16, 0.85);
+      color: #FAF0E0;
+      border: 1px solid rgba(255, 200, 130, 0.22);
       border-radius: 50%;
       font-size: 16px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       backdrop-filter: blur(10px);
       transition: background .15s, transform .15s;
     }
-    .music-controls button:hover { background: rgba(40, 28, 60, 0.9); transform: scale(1.06); }
+    .music-controls button:hover { background: rgba(70, 40, 22, 0.95); transform: scale(1.06); }
 
     /* Start overlay */
     .start-overlay {
       position: fixed; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(20, 14, 36, 0.85);
+      background: rgba(46, 26, 16, 0.88);
       backdrop-filter: blur(6px);
       z-index: 300;
       cursor: pointer;
@@ -606,15 +628,15 @@
     }
     .start-overlay.hide { opacity: 0; pointer-events: none; }
     .start-overlay .card {
-      background: rgba(40, 28, 60, 0.7);
-      border: 1px solid rgba(255, 230, 160, 0.18);
+      background: rgba(70, 40, 22, 0.85);
+      border: 1px solid rgba(255, 200, 130, 0.22);
       border-radius: 16px;
       padding: 32px 36px;
       text-align: center;
       max-width: 360px;
     }
-    .start-overlay h2 { font-size: 1.3rem; margin: 0 0 8px; font-weight: 600; letter-spacing: -0.01em; }
-    .start-overlay p  { font-size: .9rem; opacity: 0.8; margin: 0 0 18px; line-height: 1.55; }
+    .start-overlay h2 { font-size: 1.3rem; margin: 0 0 8px; font-weight: 600; }
+    .start-overlay p  { font-size: .9rem; opacity: 0.85; margin: 0 0 18px; line-height: 1.55; }
     .start-overlay button {
       background: linear-gradient(135deg, #E8B47B, #B45B6E);
       color: white;
@@ -628,18 +650,18 @@
 
     .exit-link {
       position: fixed; top: 18px; left: 20px;
-      font-size: .78rem; color: rgba(250, 246, 238, 0.5);
+      font-size: .78rem; color: rgba(250, 240, 224, 0.55);
       text-decoration: none; z-index: 150;
       letter-spacing: 0.04em;
     }
-    .exit-link:hover { color: rgba(250, 246, 238, 0.9); }
+    .exit-link:hover { color: rgba(250, 240, 224, 0.95); }
 
     @media (max-width: 720px) {
-      .frame { width: 180px; height: 100px; top: 22%; }
-      .window { width: 140px; height: 200px; }
+      .frame { width: 200px; height: 110px; top: 22%; }
+      .window { width: 150px; height: 200px; }
       .nightstand { width: 80px; height: 120px; }
-      .lamp { width: 56px; }
-      .lamp .shade { width: 56px; height: 40px; }
+      .lamp { width: 60px; }
+      .lamp .shade { width: 60px; height: 44px; }
       .clock { width: 64px; height: 64px; left: 6%; top: 20%; }
       .plant.l, .plant.r { transform: scale(0.7); transform-origin: bottom; }
     }
@@ -679,20 +701,16 @@
       </div>
     </div>
 
-    <!-- Window with vertical blinds -->
+    <!-- Window -->
     <div class="window">
       <div class="sky"></div>
       <div class="stars" id="stars"></div>
       <div class="sun" id="sun"></div>
-      <div class="blinds">
-        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
-        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
-        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
-        <div class="slat"></div><div class="slat"></div><div class="slat"></div>
-      </div>
+      <div class="frame-cross"></div>
     </div>
+    <div class="window-sill"></div>
 
-    <!-- Ceiling fan with light -->
+    <!-- Ceiling fan + light -->
     <div class="fan">
       <div class="mount"></div>
       <div class="hub">
@@ -714,7 +732,7 @@
       <div class="pillow-row">
         <div class="pillow tan"></div>
         <div class="pillow cream"></div>
-        <div class="pillow brown"></div>
+        <div class="pillow warm"></div>
         <div class="pillow cream"></div>
         <div class="pillow tan"></div>
       </div>
@@ -732,7 +750,7 @@
       <div class="drawer"></div>
     </div>
 
-    <!-- Bedside lamps -->
+    <!-- Bedside lamps — glow-on-floor included -->
     <div class="lamp left">
       <div class="glow"></div>
       <div class="shade" id="lamp-shade-l"></div>
@@ -760,16 +778,14 @@
     <div class="plant l">
       <div class="leaves">
         <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
-        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
-        <div class="leaf"></div>
+        <div class="leaf"></div><div class="leaf"></div>
       </div>
       <div class="pot"></div>
     </div>
     <div class="plant r">
       <div class="leaves">
         <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
-        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
-        <div class="leaf"></div>
+        <div class="leaf"></div><div class="leaf"></div>
       </div>
       <div class="pot"></div>
     </div>
@@ -796,7 +812,7 @@
 <div class="start-overlay" id="start-overlay">
   <div class="card">
     <h2>Welcome back.</h2>
-    <p>Pull up a chair, kick your shoes off. Click anywhere to settle in — the music will start.</p>
+    <p>Pull up a chair. Click anywhere to settle in — the music will start.</p>
     <button id="start-btn">Enter the room</button>
   </div>
 </div>
@@ -804,19 +820,18 @@
 <audio id="player" preload="auto"></audio>
 
 <script>
-/* ── 1. Time-of-day phases ─────────────────────────────────────── */
+/* ── 1. Time-of-day phases (warmer at night, lamps brighter) ── */
 const ROOT = document.documentElement;
-const sunEl     = document.getElementById('sun');
-const starsEl   = document.getElementById('stars');
-const lampShadeL= document.getElementById('lamp-shade-l');
-const lampShadeR= document.getElementById('lamp-shade-r');
+const starsEl    = document.getElementById('stars');
+const lampShadeL = document.getElementById('lamp-shade-l');
+const lampShadeR = document.getElementById('lamp-shade-r');
 
 const PHASES = {
   day: {
-    skyTop: '#8FCDEA', skyBottom: '#FFE6BC',
+    skyTop: '#9FD8E7', skyBottom: '#FFE6BC',
     sunX: '52%', sunY: '28%', sunColor: '#FFEAA0', sunOp: 1,
     windowGlow: 'rgba(255, 220, 160, 0.45)',
-    roomTint: 'rgba(255, 244, 226, 0.0)',
+    warmth: 0.05,
     roomShade: 1.0,
     lampOn: 0,
     starsOp: 0,
@@ -825,17 +840,17 @@ const PHASES = {
     skyTop: '#E58F6A', skyBottom: '#FAC58A',
     sunX: '70%', sunY: '70%', sunColor: '#FF7E55', sunOp: 1,
     windowGlow: 'rgba(255, 130, 80, 0.55)',
-    roomTint: 'rgba(255, 150, 90, 0.10)',
-    roomShade: 0.78,
-    lampOn: 0.6,
+    warmth: 0.55,
+    roomShade: 0.92,
+    lampOn: 0.7,
     starsOp: 0,
   },
   night: {
     skyTop: '#0E1733', skyBottom: '#2A2447',
     sunX: '30%', sunY: '30%', sunColor: '#E8E3F8', sunOp: 0.85,
     windowGlow: 'rgba(60, 80, 140, 0.45)',
-    roomTint: 'rgba(20, 30, 70, 0.45)',
-    roomShade: 0.42,
+    warmth: 1.0,
+    roomShade: 0.78,            /* not too dark — lamps push it back up */
     lampOn: 1.0,
     starsOp: 1,
   },
@@ -843,9 +858,9 @@ const PHASES = {
     skyTop: '#A86F8E', skyBottom: '#FFD4A0',
     sunX: '32%', sunY: '76%', sunColor: '#FFB97A', sunOp: 0.9,
     windowGlow: 'rgba(255, 180, 130, 0.5)',
-    roomTint: 'rgba(255, 180, 140, 0.06)',
-    roomShade: 0.74,
-    lampOn: 0.45,
+    warmth: 0.45,
+    roomShade: 0.88,
+    lampOn: 0.5,
     starsOp: 0,
   },
 };
@@ -871,17 +886,15 @@ function applyPhase(force) {
   ROOT.style.setProperty('--sun-color',   p.sunColor);
   ROOT.style.setProperty('--sun-opacity', p.sunOp);
   ROOT.style.setProperty('--window-glow', p.windowGlow);
-  ROOT.style.setProperty('--room-tint',   p.roomTint);
+  ROOT.style.setProperty('--warmth',      p.warmth);
   ROOT.style.setProperty('--room-shade',  p.roomShade);
   ROOT.style.setProperty('--lamp-on',     p.lampOn);
   starsEl.style.opacity = p.starsOp;
-  if (p.lampOn >= 0.5) { lampShadeL.classList.add('on'); lampShadeR.classList.add('on'); }
-  else                 { lampShadeL.classList.remove('on'); lampShadeR.classList.remove('on'); }
 }
 applyPhase(true);
 setInterval(applyPhase, 30 * 1000);
 
-/* ── 2. Wall clock ─────────────────────────────────────────────── */
+/* ── 2. Wall clock ── */
 const handHour  = document.getElementById('hand-hour');
 const handMin   = document.getElementById('hand-minute');
 const handSec   = document.getElementById('hand-second');
@@ -900,7 +913,7 @@ function tick() {
 tick();
 setInterval(tick, 1000);
 
-/* ── 3. Music playlist ─────────────────────────────────────────── */
+/* ── 3. Music playlist ── */
 const PLAYLIST = [
   { file: 'VibeDepot - Relax.mp3',                title: 'Relax',                artist: 'VibeDepot' },
   { file: 'Amarent - Hacienda (Suno Remix).mp3',  title: 'Hacienda (Suno Remix)', artist: 'Amarent'  },
@@ -939,7 +952,7 @@ player.addEventListener('play',  () => { playPauseBtn.textContent = '⏸'; });
 player.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
 skipBtn.addEventListener('click', () => loadTrack(trackIndex + 1, !player.paused));
 
-/* ── 4. Start overlay (autoplay gesture) ───────────────────────── */
+/* ── 4. Start overlay (autoplay gesture) ── */
 const startOverlay = document.getElementById('start-overlay');
 const startBtn     = document.getElementById('start-btn');
 function start() {
