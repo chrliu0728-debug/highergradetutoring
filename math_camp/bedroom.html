@@ -8,41 +8,15 @@
   <link rel="icon" type="image/webp" href="logo.webp" />
   <style>
     :root {
-      /* Pastel-yellow palette from reference */
-      --wall-top:    #EFE49A;
-      --wall-mid:    #E8DC8B;
-      --wall-low:    #D9CC78;
-      --wall-shadow: #C7B85E;
-      --floor-near:  #D4B988;
-      --floor-far:   #B89564;
-      --ceiling:     #F2E9B0;
-
-      --cream:       #F8F1D9;
-      --soft-white:  #FAF6E6;
-      --warm-wood:   #C9A36A;
-      --warm-wood-d: #8B6B3D;
-      --leaf:        #6FA45B;
-      --leaf-d:      #2F5A3A;
-      --pot-clay:    #C77B5C;
-
-      /* Phase tokens */
-      --sky-top:    #D9F0FF;
-      --sky-bottom: #FFEDC2;
-      --sun-x: 60%;
-      --sun-y: 30%;
-      --sun-color: #FFE3A8;
-      --sun-opacity: 1;
-      --window-glow: rgba(255, 220, 140, 0.55);
-      --warmth: 0;
-      --room-shade: 1.0;
-      --lamp-on: 0;
+      --bg-image: url('bedroom-night.png');
+      --bg-tint:  rgba(0,0,0,0);
     }
 
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; padding: 0; }
     body {
-      background: #1c1808;
-      color: #2C2A20;
+      background: #0d0712;
+      color: #FAF0E0;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       overflow: hidden;
       user-select: none;
@@ -50,806 +24,108 @@
 
     .stage {
       position: fixed; inset: 0;
-      display: flex; align-items: stretch; justify-content: center;
-      overflow: hidden;
-    }
-    .room {
-      position: relative;
-      width: 100vw; height: 100vh;
-      filter: brightness(var(--room-shade));
-      transition: filter 1.5s ease;
-    }
-    .room::after {
-      content: ''; position: absolute; inset: 0;
-      background:
-        radial-gradient(ellipse at 18% 60%, rgba(255, 220, 150, calc(var(--warmth) * 0.5)) 0%, transparent 45%),
-        radial-gradient(ellipse at 82% 60%, rgba(255, 220, 150, calc(var(--warmth) * 0.5)) 0%, transparent 45%),
-        radial-gradient(ellipse at 50% 14%, rgba(255, 215, 145, calc(var(--warmth) * 0.45)) 0%, transparent 60%);
-      pointer-events: none;
-      mix-blend-mode: screen;
-      transition: background 2s ease;
-      z-index: 90;
-    }
-
-    /* Day-time sun shaft from the big window */
-    .sun-shaft {
-      position: absolute;
-      left: 30%; right: 30%;
-      top: 12%; bottom: 0;
-      background: linear-gradient(180deg,
-        rgba(255, 240, 180, 0.32) 0%,
-        rgba(255, 230, 170, 0.18) 60%,
-        rgba(255, 230, 170, 0) 100%);
-      mix-blend-mode: screen;
-      pointer-events: none;
-      transform: skewX(-12deg);
-      opacity: calc(1 - var(--warmth) * 0.7);
-      transition: opacity 2s ease;
-      z-index: 80;
-    }
-
-    /* ── Walls + floor ── */
-    .ceiling {
-      position: absolute; left: 0; right: 0; top: 0;
-      height: 11%;
-      background: linear-gradient(180deg, var(--ceiling) 0%, #E0D58C 100%);
-      box-shadow: inset 0 -10px 18px rgba(0,0,0,0.06);
-    }
-    .ceiling::after {
-      content: ''; position: absolute; left: 0; right: 0; bottom: 0;
-      height: 3px;
-      background: var(--wall-shadow);
-      opacity: 0.5;
-    }
-    .wall {
-      position: absolute; left: 0; right: 0;
-      top: 11%; height: 62%;
-      background:
-        radial-gradient(ellipse at 50% 100%, rgba(255, 240, 180, 0.20), transparent 65%),
-        linear-gradient(180deg, var(--wall-top) 0%, var(--wall-mid) 60%, var(--wall-low) 100%);
-    }
-    /* baseboard */
-    .wall::after {
-      content: ''; position: absolute; left: 0; right: 0; bottom: 0;
-      height: 12px;
-      background: linear-gradient(180deg, var(--soft-white) 0%, #DCCB8A 100%);
-      box-shadow: 0 -3px 8px rgba(0,0,0,0.10);
-    }
-    .floor {
-      position: absolute; left: 0; right: 0; bottom: 0; top: 73%;
-      background: radial-gradient(ellipse at 50% -10%, var(--floor-near) 0%, var(--floor-far) 80%);
-      box-shadow: inset 0 12px 28px rgba(0,0,0,0.18);
-    }
-    .floor::before {
-      content: ''; position: absolute; inset: 0;
-      background:
-        repeating-linear-gradient(90deg,
-          rgba(0,0,0,0.04) 0 1px, transparent 1px 60px),
-        repeating-linear-gradient(0deg,
-          rgba(0,0,0,0.025) 0 1px, transparent 1px 8px);
-      opacity: 0.6;
-    }
-    /* sisal-style rug */
-    .rug {
-      position: absolute;
-      left: 14%; right: 14%; bottom: 3%;
-      height: 130px;
-      background:
-        repeating-linear-gradient(45deg, #C19E6E 0 6px, #A98554 6px 12px);
-      border-radius: 6px;
-      box-shadow:
-        inset 0 0 0 4px #8A6A40,
-        0 6px 14px rgba(0,0,0,0.18);
-      z-index: 2;
-    }
-
-    /* ── Big center window with horizontal blinds ── */
-    .big-window {
-      position: absolute;
-      left: 50%; top: 13%;
-      transform: translateX(-50%);
-      width: 480px; height: 440px;
-      box-shadow:
-        0 0 0 10px var(--soft-white),
-        0 0 0 14px #B8A062,
-        0 24px 40px var(--window-glow);
-      transition: box-shadow 1.5s ease;
-      overflow: hidden;
-      z-index: 3;
-      border-radius: 4px;
-    }
-    .big-window .sky {
-      position: absolute; inset: 0;
-      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
-      transition: background 1.5s ease;
-    }
-    .big-window .sun {
-      position: absolute;
-      width: 130px; height: 130px;
-      left: var(--sun-x); top: var(--sun-y);
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      background: radial-gradient(circle, var(--sun-color) 0%, var(--sun-color) 38%, rgba(255,220,160,0) 70%);
-      opacity: var(--sun-opacity);
-      filter: blur(0.5px);
-      transition: top 2s ease, left 2s ease, background 2s ease, opacity 2s ease;
-    }
-    .big-window .stars {
-      position: absolute; inset: 0;
-      background:
-        radial-gradient(1.6px 1.6px at 18% 28%, #fff, transparent),
-        radial-gradient(1px 1px at 60% 14%, #fff, transparent),
-        radial-gradient(1.8px 1.8px at 78% 38%, #fff, transparent),
-        radial-gradient(1.2px 1.2px at 35% 55%, #fff, transparent),
-        radial-gradient(1.4px 1.4px at 70% 70%, #fff, transparent),
-        radial-gradient(1px 1px at 15% 75%, #fff, transparent),
-        radial-gradient(1.6px 1.6px at 90% 22%, #fff, transparent),
-        radial-gradient(1.2px 1.2px at 50% 28%, #fff, transparent),
-        radial-gradient(1px 1px at 88% 78%, #fff, transparent),
-        radial-gradient(1.4px 1.4px at 25% 88%, #fff, transparent);
-      opacity: 0;
-      transition: opacity 2s ease;
-    }
-    /* Tree silhouettes outside the window */
-    .big-window .trees {
-      position: absolute; left: 0; right: 0; bottom: 0;
-      height: 45%;
-      background:
-        radial-gradient(ellipse at 15% 100%, #5C8A4F 0%, transparent 60%),
-        radial-gradient(ellipse at 35% 100%, #6FA45B 0%, transparent 65%),
-        radial-gradient(ellipse at 60% 100%, #4F7A45 0%, transparent 60%),
-        radial-gradient(ellipse at 85% 100%, #6FA45B 0%, transparent 65%),
-        linear-gradient(180deg, transparent 0%, rgba(95, 130, 75, 0.25) 100%);
-      filter: blur(0.5px);
-      opacity: calc(1 - var(--warmth) * 0.85);
-      transition: opacity 2s ease;
-    }
-    /* Center vertical mullion */
-    .big-window .mullion {
-      position: absolute; top: 0; bottom: 0; left: 50%;
-      width: 10px; transform: translateX(-50%);
-      background: var(--soft-white);
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
-    }
-    /* Horizontal blinds — translucent slats over the sky/trees */
-    .blinds {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column; gap: 2px;
-      pointer-events: none;
-    }
-    .blinds .slat {
-      flex: 1;
-      background: linear-gradient(180deg, rgba(248,242,212,0.55) 0%, rgba(220,205,150,0.42) 100%);
-      box-shadow: inset 0 -1px 0 rgba(0,0,0,0.10);
-    }
-    /* Top portion has the slats pulled up — show open window above the blinds */
-    .blinds-top {
-      position: absolute; left: 0; right: 0; top: 0;
-      height: 28%;
-      background:
-        repeating-linear-gradient(180deg,
-          rgba(248,242,212,0.85) 0 2px, rgba(220,205,150,0.7) 2px 4px);
-      pointer-events: none;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.18);
-    }
-
-    /* ── Small left-wall window ── */
-    .small-window {
-      position: absolute;
-      left: 3%; top: 16%;
-      width: 140px; height: 170px;
-      box-shadow:
-        0 0 0 6px var(--soft-white),
-        0 0 0 9px #B8A062,
-        0 14px 22px var(--window-glow);
-      overflow: hidden;
-      z-index: 3;
-      border-radius: 3px;
-    }
-    .small-window .sky {
-      position: absolute; inset: 0;
-      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
-      transition: background 1.5s ease;
-    }
-    .small-window .sb-blinds {
-      position: absolute; inset: 0;
-      background:
-        repeating-linear-gradient(180deg,
-          rgba(248,242,212,0.8) 0 4px, rgba(220,205,150,0.6) 4px 7px);
-    }
-
-    /* Two small framed pictures on left wall */
-    .mini-frame {
-      position: absolute;
-      width: 75px; height: 90px;
-      left: 14%;
-      background: var(--warm-wood-d);
-      padding: 5px;
-      box-shadow: 0 5px 12px rgba(0,0,0,0.28);
-      z-index: 4;
-    }
-    .mini-frame .matte {
-      width: 100%; height: 100%;
-      background: linear-gradient(180deg, #F0E2D0 0%, var(--leaf) 80%, var(--leaf-d) 100%);
-      box-shadow: inset 0 0 0 2px var(--soft-white);
-      position: relative;
-    }
-    .mini-frame.f1 { top: 16%; left: 19%; }
-    .mini-frame.f2 { top: 33%; left: 19%; }
-    .mini-frame .matte::before {
-      content: ''; position: absolute;
-      bottom: 30%; left: 20%;
-      width: 0; height: 0;
-      border-bottom: 18px solid var(--warm-wood-d);
-      border-left: 12px solid transparent;
-      border-right: 12px solid transparent;
-    }
-
-    /* Wall shelf above desk — with plant + books */
-    .shelf {
-      position: absolute;
-      left: 4%; top: 50%;
-      width: 180px; height: 80px;
-      z-index: 4;
-    }
-    .shelf .board {
-      position: absolute; left: 0; right: 0; top: 50%;
-      height: 8px;
-      background: linear-gradient(180deg, var(--warm-wood) 0%, var(--warm-wood-d) 100%);
-      border-radius: 1px;
-      box-shadow: 0 6px 8px rgba(0,0,0,0.18);
-    }
-    .shelf .item {
-      position: absolute;
-      bottom: 50%;
-    }
-    .shelf .books {
-      left: 6px; bottom: 50%;
-      display: flex; gap: 1px; align-items: end;
-    }
-    .shelf .books .b { width: 6px; border-radius: 1px 1px 0 0; }
-    .shelf .books .b1 { height: 22px; background: var(--warm-wood); }
-    .shelf .books .b2 { height: 26px; background: var(--leaf); }
-    .shelf .books .b3 { height: 18px; background: var(--pot-clay); }
-    .shelf .books .b4 { height: 24px; background: #B8A062; }
-    .shelf .twig-pot {
-      right: 16px; bottom: 50%;
-      width: 24px; height: 24px;
-      background: linear-gradient(180deg, var(--pot-clay), #874730);
-      border-radius: 3px 3px 6px 6px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.22);
-    }
-    .shelf .twigs {
-      position: absolute;
-      right: 14px; bottom: calc(50% + 24px);
-      width: 30px; height: 36px;
-    }
-    .shelf .twig {
-      position: absolute;
-      bottom: 0;
-      width: 1.5px;
-      background: var(--warm-wood-d);
-      transform-origin: bottom center;
-    }
-    .shelf .twig.t1 { left: 4px;  height: 30px; transform: rotate(-15deg); }
-    .shelf .twig.t2 { left: 12px; height: 36px; transform: rotate(0deg); }
-    .shelf .twig.t3 { left: 20px; height: 28px; transform: rotate(15deg); }
-    .shelf .twig::after {
-      content: ''; position: absolute; top: 0; left: -3px;
-      width: 7px; height: 8px;
-      background: var(--leaf-d);
-      border-radius: 50% 50% 0 0;
-    }
-
-    /* ── Study desk on the LEFT ── */
-    .desk {
-      position: absolute;
-      left: 4%; bottom: 18%;
-      width: 280px;
-      z-index: 5;
-    }
-    .desk .top {
-      position: relative;
-      width: 100%; height: 18px;
-      background: linear-gradient(180deg, var(--soft-white) 0%, #D5C58A 100%);
-      border-radius: 3px;
-      box-shadow: 0 5px 10px rgba(0,0,0,0.18);
-    }
-    .desk .leg {
-      position: absolute;
-      bottom: -120px;
-      width: 8px; height: 122px;
-      background: linear-gradient(180deg, var(--warm-wood), var(--warm-wood-d));
-    }
-    .desk .leg.l { left: 8px; }
-    .desk .leg.r { right: 8px; }
-    .desk-items {
-      position: absolute; left: 0; right: 0; bottom: 18px;
-      height: 100px;
-      pointer-events: none;
-      display: flex; align-items: end; gap: 12px;
-      padding: 0 14px;
-    }
-    .alarm-d {
-      width: 32px; height: 34px;
-      background: linear-gradient(180deg, #2C2A20, #4A4540);
-      border-radius: 3px;
-      position: relative;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-    }
-    .alarm-d::before, .alarm-d::after {
-      content: ''; position: absolute;
-      width: 7px; height: 7px;
-      background: #2C2A20;
-      border-radius: 50%;
-      top: -4px;
-    }
-    .alarm-d::before { left: 1px; }
-    .alarm-d::after  { right: 1px; }
-    .alarm-d .face {
-      position: absolute; inset: 3px 3px 5px 3px;
-      background: var(--cream);
-      border-radius: 2px;
-      font-size: 7px;
-      color: #2C2A20;
       display: flex; align-items: center; justify-content: center;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 700;
+      overflow: hidden;
     }
-    .desk-lamp-arm {
-      width: 56px; height: 92px;
-      position: relative;
-    }
-    .desk-lamp-arm .head {
-      position: absolute; top: 0; left: 12px;
-      width: 36px; height: 24px;
-      background: linear-gradient(135deg, var(--cream), var(--soft-white));
-      border-radius: 12px 12px 14px 4px;
-      transform: rotate(-12deg);
-      box-shadow: 0 0 calc(14px + var(--lamp-on) * 26px) rgba(255, 230, 170, calc(0.4 + var(--lamp-on) * 0.5));
-    }
-    .desk-lamp-arm .arm {
-      position: absolute; left: 26px; top: 18px;
-      width: 4px; height: 50px;
-      background: var(--warm-wood-d);
-      transform-origin: bottom center;
-      transform: rotate(20deg);
-    }
-    .desk-lamp-arm .base {
-      position: absolute; left: 16px; bottom: 0;
-      width: 30px; height: 8px;
-      background: #2C2A20;
-      border-radius: 50%;
-    }
-    .laptop {
-      width: 84px; height: 54px;
-      position: relative;
-    }
-    .laptop .screen {
-      width: 100%; height: 42px;
-      background: linear-gradient(180deg, #2C2A20 0%, #4A4540 100%);
-      border-radius: 3px 3px 1px 1px;
-      position: relative;
-    }
-    .laptop .screen::after {
-      content: ''; position: absolute;
-      inset: 3px;
-      background: linear-gradient(180deg, #6FA45B 0%, #2F5A3A 100%);
-      border-radius: 2px;
-      opacity: 0.6;
-    }
-    .laptop .deck {
-      width: 100%; height: 6px;
-      background: #2C2A20;
-      border-radius: 0 0 5px 5px;
-    }
-    .desk-plant {
-      width: 40px; height: 50px;
-      position: relative;
-    }
-    .desk-plant .pot {
-      width: 34px; height: 22px;
-      background: linear-gradient(180deg, var(--pot-clay), #874730);
-      border-radius: 3px 3px 6px 6px;
-      margin: auto;
-      position: absolute; bottom: 0; left: 2px;
-    }
-    .desk-plant .leaves {
-      position: absolute; bottom: 20px; left: 0;
-      width: 40px; height: 34px;
-    }
-    .desk-plant .leaf {
-      position: absolute;
-      width: 10px; height: 26px;
-      background: var(--leaf);
-      border-radius: 50% 50% 0 0;
-      transform-origin: bottom center;
-    }
-    .desk-plant .leaf:nth-child(1) { left: 4px;  bottom: 0; transform: rotate(-30deg); }
-    .desk-plant .leaf:nth-child(2) { left: 14px; bottom: 0; transform: rotate(0deg); height: 32px; }
-    .desk-plant .leaf:nth-child(3) { left: 26px; bottom: 0; transform: rotate(30deg); }
 
-    /* Wicker chair */
-    .chair {
-      position: absolute;
-      left: calc(4% + 100px);
-      bottom: 5%;
-      width: 90px; height: 150px;
-      z-index: 6;
-    }
-    .chair .seat {
-      position: absolute; left: 0; right: 0; top: 50%;
-      height: 16px;
-      background:
-        repeating-linear-gradient(45deg, var(--warm-wood) 0 4px, var(--warm-wood-d) 4px 6px);
-      border-radius: 5px;
-    }
-    .chair .back {
-      position: absolute; left: 8px; right: 8px; top: 0;
-      height: 78px;
-      background:
-        repeating-linear-gradient(0deg, var(--warm-wood) 0 4px, var(--warm-wood-d) 4px 5px);
-      border-radius: 10px 10px 4px 4px;
-    }
-    .chair .leg {
-      position: absolute; bottom: 0;
-      width: 5px; height: 70px;
-      background: var(--warm-wood-d);
-    }
-    .chair .leg.l { left: 8px; }
-    .chair .leg.r { right: 8px; }
-
-    /* ── Tall closet on the RIGHT ── */
-    .closet {
-      position: absolute;
-      right: 4%; top: 14%;
-      width: 230px; height: 540px;
-      z-index: 4;
-    }
-    .closet .body {
+    /* Crossfading scene layers — two stacked images so we can dissolve
+       between phases instead of snapping. */
+    .scene {
       position: absolute; inset: 0;
-      background: linear-gradient(180deg, var(--cream) 0%, #D5C58A 100%);
-      border-radius: 6px;
-      box-shadow: 0 14px 24px rgba(0,0,0,0.25), inset 0 0 0 2px #B8A062;
+      z-index: 0;
     }
-    .closet .door-l, .closet .door-r {
-      position: absolute; top: 6px; bottom: 6px;
-      width: calc(50% - 4px);
-      background: linear-gradient(180deg, var(--soft-white) 0%, #D8C880 100%);
-      box-shadow: inset 0 0 0 2px #B8A062;
-      border-radius: 3px;
+    .scene-img {
+      position: absolute; inset: 0;
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      transition: opacity 1.6s ease;
     }
-    .closet .door-l { left: 4px; }
-    .closet .door-r { right: 4px; }
-    .closet .door-l::before,
-    .closet .door-r::before {
-      content: ''; position: absolute;
-      left: 12px; right: 12px; top: 12px; bottom: 12px;
-      border: 1.5px solid #B8A062;
-      border-radius: 3px;
-    }
-    .closet .door-l::after,
-    .closet .door-r::after {
-      content: ''; position: absolute;
-      width: 5px; height: 18px;
-      background: linear-gradient(180deg, #C9A36A, #8B6B3D);
-      border-radius: 2px;
-      top: 50%; transform: translateY(-50%);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-    }
-    .closet .door-l::after { right: 8px; }
-    .closet .door-r::after { left: 8px; }
+    .scene-img.a { opacity: 1;  }
+    .scene-img.b { opacity: 0;  }
 
-    /* Picture above closet — yellow/orange */
-    .pic-r {
-      position: absolute;
-      right: 4%; top: 4%;
-      width: 150px; height: 90px;
-      background: var(--warm-wood-d);
-      padding: 7px;
-      z-index: 4;
-      box-shadow: 0 5px 12px rgba(0,0,0,0.25);
-    }
-    .pic-r .matte {
-      width: 100%; height: 100%;
+    /* Optional vignette for cohesion */
+    .scene::after {
+      content: ''; position: absolute; inset: 0;
       background:
-        radial-gradient(circle at 75% 30%, var(--pot-clay) 0%, var(--wall-low) 70%),
-        linear-gradient(180deg, #F4C76A 0%, #C77B5C 100%);
+        radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.30) 100%);
+      pointer-events: none;
     }
 
-    /* White floor lamp on the right */
-    .floor-lamp {
+    /* Lamp-hint glow that pulses on at night/dusk so the warmth lands
+       even if the underlying image looks slightly cool. */
+    .lamp-glow {
       position: absolute;
-      right: 18%; bottom: 4%;
-      width: 64px; height: 280px;
-      z-index: 6;
-    }
-    .floor-lamp .shade {
-      width: 64px; height: 46px;
-      background: linear-gradient(180deg,
-        rgba(248, 242, 220, calc(0.85 + var(--lamp-on) * 0.15)) 0%,
-        rgba(220, 205, 160, calc(0.95 + var(--lamp-on) * 0.05)) 100%);
-      border-radius: 50% 50% 28% 28% / 60% 60% 40% 40%;
-      box-shadow: 0 0 calc(20px + var(--lamp-on) * 50px) rgba(255, 220, 140, calc(0.35 + var(--lamp-on) * 0.55));
-    }
-    .floor-lamp .pole {
-      width: 5px; height: 220px;
-      background: linear-gradient(180deg, #D6C788 0%, #8E7A40 100%);
-      margin: 0 auto;
-    }
-    .floor-lamp .base {
-      width: 46px; height: 10px;
-      background: #D6C788;
-      border-radius: 2px;
-      margin: 0 auto;
-    }
-    .floor-lamp .glow {
-      position: absolute;
-      left: 50%; top: 18px;
-      width: 380px; height: 380px;
-      transform: translate(-50%, -50%);
+      bottom: 18%; right: 18%;
+      width: 60vmin; height: 60vmin;
+      transform: translate(50%, 50%);
       background: radial-gradient(circle,
-        rgba(255, 220, 140, calc(0.45 + var(--lamp-on) * 0.30)) 0%,
-        rgba(255, 220, 140, 0) 60%);
+        rgba(255, 215, 140, 0.32) 0%,
+        rgba(255, 215, 140, 0.12) 35%,
+        rgba(255, 215, 140, 0) 65%);
       pointer-events: none;
       mix-blend-mode: screen;
-      z-index: -1;
-    }
-
-    /* ── Ceiling light ── */
-    .ceiling-light {
-      position: absolute;
-      left: 50%; top: 11%;
-      transform: translateX(-50%);
-      z-index: 5;
-      pointer-events: none;
-    }
-    .ceiling-light .mount {
-      width: 10px; height: 24px;
-      background: var(--warm-wood-d);
-      margin: 0 auto;
-    }
-    .ceiling-light .dome {
-      width: 76px; height: 36px;
-      margin: -2px auto 0;
-      background: linear-gradient(180deg,
-        rgba(255, 240, 200, calc(0.7 + var(--lamp-on) * 0.3)) 0%,
-        rgba(220, 200, 130, calc(0.85 + var(--lamp-on) * 0.15)) 100%);
-      border-radius: 50% 50% 30% 30% / 80% 80% 20% 20%;
-      box-shadow: 0 0 calc(18px + var(--lamp-on) * 40px) rgba(255, 215, 145, calc(0.30 + var(--lamp-on) * 0.45));
-    }
-    .ceiling-light .glow {
-      position: absolute;
-      left: 50%; top: 100%;
-      width: 540px; height: 380px;
-      transform: translateX(-50%);
-      background: radial-gradient(ellipse at 50% 0%, rgba(255, 215, 145, calc(0.16 + var(--lamp-on) * 0.30)) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    /* ── Bed (lower right) ── */
-    .bed {
-      position: absolute;
-      right: 22%;
-      bottom: 4%;
-      width: min(640px, 44vw);
-      height: 320px;
-      z-index: 6;
-    }
-    .bed .frame-bed {
-      position: absolute; left: 0; bottom: 0; right: 0;
-      height: 92px;
-      background: linear-gradient(180deg, var(--warm-wood) 0%, var(--warm-wood-d) 100%);
-      border-radius: 5px;
-      box-shadow: 0 12px 22px rgba(0,0,0,0.30);
-    }
-    .bed .mattress {
-      position: absolute; left: 10px; right: 10px; bottom: 76px;
-      height: 64px;
-      background: linear-gradient(180deg, var(--soft-white) 0%, #DACCAE 100%);
-      border-radius: 5px;
-      box-shadow: inset 0 -6px 10px rgba(0,0,0,0.16);
-    }
-    .bed .blanket {
-      position: absolute; left: 10px; right: 10px; bottom: 90px;
-      height: 120px;
-      background:
-        repeating-linear-gradient(45deg,
-          #F2DC7E 0 12px, #E8CB58 12px 22px),
-        linear-gradient(180deg, #F2DC7E 0%, #C8A340 100%);
-      border-radius: 6px;
-      box-shadow:
-        inset 0 -10px 18px rgba(0,0,0,0.18),
-        0 6px 12px rgba(0,0,0,0.25);
-    }
-    .bed .blanket::after {
-      content: ''; position: absolute;
-      left: 14%; right: 14%; bottom: -8px;
-      height: 12px;
-      background: repeating-linear-gradient(45deg, #C8A340 0 10px, #8E7A40 10px 20px);
-      border-radius: 0 0 6px 6px;
-    }
-    .bed .pillow-row {
-      position: absolute; left: 6%; right: 6%; bottom: 142px;
-      height: 80px;
-      display: flex; gap: 6px; align-items: center; justify-content: center;
-    }
-    .bed .pillow {
-      flex: 1; height: 100%;
-      border-radius: 12px;
-      box-shadow:
-        inset 0 -5px 8px rgba(0,0,0,0.08),
-        0 4px 8px rgba(0,0,0,0.20);
-    }
-    .bed .pillow.cream  { background: linear-gradient(180deg, var(--soft-white), #C8B89E); }
-    .bed .pillow.yellow { background: linear-gradient(180deg, #F2DC7E, #C8A340); }
-    .bed .pillow.deep   { background: linear-gradient(180deg, #C8A340, #8E7A40); }
-
-    /* ── Plants (recognizable) ── */
-    .pot {
-      background: linear-gradient(180deg, var(--pot-clay) 0%, #874730 100%);
-      border-radius: 4px 4px 14px 14px;
-      box-shadow: 0 6px 12px rgba(0,0,0,0.28);
-    }
-
-    /* Monstera near desk/chair */
-    .monstera {
-      position: absolute;
-      left: 26%; bottom: 1.5%;
-      z-index: 6;
-    }
-    .monstera .pot { width: 100px; height: 78px; margin: 0 auto; }
-    .monstera .stems { position: relative; width: 200px; height: 230px; margin: 0 auto -10px; }
-    .monstera .leaf {
-      position: absolute;
-      background: radial-gradient(circle at 30% 30%, #6FA45B 0%, #2F5A3A 100%);
-      border-radius: 50% 50% 50% 0 / 50% 50% 50% 0;
-      transform-origin: 0% 100%;
-      box-shadow: inset -4px -4px 8px rgba(0,0,0,0.22), inset 6px 6px 0 rgba(255,255,255,0.05);
-    }
-    .monstera .leaf::before {
-      content: ''; position: absolute;
-      width: 9px; height: 24px;
-      background: var(--wall-mid);
-      top: 8px; left: 30%;
-      border-radius: 0 0 5px 5px;
-      transform: rotate(-15deg);
-    }
-    .monstera .leaf::after {
-      content: ''; position: absolute;
-      width: 7px; height: 20px;
-      background: var(--wall-mid);
-      bottom: 10px; right: 18%;
-      border-radius: 5px 5px 0 0;
-      transform: rotate(15deg);
-    }
-    .monstera .leaf:nth-child(1) { left: 12px;  bottom: 0;   width: 76px; height: 76px; transform: rotate(-30deg); }
-    .monstera .leaf:nth-child(2) { left: 64px;  bottom: 36px; width: 88px; height: 88px; transform: rotate(-5deg); }
-    .monstera .leaf:nth-child(3) { left: 110px; bottom: 100px; width: 70px; height: 70px; transform: rotate(20deg); }
-    .monstera .leaf:nth-child(4) { left: 36px;  bottom: 110px; width: 64px; height: 64px; transform: rotate(-40deg); }
-
-    /* Snake plant on the floor near closet */
-    .snake {
-      position: absolute;
-      left: 50%; bottom: 2%;
-      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 1.6s ease;
       z-index: 5;
     }
-    .snake .pot {
-      width: 80px; height: 66px; margin: 0 auto;
-      background: linear-gradient(180deg, var(--soft-white) 0%, #B8A062 100%);
-    }
-    .snake .stems { position: relative; width: 96px; height: 230px; margin: 0 auto -10px; }
-    .snake .leaf {
-      position: absolute; bottom: 0;
-      width: 14px;
-      background:
-        linear-gradient(90deg, #E8C45A 0%, transparent 8%, transparent 92%, #E8C45A 100%),
-        linear-gradient(180deg, #6FA478 0%, #2F5A3A 100%);
-      border-radius: 50% 50% 0 0 / 12% 12% 0 0;
-      transform-origin: 50% 100%;
-      box-shadow: inset -2px 0 4px rgba(0,0,0,0.22);
-    }
-    .snake .leaf:nth-child(1) { left: 8px;  height: 180px; transform: rotate(-10deg); }
-    .snake .leaf:nth-child(2) { left: 24px; height: 220px; transform: rotate(-3deg); }
-    .snake .leaf:nth-child(3) { left: 40px; height: 240px; transform: rotate(2deg); }
-    .snake .leaf:nth-child(4) { left: 56px; height: 200px; transform: rotate(8deg); }
-    .snake .leaf:nth-child(5) { left: 70px; height: 160px; transform: rotate(15deg); }
 
-    /* Wicker basket on floor near bed */
-    .basket {
-      position: absolute;
-      right: calc(22% + 660px); bottom: 4%;
-      width: 70px; height: 50px;
-      z-index: 5;
-      background:
-        repeating-linear-gradient(0deg, var(--warm-wood) 0 3px, var(--warm-wood-d) 3px 5px);
-      border-radius: 50% 50% 18% 18% / 30% 30% 25% 25%;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-    }
-    .basket::after {
-      content: ''; position: absolute;
-      left: 4px; right: 4px; top: -3px;
-      height: 4px;
-      background: var(--warm-wood-d);
-      border-radius: 4px;
-    }
-    .basket-plant {
-      position: absolute;
-      right: calc(22% + 680px); bottom: calc(4% + 42px);
-      z-index: 6;
-      width: 34px; height: 42px;
-    }
-    .basket-plant .leaf {
-      position: absolute; bottom: 0;
-      width: 5px; background: var(--leaf);
-      border-radius: 50% 50% 0 0;
-      transform-origin: bottom center;
-    }
-    .basket-plant .leaf {
-      width: 7px;
-    }
-    .basket-plant .leaf:nth-child(1) { left: 4px;  height: 30px; transform: rotate(-30deg); }
-    .basket-plant .leaf:nth-child(2) { left: 14px; height: 36px; transform: rotate(0deg); }
-    .basket-plant .leaf:nth-child(3) { left: 24px; height: 30px; transform: rotate(30deg); }
-
-    /* ── Wall clock ── */
+    /* Floating clock — sits on top of the room */
     .clock {
-      position: absolute;
-      right: 30%; top: 14%;
-      width: 92px; height: 92px;
+      position: fixed;
+      top: 22px; right: 86px;
+      width: 90px; height: 90px;
       background: radial-gradient(circle at 30% 30%, #FFFAF0, #DCCDB0);
       border-radius: 50%;
-      box-shadow: 0 0 0 4px var(--warm-wood-d), 0 6px 12px rgba(0,0,0,0.4);
-      z-index: 4;
+      box-shadow: 0 0 0 5px rgba(60, 40, 22, 0.92), 0 8px 18px rgba(0,0,0,0.45);
+      z-index: 100;
     }
     .clock .num {
       position: absolute; left: 50%; top: 50%;
       width: 6px; height: 10px;
-      transform: translate(-50%, -38px);
+      transform: translate(-50%, -36px);
       background: #2C1F12; border-radius: 1px;
     }
-    .clock .num.three { transform: translate(36px, -50%); width: 10px; height: 6px; }
-    .clock .num.six   { transform: translate(-50%, 30px); }
-    .clock .num.nine  { transform: translate(-46px, -50%); width: 10px; height: 6px; }
+    .clock .num.three { transform: translate(34px, -50%); width: 10px; height: 6px; }
+    .clock .num.six   { transform: translate(-50%, 28px); }
+    .clock .num.nine  { transform: translate(-44px, -50%); width: 10px; height: 6px; }
     .clock .hand {
       position: absolute; left: 50%; top: 50%;
       transform-origin: 50% 100%;
-      background: #2C1F12;
-      border-radius: 2px;
+      background: #2C1F12; border-radius: 2px;
     }
-    .clock .hand.hour   { width: 4px; height: 24px; transform: translate(-50%, -100%); }
-    .clock .hand.minute { width: 3px; height: 36px; transform: translate(-50%, -100%); background: #4A2E18; }
-    .clock .hand.second { width: 1.5px; height: 38px; transform: translate(-50%, -100%); background: #B83232; }
+    .clock .hand.hour   { width: 4px; height: 22px;  transform: translate(-50%, -100%); }
+    .clock .hand.minute { width: 3px; height: 32px;  transform: translate(-50%, -100%); background: #4A2E18; }
+    .clock .hand.second { width: 1.5px; height: 36px;transform: translate(-50%, -100%); background: #B83232; }
     .clock .center {
       position: absolute; left: 50%; top: 50%;
-      width: 6px; height: 6px;
+      width: 7px; height: 7px;
       background: #2C1F12; border-radius: 50%;
       transform: translate(-50%, -50%);
       z-index: 2;
     }
     .clock .digital {
-      position: absolute; left: 50%; bottom: -22px;
+      position: absolute; left: 50%; bottom: -26px;
       transform: translateX(-50%);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      color: var(--soft-white);
-      background: rgba(60, 50, 30, 0.6);
-      padding: 2px 6px;
-      border-radius: 5px;
+      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+      font-size: 11px;
+      color: #FAF0E0;
+      background: rgba(20, 12, 6, 0.65);
+      padding: 2px 8px;
+      border-radius: 6px;
       letter-spacing: 0.06em;
       white-space: nowrap;
     }
 
-    /* ── Now-playing card (replaces tiny toast) ── */
+    /* Now-playing card */
     .now-playing {
       position: fixed;
       right: 24px; bottom: 24px;
       width: 320px;
-      background: rgba(48, 40, 24, 0.94);
-      color: var(--soft-white);
+      background: rgba(28, 20, 12, 0.94);
+      color: #FAF0E0;
       border-radius: 14px;
-      box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.55);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 220, 160, 0.20);
@@ -860,7 +136,6 @@
       z-index: 200;
     }
     .now-playing.show { transform: translateY(0); opacity: 1; }
-
     .np-head {
       display: flex; align-items: center; gap: 12px;
       padding: 14px 14px 12px;
@@ -888,12 +163,11 @@
       width: 28px; height: 28px;
       background: rgba(255, 220, 160, 0.10);
       border: none; border-radius: 50%;
-      color: var(--soft-white);
+      color: #FAF0E0;
       cursor: pointer; font-size: 14px;
       transition: background .15s, transform .25s;
     }
     .np-head .toggle:hover { background: rgba(255, 220, 160, 0.20); }
-
     .np-body {
       max-height: 0;
       overflow: hidden;
@@ -908,8 +182,7 @@
     }
     .now-playing.expanded .np-head .toggle { transform: rotate(180deg); }
     .np-bio {
-      font-size: .82rem;
-      line-height: 1.55;
+      font-size: .82rem; line-height: 1.55;
       color: rgba(248, 241, 217, 0.85);
       margin-bottom: 12px;
     }
@@ -926,7 +199,6 @@
     }
     .np-link:hover { background: rgba(255, 220, 160, 0.18); }
 
-    /* Music control */
     .music-controls {
       position: fixed;
       right: 24px; top: 24px;
@@ -935,8 +207,8 @@
     }
     .music-controls button {
       width: 40px; height: 40px;
-      background: rgba(48, 40, 24, 0.85);
-      color: var(--soft-white);
+      background: rgba(28, 20, 12, 0.85);
+      color: #FAF0E0;
       border: 1px solid rgba(255, 220, 160, 0.22);
       border-radius: 50%;
       font-size: 16px; cursor: pointer;
@@ -944,12 +216,12 @@
       backdrop-filter: blur(10px);
       transition: background .15s, transform .15s;
     }
-    .music-controls button:hover { background: rgba(80, 65, 40, 0.95); transform: scale(1.06); }
+    .music-controls button:hover { background: rgba(60, 40, 22, 0.95); transform: scale(1.06); }
 
     .start-overlay {
       position: fixed; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(48, 40, 24, 0.88);
+      background: rgba(28, 20, 12, 0.88);
       backdrop-filter: blur(6px);
       z-index: 300;
       cursor: pointer;
@@ -957,13 +229,13 @@
     }
     .start-overlay.hide { opacity: 0; pointer-events: none; }
     .start-overlay .card {
-      background: rgba(80, 65, 40, 0.85);
+      background: rgba(60, 40, 22, 0.85);
       border: 1px solid rgba(255, 220, 160, 0.22);
       border-radius: 16px;
       padding: 32px 36px;
       text-align: center;
       max-width: 360px;
-      color: var(--soft-white);
+      color: #FAF0E0;
     }
     .start-overlay h2 { font-size: 1.3rem; margin: 0 0 8px; font-weight: 600; }
     .start-overlay p  { font-size: .9rem; opacity: 0.85; margin: 0 0 18px; line-height: 1.55; }
@@ -979,25 +251,28 @@
     }
 
     .exit-link {
-      position: fixed; top: 18px; left: 20px;
-      font-size: .78rem; color: rgba(60, 50, 30, 0.7);
+      position: fixed; top: 22px; left: 22px;
+      font-size: .8rem; color: rgba(250, 240, 224, 0.65);
       text-decoration: none; z-index: 150;
       letter-spacing: 0.04em;
+      background: rgba(28, 20, 12, 0.55);
+      padding: 6px 12px;
+      border-radius: 8px;
+      backdrop-filter: blur(8px);
     }
-    .exit-link:hover { color: rgba(60, 50, 30, 1); }
+    .exit-link:hover { color: rgba(250, 240, 224, 1); background: rgba(28, 20, 12, 0.75); }
 
-    @media (max-width: 980px) {
-      .big-window  { width: 220px; height: 240px; }
-      .small-window{ width: 60px;  height: 80px; }
-      .closet      { width: 110px; height: 320px; }
-      .pic-r       { width: 70px; height: 50px; }
-      .desk        { width: 150px; left: 10%; }
-      .chair       { left: calc(10% + 40px); width: 50px; }
-      .bed         { right: 12%; }
-      .clock       { width: 56px; height: 56px; }
-      .floor-lamp  { right: calc(5% + 115px); }
-      .monstera, .snake, .basket, .basket-plant { transform: scale(0.7); transform-origin: bottom center; }
-      .now-playing { width: calc(100vw - 32px); right: 16px; }
+    @media (max-width: 720px) {
+      .clock { width: 64px; height: 64px; right: 76px; }
+      .clock .hand.hour   { height: 16px; }
+      .clock .hand.minute { height: 24px; }
+      .clock .hand.second { height: 26px; }
+      .clock .num       { transform: translate(-50%, -26px); width: 4px; height: 7px; }
+      .clock .num.three { transform: translate(24px, -50%);  width: 7px; height: 4px; }
+      .clock .num.six   { transform: translate(-50%, 20px); }
+      .clock .num.nine  { transform: translate(-32px, -50%); width: 7px; height: 4px; }
+      .clock .digital   { font-size: 10px; bottom: -22px; }
+      .now-playing      { width: calc(100vw - 32px); right: 16px; }
     }
   </style>
 </head>
@@ -1006,158 +281,24 @@
 <a href="student-portal.html" class="exit-link">← back to portal</a>
 
 <div class="stage">
-  <div class="room">
-    <div class="ceiling"></div>
-    <div class="wall"></div>
-    <div class="floor"></div>
-    <div class="rug"></div>
-    <div class="sun-shaft"></div>
-
-    <!-- Two small framed pictures on the left wall -->
-    <div class="mini-frame f1"><div class="matte"></div></div>
-    <div class="mini-frame f2"><div class="matte"></div></div>
-
-    <!-- Small left-wall window -->
-    <div class="small-window">
-      <div class="sky"></div>
-      <div class="sb-blinds"></div>
-    </div>
-
-    <!-- Wall shelf above desk -->
-    <div class="shelf">
-      <div class="board"></div>
-      <div class="item books">
-        <div class="b b1"></div><div class="b b2"></div><div class="b b3"></div><div class="b b4"></div>
-      </div>
-      <div class="twigs">
-        <div class="twig t1"></div>
-        <div class="twig t2"></div>
-        <div class="twig t3"></div>
-      </div>
-      <div class="item twig-pot"></div>
-    </div>
-
-    <!-- Big center window -->
-    <div class="big-window">
-      <div class="sky"></div>
-      <div class="trees"></div>
-      <div class="stars" id="stars"></div>
-      <div class="sun" id="sun"></div>
-      <div class="mullion"></div>
-      <div class="blinds-top"></div>
-    </div>
-
-    <!-- Wall clock on the right -->
-    <div class="clock" aria-label="Clock">
-      <div class="num twelve"></div>
-      <div class="num three"></div>
-      <div class="num six"></div>
-      <div class="num nine"></div>
-      <div class="hand hour"   id="hand-hour"></div>
-      <div class="hand minute" id="hand-minute"></div>
-      <div class="hand second" id="hand-second"></div>
-      <div class="center"></div>
-      <div class="digital" id="digital">--:--</div>
-    </div>
-
-    <!-- Picture above closet -->
-    <div class="pic-r"><div class="matte"></div></div>
-
-    <!-- Tall closet on the right -->
-    <div class="closet">
-      <div class="body"></div>
-      <div class="door-l"></div>
-      <div class="door-r"></div>
-    </div>
-
-    <!-- Ceiling light at top center -->
-    <div class="ceiling-light">
-      <div class="mount"></div>
-      <div class="dome"></div>
-      <div class="glow"></div>
-    </div>
-
-    <!-- Study desk on the left -->
-    <div class="desk">
-      <div class="leg l"></div>
-      <div class="leg r"></div>
-      <div class="top"></div>
-      <div class="desk-items">
-        <div class="alarm-d"><div class="face">7:30</div></div>
-        <div class="desk-lamp-arm">
-          <div class="head"></div>
-          <div class="arm"></div>
-          <div class="base"></div>
-        </div>
-        <div class="laptop">
-          <div class="screen"></div>
-          <div class="deck"></div>
-        </div>
-        <div class="desk-plant">
-          <div class="leaves">
-            <div class="leaf"></div>
-            <div class="leaf"></div>
-            <div class="leaf"></div>
-          </div>
-          <div class="pot"></div>
-        </div>
-      </div>
-    </div>
-    <div class="chair">
-      <div class="back"></div>
-      <div class="seat"></div>
-      <div class="leg l"></div>
-      <div class="leg r"></div>
-    </div>
-
-    <!-- Bed on the right-bottom -->
-    <div class="bed">
-      <div class="frame-bed"></div>
-      <div class="mattress"></div>
-      <div class="blanket"></div>
-      <div class="pillow-row">
-        <div class="pillow yellow"></div>
-        <div class="pillow cream"></div>
-        <div class="pillow deep"></div>
-        <div class="pillow cream"></div>
-        <div class="pillow yellow"></div>
-      </div>
-    </div>
-
-    <!-- Floor lamp between bed and closet -->
-    <div class="floor-lamp">
-      <div class="glow"></div>
-      <div class="shade"></div>
-      <div class="pole"></div>
-      <div class="base"></div>
-    </div>
-
-    <!-- Floor plants -->
-    <div class="monstera">
-      <div class="stems">
-        <div class="leaf"></div>
-        <div class="leaf"></div>
-        <div class="leaf"></div>
-        <div class="leaf"></div>
-      </div>
-      <div class="pot"></div>
-    </div>
-    <div class="snake">
-      <div class="stems">
-        <div class="leaf"></div><div class="leaf"></div><div class="leaf"></div>
-        <div class="leaf"></div><div class="leaf"></div>
-      </div>
-      <div class="pot"></div>
-    </div>
-
-    <!-- Wicker basket near the bed -->
-    <div class="basket"></div>
-    <div class="basket-plant">
-      <div class="leaf"></div>
-      <div class="leaf"></div>
-      <div class="leaf"></div>
-    </div>
+  <div class="scene">
+    <div class="scene-img a" id="scene-a"></div>
+    <div class="scene-img b" id="scene-b"></div>
   </div>
+  <div class="lamp-glow" id="lamp-glow"></div>
+</div>
+
+<!-- Wall clock -->
+<div class="clock" aria-label="Clock">
+  <div class="num twelve"></div>
+  <div class="num three"></div>
+  <div class="num six"></div>
+  <div class="num nine"></div>
+  <div class="hand hour"   id="hand-hour"></div>
+  <div class="hand minute" id="hand-minute"></div>
+  <div class="hand second" id="hand-second"></div>
+  <div class="center"></div>
+  <div class="digital" id="digital">--:--</div>
 </div>
 
 <div class="music-controls">
@@ -1194,35 +335,12 @@
 <audio id="player" preload="auto"></audio>
 
 <script>
-/* ── Phases ── */
-const ROOT = document.documentElement;
-const starsEl = document.getElementById('stars');
-
+/* ── 1. Phase imagery ─────────────────────────────────────────── */
 const PHASES = {
-  day: {
-    skyTop: '#9ED5E8', skyBottom: '#FFE6BC',
-    sunX: '60%', sunY: '28%', sunColor: '#FFEAA0', sunOp: 1,
-    windowGlow: 'rgba(255, 220, 140, 0.50)',
-    warmth: 0.05, roomShade: 1.0, lampOn: 0, starsOp: 0,
-  },
-  dusk: {
-    skyTop: '#E58F6A', skyBottom: '#FAC58A',
-    sunX: '70%', sunY: '70%', sunColor: '#FF7E55', sunOp: 1,
-    windowGlow: 'rgba(255, 130, 80, 0.55)',
-    warmth: 0.55, roomShade: 0.78, lampOn: 0.75, starsOp: 0,
-  },
-  night: {
-    skyTop: '#0A1228', skyBottom: '#1F1A38',
-    sunX: '30%', sunY: '30%', sunColor: '#E8E3F8', sunOp: 0.85,
-    windowGlow: 'rgba(50, 70, 130, 0.45)',
-    warmth: 0.85, roomShade: 0.50, lampOn: 1.0, starsOp: 1,
-  },
-  dawn: {
-    skyTop: '#A86F8E', skyBottom: '#FFD4A0',
-    sunX: '32%', sunY: '76%', sunColor: '#FFB97A', sunOp: 0.9,
-    windowGlow: 'rgba(255, 180, 130, 0.50)',
-    warmth: 0.45, roomShade: 0.88, lampOn: 0.5, starsOp: 0,
-  },
+  day:   { img: 'bedroom-day.png',   lampOpacity: 0   },
+  dusk:  { img: 'bedroom-dusk.png',  lampOpacity: 0.7 },
+  night: { img: 'bedroom-night.png', lampOpacity: 1.0 },
+  dawn:  { img: 'bedroom-dawn.png',  lampOpacity: 0.5 },
 };
 
 function phaseFor(date) {
@@ -1232,28 +350,45 @@ function phaseFor(date) {
   if (h >= 21 || h < 6)  return 'night';
   return 'dawn';
 }
+
+const sceneA = document.getElementById('scene-a');
+const sceneB = document.getElementById('scene-b');
+const lampGlow = document.getElementById('lamp-glow');
+let topLayer = sceneA, hidLayer = sceneB;
 let lastPhase = null;
+
 function applyPhase(force) {
   const phase = phaseFor(new Date());
   if (!force && phase === lastPhase) return;
   lastPhase = phase;
   const p = PHASES[phase];
-  ROOT.style.setProperty('--sky-top',     p.skyTop);
-  ROOT.style.setProperty('--sky-bottom',  p.skyBottom);
-  ROOT.style.setProperty('--sun-x',       p.sunX);
-  ROOT.style.setProperty('--sun-y',       p.sunY);
-  ROOT.style.setProperty('--sun-color',   p.sunColor);
-  ROOT.style.setProperty('--sun-opacity', p.sunOp);
-  ROOT.style.setProperty('--window-glow', p.windowGlow);
-  ROOT.style.setProperty('--warmth',      p.warmth);
-  ROOT.style.setProperty('--room-shade',  p.roomShade);
-  ROOT.style.setProperty('--lamp-on',     p.lampOn);
-  starsEl.style.opacity = p.starsOp;
+
+  // Crossfade: load on hidden layer, then swap opacities
+  hidLayer.style.backgroundImage = `url('${p.img}')`;
+  // Wait one frame so the browser commits the bg before we fade
+  requestAnimationFrame(() => {
+    topLayer.style.opacity = '0';
+    hidLayer.style.opacity = '1';
+    [topLayer, hidLayer] = [hidLayer, topLayer];
+  });
+
+  lampGlow.style.opacity = p.lampOpacity;
 }
-applyPhase(true);
+
+// Initial paint — set both layers to the current image so first
+// transition crossfades from "the same image" rather than from black.
+(function initialPaint() {
+  const phase = phaseFor(new Date());
+  const url = `url('${PHASES[phase].img}')`;
+  sceneA.style.backgroundImage = url;
+  sceneB.style.backgroundImage = url;
+  lampGlow.style.opacity = PHASES[phase].lampOpacity;
+  lastPhase = phase;
+})();
+
 setInterval(applyPhase, 30 * 1000);
 
-/* ── Wall clock ── */
+/* ── 2. Wall clock ────────────────────────────────────────────── */
 const handHour  = document.getElementById('hand-hour');
 const handMin   = document.getElementById('hand-minute');
 const handSec   = document.getElementById('hand-second');
@@ -1272,7 +407,7 @@ function tick() {
 tick();
 setInterval(tick, 1000);
 
-/* ── Music: artists + playlist ── */
+/* ── 3. Music: artists + playlist ─────────────────────────────── */
 const ARTISTS = {
   'Amarent': {
     bio: "Amarent — an anagram of Maarten Schellekens — is the artist name under which Maarten releases his electronic music. Layered synths, warm pads, and easygoing grooves.",
@@ -1289,13 +424,13 @@ const ARTISTS = {
 };
 
 const PLAYLIST = [
-  { file: 'VibeDepot - Relax.mp3',                       title: 'Relax',                 artist: 'VibeDepot' },
-  { file: 'Amarent - Hacienda (Suno Remix).mp3',         title: 'Hacienda (Suno Remix)', artist: 'Amarent'  },
-  { file: 'Happiness In Music - Space.mp3',              title: 'Space',                 artist: 'Happiness In Music' },
-  { file: 'VibeDepot - Yoga Music.mp3',                  title: 'Yoga Music',            artist: 'VibeDepot' },
-  { file: 'Happiness In Music - Yoga Music.mp3',         title: 'Yoga Music',            artist: 'Happiness In Music' },
-  { file: 'VibeDepot - Music Yoga.mp3',                  title: 'Music Yoga',            artist: 'VibeDepot' },
-  { file: 'Happiness In Music - Yoga Music Free.mp3',    title: 'Yoga Music Free',       artist: 'Happiness In Music' },
+  { file: 'VibeDepot - Relax.mp3',                    title: 'Relax',                 artist: 'VibeDepot' },
+  { file: 'Amarent - Hacienda (Suno Remix).mp3',      title: 'Hacienda (Suno Remix)', artist: 'Amarent'  },
+  { file: 'Happiness In Music - Space.mp3',           title: 'Space',                 artist: 'Happiness In Music' },
+  { file: 'VibeDepot - Yoga Music.mp3',               title: 'Yoga Music',            artist: 'VibeDepot' },
+  { file: 'Happiness In Music - Yoga Music.mp3',      title: 'Yoga Music',            artist: 'Happiness In Music' },
+  { file: 'VibeDepot - Music Yoga.mp3',               title: 'Music Yoga',            artist: 'VibeDepot' },
+  { file: 'Happiness In Music - Yoga Music Free.mp3', title: 'Yoga Music Free',       artist: 'Happiness In Music' },
 ];
 
 const player    = document.getElementById('player');
@@ -1318,7 +453,6 @@ function loadTrack(i, autoplay) {
   if (autoplay) player.play().catch(() => {});
   showSongCard(track);
 }
-
 function showSongCard(track) {
   titleEl.textContent  = track.title;
   artistEl.textContent = track.artist;
@@ -1327,12 +461,10 @@ function showSongCard(track) {
   linkEl.href        = a.url;
   npEl.classList.add('show');
   clearTimeout(showSongCard._t);
-  // Only auto-collapse if not currently expanded by the user.
   if (!npEl.classList.contains('expanded')) {
     showSongCard._t = setTimeout(() => npEl.classList.remove('show'), 6000);
   }
 }
-
 npHead.addEventListener('click', () => {
   npEl.classList.toggle('expanded');
   npEl.classList.add('show');
@@ -1354,7 +486,7 @@ player.addEventListener('play',  () => { playPauseBtn.textContent = '⏸'; });
 player.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
 skipBtn.addEventListener('click', () => loadTrack(trackIndex + 1, !player.paused));
 
-/* ── Start overlay ── */
+/* ── 4. Start overlay ─────────────────────────────────────────── */
 const startOverlay = document.getElementById('start-overlay');
 const startBtn     = document.getElementById('start-btn');
 function start() {
