@@ -386,7 +386,55 @@ function applyPhase(force) {
   lastPhase = phase;
 })();
 
-setInterval(applyPhase, 30 * 1000);
+// ── Boundary-precise scheduler ──
+// We don't rely on a slow polling timer — instead we compute the
+// number of milliseconds until the next phase boundary (06:00, 08:00,
+// 19:00, 21:00) and fire applyPhase() exactly then. After a switch we
+// re-schedule for the next boundary. A 5-second safety-net interval
+// also runs in case the tab was throttled or the system clock jumped
+// (laptop wake from sleep, timezone change, DST, etc.).
+const BOUNDARIES = [6, 8, 19, 21];          // hours that trigger a switch
+function msUntilNextBoundary(date) {
+  let best = Infinity;
+  for (const h of BOUNDARIES) {
+    const t = new Date(date);
+    t.setHours(h, 0, 0, 0);
+    let delta = t - date;
+    if (delta <= 0) delta += 24 * 60 * 60 * 1000;  // already passed today → tomorrow
+    if (delta < best) best = delta;
+  }
+  return best;
+}
+
+let boundaryTimer = null;
+function scheduleNextBoundary() {
+  if (boundaryTimer) clearTimeout(boundaryTimer);
+  // Add 250 ms slack so we land just past the boundary.
+  const wait = msUntilNextBoundary(new Date()) + 250;
+  boundaryTimer = setTimeout(() => {
+    applyPhase();
+    scheduleNextBoundary();
+  }, wait);
+}
+scheduleNextBoundary();
+
+// Safety net: re-evaluate every 5 s.
+setInterval(applyPhase, 5 * 1000);
+
+// Re-check the moment the tab becomes visible — browsers can throttle
+// or freeze setTimeout while the tab is backgrounded, so the scheduled
+// boundary may not have fired on time.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    applyPhase();
+    scheduleNextBoundary();
+  }
+});
+// Cover bfcache restores (back/forward navigation).
+window.addEventListener('pageshow', () => {
+  applyPhase();
+  scheduleNextBoundary();
+});
 
 /* ── 2. Wall clock ────────────────────────────────────────────── */
 const handHour  = document.getElementById('hand-hour');
