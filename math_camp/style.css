@@ -233,7 +233,7 @@ a  { color: inherit; text-decoration: none; }
   align-items: center;
   position: relative;
   overflow: hidden;
-  padding: clamp(96px, 12vh, 130px) clamp(16px, 3vw, 32px) clamp(28px, 4vh, 60px);
+  padding: clamp(116px, 13vh, 140px) clamp(16px, 3vw, 32px) clamp(28px, 4vh, 60px);
 }
 
 .hero-math-bg {
@@ -1207,13 +1207,13 @@ footer {
   .hero-image img { height: clamp(180px, 28vh, 280px); }
 }
 @media (max-width: 760px) {
-  .hero { padding-top: clamp(86px, 11vh, 110px); padding-bottom: clamp(20px, 3vh, 40px); }
+  .hero { padding-top: clamp(92px, 12vh, 116px); padding-bottom: clamp(20px, 3vh, 40px); }
   .hero-image { display: none; }
   .hero h1 br { display: none; }
 }
 @media (max-height: 720px) {
   .hero-image { display: none; }
-  .hero { padding-top: clamp(82px, 11vh, 110px); }
+  .hero { padding-top: clamp(110px, 14vh, 130px); }
 }
 @media (max-width: 900px) {
   .grid-4      { grid-template-columns: repeat(2, 1fr); }
