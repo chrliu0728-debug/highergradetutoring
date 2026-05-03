@@ -7,6 +7,35 @@
   <meta name="description" content="Register for HigherGrade Tutoring's Summer Camp 2026 — a free, accelerated MTH1W math summer camp at Abbey Park High School, led by Grade 11 & 12 HDSB students. HDSB and other boards welcome. July 20–31, 2026." />
   <link rel="icon" type="image/webp" href="logo.webp" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Hide the page synchronously while we check whether the visitor
+       is a signed-in student. If they are, redirect to the trail
+       mini-game; otherwise reveal the form. Avoids the flash. -->
+  <style id="auth-cloak">html { visibility: hidden; }</style>
+  <script>
+    (function () {
+      // Fast-path on repeat visits inside the same tab.
+      if (sessionStorage.getItem('hg_signed_in_student') === '1') {
+        window.location.replace('trail.html');
+        return;
+      }
+      fetch('/api/auth/me', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(j => {
+          if (j && j.kind === 'student') {
+            sessionStorage.setItem('hg_signed_in_student', '1');
+            window.location.replace('trail.html');
+          } else {
+            sessionStorage.removeItem('hg_signed_in_student');
+            const c = document.getElementById('auth-cloak');
+            if (c) c.remove();
+          }
+        })
+        .catch(() => {
+          const c = document.getElementById('auth-cloak');
+          if (c) c.remove();
+        });
+    })();
+  </script>
   <style>
     .progress-bar {
       display: flex; align-items: center; gap: 0;

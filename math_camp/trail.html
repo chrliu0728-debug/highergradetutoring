@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The trail back…</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="logo.webp" />
+  <style>
+    :root {
+      --dirt:        #6E5128;
+      --dirt-dark:   #3E2C13;
+      --moss:        #4A6B3A;
+      --moss-dark:   #2A4123;
+      --bark:        #5A3A22;
+      --bark-dark:   #2F1D10;
+      --leaf:        #6FA45B;
+      --leaf-dark:   #2F5A3A;
+      --paper:       #FAF0CE;
+      --paper-edge:  #C9A36A;
+      --ink:         #2C2A20;
+      --rose:        #B45B6E;
+      --gold:        #E8C45A;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #1c1408;
+      color: #FAF0CE;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Trail backdrop ── */
+    .scene {
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse at 50% 30%, rgba(255,210,140,0.06) 0%, transparent 60%),
+        linear-gradient(180deg, #2E2310 0%, #4E3A1E 35%, #6B5028 70%, #4A331A 100%);
+      overflow: hidden;
+    }
+    /* The dirt path itself — perspective trapezoid */
+    .path {
+      position: absolute;
+      left: 50%; top: 16%; bottom: 0;
+      width: 70vmin;
+      transform: translateX(-50%);
+      background:
+        linear-gradient(180deg,
+          rgba(110,81,40,0.25) 0%,
+          rgba(110,81,40,0.85) 100%);
+      clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
+      box-shadow: inset 0 -40px 60px rgba(0,0,0,0.4);
+    }
+    .path::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        repeating-linear-gradient(180deg,
+          rgba(0,0,0,0.05) 0 4px, transparent 4px 12px);
+      opacity: 0.6;
+      clip-path: inherit;
+    }
+
+    /* Foliage edges */
+    .foliage {
+      position: absolute; inset: 0;
+      pointer-events: none;
+    }
+    .foliage::before, .foliage::after {
+      content: ''; position: absolute;
+      top: 14%; bottom: 0;
+      width: 28%;
+      background:
+        radial-gradient(ellipse at 30% 40%, rgba(74,107,58,0.65) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 60%, rgba(42,65,35,0.7)  0%, transparent 60%),
+        radial-gradient(ellipse at 50% 80%, rgba(60,90,45,0.65) 0%, transparent 55%),
+        linear-gradient(90deg, rgba(20,20,15,0.85), transparent 70%);
+    }
+    .foliage::before { left: 0; }
+    .foliage::after  { right: 0; transform: scaleX(-1); }
+
+    /* drifting leaves */
+    .leaf-particle {
+      position: absolute;
+      width: 14px; height: 18px;
+      background: linear-gradient(135deg, var(--leaf) 0%, var(--leaf-dark) 100%);
+      border-radius: 50% 50% 0 50%;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ── Header ── */
+    .top-strip {
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: 12px 18px 14px;
+      display: flex; gap: 14px; align-items: center;
+      background: linear-gradient(180deg, rgba(20,14,8,0.85), rgba(20,14,8,0));
+      z-index: 50;
+    }
+    .top-strip .title {
+      font-weight: 700; font-size: 1rem;
+      letter-spacing: 0.02em;
+      color: rgba(250,240,206,0.85);
+    }
+    .top-strip .progress {
+      font-size: .8rem; color: rgba(250,240,206,0.55);
+      letter-spacing: 0.04em;
+    }
+    .top-strip .points {
+      margin-left: auto;
+      background: rgba(232, 196, 90, 0.18);
+      border: 1px solid rgba(232, 196, 90, 0.4);
+      color: var(--gold);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-weight: 700; font-size: .82rem;
+      letter-spacing: 0.04em;
+    }
+    .exit-link {
+      display: inline-flex; align-items: center;
+      font-size: .78rem; color: rgba(250,240,206,0.55);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+    }
+    .exit-link:hover { color: rgba(250,240,206,0.95); }
+
+    /* ── Crane dock (under the header) ── */
+    .crane-dock {
+      position: fixed; left: 18px; right: 18px;
+      top: 52px;
+      display: flex; gap: 6px; flex-wrap: wrap;
+      padding: 8px 10px;
+      background: rgba(20,14,8,0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(232, 196, 90, 0.16);
+      border-radius: 12px;
+      max-height: 84px; overflow-y: auto;
+      z-index: 49;
+    }
+    .crane-dock:empty { display: none; }
+
+    /* Each crane: tiny clip-path origami shape with letter on outside */
+    .crane {
+      position: relative;
+      width: 38px; height: 30px;
+      cursor: pointer;
+      perspective: 200px;
+      flex-shrink: 0;
+    }
+    .crane .face {
+      position: absolute; inset: 0;
+      backface-visibility: hidden;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: .88rem;
+      transition: transform .55s cubic-bezier(.34,1.56,.64,1);
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    }
+    .crane .front {
+      background: var(--paper);
+      color: var(--ink);
+      clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+      transform: rotateY(0deg);
+    }
+    .crane .back {
+      background: var(--gold);
+      color: var(--bark-dark);
+      clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+      transform: rotateY(180deg);
+    }
+    .crane.flipped .front { transform: rotateY(180deg); }
+    .crane.flipped .back  { transform: rotateY(0deg); }
+    .crane:hover { transform: translateY(-2px); }
+
+    /* Crane fly-in animation */
+    .crane-fly {
+      position: fixed;
+      width: 60px; height: 48px;
+      pointer-events: none;
+      z-index: 60;
+    }
+    .crane-fly .face {
+      width: 100%; height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 1.4rem;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.45));
+      animation: crane-flap .42s ease-in-out infinite alternate;
+    }
+    @keyframes crane-flap {
+      0%   { transform: scaleY(1) rotate(-2deg); }
+      100% { transform: scaleY(0.9) rotate(2deg); }
+    }
+    @keyframes crane-fly-path {
+      0%   { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+      18%  { opacity: 1; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(0.55); opacity: 1; }
+    }
+
+    /* ── Stage area ── */
+    .stage {
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(620px, 92vw);
+      display: flex; flex-direction: column; align-items: center;
+      gap: 22px;
+      z-index: 10;
+    }
+
+    /* Obstacle visuals */
+    .obstacle-wrap {
+      position: relative;
+      width: 100%; height: 130px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .obstacle {
+      position: relative;
+      transform-origin: 50% 80%;
+    }
+    .obstacle.cleared { animation: obstacle-snap .8s ease-in forwards; }
+    @keyframes obstacle-snap {
+      0%   { transform: rotate(0); opacity: 1; filter: brightness(1); }
+      30%  { transform: rotate(8deg) translateY(2px); }
+      60%  { transform: rotate(-22deg) translateY(28px); opacity: .8; filter: brightness(0.7); }
+      100% { transform: rotate(-50deg) translateY(120px) scale(.8); opacity: 0; filter: brightness(0.4); }
+    }
+
+    /* Root: thick wavy bar coming up from "ground" */
+    .obstacle.root {
+      width: 320px; height: 110px;
+    }
+    .obstacle.root .trunk {
+      position: absolute;
+      left: 0; right: 0; top: 50%;
+      height: 28px;
+      background: linear-gradient(180deg, var(--bark) 0%, var(--bark-dark) 100%);
+      border-radius: 14px;
+      box-shadow: inset 0 -6px 10px rgba(0,0,0,0.4),
+                  inset 0 4px 6px rgba(255,255,255,0.04),
+                  0 8px 18px rgba(0,0,0,0.45);
+      transform: translateY(-50%);
+    }
+    .obstacle.root .knob {
+      position: absolute;
+      width: 26px; height: 26px;
+      background: radial-gradient(circle at 30% 30%, var(--bark) 0%, var(--bark-dark) 90%);
+      border-radius: 50%;
+      box-shadow: inset -4px -4px 6px rgba(0,0,0,0.45);
+    }
+    .obstacle.root .knob.k1 { left: 12%;  top: 30%; }
+    .obstacle.root .knob.k2 { left: 38%;  top: 56%; width: 32px; height: 32px; }
+    .obstacle.root .knob.k3 { left: 62%;  top: 24%; }
+    .obstacle.root .knob.k4 { left: 84%;  top: 50%; }
+    /* moss patches */
+    .obstacle.root .moss {
+      position: absolute;
+      width: 60px; height: 12px;
+      background: var(--moss);
+      border-radius: 50%;
+      box-shadow: inset 2px 2px 0 rgba(255,255,255,0.07);
+      opacity: 0.85;
+    }
+    .obstacle.root .moss.m1 { left: 18%; top: 40%; }
+    .obstacle.root .moss.m2 { left: 56%; top: 56%; width: 48px; height: 10px; }
+
+    /* Branch: thicker bar coming down from above */
+    .obstacle.branch {
+      width: 320px; height: 110px;
+    }
+    .obstacle.branch .trunk {
+      position: absolute;
+      left: 0; right: 0; top: 50%;
+      height: 22px;
+      background: linear-gradient(180deg, var(--bark) 0%, var(--bark-dark) 100%);
+      border-radius: 12px;
+      box-shadow: inset 0 -5px 10px rgba(0,0,0,0.4),
+                  0 8px 16px rgba(0,0,0,0.45);
+      transform: translateY(-50%) rotate(-3deg);
+    }
+    .obstacle.branch .twig {
+      position: absolute;
+      width: 6px; background: var(--bark-dark);
+      border-radius: 4px 4px 1px 1px;
+      box-shadow: inset 1px 0 0 rgba(255,255,255,0.06);
+    }
+    .obstacle.branch .twig.t1 { left: 22%; top: 8%;  height: 32px; transform: rotate(-15deg); }
+    .obstacle.branch .twig.t2 { left: 50%; top: 0%;  height: 44px; transform: rotate(0deg); }
+    .obstacle.branch .twig.t3 { left: 74%; top: 10%; height: 36px; transform: rotate(15deg); }
+    .obstacle.branch .leaf {
+      position: absolute;
+      width: 18px; height: 22px;
+      background: linear-gradient(135deg, var(--leaf) 0%, var(--leaf-dark) 100%);
+      border-radius: 50% 50% 0 50%;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    .obstacle.branch .leaf.l1 { left: 16%; top: -8%; transform: rotate(-30deg); }
+    .obstacle.branch .leaf.l2 { left: 48%; top: -12%; transform: rotate(0deg); }
+    .obstacle.branch .leaf.l3 { left: 76%; top: -8%; transform: rotate(30deg); }
+
+    /* Final boss obstacle */
+    .obstacle.final {
+      width: 380px; height: 130px;
+      background: linear-gradient(180deg, var(--bark-dark) 0%, #1a0d05 100%);
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 4px var(--bark), 0 12px 24px rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; color: var(--gold);
+      letter-spacing: 0.08em;
+      font-weight: 800;
+    }
+
+    /* Question card */
+    .question-card {
+      position: relative;
+      width: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 14px;
+      padding: 22px 22px 16px;
+      box-shadow:
+        0 18px 36px rgba(0,0,0,0.45),
+        inset 0 0 0 4px var(--paper-edge),
+        inset 0 0 0 6px var(--paper);
+    }
+    .question-card .meta {
+      font-size: .68rem; text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--bark);
+      margin-bottom: 8px;
+    }
+    .question-card .qtext {
+      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+      font-size: 1.4rem;
+      line-height: 1.4;
+      color: var(--ink);
+      font-weight: 600;
+      margin-bottom: 14px;
+      word-wrap: break-word;
+    }
+    .question-card.final .qtext { font-size: 1rem; line-height: 1.55; }
+    .question-card .answer-row {
+      display: flex; gap: 10px; align-items: stretch;
+    }
+    .question-card .answer-row input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 1.05rem;
+      font-family: inherit;
+      border: 2px solid var(--paper-edge);
+      border-radius: 10px;
+      background: #FFF;
+      outline: none;
+      color: var(--ink);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .question-card .answer-row input:focus {
+      border-color: var(--rose);
+      box-shadow: 0 0 0 3px rgba(180,91,110,0.18);
+    }
+    .question-card .answer-row button {
+      background: linear-gradient(135deg, var(--rose), #8B3F50);
+      color: white;
+      border: none;
+      padding: 0 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: .95rem;
+      transition: transform .15s, box-shadow .15s;
+      white-space: nowrap;
+    }
+    .question-card .answer-row button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 14px rgba(180,91,110,0.35);
+    }
+    .question-card .answer-row button:active { transform: translateY(0); }
+    .question-card .err {
+      color: #B53C3C;
+      font-size: .82rem;
+      margin-top: 8px;
+      min-height: 1.1em;
+      font-weight: 600;
+    }
+    .question-card .hint {
+      color: var(--bark-dark);
+      font-size: .76rem;
+      margin-top: 6px;
+      font-style: italic;
+    }
+    .question-card.shake { animation: card-shake .35s ease; }
+    @keyframes card-shake {
+      0%, 100% { transform: translateX(0); }
+      25%      { transform: translateX(-8px); }
+      75%      { transform: translateX(8px); }
+    }
+
+    /* Burst on correct */
+    .burst {
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .burst .spark {
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 8px; height: 8px;
+      background: var(--gold);
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(232,196,90,0.8);
+      animation: spark-out .7s ease-out forwards;
+    }
+    @keyframes spark-out {
+      0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+      30%  { opacity: 1; }
+      100% { transform: translate(var(--sx), var(--sy)) scale(0.2); opacity: 0; }
+    }
+
+    /* End-of-trail card */
+    .ending {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+    }
+    .ending.show { display: flex; }
+    .ending .card {
+      max-width: 480px;
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 16px;
+      padding: 36px 32px 28px;
+      text-align: center;
+      box-shadow:
+        0 24px 48px rgba(0,0,0,0.55),
+        inset 0 0 0 5px var(--paper-edge),
+        inset 0 0 0 7px var(--paper);
+    }
+    .ending h2 { font-size: 1.5rem; margin: 0 0 10px; }
+    .ending p { font-size: .92rem; line-height: 1.55; margin: 0 0 16px; color: var(--bark-dark); }
+    .ending .answer {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.3rem; font-weight: 700;
+      color: var(--rose);
+      background: rgba(180,91,110,0.10);
+      padding: 8px 16px;
+      border-radius: 8px;
+      display: inline-block;
+      margin-bottom: 18px;
+    }
+    .ending a {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--gold), #C99A2A);
+      color: var(--ink);
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    /* Crane reveal popover */
+    .crane-popover {
+      position: fixed;
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.4),
+                  inset 0 0 0 3px var(--paper-edge);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity .2s, transform .2s;
+      z-index: 70;
+      white-space: nowrap;
+    }
+    .crane-popover.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 720px) {
+      .question-card .qtext { font-size: 1.1rem; }
+      .question-card.final .qtext { font-size: .85rem; }
+      .stage { width: 96vw; }
+      .obstacle.root, .obstacle.branch { width: 260px; height: 100px; }
+      .obstacle.final { width: 280px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="scene">
+  <div class="path"></div>
+  <div class="foliage"></div>
+</div>
+
+<div class="top-strip">
+  <a href="index.html" class="exit-link">← back home</a>
+  <div class="title">The trail back</div>
+  <div class="progress" id="progress">stage 1 of 53</div>
+  <div class="points" id="points">⭐ 0 pts</div>
+</div>
+
+<div class="crane-dock" id="dock"></div>
+
+<div class="stage">
+  <div class="obstacle-wrap" id="obstacle-wrap"></div>
+  <div class="question-card" id="qcard">
+    <div class="meta" id="qmeta">First obstacle</div>
+    <div class="qtext" id="qtext">—</div>
+    <div class="answer-row">
+      <input type="text" id="ainput" inputmode="decimal" placeholder="Your answer" autocomplete="off" autofocus />
+      <button id="asubmit">Clear it →</button>
+    </div>
+    <div class="err" id="aerr"></div>
+    <div class="hint" id="ahint"></div>
+  </div>
+</div>
+
+<div class="ending" id="ending">
+  <div class="card">
+    <h2>The trail clears.</h2>
+    <p>You picked your way past every obstacle. The light through the leaves is brighter on the other side.</p>
+    <div class="answer" id="end-answer"></div>
+    <p style="font-size:.82rem;">You earned <strong id="end-points">0</strong> points along the way (paper cranes, +15 each).</p>
+    <a href="index.html">Continue →</a>
+  </div>
+</div>
+
+<div class="crane-popover" id="popover"></div>
+
+<script>
+/* ── Variable values — chosen so the final equation evaluates to a
+   3-decimal-place non-repeating number (27.125). ── */
+const V = {
+  A: 12, B: 2, C: 2, D: 8, E: 4, F: 2, G: 3, H: 6, I: 2, J: 5,
+  K: 6, L: 2, M: 10, N: 4, O: 2, P: 4, Q: 2, R: 10, S: 5, T: 3,
+  U: 10, V: 4, W: 2, X: 5, Y: 4, Z: 10,
+};
+
+/* ── 53 stages: 26 letter-pairs × 2 obstacles + 1 final boss. ── */
+const STAGES = [
+  // unlock A
+  { kind:'root',   q:'30 − 12',                 a: 18 },
+  { kind:'branch', q:'47 + 25',                 a: 72,  unlocks:'A' },
+  // unlock B
+  { kind:'root',   q:'A + 7',                   a: 19 },
+  { kind:'branch', q:'A − 4',                   a: 8,   unlocks:'B' },
+  // unlock C
+  { kind:'root',   q:'B + 18',                  a: 20 },
+  { kind:'branch', q:'B + 23',                  a: 25,  unlocks:'C' },
+  // unlock D
+  { kind:'root',   q:'C + 14',                  a: 16 },
+  { kind:'branch', q:'40 − C',                  a: 38,  unlocks:'D' },
+  // unlock E (multiplication / division begins)
+  { kind:'root',   q:'D × 5',                   a: 40 },
+  { kind:'branch', q:'D ÷ 2',                   a: 4,   unlocks:'E' },
+  // unlock F
+  { kind:'root',   q:'E × 6',                   a: 24 },
+  { kind:'branch', q:'E × 9',                   a: 36,  unlocks:'F' },
+  // unlock G
+  { kind:'root',   q:'F × 11',                  a: 22 },
+  { kind:'branch', q:'F × 18',                  a: 36,  unlocks:'G' },
+  // unlock H
+  { kind:'root',   q:'G × 8',                   a: 24 },
+  { kind:'branch', q:'G × 7',                   a: 21,  unlocks:'H' },
+  // unlock I (two-substitution questions begin)
+  { kind:'root',   q:'H + G',                   a: 9 },
+  { kind:'branch', q:'H + A',                   a: 18,  unlocks:'I' },
+  // unlock J
+  { kind:'root',   q:'I + B',                   a: 4 },
+  { kind:'branch', q:'I + D',                   a: 10,  unlocks:'J' },
+  // unlock K
+  { kind:'root',   q:'J + C',                   a: 7 },
+  { kind:'branch', q:'J − F',                   a: 3,   unlocks:'K' },
+  // unlock L
+  { kind:'root',   q:'K + E',                   a: 10 },
+  { kind:'branch', q:'K − G',                   a: 3,   unlocks:'L' },
+  // unlock M (multiplication of two variables begins)
+  { kind:'root',   q:'L × H',                   a: 12 },
+  { kind:'branch', q:'L × E',                   a: 8,   unlocks:'M' },
+  // unlock N
+  { kind:'root',   q:'M × F',                   a: 20 },
+  { kind:'branch', q:'M × I',                   a: 20,  unlocks:'N' },
+  // unlock O
+  { kind:'root',   q:'N × D',                   a: 32 },
+  { kind:'branch', q:'N × G',                   a: 12,  unlocks:'O' },
+  // unlock P
+  { kind:'root',   q:'O × J',                   a: 10 },
+  { kind:'branch', q:'O × K',                   a: 12,  unlocks:'P' },
+  // unlock Q (three-variable expressions begin)
+  { kind:'root',   q:'P + L × J',               a: 14 },
+  { kind:'branch', q:'P + I × H',               a: 16,  unlocks:'Q' },
+  // unlock R
+  { kind:'root',   q:'Q + B + D',               a: 12 },
+  { kind:'branch', q:'Q × I + J',               a: 9,   unlocks:'R' },
+  // unlock S
+  { kind:'root',   q:'R + N − K',               a: 8 },
+  { kind:'branch', q:'R − L × F',               a: 6,   unlocks:'S' },
+  // unlock T
+  { kind:'root',   q:'S + B − C',               a: 5 },
+  { kind:'branch', q:'S × I − K',               a: 4,   unlocks:'T' },
+  // unlock U (fill-in-the-blank begins)
+  { kind:'root',   q:'T + ___ = 12',            a: 9 },
+  { kind:'branch', q:'___ − T = 7',             a: 10,  unlocks:'U' },
+  // unlock V
+  { kind:'root',   q:'U − ___ = 6',             a: 4 },
+  { kind:'branch', q:'___ × 2 = U',             a: 5,   unlocks:'V' },
+  // unlock W
+  { kind:'root',   q:'V + ___ = 10',            a: 6 },
+  { kind:'branch', q:'___ × V = 8',             a: 2,   unlocks:'W' },
+  // unlock X
+  { kind:'root',   q:'W + ___ = 9',             a: 7 },
+  { kind:'branch', q:'___ − W = J',             a: 7,   unlocks:'X' },
+  // unlock Y (complex multi-step expressions)
+  { kind:'root',   q:'3T + 6Q',                 a: 21 },
+  { kind:'branch', q:'(3X + 6Q ÷ G) − B',       a: 17,  unlocks:'Y' },
+  // unlock Z
+  { kind:'root',   q:'5L + 3K ÷ J',             a: 13.6 },
+  { kind:'branch', q:'(2H + N) ÷ D',            a: 2,   unlocks:'Z' },
+  // FINAL BOSS — answer is 27.125 (three decimal places, non-repeating)
+  { kind:'final',
+    q:'A + M·X / Q − (T·E / Y − G) · L · B − F + (H/K) ÷ (R − W·S/Z + N − J) − Y + U − I·C^O − V = ___ + D/P',
+    a: 27.125 },
+];
+
+const LABEL_FOR_KIND = {
+  root:   'Root across the path',
+  branch: 'Fallen branch',
+  final:  'Stone marker at the trailhead',
+};
+
+const HINTS_FOR_INDEX = (i) => {
+  if (i < 2)  return 'Plain arithmetic — no variables yet.';
+  if (i < 8)  return 'Click a paper crane up top to read its number.';
+  if (i < 16) return 'Multiplication and division now. Click any crane to look it up.';
+  if (i < 24) return 'Two variables in one expression. Tap your cranes to substitute.';
+  if (i < 32) return 'Mix three variables. The cranes are your reference sheet.';
+  if (i < 40) return 'Fill in the blank — figure out what value makes the equation true.';
+  if (i < 52) return 'Evaluate carefully — order of operations counts.';
+  return 'Substitute every letter, evaluate left to right with PEMDAS, then solve for the blank.';
+};
+
+/* ── Persistence ── */
+const KEY = 'hg_trail_progress_v1';
+function loadProgress() {
+  try { return JSON.parse(sessionStorage.getItem(KEY)) || { idx: 0, points: 0, unlocked: [] }; }
+  catch (_) { return { idx: 0, points: 0, unlocked: [] }; }
+}
+function saveProgress(p) {
+  try { sessionStorage.setItem(KEY, JSON.stringify(p)); } catch (_) {}
+}
+
+/* ── DOM refs ── */
+const obstacleWrap = document.getElementById('obstacle-wrap');
+const qcard = document.getElementById('qcard');
+const qmeta = document.getElementById('qmeta');
+const qtext = document.getElementById('qtext');
+const ainput = document.getElementById('ainput');
+const asubmit = document.getElementById('asubmit');
+const aerr = document.getElementById('aerr');
+const ahint = document.getElementById('ahint');
+const dock = document.getElementById('dock');
+const progressEl = document.getElementById('progress');
+const pointsEl = document.getElementById('points');
+const ending = document.getElementById('ending');
+const endAnswer = document.getElementById('end-answer');
+const endPoints = document.getElementById('end-points');
+const popover = document.getElementById('popover');
+
+const state = loadProgress();
+
+/* ── Build obstacle SVG-ish markup ── */
+function obstacleHTML(kind) {
+  if (kind === 'root') {
+    return `
+      <div class="obstacle root">
+        <div class="trunk"></div>
+        <div class="moss m1"></div>
+        <div class="moss m2"></div>
+        <div class="knob k1"></div>
+        <div class="knob k2"></div>
+        <div class="knob k3"></div>
+        <div class="knob k4"></div>
+      </div>
+    `;
+  }
+  if (kind === 'branch') {
+    return `
+      <div class="obstacle branch">
+        <div class="twig t1"></div>
+        <div class="twig t2"></div>
+        <div class="twig t3"></div>
+        <div class="trunk"></div>
+        <div class="leaf l1"></div>
+        <div class="leaf l2"></div>
+        <div class="leaf l3"></div>
+      </div>
+    `;
+  }
+  return `<div class="obstacle final">END OF TRAIL</div>`;
+}
+
+/* ── Render current stage ── */
+function render() {
+  const stage = STAGES[state.idx];
+  if (!stage) { showEnding(); return; }
+
+  obstacleWrap.innerHTML = obstacleHTML(stage.kind);
+  qmeta.textContent = LABEL_FOR_KIND[stage.kind] +
+    ` · ${state.idx + 1} of ${STAGES.length}`;
+  qtext.textContent = stage.q;
+  ainput.value = '';
+  ainput.disabled = false;
+  asubmit.disabled = false;
+  aerr.textContent = '';
+  ahint.textContent = HINTS_FOR_INDEX(state.idx);
+  qcard.classList.toggle('final', stage.kind === 'final');
+  progressEl.textContent = `stage ${state.idx + 1} of ${STAGES.length}`;
+  pointsEl.textContent = `⭐ ${state.points} pts`;
+  // refocus
+  setTimeout(() => ainput.focus(), 60);
+}
+
+/* ── Crane dock + click-to-flip ── */
+function paintDock() {
+  dock.innerHTML = '';
+  state.unlocked.forEach((letter) => {
+    const c = document.createElement('div');
+    c.className = 'crane';
+    c.dataset.letter = letter;
+    c.innerHTML = `<div class="face front">${letter}</div>
+                   <div class="face back">${V[letter]}</div>`;
+    c.addEventListener('click', () => c.classList.toggle('flipped'));
+    dock.appendChild(c);
+  });
+}
+paintDock();
+
+/* ── Animations ── */
+function flyCraneFromObstacleToDock(letter, after) {
+  const obs = obstacleWrap.getBoundingClientRect();
+  const dockRect = dock.getBoundingClientRect();
+  // Where in the dock the new crane will land — last child position approx.
+  const targetX = dockRect.left + Math.min(state.unlocked.length * 44 + 30, dockRect.width - 30);
+  const targetY = dockRect.top + 30;
+
+  const el = document.createElement('div');
+  el.className = 'crane-fly';
+  el.style.left = (obs.left + obs.width / 2) + 'px';
+  el.style.top  = (obs.top  + obs.height / 2) + 'px';
+  el.style.setProperty('--dx', (targetX - (obs.left + obs.width/2)) + 'px');
+  el.style.setProperty('--dy', (targetY - (obs.top + obs.height/2)) + 'px');
+  el.innerHTML = `<div class="face">${letter}</div>`;
+  el.style.animation = 'crane-fly-path 1.4s cubic-bezier(.34,1.06,.64,1) forwards';
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.remove();
+    if (after) after();
+  }, 1380);
+}
+
+function sparkBurst() {
+  const burst = document.createElement('div');
+  burst.className = 'burst';
+  obstacleWrap.appendChild(burst);
+  for (let i = 0; i < 12; i++) {
+    const s = document.createElement('div');
+    s.className = 'spark';
+    const angle = (i / 12) * Math.PI * 2;
+    const dist  = 80 + Math.random() * 40;
+    s.style.setProperty('--sx', (Math.cos(angle) * dist) + 'px');
+    s.style.setProperty('--sy', (Math.sin(angle) * dist) + 'px');
+    s.style.background = i % 2 === 0 ? 'var(--gold)' : 'var(--leaf)';
+    burst.appendChild(s);
+  }
+  setTimeout(() => burst.remove(), 800);
+}
+
+/* ── Answer parsing + tolerance ── */
+function parseAnswer(raw) {
+  const cleaned = raw.replace(/[, ]/g, '').replace(/^\+/, '');
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return NaN;
+  return parseFloat(cleaned);
+}
+function isCorrect(stage, val) {
+  return Math.abs(val - stage.a) < 0.0005;
+}
+
+/* ── Submit handler ── */
+function submit() {
+  const stage = STAGES[state.idx];
+  if (!stage) return;
+  const val = parseAnswer(ainput.value);
+  if (Number.isNaN(val)) {
+    aerr.textContent = 'Enter a number.';
+    qcard.classList.remove('shake'); void qcard.offsetWidth; qcard.classList.add('shake');
+    return;
+  }
+  if (!isCorrect(stage, val)) {
+    aerr.textContent = 'Not quite — give it another try.';
+    qcard.classList.remove('shake'); void qcard.offsetWidth; qcard.classList.add('shake');
+    ainput.select();
+    return;
+  }
+  // Correct.
+  ainput.disabled = true;
+  asubmit.disabled = true;
+  aerr.textContent = '';
+  sparkBurst();
+  const obstacleEl = obstacleWrap.querySelector('.obstacle');
+  if (obstacleEl) obstacleEl.classList.add('cleared');
+
+  const advance = () => {
+    state.idx += 1;
+    saveProgress(state);
+    render();
+  };
+
+  if (stage.unlocks) {
+    setTimeout(() => {
+      flyCraneFromObstacleToDock(stage.unlocks, () => {
+        state.unlocked.push(stage.unlocks);
+        state.points += 15;
+        saveProgress(state);
+        paintDock();
+        advance();
+      });
+    }, 250);
+  } else if (stage.kind === 'final') {
+    setTimeout(() => {
+      state.idx += 1;
+      saveProgress(state);
+      showEnding();
+    }, 800);
+  } else {
+    setTimeout(advance, 850);
+  }
+}
+asubmit.addEventListener('click', submit);
+ainput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submit();
+});
+
+/* ── End-of-trail ── */
+function showEnding() {
+  endAnswer.textContent = '27.125';
+  endPoints.textContent = String(state.points);
+  ending.classList.add('show');
+}
+
+/* ── Floating leaves ambience ── */
+function spawnLeaf() {
+  const el = document.createElement('div');
+  el.className = 'leaf-particle';
+  el.style.left = (10 + Math.random() * 80) + '%';
+  el.style.top = '-20px';
+  document.querySelector('.scene').appendChild(el);
+  const dur = 12000 + Math.random() * 8000;
+  el.animate([
+    { transform: 'translateY(0) rotate(0deg)', opacity: 0 },
+    { transform: 'translateY(20px) rotate(40deg)', opacity: 0.7, offset: 0.05 },
+    { transform: `translateY(${window.innerHeight + 40}px) translateX(${(Math.random() - 0.5) * 200}px) rotate(360deg)`, opacity: 0 },
+  ], { duration: dur, easing: 'linear' });
+  setTimeout(() => el.remove(), dur);
+}
+setInterval(spawnLeaf, 2200);
+
+/* ── Initial render ── */
+render();
+</script>
+</body>
+</html>
