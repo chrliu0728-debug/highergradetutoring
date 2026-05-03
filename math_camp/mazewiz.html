@@ -423,6 +423,147 @@
       transition: transform .15s, box-shadow .2s;
     }
     .mw-victory .vw-go:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(255,255,255,.35); }
+
+    /* ── Depth meter — vertical bar on the right side ── */
+    .mw-depth-meter {
+      position: fixed;
+      right: 18px; top: 60px; bottom: 60px;
+      width: 56px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .mw-depth-meter.show { display: flex; }
+    .mw-depth-cap {
+      position: relative;
+      width: 100%;
+      background: rgba(20, 12, 30, 0.85);
+      border-radius: 10px 10px 0 0;
+      padding: 6px 4px;
+      text-align: center;
+      box-shadow: inset 0 0 0 2px rgba(167,139,250,.35);
+    }
+    .mw-depth-cap.bottom { border-radius: 0 0 10px 10px; padding-bottom: 8px; }
+    .mw-depth-cap .mw-depth-num {
+      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+      font-size: .72rem;
+      font-weight: 700;
+      color: rgba(250,240,206,0.78);
+      letter-spacing: 0.04em;
+    }
+    .mw-depth-cap .mw-depth-coin {
+      display: block;
+      font-size: 1rem;
+      margin-top: 2px;
+    }
+    .mw-depth-track {
+      position: relative;
+      flex: 1;
+      width: 14px;
+      background: linear-gradient(180deg, #1a0d2e 0%, #2a154f 50%, #0c0418 100%);
+      box-shadow: inset 0 0 0 2px rgba(167,139,250,.25),
+                  0 0 24px rgba(167,139,250,.18);
+    }
+    .mw-depth-fill {
+      position: absolute; left: 0; right: 0; top: 0;
+      background: linear-gradient(180deg, rgba(167,139,250,.4), rgba(236,72,153,.35));
+      height: 0%;
+      transition: height .45s ease;
+    }
+    .mw-depth-marker {
+      position: absolute;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.55));
+      transition: top .45s ease;
+    }
+    .mw-depth-marker.player {
+      background: radial-gradient(circle at 30% 30%, #ECCD5C, #C99A2A);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.4),
+                  0 0 18px rgba(255,210,140,0.55);
+      top: 0%;
+      z-index: 2;
+    }
+    .mw-depth-marker.spider {
+      background: radial-gradient(circle at 30% 30%, #2a0a0a, #6b1818);
+      box-shadow: 0 0 0 2px rgba(255,80,80,0.45),
+                  0 0 22px rgba(255,40,40,0.55);
+      color: #FFE3E3;
+      font-weight: 900;
+      animation: spider-pulse 1.4s ease-in-out infinite;
+      top: 0%;
+      z-index: 1;
+    }
+    @keyframes spider-pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50%      { transform: translate(-50%, -50%) scale(1.12); }
+    }
+
+    /* ── Alarm banner inside the maze view ── */
+    .mw-alarm-banner {
+      margin: 14px 0 0;
+      padding: 10px 14px;
+      background: linear-gradient(90deg, #7C1D1D, #B91C1C);
+      color: #FFE6E6;
+      font-weight: 700;
+      font-size: .82rem;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 0 18px rgba(220,38,38,.5);
+      animation: alarm-flash 1s ease-in-out infinite alternate;
+    }
+    @keyframes alarm-flash {
+      from { box-shadow: 0 0 18px rgba(220,38,38,.5); }
+      to   { box-shadow: 0 0 32px rgba(255,80,80,.85); }
+    }
+
+    /* ── Screen shake when spider drops a level ── */
+    @keyframes shake-violent {
+      0%   { transform: translate(0, 0) rotate(0); }
+      10%  { transform: translate(-12px, 8px) rotate(-1.2deg); }
+      20%  { transform: translate(11px, -6px) rotate(1.1deg); }
+      30%  { transform: translate(-9px, -10px) rotate(-0.8deg); }
+      40%  { transform: translate(13px, 11px) rotate(1.4deg); }
+      50%  { transform: translate(-14px, 4px) rotate(-1.5deg); }
+      60%  { transform: translate(8px, -12px) rotate(0.9deg); }
+      70%  { transform: translate(-11px, 9px) rotate(-1.1deg); }
+      80%  { transform: translate(7px, -7px) rotate(1.0deg); }
+      90%  { transform: translate(-5px, 5px) rotate(-0.5deg); }
+      100% { transform: translate(0, 0) rotate(0); }
+    }
+    .mw-shake { animation: shake-violent .55s cubic-bezier(.36,.07,.19,.97) both; }
+
+    /* ── Coin pile at floor 310 ── */
+    .mw-coin-pile {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 6px;
+      margin: -4px 0 18px;
+      flex-wrap: wrap;
+      filter: drop-shadow(0 8px 18px rgba(255, 210, 140, 0.45));
+    }
+    .mw-coin-pile span {
+      font-size: 2.2rem;
+      animation: coin-bob 2.2s ease-in-out infinite;
+    }
+    .mw-coin-pile span:nth-child(2) { animation-delay: -0.3s; }
+    .mw-coin-pile span:nth-child(3) { animation-delay: -0.6s; }
+    .mw-coin-pile span:nth-child(4) { font-size: 3rem; animation-delay: -0.15s; }
+    .mw-coin-pile span:nth-child(5) { animation-delay: -0.9s; }
+    .mw-coin-pile span:nth-child(6) { animation-delay: -1.2s; }
+    .mw-coin-pile span:nth-child(7) { animation-delay: -1.5s; }
+    @keyframes coin-bob {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50%      { transform: translateY(-4px) rotate(2deg); }
+    }
   </style>
 </head>
 <body>
@@ -480,11 +621,12 @@
 
     <!-- Maze progress (lit while the student is clicking through doors) -->
     <div class="mw-maze" id="mw-maze">
-      <div class="mw-eyebrow">Dungeon descent · <span id="mw-maze-title">Door 1 of 300</span></div>
+      <div class="mw-eyebrow">Dungeon descent · <span id="mw-maze-title">Door 1 of 310</span></div>
       <div class="mw-question" id="mw-question">…</div>
       <p class="sub">Pick the door with the correct answer. Both doors take you deeper — but right answers boost your reward.</p>
       <div class="mw-maze-bar"><div class="mw-maze-bar-fill" id="mw-maze-bar-fill"></div></div>
       <span class="mw-correct-tag" id="mw-correct-tag">Right so far: 0</span>
+      <div class="mw-alarm-banner" id="mw-alarm-banner" style="display:none;">🚨 Alarm tripped — something is descending behind you. Reach door 310!</div>
       <p class="mw-footer"><a href="#" id="mw-maze-back">← Back to Maze Wizard claim</a></p>
     </div>
 
@@ -507,23 +649,51 @@
       <p class="mw-footer"><a href="index.html">← Back to home</a></p>
     </div>
 
-    <!-- Maze end (300 doors complete) -->
+    <!-- Maze end (310 doors complete — coin pile reward) -->
     <div class="mw-maze-end" id="mw-maze-end">
-      <div class="mw-wizard">🎉</div>
+      <div class="mw-coin-pile" aria-hidden="true">
+        <span>🪙</span><span>🪙</span><span>🪙</span>
+        <span>💰</span>
+        <span>🪙</span><span>🪙</span><span>🪙</span>
+      </div>
       <div class="mw-eyebrow">You made it</div>
-      <h1>300 doors conquered</h1>
-      <p class="sub" id="mw-maze-end-sub">Sign in to your camp account to claim your reward.</p>
-
-      <label>Student email</label>
-      <input type="email" id="mw-end-email" placeholder="you@school.ca" autocomplete="off" />
-
-      <label>Password</label>
-      <input type="password" id="mw-end-password" placeholder="Your camp password" autocomplete="off" />
+      <h1>310 doors conquered</h1>
+      <p class="sub" id="mw-maze-end-sub">A heap of coins glints in the lantern light.</p>
 
       <div class="mw-msg" id="mw-end-msg"></div>
       <div class="mw-hint-box" id="mw-end-hint" style="display:none;"></div>
 
-      <button class="mw-claim-btn" id="mw-end-btn">Claim my reward →</button>
+      <button class="mw-claim-btn" id="mw-end-btn">Take the coins →</button>
+      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+    </div>
+
+    <!-- Spider catches the player (defeat) -->
+    <div class="mw-maze-end" id="mw-maze-defeat" style="display:none;">
+      <div class="mw-wizard" style="filter: hue-rotate(280deg);">🕷️</div>
+      <div class="mw-eyebrow">Caught</div>
+      <h1>The spider got you</h1>
+      <p class="sub">It dropped down the well faster than you could clear the doors. The dungeon resets — try again.</p>
+      <div class="mw-msg" id="mw-defeat-msg"></div>
+      <button class="mw-claim-btn" id="mw-defeat-btn">Climb out →</button>
+      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+    </div>
+
+    <!-- Sign-in gate before entering the dungeon -->
+    <div class="mw-claim" id="mw-dungeon-gate" style="display:none;">
+      <div class="mw-wizard">🔐</div>
+      <div class="mw-eyebrow">Sign in to descend</div>
+      <h1>The dungeon recognizes its visitors</h1>
+      <p class="sub">Now that the Maze Wizard title has been claimed, the doors track who walks through them. Sign in with your camp account to begin the descent — your luck stat carries over.</p>
+
+      <label>Student email</label>
+      <input type="email" id="mw-gate-email" placeholder="you@school.ca" autocomplete="off" />
+
+      <label>Password</label>
+      <input type="password" id="mw-gate-password" placeholder="Your camp password" autocomplete="off" />
+
+      <div class="mw-msg" id="mw-gate-msg"></div>
+
+      <button class="mw-claim-btn" id="mw-gate-btn">Open the doors →</button>
       <p class="mw-footer"><a href="index.html">← Back to home</a></p>
     </div>
   </div>
@@ -546,6 +716,26 @@
     </button>
 
   </div><!-- /.mw-stage -->
+
+  <!-- Depth meter — visible whenever the dungeon is active -->
+  <div class="mw-depth-meter" id="mw-depth-meter" aria-hidden="true">
+    <div class="mw-depth-cap top">
+      <span class="mw-depth-num">1</span>
+    </div>
+    <div class="mw-depth-track">
+      <div class="mw-depth-fill"  id="mw-depth-fill"></div>
+      <div class="mw-depth-marker player" id="mw-depth-player" title="You">
+        <span>🧙</span>
+      </div>
+      <div class="mw-depth-marker spider" id="mw-depth-spider" style="display:none;" title="?">
+        <span id="mw-depth-spider-icon">❓</span>
+      </div>
+    </div>
+    <div class="mw-depth-cap bottom">
+      <span class="mw-depth-num">310</span>
+      <span class="mw-depth-coin">🪙</span>
+    </div>
+  </div>
 </div>
 
 <script src="students-data.js"></script>
@@ -628,8 +818,6 @@ const mazeBarFill   = document.getElementById('mw-maze-bar-fill');
 const mazeBack      = document.getElementById('mw-maze-back');
 const mazeEndSub    = document.getElementById('mw-maze-end-sub');
 const endHint       = document.getElementById('mw-end-hint');
-const endEmail      = document.getElementById('mw-end-email');
-const endPwd        = document.getElementById('mw-end-password');
 const endBtn        = document.getElementById('mw-end-btn');
 const endMsg        = document.getElementById('mw-end-msg');
 const doorL         = document.getElementById('mw-door-left');
@@ -641,10 +829,13 @@ const mtPwd         = document.getElementById('mw-mt-password');
 const mtBtn         = document.getElementById('mw-mt-btn');
 const mtMsg         = document.getElementById('mw-mt-msg');
 
-const MAZE_LENGTH       = (typeof DOOR_MAZE_LENGTH === 'number') ? DOOR_MAZE_LENGTH : 300;
-const MONEY_TREE_PATTERN = 'RWRWRWRWR';   // 9 doors, alternating right/wrong starting with right
+// Maze is 310 floors. The treasure chamber is door 310; the alarm trips
+// at door 300 and the spider chase starts then.
+const MAZE_LENGTH        = 310;
+const ALARM_AT           = 300;     // alarm sounds + spider awakens at this floor
+const MONEY_TREE_PATTERN = 'RWRWRWRWR';
 
-// Each Grade 9 unit gets an equal slice of the descent: 60 doors each.
+// Each Grade 9 unit gets an equal slice of the descent: 62 doors each.
 const UNIT_LABELS = [
   'Unit 1 · Grade 8 Review',
   'Unit 2 · Algebra',
@@ -653,10 +844,10 @@ const UNIT_LABELS = [
   'Unit 5 · Linear Relations',
 ];
 function unitForDoor(doorNum) {
-  if (doorNum <=  60) return 0;
-  if (doorNum <= 120) return 1;
-  if (doorNum <= 180) return 2;
-  if (doorNum <= 240) return 3;
+  if (doorNum <=  62) return 0;
+  if (doorNum <= 124) return 1;
+  if (doorNum <= 186) return 2;
+  if (doorNum <= 248) return 3;
   return 4;
 }
 
@@ -862,14 +1053,23 @@ function newQuestion() {
   doorRNum.textContent = String(currentQ.right);
 }
 
+const dungeonGate  = document.getElementById('mw-dungeon-gate');
+const defeatView   = document.getElementById('mw-maze-defeat');
+const depthMeterEl = document.getElementById('mw-depth-meter');
+const depthFillEl  = document.getElementById('mw-depth-fill');
+const depthPlayer  = document.getElementById('mw-depth-player');
+const depthSpider  = document.getElementById('mw-depth-spider');
+const alarmBanner  = document.getElementById('mw-alarm-banner');
+
 function showOnly(el) {
-  [claimView, victoryView, mazeView, mazeEndView, moneyTreeView].forEach(v => {
+  [claimView, victoryView, mazeView, mazeEndView, moneyTreeView, dungeonGate, defeatView].forEach(v => {
     if (!v) return;
     if (v === el) { v.style.display = ''; v.classList.add('show'); }
     else          { v.style.display = 'none'; v.classList.remove('show'); }
   });
-  // Yellow theme is on/off based on whether we're in the Money Tree chamber
   document.body.classList.toggle('mt-mode', el === moneyTreeView);
+  // Depth meter visible only when actively in the dungeon.
+  depthMeterEl.classList.toggle('show', el === mazeView);
 }
 
 function updateMazeUI() {
@@ -878,11 +1078,15 @@ function updateMazeUI() {
   mazeTitle.textContent = `${unitLabel} · Door ${doorNum} of ${MAZE_LENGTH}`;
   const pct = Math.min(100, (mazeClicks / MAZE_LENGTH) * 100);
   mazeBarFill.style.width = pct + '%';
-  // Floor 1 is a freebie; the score denominator is "doors traversed past 1".
   const scored = Math.max(0, mazeClicks - 1);
   correctTag.textContent = scored === 0
     ? 'First floor — freebie · score starts on door 2'
     : `Right so far: ${mazeCorrect} / ${scored}`;
+
+  // Depth-meter player marker — % of MAZE_LENGTH from the top.
+  const playerPct = (mazeClicks / MAZE_LENGTH) * 100;
+  depthPlayer.style.top = playerPct + '%';
+  depthFillEl.style.height = playerPct + '%';
 }
 
 function enterMaze() {
@@ -911,12 +1115,197 @@ function rewardForPct(pct) {
   return 300;   // floor — every completion is worth at least 300
 }
 
-function onDoorClick(side, doorEl) {
+/* ── Sign-in gate before the dungeon ──
+   Once the Maze Wizard title has been claimed, side-door clicks land
+   on this gate first. Successful sign-in caches the student locally
+   for the rest of the descent (and lets us read their `luck` stat
+   for the spider chase). ──────────────────────────────────────────── */
+let signedInStudent = null;
+const gateEmail = document.getElementById('mw-gate-email');
+const gatePwd   = document.getElementById('mw-gate-password');
+const gateBtn   = document.getElementById('mw-gate-btn');
+const gateMsg   = document.getElementById('mw-gate-msg');
+
+async function isMazeWizClaimed() {
+  // Title is in the global "roles" set on a student. We just check if
+  // any student already has it — if so the gate is on.
+  try {
+    const r = await fetch('/api/students', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j.ok) return false;
+    return (j.data || []).some(s =>
+      Array.isArray(s.roles) && s.roles.includes('mazewiz'));
+  } catch (_) { return false; }
+}
+
+async function ensureDungeonAuth() {
+  if (signedInStudent) return signedInStudent;
+  // First check session — if they're already logged in elsewhere we
+  // don't need to re-prompt.
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (j && j.kind === 'student' && j.student) {
+      signedInStudent = j.student;
+      return signedInStudent;
+    }
+  } catch (_) {}
+  // Otherwise, gate on whether the title has been claimed yet.
+  const claimed = await isMazeWizClaimed();
+  if (!claimed) return { _open: true };  // open dungeon, no gate
+  // Show gate and wait for the student to sign in.
+  showOnly(dungeonGate);
+  return null;
+}
+
+async function tryDungeonSignIn() {
+  gateMsg.className = 'mw-msg'; gateMsg.textContent = '';
+  const email = gateEmail.value;
+  const pwd   = gatePwd.value;
+  if (!email || !pwd) {
+    gateMsg.className = 'mw-msg err';
+    gateMsg.textContent = 'Enter your camp email and password.';
+    return;
+  }
+  gateBtn.disabled = true;
+  gateBtn.textContent = 'Opening…';
+  try {
+    if (window.dataReady) await window.dataReady;
+    // findStudentByLogin also creates an /api/auth/student/login session
+    const student = await findStudentByLogin(email, pwd);
+    if (!student) {
+      gateMsg.className = 'mw-msg err';
+      gateMsg.textContent = "Couldn't find a matching account.";
+      gateBtn.disabled = false; gateBtn.textContent = 'Open the doors →';
+      return;
+    }
+    signedInStudent = student;
+    gateBtn.textContent = 'Welcome';
+    setTimeout(() => enterMaze(), 300);
+  } catch (e) {
+    gateMsg.className = 'mw-msg err';
+    gateMsg.textContent = e.message || 'Something went wrong. Please try again.';
+    gateBtn.disabled = false; gateBtn.textContent = 'Open the doors →';
+  }
+}
+gateBtn.addEventListener('click', tryDungeonSignIn);
+gatePwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryDungeonSignIn(); });
+gateEmail.addEventListener('keydown', e => { if (e.key === 'Enter') gatePwd.focus(); });
+
+/* ── Spider chase (door 300 onward) ── */
+let spiderFloor   = 0;
+let spiderTimer   = null;
+let spiderActive  = false;
+
+function getLuck() {
+  if (!signedInStudent) return 0;
+  const stats = signedInStudent.stats || {};
+  const l = Number(stats.luck || 0);
+  return Number.isFinite(l) && l > 0 ? Math.floor(l) : 0;
+}
+
+/* Each luck point reduces the chance of rolling 2-seconds by 20% (so
+   higher luck means more 3-second ticks → spider moves slower). */
+function rollSpiderDelay() {
+  const luck  = getLuck();
+  const pTwo  = 0.5 * Math.pow(0.8, luck);   // luck 0 → 0.5, luck 1 → 0.4, luck 2 → 0.32, …
+  return Math.random() < pTwo ? 2000 : 3000;
+}
+
+function shakeScreen() {
+  const root = document.querySelector('.mw-wrap');
+  if (!root) return;
+  root.classList.remove('mw-shake');
+  void root.offsetWidth;
+  root.classList.add('mw-shake');
+  setTimeout(() => root.classList.remove('mw-shake'), 600);
+}
+
+function paintSpider() {
+  const pct = (spiderFloor / MAZE_LENGTH) * 100;
+  depthSpider.style.top = pct + '%';
+}
+
+function tickSpider() {
+  if (!spiderActive) return;
+  spiderFloor += 1;
+  paintSpider();
+  shakeScreen();
+  // If the spider has caught up, defeat.
+  if (spiderFloor >= mazeClicks) {
+    onSpiderCatches();
+    return;
+  }
+  // Otherwise schedule the next descent.
+  spiderTimer = setTimeout(tickSpider, rollSpiderDelay());
+}
+
+function startSpiderChase() {
+  if (spiderActive) return;
+  spiderActive = true;
+  spiderFloor = 1;
+  depthSpider.style.display = '';
+  paintSpider();
+  alarmBanner.style.display = '';
+  playAlarm();
+  spiderTimer = setTimeout(tickSpider, rollSpiderDelay());
+}
+
+function stopSpiderChase() {
+  spiderActive = false;
+  if (spiderTimer) { clearTimeout(spiderTimer); spiderTimer = null; }
+}
+
+function onSpiderCatches() {
+  stopSpiderChase();
+  shakeScreen();
+  setTimeout(() => {
+    showOnly(defeatView);
+    // Reset progress so they can run it again.
+    mazeClicks = 0; mazeCorrect = 0; mazePattern = '';
+  }, 700);
+}
+
+/* Synthesized alarm (Web Audio) — no audio file needed */
+let _audioCtx = null;
+function playAlarm() {
+  try {
+    _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _audioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    const t0 = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.05);
+    for (let i = 0; i < 8; i++) {
+      osc.frequency.setValueAtTime(i % 2 === 0 ? 880 : 660, t0 + i * 0.32);
+    }
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.7);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 2.8);
+  } catch (_) { /* no-op if audio is blocked */ }
+}
+
+/* Defeat → climb-out button takes them back to the side doors */
+const defeatBtn = document.getElementById('mw-defeat-btn');
+defeatBtn.addEventListener('click', () => {
+  spiderFloor = 0;
+  depthSpider.style.display = 'none';
+  alarmBanner.style.display = 'none';
+  showOnly(claimView);
+});
+
+async function onDoorClick(side, doorEl) {
   if (mazeBusy || !currentQ) return;
   if (mazeClicks >= MAZE_LENGTH) return;
 
   // First click drops the centre card into maze view AND counts as the first answer.
   if (mazeClicks === 0 && !mazeView.classList.contains('show')) {
+    // Gate on sign-in if the Maze Wizard title has already been claimed.
+    const auth = await ensureDungeonAuth();
+    if (auth === null) return;     // sign-in form is now showing
     enterMaze();
   }
 
@@ -945,14 +1334,19 @@ function onDoorClick(side, doorEl) {
     return;
   }
 
+  // Alarm trip — at door 300 the spider chase begins.
+  if (mazeClicks === ALARM_AT && !spiderActive) {
+    startSpiderChase();
+  }
+
   if (mazeClicks >= MAZE_LENGTH) {
+    stopSpiderChase();
     setTimeout(async () => {
-      const scored = MAZE_LENGTH - 1;   // 299 scored doors
+      const scored = MAZE_LENGTH - 1;   // 309 scored doors
       const pct = (mazeCorrect / scored) * 100;
       const previewPts = rewardForPct(pct);
-      mazeEndSub.innerHTML = `You answered <strong>${mazeCorrect} / ${scored}</strong> correctly (${pct.toFixed(1)}%). Sign in to claim <strong>+${previewPts.toLocaleString()} points</strong>.`;
+      mazeEndSub.innerHTML = `You answered <strong>${mazeCorrect} / ${scored}</strong> correctly (${pct.toFixed(1)}%). The chest holds <strong>+${previewPts.toLocaleString()} points</strong>.`;
       showOnly(mazeEndView);
-      endEmail.focus();
       mazeBusy = false;
     }, 380);
     return;
@@ -978,33 +1372,18 @@ mazeBack.addEventListener('click', e => {
 // the second click is the first real answer.)
 newQuestion();
 
-/* ── Maze-end claim flow ────────────────────────────────────────── */
+/* ── Maze-end claim flow (no sign-in here — they signed in at the gate) ── */
 async function tryMazeClaim() {
   endMsg.className = 'mw-msg'; endMsg.textContent = '';
   endHint.style.display = 'none';
-  const email = endEmail.value;
-  const pwd   = endPwd.value;
-  if (!email || !pwd) {
-    endMsg.className = 'mw-msg err';
-    endMsg.textContent = 'Enter your camp email and password to claim.';
-    return;
-  }
   endBtn.disabled = true;
   endBtn.textContent = 'Opening the chest…';
   try {
-    if (window.dataReady) await window.dataReady;
-    const student = await findStudentByLogin(email, pwd);
-    if (!student) {
-      endMsg.className = 'mw-msg err';
-      endMsg.textContent = "Couldn't find a matching account.";
-      endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
-      return;
-    }
     const res = await claimDoorMaze(mazeCorrect, MAZE_LENGTH - 1);
     if (!res.ok) {
       endMsg.className = 'mw-msg err';
       endMsg.textContent = res.error || 'Could not claim the reward.';
-      endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
+      endBtn.disabled = false; endBtn.textContent = 'Take the coins →';
       return;
     }
     endMsg.className = 'mw-msg ok';
@@ -1013,7 +1392,6 @@ async function tryMazeClaim() {
     } else {
       endMsg.textContent = `✅ +${(res.data.awarded || 0).toLocaleString()} points awarded · ${res.data.percent}% correct.`;
     }
-    // Hint after the third (or later) completion
     if ((res.data.completions || 0) >= 3) {
       endHint.style.display = '';
       endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you seek is hidden in the <strong>first 9 doors</strong>. Try alternating <em>right answer</em>, then <em>wrong answer</em>, all the way through — starting with right. Get the criss-cross right and the chamber opens.`;
@@ -1023,12 +1401,10 @@ async function tryMazeClaim() {
   } catch (e) {
     endMsg.className = 'mw-msg err';
     endMsg.textContent = e.message || 'Something went wrong. Please try again.';
-    endBtn.disabled = false; endBtn.textContent = 'Claim my reward →';
+    endBtn.disabled = false; endBtn.textContent = 'Take the coins →';
   }
 }
 endBtn.addEventListener('click', tryMazeClaim);
-endPwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryMazeClaim(); });
-endEmail.addEventListener('keydown', e => { if (e.key === 'Enter') endPwd.focus(); });
 
 /* ── Money Tree claim flow ──────────────────────────────────────── */
 async function tryMoneyTreeClaim() {
