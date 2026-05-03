@@ -24,79 +24,91 @@
     }
 
     * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; }
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: #1c1408;
+      background: #110b04;
       color: #FAF0CE;
-      overflow: hidden;
       user-select: none;
+      overflow-x: hidden;
     }
 
-    /* ── Trail backdrop ── */
-    .scene {
-      position: fixed; inset: 0;
-      background:
-        radial-gradient(ellipse at 50% 30%, rgba(255,210,140,0.06) 0%, transparent 60%),
-        linear-gradient(180deg, #2E2310 0%, #4E3A1E 35%, #6B5028 70%, #4A331A 100%);
-      overflow: hidden;
+    /* ─────────────────────────────────────────────────────────────
+       EERIE FILTER STACK (from ChatGPT's recipe)
+       grayscale + sepia + contrast + brightness + hue-rotate + blur
+       plus grunge texture overlay + heavy inset vignette.
+       ───────────────────────────────────────────────────────────── */
+    .eerie {
+      position: relative;
+      filter: grayscale(50%) sepia(30%) contrast(130%) brightness(85%) hue-rotate(55deg) blur(0.6px);
     }
-    /* The dirt path itself — perspective trapezoid */
-    .path {
-      position: absolute;
-      left: 50%; top: 16%; bottom: 0;
-      width: 70vmin;
-      transform: translateX(-50%);
-      background:
-        linear-gradient(180deg,
-          rgba(110,81,40,0.25) 0%,
-          rgba(110,81,40,0.85) 100%);
-      clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
-      box-shadow: inset 0 -40px 60px rgba(0,0,0,0.4);
-    }
-    .path::before {
+    .eerie::before, .eerie::after {
       content: ''; position: absolute; inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+    /* Grunge / dirt texture */
+    .eerie::before {
       background:
-        repeating-linear-gradient(180deg,
-          rgba(0,0,0,0.05) 0 4px, transparent 4px 12px);
-      opacity: 0.6;
-      clip-path: inherit;
+        repeating-linear-gradient(7deg,
+          rgba(0,0,0,0.18) 0 1px, transparent 1px 4px),
+        repeating-linear-gradient(-13deg,
+          rgba(0,0,0,0.10) 0 1px, transparent 1px 7px),
+        radial-gradient(circle at 22% 18%, rgba(0,0,0,0.45) 0%, transparent 14%),
+        radial-gradient(circle at 78% 32%, rgba(0,0,0,0.40) 0%, transparent 12%),
+        radial-gradient(circle at 10% 78%, rgba(0,0,0,0.35) 0%, transparent 10%),
+        radial-gradient(circle at 92% 88%, rgba(0,0,0,0.50) 0%, transparent 14%);
+      mix-blend-mode: multiply;
+      opacity: 0.55;
+    }
+    /* Heavy inset vignette */
+    .eerie::after {
+      box-shadow: inset 0 0 180px 20px rgba(0,0,0,0.85);
     }
 
-    /* Foliage edges */
-    .foliage {
+    /* Vines creeping in from the corners — visible above the filter */
+    .vines {
       position: absolute; inset: 0;
       pointer-events: none;
+      z-index: 6;
     }
-    .foliage::before, .foliage::after {
-      content: ''; position: absolute;
-      top: 14%; bottom: 0;
-      width: 28%;
-      background:
-        radial-gradient(ellipse at 30% 40%, rgba(74,107,58,0.65) 0%, transparent 50%),
-        radial-gradient(ellipse at 70% 60%, rgba(42,65,35,0.7)  0%, transparent 60%),
-        radial-gradient(ellipse at 50% 80%, rgba(60,90,45,0.65) 0%, transparent 55%),
-        linear-gradient(90deg, rgba(20,20,15,0.85), transparent 70%);
-    }
-    .foliage::before { left: 0; }
-    .foliage::after  { right: 0; transform: scaleX(-1); }
-
-    /* drifting leaves */
-    .leaf-particle {
+    .vines .vine {
       position: absolute;
-      width: 14px; height: 18px;
-      background: linear-gradient(135deg, var(--leaf) 0%, var(--leaf-dark) 100%);
-      border-radius: 50% 50% 0 50%;
-      opacity: 0;
-      pointer-events: none;
+      background: var(--moss-dark);
+      border-radius: 999px;
+      box-shadow: inset -1px -1px 0 rgba(0,0,0,0.4);
     }
+    .vines .vine.tl { top: 0; left: 0; width: 240px; height: 6px; transform: rotate(35deg); transform-origin: top left; }
+    .vines .vine.tl::after, .vines .vine.tl::before {
+      content: ''; position: absolute;
+      width: 16px; height: 22px;
+      background: linear-gradient(135deg, var(--leaf), var(--leaf-dark));
+      border-radius: 50% 50% 0 50%;
+    }
+    .vines .vine.tl::after  { top: -8px; left: 60px; transform: rotate(-30deg); }
+    .vines .vine.tl::before { top: -8px; left: 140px; transform: rotate(20deg); }
 
-    /* ── Header ── */
+    .vines .vine.tr { top: 0; right: 0; width: 220px; height: 5px; transform: rotate(-32deg); transform-origin: top right; }
+    .vines .vine.tr::after, .vines .vine.tr::before {
+      content: ''; position: absolute;
+      width: 14px; height: 20px;
+      background: linear-gradient(135deg, var(--leaf), var(--leaf-dark));
+      border-radius: 50% 50% 0 50%;
+    }
+    .vines .vine.tr::after  { top: -6px; right: 60px; transform: rotate(45deg); }
+    .vines .vine.tr::before { top: -6px; right: 130px; transform: rotate(-15deg); }
+
+    .vines .vine.bl { bottom: 0; left: 0; width: 220px; height: 6px; transform: rotate(-40deg); transform-origin: bottom left; }
+    .vines .vine.br { bottom: 0; right: 0; width: 240px; height: 5px; transform: rotate(40deg); transform-origin: bottom right; }
+
+    /* ─────────────────────────────────────────────────────────────
+       FIXED HEADER + CRANE DOCK
+       ───────────────────────────────────────────────────────────── */
     .top-strip {
       position: fixed; top: 0; left: 0; right: 0;
       padding: 12px 18px 14px;
       display: flex; gap: 14px; align-items: center;
-      background: linear-gradient(180deg, rgba(20,14,8,0.85), rgba(20,14,8,0));
+      background: linear-gradient(180deg, rgba(20,14,8,0.88), rgba(20,14,8,0));
       z-index: 50;
     }
     .top-strip .title {
@@ -116,17 +128,14 @@
       padding: 5px 12px;
       border-radius: 999px;
       font-weight: 700; font-size: .82rem;
-      letter-spacing: 0.04em;
     }
     .exit-link {
       display: inline-flex; align-items: center;
       font-size: .78rem; color: rgba(250,240,206,0.55);
       text-decoration: none;
-      letter-spacing: 0.02em;
     }
     .exit-link:hover { color: rgba(250,240,206,0.95); }
 
-    /* ── Crane dock (under the header) ── */
     .crane-dock {
       position: fixed; left: 18px; right: 18px;
       top: 52px;
@@ -142,7 +151,6 @@
     }
     .crane-dock:empty { display: none; }
 
-    /* Each crane: tiny clip-path origami shape with letter on outside */
     .crane {
       position: relative;
       width: 38px; height: 30px;
@@ -159,14 +167,12 @@
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
     }
     .crane .front {
-      background: var(--paper);
-      color: var(--ink);
+      background: var(--paper); color: var(--ink);
       clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
       transform: rotateY(0deg);
     }
     .crane .back {
-      background: var(--gold);
-      color: var(--bark-dark);
+      background: var(--gold); color: var(--bark-dark);
       clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
       transform: rotateY(180deg);
     }
@@ -174,7 +180,7 @@
     .crane.flipped .back  { transform: rotateY(0deg); }
     .crane:hover { transform: translateY(-2px); }
 
-    /* Crane fly-in animation */
+    /* Crane fly animation between obstacle and dock */
     .crane-fly {
       position: fixed;
       width: 60px; height: 48px;
@@ -183,8 +189,7 @@
     }
     .crane-fly .face {
       width: 100%; height: 100%;
-      background: var(--paper);
-      color: var(--ink);
+      background: var(--paper); color: var(--ink);
       clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
       display: flex; align-items: center; justify-content: center;
       font-weight: 900; font-size: 1.4rem;
@@ -196,26 +201,201 @@
       100% { transform: scaleY(0.9) rotate(2deg); }
     }
     @keyframes crane-fly-path {
-      0%   { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
-      18%  { opacity: 1; }
+      0%   { transform: translate(0, 0) scale(1.1); opacity: 1; }
       100% { transform: translate(var(--dx), var(--dy)) scale(0.55); opacity: 1; }
     }
 
-    /* ── Stage area ── */
-    .stage {
-      position: absolute;
-      left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
-      width: min(620px, 92vw);
-      display: flex; flex-direction: column; align-items: center;
-      gap: 22px;
-      z-index: 10;
+    /* ─────────────────────────────────────────────────────────────
+       SECTION: EERIE REGISTRATION FORM (top of the trail)
+       Apply the eerie filter stack to a styled-out copy of register.
+       ───────────────────────────────────────────────────────────── */
+    .form-screen {
+      position: relative;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 110px 20px 60px;
+      background:
+        radial-gradient(ellipse at 50% 30%, #c8b277 0%, #6f5a32 60%, #2a200f 100%);
+      overflow: hidden;
+    }
+    .form-card {
+      position: relative;
+      width: min(620px, 96vw);
+      background: linear-gradient(180deg, #FAF0CE 0%, #DCC58E 100%);
+      color: #2C2A20;
+      padding: 36px 40px 32px;
+      border-radius: 10px;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.55);
+      z-index: 4;
+    }
+    .form-card h1 {
+      font-size: 1.6rem;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+      color: #2C2A20;
+    }
+    .form-card .closed-stamp {
+      display: inline-block;
+      border: 3px solid #8B2C2C;
+      color: #8B2C2C;
+      padding: 4px 14px;
+      font-weight: 900;
+      font-size: .82rem;
+      letter-spacing: 0.18em;
+      transform: rotate(-6deg);
+      margin: 14px 0 18px;
+      opacity: 0.85;
+    }
+    .form-card .lede {
+      font-size: .95rem; margin: 0 0 22px;
+      color: rgba(44,42,32,0.78);
+    }
+    .form-card .field {
+      display: block; margin-bottom: 14px;
+    }
+    .form-card .field label {
+      display: block;
+      font-size: .76rem; font-weight: 700;
+      letter-spacing: 0.04em;
+      color: rgba(44,42,32,0.7);
+      margin-bottom: 4px;
+    }
+    .form-card .field input,
+    .form-card .field select {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: .95rem;
+      font-family: inherit;
+      border: 1.5px solid #8B6B3D;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.7);
+      color: #2C2A20;
+      pointer-events: none;
+    }
+    .form-card .field-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    }
+    .form-card .form-actions {
+      display: flex; gap: 12px;
+      margin-top: 18px;
+      align-items: center;
+    }
+    .form-card .btn-primary {
+      background: linear-gradient(135deg, #B45B6E, #8B3F50);
+      color: white;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: .95rem;
+      box-shadow: 0 4px 12px rgba(180,91,110,0.35);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .form-card .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(180,91,110,0.5);
+    }
+    .form-card .ghost {
+      color: rgba(44,42,32,0.55); font-size: .8rem;
     }
 
-    /* Obstacle visuals */
+    /* Cracks across the form (decorative) */
+    .form-card .crack {
+      position: absolute;
+      background: rgba(44,30,12,0.85);
+      box-shadow: 1px 0 0 rgba(255,250,220,0.18);
+      pointer-events: none;
+    }
+    .form-card .crack.c1 { top: 14%; left: 8%; width: 36%; height: 1.5px; transform: rotate(8deg); }
+    .form-card .crack.c2 { top: 58%; right: 6%; width: 28%; height: 1.5px; transform: rotate(-12deg); }
+    .form-card .crack.c3 { top: 80%; left: 22%; width: 40%; height: 1px; transform: rotate(2deg); }
+    .form-card .stain {
+      position: absolute;
+      background: radial-gradient(ellipse, rgba(74,46,24,0.6) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+    }
+    .form-card .stain.s1 { top: -10%; right: -8%; width: 180px; height: 140px; }
+    .form-card .stain.s2 { bottom: -15%; left: -10%; width: 200px; height: 160px; }
+
+    /* ─────────────────────────────────────────────────────────────
+       SECTION: TRAIL INTRO + SCENE BACKDROP
+       The rest of the page lives on a forest-floor backdrop.
+       ───────────────────────────────────────────────────────────── */
+    .trail-bg {
+      position: relative;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(255,210,140,0.05) 0%, transparent 40%),
+        linear-gradient(180deg, #2E2310 0%, #4E3A1E 35%, #6B5028 70%, #4A331A 100%);
+    }
+    .trail-bg::before {
+      /* Ribbon path running down the center */
+      content: ''; position: absolute;
+      left: 50%; top: 0; bottom: 0;
+      width: 60vmin;
+      transform: translateX(-50%);
+      background:
+        linear-gradient(180deg,
+          rgba(110,81,40,0.15) 0%,
+          rgba(110,81,40,0.85) 100%);
+      clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%);
+      box-shadow: inset 0 -40px 60px rgba(0,0,0,0.4);
+      pointer-events: none;
+    }
+    .trail-bg::after {
+      /* Foliage edges along both sides of the path */
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at 8% 50%, rgba(42,65,35,0.55) 0%, transparent 35%),
+        radial-gradient(ellipse at 92% 50%, rgba(42,65,35,0.55) 0%, transparent 35%);
+      pointer-events: none;
+    }
+
+    .trail-intro {
+      position: relative;
+      min-height: 36vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 30px 20px 50px;
+      gap: 14px;
+      z-index: 1;
+    }
+    .trail-intro p {
+      font-size: 1.05rem;
+      color: rgba(250,240,206,0.82);
+      max-width: 480px;
+      text-align: center;
+      line-height: 1.55;
+      margin: 0;
+    }
+    .trail-intro .arrow {
+      font-size: 2rem;
+      color: rgba(232,196,90,0.65);
+      animation: bob 2s ease-in-out infinite;
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); opacity: 0.6; }
+      50%      { transform: translateY(8px); opacity: 1; }
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       STAGES — vertical sections, one per obstacle.
+       Hidden initially; appended to DOM as user progresses.
+       ───────────────────────────────────────────────────────────── */
+    .stage {
+      position: relative;
+      min-height: 80vh;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center;
+      padding: 40px 20px 60px;
+      gap: 22px;
+      z-index: 1;
+    }
     .obstacle-wrap {
       position: relative;
-      width: 100%; height: 130px;
+      height: 130px;
       display: flex; align-items: center; justify-content: center;
     }
     .obstacle {
@@ -230,7 +410,6 @@
       100% { transform: rotate(-50deg) translateY(120px) scale(.8); opacity: 0; filter: brightness(0.4); }
     }
 
-    /* Root: thick wavy bar coming up from "ground" */
     .obstacle.root {
       width: 320px; height: 110px;
     }
@@ -256,19 +435,16 @@
     .obstacle.root .knob.k2 { left: 38%;  top: 56%; width: 32px; height: 32px; }
     .obstacle.root .knob.k3 { left: 62%;  top: 24%; }
     .obstacle.root .knob.k4 { left: 84%;  top: 50%; }
-    /* moss patches */
     .obstacle.root .moss {
       position: absolute;
       width: 60px; height: 12px;
       background: var(--moss);
       border-radius: 50%;
-      box-shadow: inset 2px 2px 0 rgba(255,255,255,0.07);
       opacity: 0.85;
     }
     .obstacle.root .moss.m1 { left: 18%; top: 40%; }
     .obstacle.root .moss.m2 { left: 56%; top: 56%; width: 48px; height: 10px; }
 
-    /* Branch: thicker bar coming down from above */
     .obstacle.branch {
       width: 320px; height: 110px;
     }
@@ -286,7 +462,6 @@
       position: absolute;
       width: 6px; background: var(--bark-dark);
       border-radius: 4px 4px 1px 1px;
-      box-shadow: inset 1px 0 0 rgba(255,255,255,0.06);
     }
     .obstacle.branch .twig.t1 { left: 22%; top: 8%;  height: 32px; transform: rotate(-15deg); }
     .obstacle.branch .twig.t2 { left: 50%; top: 0%;  height: 44px; transform: rotate(0deg); }
@@ -302,14 +477,13 @@
     .obstacle.branch .leaf.l2 { left: 48%; top: -12%; transform: rotate(0deg); }
     .obstacle.branch .leaf.l3 { left: 76%; top: -8%; transform: rotate(30deg); }
 
-    /* Final boss obstacle */
     .obstacle.final {
       width: 380px; height: 130px;
       background: linear-gradient(180deg, var(--bark-dark) 0%, #1a0d05 100%);
       border-radius: 8px;
       box-shadow: inset 0 0 0 4px var(--bark), 0 12px 24px rgba(0,0,0,0.55);
       display: flex; align-items: center; justify-content: center;
-      font-size: 2.2rem; color: var(--gold);
+      font-size: 2rem; color: var(--gold);
       letter-spacing: 0.08em;
       font-weight: 800;
     }
@@ -317,7 +491,7 @@
     /* Question card */
     .question-card {
       position: relative;
-      width: 100%;
+      width: min(620px, 96vw);
       background: var(--paper);
       color: var(--ink);
       border-radius: 14px;
@@ -356,16 +530,17 @@
       background: #FFF;
       outline: none;
       color: var(--ink);
-      transition: border-color .15s, box-shadow .15s;
     }
     .question-card .answer-row input:focus {
       border-color: var(--rose);
       box-shadow: 0 0 0 3px rgba(180,91,110,0.18);
     }
+    .question-card .answer-row input:disabled {
+      background: rgba(0,0,0,0.05); color: rgba(0,0,0,0.4);
+    }
     .question-card .answer-row button {
       background: linear-gradient(135deg, var(--rose), #8B3F50);
-      color: white;
-      border: none;
+      color: white; border: none;
       padding: 0 18px;
       border-radius: 10px;
       font-weight: 700;
@@ -378,7 +553,10 @@
       transform: translateY(-2px);
       box-shadow: 0 6px 14px rgba(180,91,110,0.35);
     }
-    .question-card .answer-row button:active { transform: translateY(0); }
+    .question-card .answer-row button:disabled {
+      cursor: default; opacity: 0.6;
+      transform: none; box-shadow: none;
+    }
     .question-card .err {
       color: #B53C3C;
       font-size: .82rem;
@@ -398,14 +576,60 @@
       25%      { transform: translateX(-8px); }
       75%      { transform: translateX(8px); }
     }
-
-    /* Burst on correct */
-    .burst {
-      position: absolute;
-      left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
+    .question-card.solved .answer-row button {
+      background: linear-gradient(135deg, #4F8B58, #2F5A3A);
     }
+
+    /* Mid-trail crane reward — must click to claim */
+    .reward {
+      position: relative;
+      min-height: 32vh;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      gap: 12px;
+      z-index: 1;
+    }
+    .reward .crane-claim {
+      width: 100px; height: 80px;
+      cursor: pointer;
+      position: relative;
+      animation: crane-pulse 1.6s ease-in-out infinite;
+    }
+    .reward .crane-claim .face {
+      width: 100%; height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      clip-path: polygon(50% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 2.2rem;
+      filter: drop-shadow(0 8px 18px rgba(232,196,90,0.5));
+    }
+    .reward .crane-claim::after {
+      content: ''; position: absolute;
+      inset: -14px;
+      background: radial-gradient(circle, rgba(232,196,90,0.32) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: -1;
+      animation: crane-halo 1.6s ease-in-out infinite;
+    }
+    @keyframes crane-pulse {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-8px) scale(1.04); }
+    }
+    @keyframes crane-halo {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%      { opacity: 1; transform: scale(1.18); }
+    }
+    .reward .hint {
+      color: rgba(232,196,90,0.85);
+      font-size: .9rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    /* Spark burst on correct answer */
+    .burst { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
     .burst .spark {
       position: absolute;
       left: 50%; top: 50%;
@@ -465,42 +689,61 @@
       text-decoration: none;
     }
 
-    /* Crane reveal popover */
-    .crane-popover {
-      position: fixed;
+    /* Closed-form prompt modal */
+    .prompt {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      z-index: 220;
+    }
+    .prompt.show { display: flex; animation: prompt-fade .3s ease; }
+    @keyframes prompt-fade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .prompt .pcard {
+      max-width: 380px;
       background: var(--paper);
       color: var(--ink);
-      border-radius: 10px;
-      padding: 12px 16px;
-      box-shadow: 0 10px 22px rgba(0,0,0,0.4),
-                  inset 0 0 0 3px var(--paper-edge);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1rem;
-      font-weight: 700;
-      pointer-events: none;
-      opacity: 0;
-      transform: translateY(-4px);
-      transition: opacity .2s, transform .2s;
-      z-index: 70;
-      white-space: nowrap;
+      border-radius: 12px;
+      padding: 28px 28px 22px;
+      text-align: center;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.6), inset 0 0 0 4px var(--paper-edge);
     }
-    .crane-popover.show { opacity: 1; transform: translateY(0); }
+    .prompt h3 { margin: 0 0 8px; font-size: 1.15rem; }
+    .prompt p  { margin: 0 0 18px; font-size: .9rem; line-height: 1.55; color: var(--bark-dark); }
+    .prompt button {
+      background: linear-gradient(135deg, var(--bark), var(--bark-dark));
+      color: var(--paper);
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700; font-size: .9rem;
+      cursor: pointer;
+    }
+
+    /* Floating drift leaves (ambience) */
+    .leaf-particle {
+      position: absolute;
+      width: 14px; height: 18px;
+      background: linear-gradient(135deg, var(--leaf) 0%, var(--leaf-dark) 100%);
+      border-radius: 50% 50% 0 50%;
+      pointer-events: none;
+    }
 
     @media (max-width: 720px) {
       .question-card .qtext { font-size: 1.1rem; }
       .question-card.final .qtext { font-size: .85rem; }
-      .stage { width: 96vw; }
       .obstacle.root, .obstacle.branch { width: 260px; height: 100px; }
       .obstacle.final { width: 280px; }
+      .form-card { padding: 26px 22px; }
+      .form-card .field-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-
-<div class="scene">
-  <div class="path"></div>
-  <div class="foliage"></div>
-</div>
 
 <div class="top-strip">
   <a href="index.html" class="exit-link">← back home</a>
@@ -508,38 +751,91 @@
   <div class="progress" id="progress">stage 1 of 53</div>
   <div class="points" id="points">⭐ 0 pts</div>
 </div>
-
 <div class="crane-dock" id="dock"></div>
 
-<div class="stage">
-  <div class="obstacle-wrap" id="obstacle-wrap"></div>
-  <div class="question-card" id="qcard">
-    <div class="meta" id="qmeta">First obstacle</div>
-    <div class="qtext" id="qtext">—</div>
-    <div class="answer-row">
-      <input type="text" id="ainput" inputmode="decimal" placeholder="Your answer" autocomplete="off" autofocus />
-      <button id="asubmit">Clear it →</button>
+<!-- ─────────── Section 1: eerie registration form ─────────── -->
+<section class="form-screen eerie">
+  <div class="vines">
+    <div class="vine tl"></div>
+    <div class="vine tr"></div>
+    <div class="vine bl"></div>
+    <div class="vine br"></div>
+  </div>
+  <div class="form-card">
+    <div class="stain s1"></div>
+    <div class="stain s2"></div>
+    <div class="crack c1"></div>
+    <div class="crack c2"></div>
+    <div class="crack c3"></div>
+
+    <div class="closed-stamp">— CLOSED —</div>
+    <h1>Register for HigherGrade Tutoring Summer Camp 2026</h1>
+    <p class="lede">Secure your spot in the two-week student-led math experience of the summer.</p>
+
+    <div class="field">
+      <label>Camper name</label>
+      <input type="text" value="" placeholder="…" />
     </div>
-    <div class="err" id="aerr"></div>
-    <div class="hint" id="ahint"></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Date of birth</label>
+        <input type="text" value="" placeholder="…" />
+      </div>
+      <div class="field">
+        <label>School</label>
+        <input type="text" value="" placeholder="…" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Parent / guardian email</label>
+      <input type="text" value="" placeholder="…" />
+    </div>
+    <div class="field">
+      <label>Emergency contact</label>
+      <input type="text" value="" placeholder="…" />
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-primary" id="continue-btn">Continue →</button>
+      <span class="ghost">Step 1 of 4</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────── Section 2: trail intro ─────────── -->
+<div class="trail-bg" id="trail-region">
+  <section class="trail-intro" id="trail-intro">
+    <p>The path is overgrown. Step around the roots and broken branches — solve what's blocking each one to keep going.</p>
+    <div class="arrow">↓</div>
+  </section>
+
+  <!-- Stages get appended below this point -->
+  <div id="stages-container"></div>
+</div>
+
+<!-- ─────────── Modal: "this way is closed" ─────────── -->
+<div class="prompt" id="prompt">
+  <div class="pcard">
+    <h3>This way is closed.</h3>
+    <p>The doors won't open from this side. The path you came in on is overgrown — head down the trail.</p>
+    <button id="prompt-ok">Take the trail</button>
   </div>
 </div>
 
+<!-- ─────────── End of trail ─────────── -->
 <div class="ending" id="ending">
   <div class="card">
     <h2>The trail clears.</h2>
     <p>You picked your way past every obstacle. The light through the leaves is brighter on the other side.</p>
-    <div class="answer" id="end-answer"></div>
+    <div class="answer" id="end-answer">27.125</div>
     <p style="font-size:.82rem;">You earned <strong id="end-points">0</strong> points along the way (paper cranes, +15 each).</p>
     <a href="index.html">Continue →</a>
   </div>
 </div>
 
-<div class="crane-popover" id="popover"></div>
-
 <script>
-/* ── Variable values — chosen so the final equation evaluates to a
-   3-decimal-place non-repeating number (27.125). ── */
+/* ── Variable values — chosen so the final equation
+   evaluates to 27.125 (three decimal places, non-repeating). ── */
 const V = {
   A: 12, B: 2, C: 2, D: 8, E: 4, F: 2, G: 3, H: 6, I: 2, J: 5,
   K: 6, L: 2, M: 10, N: 4, O: 2, P: 4, Q: 2, R: 10, S: 5, T: 3,
@@ -548,85 +844,58 @@ const V = {
 
 /* ── 53 stages: 26 letter-pairs × 2 obstacles + 1 final boss. ── */
 const STAGES = [
-  // unlock A
   { kind:'root',   q:'30 − 12',                 a: 18 },
   { kind:'branch', q:'47 + 25',                 a: 72,  unlocks:'A' },
-  // unlock B
   { kind:'root',   q:'A + 7',                   a: 19 },
   { kind:'branch', q:'A − 4',                   a: 8,   unlocks:'B' },
-  // unlock C
   { kind:'root',   q:'B + 18',                  a: 20 },
   { kind:'branch', q:'B + 23',                  a: 25,  unlocks:'C' },
-  // unlock D
   { kind:'root',   q:'C + 14',                  a: 16 },
   { kind:'branch', q:'40 − C',                  a: 38,  unlocks:'D' },
-  // unlock E (multiplication / division begins)
   { kind:'root',   q:'D × 5',                   a: 40 },
   { kind:'branch', q:'D ÷ 2',                   a: 4,   unlocks:'E' },
-  // unlock F
   { kind:'root',   q:'E × 6',                   a: 24 },
   { kind:'branch', q:'E × 9',                   a: 36,  unlocks:'F' },
-  // unlock G
   { kind:'root',   q:'F × 11',                  a: 22 },
   { kind:'branch', q:'F × 18',                  a: 36,  unlocks:'G' },
-  // unlock H
   { kind:'root',   q:'G × 8',                   a: 24 },
   { kind:'branch', q:'G × 7',                   a: 21,  unlocks:'H' },
-  // unlock I (two-substitution questions begin)
   { kind:'root',   q:'H + G',                   a: 9 },
   { kind:'branch', q:'H + A',                   a: 18,  unlocks:'I' },
-  // unlock J
   { kind:'root',   q:'I + B',                   a: 4 },
   { kind:'branch', q:'I + D',                   a: 10,  unlocks:'J' },
-  // unlock K
   { kind:'root',   q:'J + C',                   a: 7 },
   { kind:'branch', q:'J − F',                   a: 3,   unlocks:'K' },
-  // unlock L
   { kind:'root',   q:'K + E',                   a: 10 },
   { kind:'branch', q:'K − G',                   a: 3,   unlocks:'L' },
-  // unlock M (multiplication of two variables begins)
   { kind:'root',   q:'L × H',                   a: 12 },
   { kind:'branch', q:'L × E',                   a: 8,   unlocks:'M' },
-  // unlock N
   { kind:'root',   q:'M × F',                   a: 20 },
   { kind:'branch', q:'M × I',                   a: 20,  unlocks:'N' },
-  // unlock O
   { kind:'root',   q:'N × D',                   a: 32 },
   { kind:'branch', q:'N × G',                   a: 12,  unlocks:'O' },
-  // unlock P
   { kind:'root',   q:'O × J',                   a: 10 },
   { kind:'branch', q:'O × K',                   a: 12,  unlocks:'P' },
-  // unlock Q (three-variable expressions begin)
   { kind:'root',   q:'P + L × J',               a: 14 },
   { kind:'branch', q:'P + I × H',               a: 16,  unlocks:'Q' },
-  // unlock R
   { kind:'root',   q:'Q + B + D',               a: 12 },
   { kind:'branch', q:'Q × I + J',               a: 9,   unlocks:'R' },
-  // unlock S
   { kind:'root',   q:'R + N − K',               a: 8 },
   { kind:'branch', q:'R − L × F',               a: 6,   unlocks:'S' },
-  // unlock T
   { kind:'root',   q:'S + B − C',               a: 5 },
   { kind:'branch', q:'S × I − K',               a: 4,   unlocks:'T' },
-  // unlock U (fill-in-the-blank begins)
   { kind:'root',   q:'T + ___ = 12',            a: 9 },
   { kind:'branch', q:'___ − T = 7',             a: 10,  unlocks:'U' },
-  // unlock V
   { kind:'root',   q:'U − ___ = 6',             a: 4 },
   { kind:'branch', q:'___ × 2 = U',             a: 5,   unlocks:'V' },
-  // unlock W
   { kind:'root',   q:'V + ___ = 10',            a: 6 },
   { kind:'branch', q:'___ × V = 8',             a: 2,   unlocks:'W' },
-  // unlock X
   { kind:'root',   q:'W + ___ = 9',             a: 7 },
   { kind:'branch', q:'___ − W = J',             a: 7,   unlocks:'X' },
-  // unlock Y (complex multi-step expressions)
   { kind:'root',   q:'3T + 6Q',                 a: 21 },
   { kind:'branch', q:'(3X + 6Q ÷ G) − B',       a: 17,  unlocks:'Y' },
-  // unlock Z
   { kind:'root',   q:'5L + 3K ÷ J',             a: 13.6 },
   { kind:'branch', q:'(2H + N) ÷ D',            a: 2,   unlocks:'Z' },
-  // FINAL BOSS — answer is 27.125 (three decimal places, non-repeating)
   { kind:'final',
     q:'A + M·X / Q − (T·E / Y − G) · L · B − F + (H/K) ÷ (R − W·S/Z + N − J) − Y + U − I·C^O − V = ___ + D/P',
     a: 27.125 },
@@ -637,7 +906,6 @@ const LABEL_FOR_KIND = {
   branch: 'Fallen branch',
   final:  'Stone marker at the trailhead',
 };
-
 const HINTS_FOR_INDEX = (i) => {
   if (i < 2)  return 'Plain arithmetic — no variables yet.';
   if (i < 8)  return 'Click a paper crane up top to read its number.';
@@ -650,35 +918,27 @@ const HINTS_FOR_INDEX = (i) => {
 };
 
 /* ── Persistence ── */
-const KEY = 'hg_trail_progress_v1';
+const KEY = 'hg_trail_progress_v2';
 function loadProgress() {
   try { return JSON.parse(sessionStorage.getItem(KEY)) || { idx: 0, points: 0, unlocked: [] }; }
   catch (_) { return { idx: 0, points: 0, unlocked: [] }; }
 }
-function saveProgress(p) {
-  try { sessionStorage.setItem(KEY, JSON.stringify(p)); } catch (_) {}
-}
-
-/* ── DOM refs ── */
-const obstacleWrap = document.getElementById('obstacle-wrap');
-const qcard = document.getElementById('qcard');
-const qmeta = document.getElementById('qmeta');
-const qtext = document.getElementById('qtext');
-const ainput = document.getElementById('ainput');
-const asubmit = document.getElementById('asubmit');
-const aerr = document.getElementById('aerr');
-const ahint = document.getElementById('ahint');
-const dock = document.getElementById('dock');
-const progressEl = document.getElementById('progress');
-const pointsEl = document.getElementById('points');
-const ending = document.getElementById('ending');
-const endAnswer = document.getElementById('end-answer');
-const endPoints = document.getElementById('end-points');
-const popover = document.getElementById('popover');
-
+function saveProgress(p) { try { sessionStorage.setItem(KEY, JSON.stringify(p)); } catch (_) {} }
 const state = loadProgress();
 
-/* ── Build obstacle SVG-ish markup ── */
+/* ── DOM refs ── */
+const dock           = document.getElementById('dock');
+const stagesContainer= document.getElementById('stages-container');
+const promptEl       = document.getElementById('prompt');
+const promptOk       = document.getElementById('prompt-ok');
+const continueBtn    = document.getElementById('continue-btn');
+const progressEl     = document.getElementById('progress');
+const pointsEl       = document.getElementById('points');
+const ending         = document.getElementById('ending');
+const endAnswer      = document.getElementById('end-answer');
+const endPoints      = document.getElementById('end-points');
+
+/* ── Build obstacle markup ── */
 function obstacleHTML(kind) {
   if (kind === 'root') {
     return `
@@ -690,8 +950,7 @@ function obstacleHTML(kind) {
         <div class="knob k2"></div>
         <div class="knob k3"></div>
         <div class="knob k4"></div>
-      </div>
-    `;
+      </div>`;
   }
   if (kind === 'branch') {
     return `
@@ -703,34 +962,166 @@ function obstacleHTML(kind) {
         <div class="leaf l1"></div>
         <div class="leaf l2"></div>
         <div class="leaf l3"></div>
-      </div>
-    `;
+      </div>`;
   }
   return `<div class="obstacle final">END OF TRAIL</div>`;
 }
 
-/* ── Render current stage ── */
-function render() {
-  const stage = STAGES[state.idx];
-  if (!stage) { showEnding(); return; }
+/* ── Build a stage section ── */
+function buildStage(idx) {
+  const stage = STAGES[idx];
+  if (!stage) return null;
 
-  obstacleWrap.innerHTML = obstacleHTML(stage.kind);
-  qmeta.textContent = LABEL_FOR_KIND[stage.kind] +
-    ` · ${state.idx + 1} of ${STAGES.length}`;
-  qtext.textContent = stage.q;
-  ainput.value = '';
-  ainput.disabled = false;
-  asubmit.disabled = false;
-  aerr.textContent = '';
-  ahint.textContent = HINTS_FOR_INDEX(state.idx);
-  qcard.classList.toggle('final', stage.kind === 'final');
-  progressEl.textContent = `stage ${state.idx + 1} of ${STAGES.length}`;
-  pointsEl.textContent = `⭐ ${state.points} pts`;
-  // refocus
-  setTimeout(() => ainput.focus(), 60);
+  const section = document.createElement('section');
+  section.className = 'stage';
+  section.id = 'stage-' + idx;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'obstacle-wrap';
+  wrap.innerHTML = obstacleHTML(stage.kind);
+
+  const card = document.createElement('div');
+  card.className = 'question-card' + (stage.kind === 'final' ? ' final' : '');
+  card.innerHTML = `
+    <div class="meta">${LABEL_FOR_KIND[stage.kind]} · ${idx + 1} of ${STAGES.length}</div>
+    <div class="qtext">${stage.q}</div>
+    <div class="answer-row">
+      <input type="text" inputmode="decimal" placeholder="Your answer" autocomplete="off" />
+      <button>Clear it →</button>
+    </div>
+    <div class="err"></div>
+    <div class="hint">${HINTS_FOR_INDEX(idx)}</div>
+  `;
+  const input  = card.querySelector('input');
+  const button = card.querySelector('button');
+  const err    = card.querySelector('.err');
+  function trySubmit() {
+    if (input.disabled) return;
+    const val = parseAnswer(input.value);
+    if (Number.isNaN(val)) {
+      err.textContent = 'Enter a number.';
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+      return;
+    }
+    if (Math.abs(val - stage.a) > 0.0005) {
+      err.textContent = 'Not quite — try again.';
+      card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+      input.select();
+      return;
+    }
+    err.textContent = '';
+    input.disabled = true;
+    button.disabled = true;
+    button.textContent = 'Cleared ✓';
+    card.classList.add('solved');
+    onCorrect(idx, wrap);
+  }
+  button.addEventListener('click', trySubmit);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') trySubmit(); });
+
+  section.appendChild(wrap);
+  section.appendChild(card);
+  return section;
 }
 
-/* ── Crane dock + click-to-flip ── */
+/* ── On correct answer ── */
+function onCorrect(idx, wrap) {
+  const stage = STAGES[idx];
+  sparkBurst(wrap);
+  const obstacleEl = wrap.querySelector('.obstacle');
+  if (obstacleEl) obstacleEl.classList.add('cleared');
+
+  setTimeout(() => {
+    if (stage.kind === 'final') {
+      state.idx = idx + 1;
+      saveProgress(state);
+      showEnding();
+      return;
+    }
+    if (stage.unlocks) {
+      // Append a "claim the crane" reward section. The user MUST click it
+      // before the next stage is revealed.
+      addRewardSection(stage.unlocks);
+      state.idx = idx + 1;
+      saveProgress(state);
+      // No next stage yet — wait for click.
+    } else {
+      // Just advance to next obstacle.
+      state.idx = idx + 1;
+      saveProgress(state);
+      appendStage(state.idx);
+    }
+    refreshHeader();
+  }, 850);
+}
+
+/* ── Add a "click to claim" crane reward in the trail ── */
+function addRewardSection(letter) {
+  const section = document.createElement('section');
+  section.className = 'reward';
+  section.id = 'reward-' + letter;
+  section.innerHTML = `
+    <div class="crane-claim" data-letter="${letter}">
+      <div class="face">${letter}</div>
+    </div>
+    <div class="hint">A paper crane fluttered down. Click it to keep it.</div>
+  `;
+  stagesContainer.appendChild(section);
+  const claim = section.querySelector('.crane-claim');
+  claim.addEventListener('click', () => onClaimCrane(letter, section, claim), { once: true });
+  scrollToElement(section);
+}
+
+function onClaimCrane(letter, section, claim) {
+  // Animate the claim crane flying to the dock, then reveal the next stage.
+  const rect = claim.getBoundingClientRect();
+  const dockRect = dock.getBoundingClientRect();
+  const targetX = dockRect.left + Math.min(state.unlocked.length * 44 + 30, dockRect.width - 40);
+  const targetY = dockRect.top + 24;
+
+  const flyer = document.createElement('div');
+  flyer.className = 'crane-fly';
+  flyer.style.left = (rect.left + rect.width / 2 - 30) + 'px';
+  flyer.style.top  = (rect.top  + rect.height / 2 - 24) + 'px';
+  flyer.style.setProperty('--dx', (targetX - (rect.left + rect.width / 2 - 30)) + 'px');
+  flyer.style.setProperty('--dy', (targetY - (rect.top  + rect.height / 2 - 24)) + 'px');
+  flyer.innerHTML = `<div class="face">${letter}</div>`;
+  flyer.style.animation = 'crane-fly-path 1.2s cubic-bezier(.34,1.06,.64,1) forwards';
+  document.body.appendChild(flyer);
+
+  // Hide the claim crane immediately
+  claim.style.opacity = 0;
+  claim.style.pointerEvents = 'none';
+
+  setTimeout(() => {
+    flyer.remove();
+    state.unlocked.push(letter);
+    state.points += 15;
+    saveProgress(state);
+    paintDock();
+    refreshHeader();
+
+    // Reveal the next stage
+    appendStage(state.idx);
+  }, 1180);
+}
+
+/* ── Append the next stage to the trail ── */
+function appendStage(idx) {
+  const node = buildStage(idx);
+  if (!node) return;
+  stagesContainer.appendChild(node);
+  scrollToElement(node);
+}
+
+function scrollToElement(el) {
+  // Smooth-scroll so the new section animates into view.
+  setTimeout(() => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 120);
+}
+
+/* ── Crane dock + flip ── */
 function paintDock() {
   dock.innerHTML = '';
   state.unlocked.forEach((letter) => {
@@ -745,33 +1136,17 @@ function paintDock() {
 }
 paintDock();
 
-/* ── Animations ── */
-function flyCraneFromObstacleToDock(letter, after) {
-  const obs = obstacleWrap.getBoundingClientRect();
-  const dockRect = dock.getBoundingClientRect();
-  // Where in the dock the new crane will land — last child position approx.
-  const targetX = dockRect.left + Math.min(state.unlocked.length * 44 + 30, dockRect.width - 30);
-  const targetY = dockRect.top + 30;
-
-  const el = document.createElement('div');
-  el.className = 'crane-fly';
-  el.style.left = (obs.left + obs.width / 2) + 'px';
-  el.style.top  = (obs.top  + obs.height / 2) + 'px';
-  el.style.setProperty('--dx', (targetX - (obs.left + obs.width/2)) + 'px');
-  el.style.setProperty('--dy', (targetY - (obs.top + obs.height/2)) + 'px');
-  el.innerHTML = `<div class="face">${letter}</div>`;
-  el.style.animation = 'crane-fly-path 1.4s cubic-bezier(.34,1.06,.64,1) forwards';
-  document.body.appendChild(el);
-  setTimeout(() => {
-    el.remove();
-    if (after) after();
-  }, 1380);
+function refreshHeader() {
+  progressEl.textContent = `stage ${Math.min(state.idx + 1, STAGES.length)} of ${STAGES.length}`;
+  pointsEl.textContent = `⭐ ${state.points} pts`;
 }
+refreshHeader();
 
-function sparkBurst() {
+/* ── Spark burst ── */
+function sparkBurst(wrap) {
   const burst = document.createElement('div');
   burst.className = 'burst';
-  obstacleWrap.appendChild(burst);
+  wrap.appendChild(burst);
   for (let i = 0; i < 12; i++) {
     const s = document.createElement('div');
     s.className = 'spark';
@@ -785,70 +1160,12 @@ function sparkBurst() {
   setTimeout(() => burst.remove(), 800);
 }
 
-/* ── Answer parsing + tolerance ── */
+/* ── Answer parsing ── */
 function parseAnswer(raw) {
   const cleaned = raw.replace(/[, ]/g, '').replace(/^\+/, '');
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return NaN;
   return parseFloat(cleaned);
 }
-function isCorrect(stage, val) {
-  return Math.abs(val - stage.a) < 0.0005;
-}
-
-/* ── Submit handler ── */
-function submit() {
-  const stage = STAGES[state.idx];
-  if (!stage) return;
-  const val = parseAnswer(ainput.value);
-  if (Number.isNaN(val)) {
-    aerr.textContent = 'Enter a number.';
-    qcard.classList.remove('shake'); void qcard.offsetWidth; qcard.classList.add('shake');
-    return;
-  }
-  if (!isCorrect(stage, val)) {
-    aerr.textContent = 'Not quite — give it another try.';
-    qcard.classList.remove('shake'); void qcard.offsetWidth; qcard.classList.add('shake');
-    ainput.select();
-    return;
-  }
-  // Correct.
-  ainput.disabled = true;
-  asubmit.disabled = true;
-  aerr.textContent = '';
-  sparkBurst();
-  const obstacleEl = obstacleWrap.querySelector('.obstacle');
-  if (obstacleEl) obstacleEl.classList.add('cleared');
-
-  const advance = () => {
-    state.idx += 1;
-    saveProgress(state);
-    render();
-  };
-
-  if (stage.unlocks) {
-    setTimeout(() => {
-      flyCraneFromObstacleToDock(stage.unlocks, () => {
-        state.unlocked.push(stage.unlocks);
-        state.points += 15;
-        saveProgress(state);
-        paintDock();
-        advance();
-      });
-    }, 250);
-  } else if (stage.kind === 'final') {
-    setTimeout(() => {
-      state.idx += 1;
-      saveProgress(state);
-      showEnding();
-    }, 800);
-  } else {
-    setTimeout(advance, 850);
-  }
-}
-asubmit.addEventListener('click', submit);
-ainput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') submit();
-});
 
 /* ── End-of-trail ── */
 function showEnding() {
@@ -857,13 +1174,32 @@ function showEnding() {
   ending.classList.add('show');
 }
 
-/* ── Floating leaves ambience ── */
+/* ── Continue button → prompt to take the trail ── */
+continueBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  promptEl.classList.add('show');
+});
+promptOk.addEventListener('click', () => {
+  promptEl.classList.remove('show');
+  document.getElementById('trail-intro').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+promptEl.addEventListener('click', (e) => {
+  if (e.target === promptEl) promptEl.classList.remove('show');
+});
+
+/* ── Initial render: append the first stage so user can scroll to it ── */
+appendStage(state.idx);
+
+/* ── Floating leaves ambience inside the trail backdrop ── */
 function spawnLeaf() {
+  const region = document.getElementById('trail-region');
+  if (!region) return;
   const el = document.createElement('div');
   el.className = 'leaf-particle';
+  el.style.position = 'absolute';
   el.style.left = (10 + Math.random() * 80) + '%';
-  el.style.top = '-20px';
-  document.querySelector('.scene').appendChild(el);
+  el.style.top = '0px';
+  region.appendChild(el);
   const dur = 12000 + Math.random() * 8000;
   el.animate([
     { transform: 'translateY(0) rotate(0deg)', opacity: 0 },
@@ -872,10 +1208,7 @@ function spawnLeaf() {
   ], { duration: dur, easing: 'linear' });
   setTimeout(() => el.remove(), dur);
 }
-setInterval(spawnLeaf, 2200);
-
-/* ── Initial render ── */
-render();
+setInterval(spawnLeaf, 2400);
 </script>
 </body>
 </html>
