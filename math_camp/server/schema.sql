@@ -103,12 +103,14 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 
 -- Infinity-mode question bank (admin-managed, used by infinity.html).
+-- `wrongAnswer` is the admin-chosen decoy that appears on the other door.
 CREATE TABLE IF NOT EXISTS infinity_questions (
-  id          TEXT PRIMARY KEY,
-  question    TEXT NOT NULL,
-  answer      TEXT NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0,
-  createdAt   INTEGER NOT NULL
+  id           TEXT PRIMARY KEY,
+  question     TEXT NOT NULL,
+  answer       TEXT NOT NULL,
+  wrongAnswer  TEXT NOT NULL DEFAULT '',
+  position     INTEGER NOT NULL DEFAULT 0,
+  createdAt    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_inf_pos ON infinity_questions(position);
 

@@ -65,36 +65,58 @@
     .qtext {
       font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
       font-size: 1.4rem; font-weight: 600;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
       word-wrap: break-word;
       min-height: 56px;
     }
-    .answer-row { display: flex; gap: 10px; }
-    .answer-row input {
-      flex: 1;
-      padding: 12px 16px;
-      font-size: 1.05rem;
-      font-family: inherit;
-      border: 1.5px solid rgba(167, 139, 250, 0.35);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.06);
+    .doors {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .door {
+      position: relative;
+      padding: 28px 16px;
+      border: 2px solid rgba(167, 139, 250, 0.35);
+      background: linear-gradient(180deg, rgba(109,40,217,0.20), rgba(46,16,101,0.40));
       color: #FAF0E0;
-      outline: none;
-    }
-    .answer-row input:focus { border-color: rgba(236,72,153,0.7); }
-    .answer-row button {
-      background: linear-gradient(135deg, #6D28D9, #2E1065);
-      color: white;
-      border: none;
-      padding: 0 18px;
-      border-radius: 10px;
-      font-weight: 700;
+      border-radius: 14px;
       cursor: pointer;
-      font-size: .95rem;
-      white-space: nowrap;
+      transition: transform .18s, box-shadow .18s, border-color .18s;
+      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+      font-size: 1.6rem; font-weight: 800;
+      text-align: center;
+      letter-spacing: 0.02em;
     }
-    .answer-row button:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(109,40,217,.42); }
-    .answer-row button:disabled { opacity: 0.6; cursor: default; transform: none; box-shadow: none; }
+    .door:hover {
+      transform: translateY(-3px);
+      border-color: rgba(236, 72, 153, 0.7);
+      box-shadow: 0 12px 28px rgba(109, 40, 217, 0.45);
+    }
+    .door:disabled, .door.locked {
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+      opacity: 0.7;
+    }
+    .door.right-pick {
+      border-color: #6FE08A;
+      box-shadow: 0 0 0 3px rgba(111,224,138,0.2);
+      animation: door-glow .55s ease-out;
+    }
+    .door.wrong-pick {
+      border-color: #FFA0A0;
+      box-shadow: 0 0 0 3px rgba(255,160,160,0.2);
+      animation: door-shake .35s ease;
+    }
+    @keyframes door-glow {
+      0%   { box-shadow: 0 0 0 0 rgba(111,224,138,0.4); }
+      100% { box-shadow: 0 0 0 12px rgba(111,224,138,0); }
+    }
+    @keyframes door-shake {
+      0%, 100% { transform: translateX(0); }
+      25%      { transform: translateX(-6px); }
+      75%      { transform: translateX(6px); }
+    }
     .feedback {
       margin-top: 10px;
       min-height: 1.2em;
@@ -131,9 +153,9 @@
 
     <div class="qmeta" id="qmeta">Question</div>
     <div class="qtext" id="qtext">Loading…</div>
-    <div class="answer-row">
-      <input type="text" id="ainput" inputmode="text" placeholder="Your answer" autocomplete="off" autofocus />
-      <button id="asubmit">Submit · +6</button>
+    <div class="doors" id="doors">
+      <button class="door" id="door-l" data-side="L">—</button>
+      <button class="door" id="door-r" data-side="R">—</button>
     </div>
     <div class="feedback" id="feedback"></div>
     <div class="meta-row">
@@ -147,8 +169,8 @@
 const ptsEl   = document.getElementById('points');
 const qmeta   = document.getElementById('qmeta');
 const qtext   = document.getElementById('qtext');
-const ainput  = document.getElementById('ainput');
-const asubmit = document.getElementById('asubmit');
+const doorL   = document.getElementById('door-l');
+const doorR   = document.getElementById('door-r');
 const fbEl    = document.getElementById('feedback');
 const counterEl = document.getElementById('counter');
 
@@ -179,45 +201,45 @@ async function loadQuestions() {
 }
 
 function pickQuestion() {
-  if (!questions.length) return null;
-  return questions[Math.floor(Math.random() * questions.length)];
+  // Skip questions without a wrong answer (legacy rows from before this
+  // feature) so students never see a single-door choice.
+  const usable = questions.filter(q => (q.wrongAnswer || '').trim().length > 0);
+  if (!usable.length) return null;
+  return usable[Math.floor(Math.random() * usable.length)];
 }
+
+let leftIsCorrect = true;
 
 function renderQuestion() {
-  if (!questions.length) {
+  const q = questions.length ? pickQuestion() : null;
+  if (!q) {
     qmeta.textContent = 'Empty bank';
-    qtext.textContent = '';
+    qtext.textContent = "No infinity-mode questions with both choices yet. Check back later.";
+    doorL.disabled = true; doorR.disabled = true;
+    doorL.textContent = '—'; doorR.textContent = '—';
     fbEl.className = 'feedback'; fbEl.textContent = '';
-    document.querySelector('.qtext').innerHTML =
-      '<div class="empty">No infinity-mode questions yet. The camp staff hasn\'t added any to the bank. Check back later.</div>';
-    asubmit.disabled = true;
-    ainput.disabled = true;
     return;
   }
-  currentQ = pickQuestion();
+  currentQ = q;
+  leftIsCorrect = Math.random() < 0.5;
   qmeta.textContent = `Question · #${asked + 1}`;
-  qtext.textContent = currentQ.question;
-  ainput.value = '';
-  ainput.disabled = false;
-  asubmit.disabled = false;
+  qtext.textContent = q.question;
+  doorL.textContent = leftIsCorrect ? q.answer : q.wrongAnswer;
+  doorR.textContent = leftIsCorrect ? q.wrongAnswer : q.answer;
+  doorL.disabled = false; doorR.disabled = false;
+  doorL.classList.remove('right-pick', 'wrong-pick');
+  doorR.classList.remove('right-pick', 'wrong-pick');
   fbEl.className = 'feedback'; fbEl.textContent = '';
-  setTimeout(() => ainput.focus(), 50);
 }
 
-function normalizeAnswer(raw) {
-  return String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
+async function pickDoor(side) {
+  if (!currentQ) return;
+  if (doorL.disabled && doorR.disabled) return;
+  doorL.disabled = true; doorR.disabled = true;
+  const isCorrect = (side === 'L') ? leftIsCorrect : !leftIsCorrect;
+  const chosenEl  = (side === 'L') ? doorL : doorR;
+  chosenEl.classList.add(isCorrect ? 'right-pick' : 'wrong-pick');
 
-async function submitAnswer() {
-  if (!currentQ || asubmit.disabled) return;
-  const userAns = normalizeAnswer(ainput.value);
-  const goodAns = normalizeAnswer(currentQ.answer);
-  if (!userAns) {
-    fbEl.className = 'feedback err'; fbEl.textContent = 'Type something first.';
-    return;
-  }
-  asubmit.disabled = true;
-  ainput.disabled = true;
   // Award +6 server-side (every submitted answer earns).
   try {
     const r = await fetch('/api/students/me/infinity-answer', {
@@ -231,23 +253,22 @@ async function submitAnswer() {
       earned += (j.data && j.data.awarded) || 6;
       ptsEl.textContent = `+${earned} pts this session`;
     }
-  } catch (_) {
-    // Even if the network blip eats the reward, the user keeps playing.
-  }
-  if (userAns === goodAns) {
+  } catch (_) {}
+
+  if (isCorrect) {
     fbEl.className = 'feedback ok';
-    fbEl.textContent = '✅ Correct · +6';
+    fbEl.textContent = '✅ Right door · +6';
   } else {
     fbEl.className = 'feedback err';
-    fbEl.textContent = `Not quite (answer: ${currentQ.answer}) · +6 anyway`;
+    fbEl.textContent = `Wrong door (answer: ${currentQ.answer}) · +6 anyway`;
   }
   asked++;
   counterEl.textContent = `Q ${asked}`;
-  setTimeout(() => renderQuestion(), 950);
+  setTimeout(renderQuestion, 950);
 }
 
-asubmit.addEventListener('click', submitAnswer);
-ainput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer(); });
+doorL.addEventListener('click', () => pickDoor('L'));
+doorR.addEventListener('click', () => pickDoor('R'));
 
 (async function init() {
   if (!(await ensureSignedIn())) return;

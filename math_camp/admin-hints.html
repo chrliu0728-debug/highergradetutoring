@@ -221,13 +221,16 @@
     <h2>∞ Infinity-mode questions</h2>
     <p class="panel-desc">Question bank for the post-dungeon Infinity Mode. Add, edit, or remove anything — students draw randomly from this list every time they answer in Infinity Mode (each answer earns +6 pts).</p>
 
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+    <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; margin-bottom:12px;">
       <input id="inf-q-new" placeholder="Question (e.g. What is 7 × 8?)"
-        style="flex:1; min-width:200px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
-      <input id="inf-a-new" placeholder="Answer (e.g. 56)"
-        style="width:160px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
-      <button id="inf-add-btn" style="background:linear-gradient(135deg, #6D28D9, #2E1065); color:white; border:none; padding:10px 18px; border-radius:8px; font-weight:700; cursor:pointer;">Add question</button>
+        style="padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
+      <input id="inf-a-new" placeholder="Correct answer (e.g. 56)"
+        style="padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
+      <input id="inf-w-new" placeholder="Other choice (e.g. 54)"
+        style="padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
+      <button id="inf-add-btn" style="background:linear-gradient(135deg, #6D28D9, #2E1065); color:white; border:none; padding:10px 18px; border-radius:8px; font-weight:700; cursor:pointer;">Add</button>
     </div>
+    <p style="font-size:.78rem; color:var(--muted); margin: -6px 0 12px;">Both choices appear on the two doors students see. The correct one earns +6 just like the decoy — but the green check / red shake gives them feedback.</p>
     <div id="inf-list" style="display:flex; flex-direction:column; gap:8px;"></div>
   </div>
 
@@ -461,15 +464,17 @@ async function renderInfinityQuestions() {
   }
   infListEl.innerHTML = list.map((q, i) => `
     <div class="inf-row" data-id="${esc(q.id)}"
-         style="display:grid; grid-template-columns: 30px 1fr 1fr auto; gap:8px; align-items:center; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;">
+         style="display:grid; grid-template-columns: 30px 2fr 1fr 1fr auto; gap:8px; align-items:center; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;">
       <div style="color:var(--muted); font-size:.78rem; font-variant-numeric: tabular-nums;">#${i + 1}</div>
-      <input class="inf-q" value="${esc(q.question)}"
+      <input class="inf-q" value="${esc(q.question)}" placeholder="Question"
         style="padding:8px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:.92rem;" />
-      <input class="inf-a" value="${esc(q.answer)}"
-        style="padding:8px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:.92rem;" />
+      <input class="inf-a" value="${esc(q.answer)}" placeholder="Correct"
+        style="padding:8px 10px; border:1.5px solid #16A34A; background:rgba(22,163,74,.05); border-radius:6px; font-size:.92rem;" />
+      <input class="inf-w" value="${esc(q.wrongAnswer || '')}" placeholder="Other choice"
+        style="padding:8px 10px; border:1.5px solid #DC2626; background:rgba(220,38,38,.04); border-radius:6px; font-size:.92rem;" />
       <div style="display:flex; gap:6px;">
-        <button class="inf-save"  style="background:#16A34A; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Save</button>
-        <button class="inf-del"   style="background:#DC2626; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Delete</button>
+        <button class="inf-save" style="background:#16A34A; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Save</button>
+        <button class="inf-del"  style="background:#DC2626; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Delete</button>
       </div>
     </div>
   `).join('');
@@ -478,14 +483,16 @@ async function renderInfinityQuestions() {
   infListEl.querySelectorAll('.inf-row').forEach(row => {
     const id = row.dataset.id;
     row.querySelector('.inf-save').addEventListener('click', async () => {
-      const question = row.querySelector('.inf-q').value.trim();
-      const answer   = row.querySelector('.inf-a').value.trim();
-      if (!question || !answer) return showToast('Question and answer required.');
+      const question    = row.querySelector('.inf-q').value.trim();
+      const answer      = row.querySelector('.inf-a').value.trim();
+      const wrongAnswer = row.querySelector('.inf-w').value.trim();
+      if (!question || !answer || !wrongAnswer) return showToast('Question, correct, and other-choice required.');
+      if (answer === wrongAnswer) return showToast('Correct and other-choice must differ.');
       try {
         const r = await fetch('/api/admin/infinity-questions/' + encodeURIComponent(id), {
           method: 'PATCH', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question, answer }),
+          body: JSON.stringify({ question, answer, wrongAnswer }),
         });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Save failed');
@@ -507,20 +514,23 @@ async function renderInfinityQuestions() {
   });
 }
 
+const infWNew = document.getElementById('inf-w-new');
 infAddBtn.addEventListener('click', async () => {
-  const question = infQNew.value.trim();
-  const answer   = infANew.value.trim();
-  if (!question || !answer) return showToast('Question and answer required.');
+  const question    = infQNew.value.trim();
+  const answer      = infANew.value.trim();
+  const wrongAnswer = infWNew.value.trim();
+  if (!question || !answer || !wrongAnswer) return showToast('Question, correct, and other-choice required.');
+  if (answer === wrongAnswer) return showToast('Correct and other-choice must differ.');
   infAddBtn.disabled = true;
   try {
     const r = await fetch('/api/admin/infinity-questions', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, answer }),
+      body: JSON.stringify({ question, answer, wrongAnswer }),
     });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'Add failed');
-    infQNew.value = ''; infANew.value = '';
+    infQNew.value = ''; infANew.value = ''; infWNew.value = '';
     showToast('Question added.');
     renderInfinityQuestions();
   } catch (e) { showToast(e.message || 'Add failed.'); }

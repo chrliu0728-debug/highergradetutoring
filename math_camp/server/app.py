@@ -808,15 +808,18 @@ def register_routes(app):
         d = request.get_json(silent=True) or {}
         q = (d.get("question") or "").strip()
         a = (d.get("answer") or "").strip()
-        if not q or not a:
-            return jsonify(ok=False, error="Question and answer are required."), 400
+        w = (d.get("wrongAnswer") or "").strip()
+        if not q or not a or not w:
+            return jsonify(ok=False, error="Question, correct answer, and decoy are all required."), 400
+        if w == a:
+            return jsonify(ok=False, error="The decoy must differ from the correct answer."), 400
         qid = "inf-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
-        # Position = current max + 1
         row = g.db.execute("SELECT COALESCE(MAX(position), 0) AS m FROM infinity_questions").fetchone()
         pos = (row["m"] or 0) + 1
         g.db.execute(
-            "INSERT INTO infinity_questions (id, question, answer, position, createdAt) VALUES (?, ?, ?, ?, ?)",
-            (qid, q, a, pos, int(time.time())),
+            "INSERT INTO infinity_questions (id, question, answer, wrongAnswer, position, createdAt)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (qid, q, a, w, pos, int(time.time())),
         )
         return jsonify(ok=True, id=qid)
 
@@ -826,11 +829,14 @@ def register_routes(app):
         d = request.get_json(silent=True) or {}
         q = (d.get("question") or "").strip()
         a = (d.get("answer") or "").strip()
-        if not q or not a:
-            return jsonify(ok=False, error="Question and answer are required."), 400
+        w = (d.get("wrongAnswer") or "").strip()
+        if not q or not a or not w:
+            return jsonify(ok=False, error="Question, correct answer, and decoy are all required."), 400
+        if w == a:
+            return jsonify(ok=False, error="The decoy must differ from the correct answer."), 400
         g.db.execute(
-            "UPDATE infinity_questions SET question = ?, answer = ? WHERE id = ?",
-            (q, a, qid),
+            "UPDATE infinity_questions SET question = ?, answer = ?, wrongAnswer = ? WHERE id = ?",
+            (q, a, w, qid),
         )
         return jsonify(ok=True)
 

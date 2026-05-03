@@ -34,9 +34,25 @@ def init_db():
         except sqlite3.OperationalError:
             pass
         conn.executescript(SCHEMA_PATH.read_text())
+        _migrate(conn)
         _seed(conn)
     finally:
         conn.close()
+
+
+def _migrate(conn):
+    """Ad-hoc lightweight migrations for already-deployed tables that
+    don't pick up new columns from CREATE TABLE IF NOT EXISTS."""
+    def _has_column(table, col):
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(r["name"] == col for r in rows)
+    try:
+        if _has_column("infinity_questions", "id") and not _has_column("infinity_questions", "wrongAnswer"):
+            conn.execute(
+                "ALTER TABLE infinity_questions ADD COLUMN wrongAnswer TEXT NOT NULL DEFAULT ''"
+            )
+    except sqlite3.OperationalError:
+        pass
 
 
 # ── Seed defaults ─────────────────────────────────────────────────────
