@@ -102,6 +102,16 @@ CREATE TABLE IF NOT EXISTS meta (
   value       TEXT
 );
 
+-- Infinity-mode question bank (admin-managed, used by infinity.html).
+CREATE TABLE IF NOT EXISTS infinity_questions (
+  id          TEXT PRIMARY KEY,
+  question    TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  position    INTEGER NOT NULL DEFAULT 0,
+  createdAt   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inf_pos ON infinity_questions(position);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,

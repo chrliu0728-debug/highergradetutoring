@@ -56,7 +56,7 @@ MONEY_TREE_ROLE_ID     = "money_tree"
 CLICKER_ROLE_ID        = "clicker"
 CRANE_ROLE_ID          = "crane"
 CRANE_GLOBAL_LIMIT     = None    # unlimited — any student who completes the claim flow gets one
-DOOR_MAZE_LENGTH       = 300
+DOOR_MAZE_LENGTH       = 310
 MONEY_TREE_COST        = 6000
 
 # Tiered reward for completing the 300-door math maze. The pct is
@@ -791,6 +791,76 @@ def register_routes(app):
             "alreadyRewarded": already_rewarded,
             "completions":    completions,
         })
+
+    # ── Infinity mode (post-dungeon endless mode) ─────────────────
+    INFINITY_REWARD = 6
+
+    @app.route("/api/infinity-questions", methods=["GET"])
+    def list_infinity_questions():
+        rows = g.db.execute(
+            "SELECT * FROM infinity_questions ORDER BY position ASC, createdAt ASC"
+        ).fetchall()
+        return jsonify(ok=True, data=[dict(r) for r in rows])
+
+    @app.route("/api/admin/infinity-questions", methods=["POST"])
+    @require_admin
+    def admin_add_infinity_question():
+        d = request.get_json(silent=True) or {}
+        q = (d.get("question") or "").strip()
+        a = (d.get("answer") or "").strip()
+        if not q or not a:
+            return jsonify(ok=False, error="Question and answer are required."), 400
+        qid = "inf-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        # Position = current max + 1
+        row = g.db.execute("SELECT COALESCE(MAX(position), 0) AS m FROM infinity_questions").fetchone()
+        pos = (row["m"] or 0) + 1
+        g.db.execute(
+            "INSERT INTO infinity_questions (id, question, answer, position, createdAt) VALUES (?, ?, ?, ?, ?)",
+            (qid, q, a, pos, int(time.time())),
+        )
+        return jsonify(ok=True, id=qid)
+
+    @app.route("/api/admin/infinity-questions/<qid>", methods=["PATCH"])
+    @require_admin
+    def admin_edit_infinity_question(qid):
+        d = request.get_json(silent=True) or {}
+        q = (d.get("question") or "").strip()
+        a = (d.get("answer") or "").strip()
+        if not q or not a:
+            return jsonify(ok=False, error="Question and answer are required."), 400
+        g.db.execute(
+            "UPDATE infinity_questions SET question = ?, answer = ? WHERE id = ?",
+            (q, a, qid),
+        )
+        return jsonify(ok=True)
+
+    @app.route("/api/admin/infinity-questions/<qid>", methods=["DELETE"])
+    @require_admin
+    def admin_delete_infinity_question(qid):
+        g.db.execute("DELETE FROM infinity_questions WHERE id = ?", (qid,))
+        return jsonify(ok=True)
+
+    @app.route("/api/students/me/infinity-answer", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def infinity_answer():
+        """Award +6 points per submitted answer in infinity mode."""
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            stats["privatePoints"]     = stats.get("privatePoints", 0) + INFINITY_REWARD
+            stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + INFINITY_REWARD
+            g.db.execute(
+                "UPDATE students SET stats = ? WHERE id = ?",
+                (json.dumps(stats), sid),
+            )
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=INFINITY_REWARD,
+                    description="∞ Infinity-mode answer · +6 pts")
+        return jsonify(ok=True, data={"awarded": INFINITY_REWARD})
 
     @app.route("/api/students/me/claim-money-tree", methods=["POST"])
     @require_student

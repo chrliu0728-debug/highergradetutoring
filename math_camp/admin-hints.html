@@ -216,6 +216,21 @@
     <div class="hint-list" id="hints-list"></div>
   </div>
 
+  <!-- ── Infinity-mode question bank ──────────────────────── -->
+  <div class="panel">
+    <h2>∞ Infinity-mode questions</h2>
+    <p class="panel-desc">Question bank for the post-dungeon Infinity Mode. Add, edit, or remove anything — students draw randomly from this list every time they answer in Infinity Mode (each answer earns +6 pts).</p>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+      <input id="inf-q-new" placeholder="Question (e.g. What is 7 × 8?)"
+        style="flex:1; min-width:200px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
+      <input id="inf-a-new" placeholder="Answer (e.g. 56)"
+        style="width:160px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem;" />
+      <button id="inf-add-btn" style="background:linear-gradient(135deg, #6D28D9, #2E1065); color:white; border:none; padding:10px 18px; border-radius:8px; font-weight:700; cursor:pointer;">Add question</button>
+    </div>
+    <div id="inf-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </div>
+
   <!-- ── Role events ──────────────────────────────────────── -->
   <div class="panel">
     <h2>🏅 Role assignment log</h2>
@@ -423,6 +438,97 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
     location.href = a.getAttribute('href') || 'index.html';
   });
 });
+
+/* ─── Infinity-mode question bank ─── */
+const infListEl  = document.getElementById('inf-list');
+const infQNew    = document.getElementById('inf-q-new');
+const infANew    = document.getElementById('inf-a-new');
+const infAddBtn  = document.getElementById('inf-add-btn');
+
+async function loadInfinityQuestions() {
+  try {
+    const r = await fetch('/api/infinity-questions');
+    const j = await r.json();
+    return (j && j.data) || [];
+  } catch (_) { return []; }
+}
+
+async function renderInfinityQuestions() {
+  const list = await loadInfinityQuestions();
+  if (!list.length) {
+    infListEl.innerHTML = `<div style="font-size:.86rem; color:var(--muted); padding:8px;">No infinity-mode questions yet. Add the first one above.</div>`;
+    return;
+  }
+  infListEl.innerHTML = list.map((q, i) => `
+    <div class="inf-row" data-id="${esc(q.id)}"
+         style="display:grid; grid-template-columns: 30px 1fr 1fr auto; gap:8px; align-items:center; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;">
+      <div style="color:var(--muted); font-size:.78rem; font-variant-numeric: tabular-nums;">#${i + 1}</div>
+      <input class="inf-q" value="${esc(q.question)}"
+        style="padding:8px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:.92rem;" />
+      <input class="inf-a" value="${esc(q.answer)}"
+        style="padding:8px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:.92rem;" />
+      <div style="display:flex; gap:6px;">
+        <button class="inf-save"  style="background:#16A34A; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Save</button>
+        <button class="inf-del"   style="background:#DC2626; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
+  // Wire save/delete on each row
+  infListEl.querySelectorAll('.inf-row').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector('.inf-save').addEventListener('click', async () => {
+      const question = row.querySelector('.inf-q').value.trim();
+      const answer   = row.querySelector('.inf-a').value.trim();
+      if (!question || !answer) return showToast('Question and answer required.');
+      try {
+        const r = await fetch('/api/admin/infinity-questions/' + encodeURIComponent(id), {
+          method: 'PATCH', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, answer }),
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'Save failed');
+        showToast('Saved.');
+      } catch (e) { showToast(e.message || 'Save failed.'); }
+    });
+    row.querySelector('.inf-del').addEventListener('click', async () => {
+      if (!confirm('Delete this question?')) return;
+      try {
+        const r = await fetch('/api/admin/infinity-questions/' + encodeURIComponent(id), {
+          method: 'DELETE', credentials: 'same-origin',
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'Delete failed');
+        showToast('Deleted.');
+        renderInfinityQuestions();
+      } catch (e) { showToast(e.message || 'Delete failed.'); }
+    });
+  });
+}
+
+infAddBtn.addEventListener('click', async () => {
+  const question = infQNew.value.trim();
+  const answer   = infANew.value.trim();
+  if (!question || !answer) return showToast('Question and answer required.');
+  infAddBtn.disabled = true;
+  try {
+    const r = await fetch('/api/admin/infinity-questions', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, answer }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Add failed');
+    infQNew.value = ''; infANew.value = '';
+    showToast('Question added.');
+    renderInfinityQuestions();
+  } catch (e) { showToast(e.message || 'Add failed.'); }
+  finally { infAddBtn.disabled = false; }
+});
+
+// Render the question bank now and refresh when the admin section unlocks.
+renderInfinityQuestions();
 </script>
 </body>
 </html>

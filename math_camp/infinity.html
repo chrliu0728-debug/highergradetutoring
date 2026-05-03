@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infinity Mode — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="logo.webp" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #0E1733 0%, #2A2447 50%, #4A1B6E 100%);
+      color: #FAF0E0;
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      margin: 0;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(167,139,250,.30) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(236,72,153,.22) 0%, transparent 38%);
+    }
+    .wrap {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 30px 20px;
+    }
+    .card {
+      width: min(560px, 96vw);
+      background: rgba(20, 14, 40, 0.88);
+      border: 1px solid rgba(167,139,250,0.28);
+      border-radius: 18px;
+      padding: 32px 32px 28px;
+      box-shadow: 0 28px 56px rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .head .infinity {
+      font-size: 2rem; line-height: 1;
+      filter: drop-shadow(0 0 10px rgba(167,139,250,.55));
+    }
+    .head .points {
+      background: rgba(232, 196, 90, 0.16);
+      border: 1px solid rgba(232, 196, 90, 0.4);
+      color: #E8C45A;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 700; font-size: .82rem;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .lede { font-size: .88rem; color: rgba(250, 240, 224, 0.68); margin: 0 0 22px; line-height: 1.55; }
+    .qmeta {
+      font-size: .68rem; text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: rgba(167, 139, 250, 0.85);
+      margin-bottom: 6px;
+    }
+    .qtext {
+      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+      font-size: 1.4rem; font-weight: 600;
+      margin-bottom: 16px;
+      word-wrap: break-word;
+      min-height: 56px;
+    }
+    .answer-row { display: flex; gap: 10px; }
+    .answer-row input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 1.05rem;
+      font-family: inherit;
+      border: 1.5px solid rgba(167, 139, 250, 0.35);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      color: #FAF0E0;
+      outline: none;
+    }
+    .answer-row input:focus { border-color: rgba(236,72,153,0.7); }
+    .answer-row button {
+      background: linear-gradient(135deg, #6D28D9, #2E1065);
+      color: white;
+      border: none;
+      padding: 0 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: .95rem;
+      white-space: nowrap;
+    }
+    .answer-row button:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(109,40,217,.42); }
+    .answer-row button:disabled { opacity: 0.6; cursor: default; transform: none; box-shadow: none; }
+    .feedback {
+      margin-top: 10px;
+      min-height: 1.2em;
+      font-size: .9rem; font-weight: 600;
+    }
+    .feedback.ok  { color: #6FE08A; }
+    .feedback.err { color: #FFA0A0; }
+    .meta-row {
+      display: flex; justify-content: space-between;
+      margin-top: 18px;
+      font-size: .78rem;
+      color: rgba(250, 240, 224, 0.55);
+      letter-spacing: 0.04em;
+    }
+    .meta-row a { color: rgba(232, 196, 90, 0.85); text-decoration: none; }
+    .meta-row a:hover { color: rgba(232, 196, 90, 1); }
+    .empty {
+      padding: 30px 0; text-align: center;
+      color: rgba(250, 240, 224, 0.65);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card" id="card">
+    <div class="head">
+      <div class="infinity">∞</div>
+      <div class="points" id="points">+0 pts this session</div>
+    </div>
+    <h1>Infinity Mode</h1>
+    <p class="lede">Endless dungeon. Every answer (right or wrong) earns +6 points. Questions are added by the camp staff.</p>
+
+    <div class="qmeta" id="qmeta">Question</div>
+    <div class="qtext" id="qtext">Loading…</div>
+    <div class="answer-row">
+      <input type="text" id="ainput" inputmode="text" placeholder="Your answer" autocomplete="off" autofocus />
+      <button id="asubmit">Submit · +6</button>
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div class="meta-row">
+      <span id="counter">Q 0</span>
+      <a href="student-portal.html">← Back to dashboard</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const ptsEl   = document.getElementById('points');
+const qmeta   = document.getElementById('qmeta');
+const qtext   = document.getElementById('qtext');
+const ainput  = document.getElementById('ainput');
+const asubmit = document.getElementById('asubmit');
+const fbEl    = document.getElementById('feedback');
+const counterEl = document.getElementById('counter');
+
+let questions = [];
+let asked = 0;
+let earned = 0;
+let currentQ = null;
+
+async function ensureSignedIn() {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j || j.kind !== 'student') {
+      window.location.replace('student-portal.html');
+      return false;
+    }
+    return true;
+  } catch (_) {
+    window.location.replace('student-portal.html');
+    return false;
+  }
+}
+
+async function loadQuestions() {
+  const r = await fetch('/api/infinity-questions');
+  const j = await r.json();
+  questions = (j && j.data) || [];
+}
+
+function pickQuestion() {
+  if (!questions.length) return null;
+  return questions[Math.floor(Math.random() * questions.length)];
+}
+
+function renderQuestion() {
+  if (!questions.length) {
+    qmeta.textContent = 'Empty bank';
+    qtext.textContent = '';
+    fbEl.className = 'feedback'; fbEl.textContent = '';
+    document.querySelector('.qtext').innerHTML =
+      '<div class="empty">No infinity-mode questions yet. The camp staff hasn\'t added any to the bank. Check back later.</div>';
+    asubmit.disabled = true;
+    ainput.disabled = true;
+    return;
+  }
+  currentQ = pickQuestion();
+  qmeta.textContent = `Question · #${asked + 1}`;
+  qtext.textContent = currentQ.question;
+  ainput.value = '';
+  ainput.disabled = false;
+  asubmit.disabled = false;
+  fbEl.className = 'feedback'; fbEl.textContent = '';
+  setTimeout(() => ainput.focus(), 50);
+}
+
+function normalizeAnswer(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+async function submitAnswer() {
+  if (!currentQ || asubmit.disabled) return;
+  const userAns = normalizeAnswer(ainput.value);
+  const goodAns = normalizeAnswer(currentQ.answer);
+  if (!userAns) {
+    fbEl.className = 'feedback err'; fbEl.textContent = 'Type something first.';
+    return;
+  }
+  asubmit.disabled = true;
+  ainput.disabled = true;
+  // Award +6 server-side (every submitted answer earns).
+  try {
+    const r = await fetch('/api/students/me/infinity-answer', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const j = await r.json();
+    if (j && j.ok) {
+      earned += (j.data && j.data.awarded) || 6;
+      ptsEl.textContent = `+${earned} pts this session`;
+    }
+  } catch (_) {
+    // Even if the network blip eats the reward, the user keeps playing.
+  }
+  if (userAns === goodAns) {
+    fbEl.className = 'feedback ok';
+    fbEl.textContent = '✅ Correct · +6';
+  } else {
+    fbEl.className = 'feedback err';
+    fbEl.textContent = `Not quite (answer: ${currentQ.answer}) · +6 anyway`;
+  }
+  asked++;
+  counterEl.textContent = `Q ${asked}`;
+  setTimeout(() => renderQuestion(), 950);
+}
+
+asubmit.addEventListener('click', submitAnswer);
+ainput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer(); });
+
+(async function init() {
+  if (!(await ensureSignedIn())) return;
+  await loadQuestions();
+  renderQuestion();
+})();
+</script>
+</body>
+</html>

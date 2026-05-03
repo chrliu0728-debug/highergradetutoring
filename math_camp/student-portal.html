@@ -717,6 +717,15 @@
       </div>
     </div>
 
+    <!-- ── Infinity Mode (visible to students who beat the dungeon) ── -->
+    <div class="action-card" id="infinity-card" style="display:none; background:linear-gradient(135deg, rgba(167,139,250,.10), rgba(76,29,149,.06)); border-color:#A78BFA;">
+      <div class="ac-head">
+        <h3>∞ Infinity Mode</h3>
+        <p class="ac-sub">You've beaten the dungeon. Keep going — every question you answer earns <strong>+6 points</strong>. The question bank is curated by camp staff and refreshed regularly.</p>
+      </div>
+      <a class="action-btn" href="infinity.html" style="display:inline-block; text-align:center; text-decoration:none;">Enter Infinity Mode →</a>
+    </div>
+
     <!-- ── Paper Crane hints (only visible when the student holds the role) ── -->
     <div class="action-card" id="crane-hints-card" style="display:none; background:linear-gradient(135deg, rgba(236,72,153,.08), rgba(244,114,182,.04)); border-color:#EC4899;">
       <div class="ac-head">
@@ -960,6 +969,15 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderClickerCard(s);
     renderMoneyTreeCard(s);
     renderCraneHintsCard(s);
+    renderInfinityCard(s);
+  }
+
+  /* ─── Infinity Mode card — visible after beating the dungeon ─── */
+  function renderInfinityCard(s) {
+    const card = document.getElementById('infinity-card');
+    if (!card) return;
+    const beaten = !!(s.extras && (s.extras.doorsRewarded || s.extras.doorsCompleted >= 1));
+    card.style.display = beaten ? '' : 'none';
   }
 
   /* ─── My Roles (read-only) ─── */

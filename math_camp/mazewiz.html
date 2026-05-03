@@ -564,6 +564,79 @@
       0%, 100% { transform: translateY(0) rotate(-2deg); }
       50%      { transform: translateY(-4px) rotate(2deg); }
     }
+
+    /* ── Jumpscare ── */
+    .mw-jumpscare {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+      z-index: 9999;
+      overflow: hidden;
+    }
+    .mw-jumpscare.fire { display: flex; animation: js-shake .55s cubic-bezier(.36,.07,.19,.97); }
+    .mw-jumpscare .js-flash {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle, #ff1818 0%, #6b0000 65%, #1a0000 100%);
+      animation: js-flash-fade 1.2s ease-out forwards;
+    }
+    .mw-jumpscare .js-spider {
+      position: relative;
+      font-size: 60vmin;
+      line-height: 1;
+      filter: drop-shadow(0 0 60px #000) drop-shadow(0 0 20px #500);
+      animation: js-spider-pop .9s cubic-bezier(.34,1.56,.64,1) forwards;
+    }
+    @keyframes js-flash-fade {
+      0%   { opacity: 0; }
+      8%   { opacity: 1; }
+      40%  { opacity: 0.95; }
+      100% { opacity: 0.7; }
+    }
+    @keyframes js-spider-pop {
+      0%   { transform: scale(0.05) rotate(-12deg); opacity: 0; }
+      18%  { opacity: 1; }
+      45%  { transform: scale(1.25) rotate(5deg); }
+      80%  { transform: scale(0.92) rotate(-2deg); }
+      100% { transform: scale(1.0) rotate(0); opacity: 1; }
+    }
+    @keyframes js-shake {
+      0%, 100% { transform: translate(0, 0); }
+      15%      { transform: translate(-22px, 14px); }
+      30%      { transform: translate(20px, -18px); }
+      45%      { transform: translate(-16px, -10px); }
+      60%      { transform: translate(18px, 16px); }
+      75%      { transform: translate(-10px, 8px); }
+    }
+
+    /* ── Door 300 note (3rd completion) ── */
+    .mw-door300-note {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      z-index: 9000;
+      padding: 20px;
+    }
+    .mw-door300-note.show { display: flex; animation: d300-fade .35s ease; }
+    @keyframes d300-fade { from { opacity: 0; } to { opacity: 1; } }
+    .mw-door300-note .d300-card {
+      max-width: 440px;
+      background: linear-gradient(180deg, #FAF0CE 0%, #DCC58E 100%);
+      color: #2C2A20;
+      border-radius: 8px;
+      padding: 32px 32px 24px;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.55), inset 0 0 0 4px #C9A36A;
+      transform: rotate(-1.2deg);
+    }
+    .mw-door300-note .d300-eyebrow {
+      font-size: .68rem; text-transform: uppercase;
+      letter-spacing: 0.16em; color: #8B6B3D; margin-bottom: 6px;
+    }
+    .mw-door300-note h3 { font-size: 1.25rem; margin: 0 0 12px; }
+    .mw-door300-note p  { font-size: .92rem; line-height: 1.55; margin: 0 0 12px; }
+    .mw-door300-note .mw-claim-btn { background: linear-gradient(135deg, #6D28D9, #2E1065); color: white; }
   </style>
 </head>
 <body>
@@ -667,14 +740,13 @@
       <p class="mw-footer"><a href="index.html">← Back to home</a></p>
     </div>
 
-    <!-- Spider catches the player (defeat) -->
+    <!-- Caught — jumpscare aftermath card -->
     <div class="mw-maze-end" id="mw-maze-defeat" style="display:none;">
       <div class="mw-wizard" style="filter: hue-rotate(280deg);">🕷️</div>
       <div class="mw-eyebrow">Caught</div>
-      <h1>The spider got you</h1>
-      <p class="sub">It dropped down the well faster than you could clear the doors. The dungeon resets — try again.</p>
-      <div class="mw-msg" id="mw-defeat-msg"></div>
-      <button class="mw-claim-btn" id="mw-defeat-btn">Climb out →</button>
+      <h1>The dungeon resets</h1>
+      <p class="sub">Whatever that was, it didn't want you here. Your run is wiped — start again from door 1 if you dare.</p>
+      <button class="mw-claim-btn" id="mw-defeat-btn">Return to menu →</button>
       <p class="mw-footer"><a href="index.html">← Back to home</a></p>
     </div>
 
@@ -716,6 +788,24 @@
     </button>
 
   </div><!-- /.mw-stage -->
+
+  <!-- Jumpscare overlay — fullscreen flash + huge spider -->
+  <div class="mw-jumpscare" id="mw-jumpscare" aria-hidden="true">
+    <div class="js-flash"></div>
+    <div class="js-spider">🕷️</div>
+  </div>
+
+  <!-- Note "behind door 300" (3rd-completion bonus, Money Tree hint) -->
+  <div class="mw-door300-note" id="mw-door300-note" aria-hidden="true">
+    <div class="d300-card">
+      <div class="d300-eyebrow">A folded note tucked into the door frame</div>
+      <h3>The Money Tree pattern</h3>
+      <p>You've reached door 300 three times. Whoever built this maze left a hint:</p>
+      <p>From door 1, alternate <strong>right answer</strong>, then <strong>wrong answer</strong>, all the way through the first nine doors — <em>R W R W R W R W R</em>.</p>
+      <p>Get the criss-cross right and the chamber opens. Only one student in the entire camp can ever hold the Money Tree role.</p>
+      <button class="mw-claim-btn" id="mw-door300-ok">Pocket the note →</button>
+    </div>
+  </div>
 
   <!-- Depth meter — visible whenever the dungeon is active -->
   <div class="mw-depth-meter" id="mw-depth-meter" aria-hidden="true">
@@ -1126,22 +1216,10 @@ const gatePwd   = document.getElementById('mw-gate-password');
 const gateBtn   = document.getElementById('mw-gate-btn');
 const gateMsg   = document.getElementById('mw-gate-msg');
 
-async function isMazeWizClaimed() {
-  // Title is in the global "roles" set on a student. We just check if
-  // any student already has it — if so the gate is on.
-  try {
-    const r = await fetch('/api/students', { credentials: 'same-origin' });
-    const j = await r.json();
-    if (!j.ok) return false;
-    return (j.data || []).some(s =>
-      Array.isArray(s.roles) && s.roles.includes('mazewiz'));
-  } catch (_) { return false; }
-}
-
 async function ensureDungeonAuth() {
   if (signedInStudent) return signedInStudent;
   // First check session — if they're already logged in elsewhere we
-  // don't need to re-prompt.
+  // can drop them straight into the dungeon.
   try {
     const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
     const j = await r.json();
@@ -1150,10 +1228,7 @@ async function ensureDungeonAuth() {
       return signedInStudent;
     }
   } catch (_) {}
-  // Otherwise, gate on whether the title has been claimed yet.
-  const claimed = await isMazeWizClaimed();
-  if (!claimed) return { _open: true };  // open dungeon, no gate
-  // Show gate and wait for the student to sign in.
+  // Sign-in is mandatory before the dungeon — always show the gate.
   showOnly(dungeonGate);
   return null;
 }
@@ -1258,12 +1333,42 @@ function stopSpiderChase() {
 
 function onSpiderCatches() {
   stopSpiderChase();
-  shakeScreen();
+  // Hard-reset all run state — no resuming from where they were.
+  mazeClicks = 0; mazeCorrect = 0; mazePattern = '';
+  spiderFloor = 0;
+  alarmBanner.style.display = 'none';
+  depthSpider.style.display = 'none';
+  // Jumpscare: full-screen red flash + huge spider + a deep buzz.
+  const js = document.getElementById('mw-jumpscare');
+  js.classList.add('fire');
+  playJumpscareSound();
+  // After the scare, drop the user into the "return to menu" card.
   setTimeout(() => {
+    js.classList.remove('fire');
     showOnly(defeatView);
-    // Reset progress so they can run it again.
-    mazeClicks = 0; mazeCorrect = 0; mazePattern = '';
-  }, 700);
+    // Stop the question prepared for the broken run from leaking.
+    currentQ = null;
+    newQuestion();
+  }, 1400);
+}
+
+function playJumpscareSound() {
+  try {
+    _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _audioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    const t0 = ctx.currentTime;
+    osc.frequency.setValueAtTime(120, t0);
+    osc.frequency.exponentialRampToValueAtTime(40, t0 + 0.6);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.5, t0 + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 1.2);
+  } catch (_) {}
 }
 
 /* Synthesized alarm (Web Audio) — no audio file needed */
@@ -1288,7 +1393,8 @@ function playAlarm() {
   } catch (_) { /* no-op if audio is blocked */ }
 }
 
-/* Defeat → climb-out button takes them back to the side doors */
+/* Defeat → "Return to menu" button takes them back to the title card.
+   The run state is already wiped in onSpiderCatches. */
 const defeatBtn = document.getElementById('mw-defeat-btn');
 defeatBtn.addEventListener('click', () => {
   spiderFloor = 0;
@@ -1296,6 +1402,19 @@ defeatBtn.addEventListener('click', () => {
   alarmBanner.style.display = 'none';
   showOnly(claimView);
 });
+
+/* Door-300 note popup */
+function showDoor300Note(onClose) {
+  const note = document.getElementById('mw-door300-note');
+  const ok   = document.getElementById('mw-door300-ok');
+  note.classList.add('show');
+  function close() {
+    note.classList.remove('show');
+    ok.removeEventListener('click', close);
+    onClose && onClose();
+  }
+  ok.addEventListener('click', close);
+}
 
 async function onDoorClick(side, doorEl) {
   if (mazeBusy || !currentQ) return;
@@ -1334,9 +1453,22 @@ async function onDoorClick(side, doorEl) {
     return;
   }
 
-  // Alarm trip — at door 300 the spider chase begins.
+  // Alarm trip — at door 300 the spider chase begins. If this is the
+  // student's 3rd descent the chase pauses for a Money-Tree-pattern
+  // note tucked behind the 300th door.
   if (mazeClicks === ALARM_AT && !spiderActive) {
-    startSpiderChase();
+    const completionsSoFar = (signedInStudent
+        && signedInStudent.extras
+        && Number(signedInStudent.extras.doorsCompleted || 0)) || 0;
+    if (completionsSoFar >= 2) {
+      mazeBusy = true;   // freeze door clicks while the note is up
+      showDoor300Note(() => {
+        mazeBusy = false;
+        startSpiderChase();
+      });
+    } else {
+      startSpiderChase();
+    }
   }
 
   if (mazeClicks >= MAZE_LENGTH) {
