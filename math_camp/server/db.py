@@ -53,6 +53,18 @@ def _migrate(conn):
             )
     except sqlite3.OperationalError:
         pass
+    try:
+        if _has_column("registrations", "id") and not _has_column("registrations", "password"):
+            conn.execute("ALTER TABLE registrations ADD COLUMN password TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        if _has_column("registrations", "id") and not _has_column("registrations", "waitlisted"):
+            conn.execute(
+                "ALTER TABLE registrations ADD COLUMN waitlisted INTEGER NOT NULL DEFAULT 0"
+            )
+    except sqlite3.OperationalError:
+        pass
 
 
 # ── Seed defaults ─────────────────────────────────────────────────────

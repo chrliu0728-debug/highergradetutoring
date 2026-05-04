@@ -178,6 +178,23 @@
     </div>
   </div>
 
+  <!-- ── Student cap control ── -->
+  <div class="panel" id="cap-panel">
+    <div class="panel-head">
+      <div>
+        <h2>👥 Student cap</h2>
+        <span class="count" id="cap-summary">—</span>
+      </div>
+      <div class="panel-actions" style="align-items:center; gap:6px;">
+        <label style="font-size:.78rem; color:var(--muted);">Max active students</label>
+        <input type="number" id="cap-input" min="1" style="width:90px; padding:8px 10px; font-size:.92rem; border:1.5px solid var(--border); border-radius:8px; font-variant-numeric:tabular-nums;" />
+        <button class="btn-tidy" id="cap-save">Save cap</button>
+      </div>
+    </div>
+    <p style="font-size:.82rem; color:var(--muted); margin:0;">When this many students are registered, every new sign-up is automatically <strong>waitlisted</strong>. Lower the cap and excess registrations move to the waitlist; raise it and the next-in-line waitlisted students are promoted.</p>
+    <div id="cap-msg" style="font-size:.82rem; margin-top:6px; min-height:1.1em;"></div>
+  </div>
+
   <div class="panel">
     <div class="panel-head">
       <div>
@@ -186,7 +203,7 @@
       </div>
       <div class="panel-actions">
         <button class="btn-tidy" id="refresh-btn">↻ Refresh</button>
-        <button class="btn-tidy" id="export-btn">⬇ Download CSV</button>
+        <button class="btn-tidy" id="export-btn">⬇ Download CSV (incl. passwords)</button>
       </div>
     </div>
 
@@ -199,10 +216,12 @@
         <thead>
           <tr>
             <th>#</th>
+            <th>Status</th>
             <th>Submitted</th>
             <th>Camper</th>
             <th>DOB</th>
             <th>Student email</th>
+            <th>Password</th>
             <th>School</th>
             <th>Parent / Guardian</th>
             <th>Relationship</th>
@@ -334,16 +353,22 @@ function render() {
     : DATA;
   countEl.textContent = `${rows.length} registration${rows.length === 1 ? '' : 's'}`;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="17" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="19" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map((r, i) => `
+  tbody.innerHTML = rows.map((r, i) => {
+    const status = r.waitlisted
+      ? `<span style="background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">⏳ waitlist</span>`
+      : `<span style="background:#DCFCE7; color:#166534; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">✓ active</span>`;
+    return `
     <tr>
       <td class="row-num">${i + 1}</td>
+      <td>${status}</td>
       <td>${esc(fmtTime(r.createdAt))}</td>
       <td><strong>${esc((r.firstName || '') + ' ' + (r.lastName || ''))}</strong></td>
       <td>${esc(r.dob || '')}</td>
       <td>${esc(r.studentEmail || '')}</td>
+      <td style="font-family:'JetBrains Mono', monospace; font-size:.78rem;">${esc(r.password || '')}</td>
       <td>${esc(r.school || '')}</td>
       <td>${esc(((r.parentFirst || '') + ' ' + (r.parentLast || '')).trim())}</td>
       <td>${esc(r.relationship || '')}</td>
@@ -357,7 +382,7 @@ function render() {
       <td class="wrap">${esc(r.whyJoin || '')}</td>
       <td><button class="delete-btn" data-id="${esc(r.id)}" title="Delete">🗑</button></td>
     </tr>
-  `).join('');
+  `}).join('');
 }
 
 tbody.addEventListener('click', async (e) => {
@@ -379,15 +404,54 @@ tbody.addEventListener('click', async (e) => {
 });
 
 searchEl.addEventListener('input', render);
-refreshBtn.addEventListener('click', load);
+refreshBtn.addEventListener('click', () => { loadCap(); load(); });
+
+/* ── Student-cap control ── */
+const capInput   = document.getElementById('cap-input');
+const capSummary = document.getElementById('cap-summary');
+const capSave    = document.getElementById('cap-save');
+const capMsg     = document.getElementById('cap-msg');
+async function loadCap() {
+  try {
+    const r = await fetch('/api/settings/student-cap', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j.ok) return;
+    capInput.value = j.cap;
+    capSummary.textContent = `${j.active} active · ${j.waitlisted} on waitlist · cap ${j.cap}`;
+  } catch (_) { capSummary.textContent = 'failed to load'; }
+}
+capSave.addEventListener('click', async () => {
+  const cap = parseInt(capInput.value, 10);
+  if (!cap || cap < 1) {
+    capMsg.textContent = 'Cap must be at least 1.'; capMsg.style.color = '#B91C1C'; return;
+  }
+  capSave.disabled = true;
+  try {
+    const r = await fetch('/api/admin/settings/student-cap', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cap }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Failed');
+    capMsg.textContent = `Saved · cap = ${j.cap}.`; capMsg.style.color = '#0F8A56';
+    loadCap();
+    load();
+  } catch (e) {
+    capMsg.textContent = e.message || 'Failed.'; capMsg.style.color = '#B91C1C';
+  } finally { capSave.disabled = false; }
+});
+loadCap();
 
 exportBtn.addEventListener('click', () => {
   const cols = [
     ['createdAt',   'Submitted (UTC)'],
+    ['waitlisted',  'Status'],
     ['firstName',   'First name'],
     ['lastName',    'Last name'],
     ['dob',         'DOB'],
     ['studentEmail','Student email'],
+    ['password',    'Camp password'],
     ['school',      'School'],
     ['parentFirst', 'Parent first'],
     ['parentLast',  'Parent last'],
@@ -410,8 +474,9 @@ exportBtn.addEventListener('click', () => {
   DATA.forEach(r => {
     lines.push(cols.map(([k]) => {
       let v = r[k];
-      if (k === 'createdAt') v = v ? new Date(v * 1000).toISOString() : '';
+      if (k === 'createdAt')    v = v ? new Date(v * 1000).toISOString() : '';
       if (k === 'consentPhoto') v = v ? 'yes' : 'no';
+      if (k === 'waitlisted')   v = v ? 'waitlist' : 'active';
       return escCsv(v);
     }).join(','));
   });

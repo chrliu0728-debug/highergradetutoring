@@ -1335,22 +1335,37 @@ def register_routes(app):
         return jsonify(ok=True, data={"awarded": amount, "newBalance": balance - amount})
 
     # ── Camp registration intake ────────────────────────────────────
+    DEFAULT_STUDENT_CAP = 40
+
+    def _student_cap():
+        try:
+            return int(_meta_get("student_cap", str(DEFAULT_STUDENT_CAP)) or DEFAULT_STUDENT_CAP)
+        except (TypeError, ValueError):
+            return DEFAULT_STUDENT_CAP
+
     @app.route("/api/camp/register", methods=["POST"])
     def camp_register():
         d = request.get_json(silent=True) or {}
         first = (d.get("first_name") or "").strip()
         last  = (d.get("last_name")  or "").strip()
+        password = (d.get("password") or "").strip() or None
         if not first or not last:
             return jsonify(ok=False, error="First and last name are required."), 400
+        # Cap check — count active (non-waitlisted) registrations.
+        cap = _student_cap()
+        active_count = g.db.execute(
+            "SELECT COUNT(*) AS n FROM registrations WHERE COALESCE(waitlisted, 0) = 0"
+        ).fetchone()["n"]
+        waitlisted = 1 if active_count >= cap else 0
         rid = "reg-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
                 parentFirst, parentLast, relationship, parentPhone, parentEmail,
                 emerg1Name, emerg1Phone, emerg1Relationship,
-                hobbies, whyJoin, consentPhoto)
+                hobbies, whyJoin, consentPhoto, password, waitlisted)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
                 first, last,
@@ -1368,6 +1383,8 @@ def register_routes(app):
                 (d.get("hobbies") or None),
                 (d.get("why_join") or None),
                 1 if d.get("consent_photo") else 0,
+                password,
+                waitlisted,
             ),
         )
         try:
@@ -1378,7 +1395,107 @@ def register_routes(app):
             )
         except Exception:  # noqa: BLE001
             pass
-        return jsonify(ok=True, id=rid)
+        return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted))
+
+    @app.route("/api/settings/student-cap", methods=["GET"])
+    def settings_student_cap():
+        cap = _student_cap()
+        active = g.db.execute(
+            "SELECT COUNT(*) AS n FROM registrations WHERE COALESCE(waitlisted, 0) = 0"
+        ).fetchone()["n"]
+        waitlisted = g.db.execute(
+            "SELECT COUNT(*) AS n FROM registrations WHERE COALESCE(waitlisted, 0) = 1"
+        ).fetchone()["n"]
+        return jsonify(ok=True, cap=cap, active=active, waitlisted=waitlisted)
+
+    @app.route("/api/admin/settings/student-cap", methods=["POST"])
+    @require_admin
+    def settings_student_cap_set():
+        d = request.get_json(silent=True) or {}
+        try:
+            new_cap = int(d.get("cap") or 0)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Cap must be a positive integer."), 400
+        if new_cap < 1:
+            return jsonify(ok=False, error="Cap must be at least 1."), 400
+        with g.db:
+            _meta_set("student_cap", str(new_cap))
+            # Re-balance the waitlist:  the first <cap> registrations by
+            # createdAt are active; the rest are waitlisted.
+            rows = g.db.execute(
+                "SELECT id FROM registrations ORDER BY createdAt ASC"
+            ).fetchall()
+            for i, r in enumerate(rows):
+                wl = 0 if i < new_cap else 1
+                g.db.execute(
+                    "UPDATE registrations SET waitlisted = ? WHERE id = ?",
+                    (wl, r["id"]),
+                )
+        return jsonify(ok=True, cap=new_cap)
+
+    # ── Class-points contribution from a student's private points ──
+    CLASS_CONTRIBUTION_THRESHOLD = 200
+
+    @app.route("/api/students/me/contribute-class-points", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def contribute_class_points():
+        d = request.get_json(silent=True) or {}
+        try:
+            amount = int(d.get("amount") or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        if amount <= 0:
+            return jsonify(ok=False, error="Enter a positive amount to contribute."), 400
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            if not row["classId"]:
+                return jsonify(ok=False, error="You're not assigned to a class yet."), 400
+            stats  = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            extras = json.loads(row["extras"] or "{}")
+            cur_pp = stats.get("privatePoints", 0)
+            if cur_pp < amount:
+                return jsonify(ok=False, error=f"You only have {cur_pp} points."), 400
+            stats["privatePoints"] = cur_pp - amount
+            bucket = int(extras.get("classContribution") or 0) + amount
+            class_pts_to_bank = bucket // CLASS_CONTRIBUTION_THRESHOLD
+            extras["classContribution"] = bucket % CLASS_CONTRIBUTION_THRESHOLD
+            g.db.execute(
+                "UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                (json.dumps(stats), json.dumps(extras), sid),
+            )
+            from_name = _full_name(row)
+            cls_name = (row["className"] or "your class")
+            if class_pts_to_bank > 0:
+                cls_row = g.db.execute(
+                    "SELECT * FROM classes WHERE id = ?", (row["classId"],),
+                ).fetchone()
+                if cls_row:
+                    new_bank = float(cls_row["classBank"] or 0) + class_pts_to_bank
+                    g.db.execute(
+                        "UPDATE classes SET classBank = ?, bankLastUpdate = ? WHERE id = ?",
+                        (new_bank, int(time.time() * 1000), cls_row["id"]),
+                    )
+                    _log_tx(type="class_bank_deposit", scope="class",
+                            subjectId=cls_row["id"], subjectName=cls_row["name"],
+                            relatedId=sid, relatedName=from_name,
+                            amount=class_pts_to_bank,
+                            description=f"🔒 +{class_pts_to_bank} class pt from {from_name} contribution · locked until exams")
+            _log_tx(type="class_contribute", scope="student",
+                    subjectId=sid, subjectName=from_name,
+                    amount=-amount,
+                    description=f"Contributed {amount} pts toward class points · bucket {extras['classContribution']}/{CLASS_CONTRIBUTION_THRESHOLD}"
+                                + (f" · cashed out {class_pts_to_bank} class pt to {cls_name} bank" if class_pts_to_bank else ""))
+        return jsonify(ok=True, data={
+            "contributed": amount,
+            "bucket": extras["classContribution"],
+            "threshold": CLASS_CONTRIBUTION_THRESHOLD,
+            "classPointsBanked": class_pts_to_bank,
+            "newPrivatePoints": stats["privatePoints"],
+        })
 
     @app.route("/api/admin/registrations", methods=["GET"])
     @require_admin

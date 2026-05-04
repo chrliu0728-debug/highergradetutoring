@@ -717,6 +717,27 @@
       </div>
     </div>
 
+    <!-- ── Class points contributor ── -->
+    <div class="action-card" id="class-contrib-card" style="background:linear-gradient(135deg, rgba(74,144,226,.10), rgba(107,191,160,.06)); border-color:#6BBFA0;">
+      <div class="ac-head">
+        <h3>🏫 Contribute to Class Points</h3>
+        <p class="ac-sub">Send some of your private points toward your class. Every <strong>200 contributed points</strong> automatically becomes <strong>+1 class point</strong>, deposited straight into the class bank — locked there until exam-time, then converted to private points for every member.</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+        <div style="flex:1; min-width:180px;">
+          <label for="contrib-amt" style="display:block; font-size:.78rem; color:var(--muted); margin-bottom:4px; font-weight:600;">Amount of private points</label>
+          <input type="number" id="contrib-amt" min="1" placeholder="e.g. 100" style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.95rem; font-variant-numeric:tabular-nums;" />
+        </div>
+        <button class="action-btn" id="contrib-btn" style="white-space:nowrap;">Contribute →</button>
+      </div>
+      <div class="luck-progress-label" style="margin-top:10px;">
+        <span id="contrib-progress-text">0 / 200 toward next class point</span>
+      </div>
+      <div class="luck-progress-bar"><div class="luck-progress-fill" id="contrib-progress-fill" style="width:0%; background:#6BBFA0;"></div></div>
+      <div class="action-error" id="contrib-error"></div>
+      <div class="action-success" id="contrib-success"></div>
+    </div>
+
     <!-- ── Infinity Mode (visible to students who beat the dungeon) ── -->
     <div class="action-card" id="infinity-card" style="display:none; background:linear-gradient(135deg, rgba(167,139,250,.10), rgba(76,29,149,.06)); border-color:#A78BFA;">
       <div class="ac-head">
@@ -970,6 +991,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderMoneyTreeCard(s);
     renderCraneHintsCard(s);
     renderInfinityCard(s);
+    renderContribCard(s);
   }
 
   /* ─── Infinity Mode card — visible after beating the dungeon ─── */
@@ -979,6 +1001,60 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const beaten = !!(s.extras && (s.extras.doorsRewarded || s.extras.doorsCompleted >= 1));
     card.style.display = beaten ? '' : 'none';
   }
+
+  /* ─── Class-points contributor card ─── */
+  const CONTRIB_THRESHOLD = 200;
+  function renderContribCard(s) {
+    const card  = document.getElementById('class-contrib-card');
+    if (!card) return;
+    // Only show it if the student has been assigned to a class.
+    card.style.display = s.classId ? '' : 'none';
+    if (!s.classId) return;
+    const bucket = (s.extras && Number(s.extras.classContribution || 0)) || 0;
+    const progressText = document.getElementById('contrib-progress-text');
+    const progressFill = document.getElementById('contrib-progress-fill');
+    if (progressText) progressText.textContent = `${bucket} / ${CONTRIB_THRESHOLD} toward next class point`;
+    if (progressFill) progressFill.style.width = Math.min(100, (bucket / CONTRIB_THRESHOLD) * 100) + '%';
+  }
+  (function () {
+    const btn = document.getElementById('contrib-btn');
+    const amt = document.getElementById('contrib-amt');
+    const errEl = document.getElementById('contrib-error');
+    const okEl  = document.getElementById('contrib-success');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      errEl.textContent = ''; okEl.textContent = '';
+      const amount = parseInt(amt.value, 10);
+      if (!amount || amount < 1) {
+        errEl.textContent = 'Enter a positive amount.';
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/students/me/contribute-class-points', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          errEl.textContent = j.error || 'Could not contribute.';
+        } else {
+          const cashed = j.data.classPointsBanked || 0;
+          okEl.textContent = cashed
+            ? `✓ −${amount} pts → +${cashed} class pt to the class bank · ${j.data.bucket}/${CONTRIB_THRESHOLD} toward the next.`
+            : `✓ −${amount} pts toward your class · ${j.data.bucket}/${CONTRIB_THRESHOLD} toward the next class point.`;
+          amt.value = '';
+          // Refresh local state so the dashboard updates immediately.
+          if (window.refreshStudent) await window.refreshStudent();
+          if (window.HG && window.HG.refresh) await window.HG.refresh();
+          renderDashboard();
+        }
+      } catch (e) {
+        errEl.textContent = e.message || 'Failed.';
+      } finally { btn.disabled = false; }
+    });
+  })();
 
   /* ─── My Roles (read-only) ─── */
   function renderRolesPanel(s) {

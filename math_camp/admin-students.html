@@ -1006,19 +1006,23 @@ function spendPoints(id, amount) {
   render();
 }
 
-function penalize(id, amount) {
-  const res = applyPenalty(id, amount);
+async function penalize(id, amount) {
+  const res = await applyPenalty(id, amount);
   if (res && res.ok) {
     showToast(`⚠️ −${amount} pts (penalty)`);
     render();
+  } else if (res && res.error) {
+    showToast(res.error);
   }
 }
 
-function curseLogged(id, amount) {
-  const res = applyCursePenalty(id, amount);
+async function curseLogged(id, amount) {
+  const res = await applyCursePenalty(id, amount);
   if (res && res.ok) {
     showToast(`🤬 −${amount} pts + curse word logged`);
     render();
+  } else if (res && res.error) {
+    showToast(res.error);
   }
 }
 
@@ -1075,13 +1079,13 @@ function curseLogged(id, amount) {
   });
 })();
 
-document.getElementById('add-role-btn').addEventListener('click', () => {
+document.getElementById('add-role-btn').addEventListener('click', async () => {
   const name = prompt('Role name (e.g. "Class Captain", "Helpful Hero"):');
   if (!name) return;
   const icon = prompt('Icon (single emoji, optional):') || '🏅';
   const color = prompt('Color (hex, e.g. #E8808A). Leave blank for default:') || '#E8808A';
   const description = prompt('Short description (shown on the student\'s card):') || '';
-  const res = addRole({
+  const res = await addRole({
     id: (typeof newRoleId === 'function' ? newRoleId() : 'role-' + Date.now()),
     name: name.trim(),
     icon: icon.trim().slice(0, 4),

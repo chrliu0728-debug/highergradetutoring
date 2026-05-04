@@ -133,6 +133,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   emerg1Relationship  TEXT,
   hobbies             TEXT,
   whyJoin             TEXT,
-  consentPhoto        INTEGER NOT NULL DEFAULT 0
+  consentPhoto        INTEGER NOT NULL DEFAULT 0,
+  password            TEXT,
+  waitlisted          INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);

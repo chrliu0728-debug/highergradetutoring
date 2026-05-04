@@ -494,15 +494,13 @@ function render() {
         </div>
 
         <div class="class-stat-tile bank">
-          <div class="class-stat-head">🏦 Investment Bank</div>
+          <div class="class-stat-head">🏦 Class Bank · 🔒 Locked</div>
           <div class="class-stat-value">${fmtPts(banked)}</div>
           <div class="class-distrib-note" style="background:var(--blush-bg);color:var(--blush-dark);">
             Earning <strong>${(CLASS_BANK_DAILY_RATE * 100).toFixed(0)}% per day</strong>, compounded continuously.${cls.bankLastUpdate ? ` <span style="opacity:.7;">Last updated: ${new Date(cls.bankLastUpdate).toLocaleString()}.</span>` : ''}
           </div>
-          <div class="stat-action-row">
-            <button data-withdraw="10" ${banked < 10 ? 'disabled' : ''}>↩ −10</button>
-            <button data-withdraw="50" ${banked < 50 ? 'disabled' : ''}>↩ −50</button>
-            <button data-withdraw-all ${banked < 1 ? 'disabled' : ''}>↩ Withdraw all</button>
+          <div class="class-distrib-note" style="background:rgba(0,0,0,0.04); color:var(--text); margin-top:8px;">
+            🔒 Banked points are <strong>locked until after exams</strong>. They'll convert to private points for every member when the camp ends.
           </div>
         </div>
       </div>
@@ -521,18 +519,18 @@ function render() {
     `;
     container.appendChild(card);
 
-    card.querySelector('[data-rename]').addEventListener('change', e => {
+    card.querySelector('[data-rename]').addEventListener('change', async e => {
       const newName = e.target.value.trim();
       if (!newName) { e.target.value = cls.name; return; }
-      updateClass(cls.id, { name: newName });
+      await updateClass(cls.id, { name: newName });
       showToast('Class renamed');
       render();
     });
 
     card.querySelectorAll('[data-pts]').forEach(b => {
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async () => {
         const delta = parseInt(b.dataset.pts, 10);
-        const res = awardClassPoints(cls.id, delta);
+        const res = await awardClassPoints(cls.id, delta);
         if (!res.ok) { showToast(res.error || 'Could not update'); return; }
         showToast(`${delta > 0 ? '+' : ''}${res.data.delta} class pt → unclaimed pool now ${res.data.unclaimed}`);
         render();
@@ -540,41 +538,24 @@ function render() {
     });
 
     const claimBtn = card.querySelector('[data-claim-all]');
-    if (claimBtn) claimBtn.addEventListener('click', () => {
-      const res = claimClassPoints(cls.id, null);
+    if (claimBtn) claimBtn.addEventListener('click', async () => {
+      const res = await claimClassPoints(cls.id, null);
       if (!res.ok) { showToast(res.error); return; }
       showToast(`✅ Claimed ${res.data.claimed} class pt → ${res.data.totalDistributed} pts split across ${res.data.memberCount} member${res.data.memberCount === 1 ? '' : 's'}`);
       render();
     });
 
     const bankBtn = card.querySelector('[data-bank-all]');
-    if (bankBtn) bankBtn.addEventListener('click', () => {
-      const res = bankClassPoints(cls.id, null);
+    if (bankBtn) bankBtn.addEventListener('click', async () => {
+      const res = await bankClassPoints(cls.id, null);
       if (!res.ok) { showToast(res.error); return; }
-      showToast(`🏦 Banked ${res.data.banked} class pt — bank balance ${fmtPts(res.data.newBank)}`);
+      showToast(`🏦 Banked ${res.data.banked} class pt — bank balance ${fmtPts(res.data.newBank)} (locked until exams)`);
       render();
     });
 
-    card.querySelectorAll('[data-withdraw]').forEach(b => {
-      b.addEventListener('click', () => {
-        const res = withdrawFromBank(cls.id, parseInt(b.dataset.withdraw, 10));
-        if (!res.ok) { showToast(res.error); return; }
-        showToast(`Withdrew ${res.data.withdrawn} pts back to unclaimed pool`);
-        render();
-      });
-    });
-
-    const wAll = card.querySelector('[data-withdraw-all]');
-    if (wAll) wAll.addEventListener('click', () => {
-      const res = withdrawFromBank(cls.id, null);
-      if (!res.ok) { showToast(res.error); return; }
-      showToast(`Withdrew ${res.data.withdrawn} pts back to unclaimed pool`);
-      render();
-    });
-
-    card.querySelector('[data-del]').addEventListener('click', () => {
+    card.querySelector('[data-del]').addEventListener('click', async () => {
       if (!confirm(`Delete class "${cls.name}"? Members will be unassigned but their stats are kept.`)) return;
-      deleteClass(cls.id);
+      await deleteClass(cls.id);
       showToast('Class deleted');
       render();
     });

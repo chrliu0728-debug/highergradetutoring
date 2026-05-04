@@ -433,6 +433,12 @@
               <div class="field-hint">At least 4 characters. You'll use your student email + this password to sign in.</div>
               <div class="field-error" id="err-camp-password">Please create a password (at least 4 characters).</div>
             </div>
+            <div class="field">
+              <label>Confirm Camp Password <span class="req">*</span></label>
+              <input type="password" id="camp-password-confirm" name="camp_password_confirm" placeholder="Type the same password again" minlength="4" required />
+              <div class="field-hint">Re-type your password so we know you've got it right.</div>
+              <div class="field-error" id="err-camp-password-confirm">Passwords don't match — re-type the same password in both boxes.</div>
+            </div>
 
             <hr class="form-divider" />
 
@@ -670,6 +676,31 @@
     }
     errEl.classList.remove('show');
 
+    // Password + confirm must match before we submit anything.
+    const pwdInput   = document.getElementById('camp-password');
+    const pwdConfirm = document.getElementById('camp-password-confirm');
+    const pwdErr     = document.getElementById('err-camp-password');
+    const pwdConfirmErr = document.getElementById('err-camp-password-confirm');
+    const pwdVal = (pwdInput.value || '').trim();
+    const pwdConfirmVal = (pwdConfirm.value || '').trim();
+    pwdErr.classList.remove('show');
+    pwdConfirmErr.classList.remove('show');
+    pwdInput.classList.remove('error');
+    pwdConfirm.classList.remove('error');
+    if (pwdVal.length < 4) {
+      pwdErr.classList.add('show');
+      pwdInput.classList.add('error');
+      pwdInput.focus();
+      return;
+    }
+    if (pwdVal !== pwdConfirmVal) {
+      pwdConfirmErr.classList.add('show');
+      pwdConfirm.classList.add('error');
+      pwdConfirm.focus();
+      pwdConfirm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     const payload = {
       first_name:          get('first-name'),
       last_name:           get('last-name'),
@@ -687,6 +718,7 @@
       hobbies:             document.getElementById('hobbies')?.value?.trim() || null,
       why_join:            document.getElementById('why-join')?.value?.trim() || null,
       consent_photo:       document.getElementById('consent-photo').checked,
+      password:            pwdVal,
     };
 
     submitEl.disabled = true;
@@ -701,12 +733,23 @@
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || 'Submission failed. Please try again.');
+        throw new Error(data.detail || data.error || 'Submission failed. Please try again.');
       }
-      // Success
+      const respData = await res.json().catch(() => ({}));
+      // Success — show different banner depending on whether the
+      // student squeezed into the cap or hit the waitlist.
+      const successEl = document.getElementById('form-success');
+      if (respData && respData.waitlisted) {
+        const h2 = successEl.querySelector('h2');
+        const p  = successEl.querySelector('p');
+        if (h2) h2.textContent = "You're on the waitlist.";
+        if (p)  p.textContent  = "Camp is at capacity right now. We'll email you the moment a spot opens up — your registration is saved exactly as submitted.";
+        const circle = successEl.querySelector('.check-circle');
+        if (circle) { circle.textContent = '⏳'; circle.style.background = '#FCD34D'; circle.style.color = '#78350F'; }
+      }
       document.getElementById('reg-form').style.display = 'none';
-      document.getElementById('form-success').style.display = 'block';
-      document.getElementById('form-success').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      successEl.style.display = 'block';
+      successEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       apiErr.textContent = err.message;
       apiErr.classList.add('show');
