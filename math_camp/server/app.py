@@ -502,6 +502,7 @@ def register_routes(app):
             if cur < amount: return jsonify(ok=False, error=f"You only have {cur} points."), 400
 
             received = int(amount * TRANSFER_KEEP_RATIO)
+            lost = amount - received
             from_stats["privatePoints"]  = cur - amount
             from_stats["pointExchanges"] = from_stats.get("pointExchanges", 0) + 1
             to_stats["privatePoints"]    = to_stats.get("privatePoints", 0) + received
@@ -512,16 +513,25 @@ def register_routes(app):
 
             from_name = _full_name(from_row)
             to_name   = _full_name(to_row)
+            # Lost points → transactions bank.
+            if lost > 0:
+                bank_prev = int(_meta_get("transactions_bank", "0") or "0")
+                _meta_set("transactions_bank", str(bank_prev + lost))
+                _log_tx(type="bank_deposit", scope="bank",
+                        subjectId="transactions_bank", subjectName="Transactions Bank",
+                        relatedId=from_id, relatedName=from_name,
+                        amount=lost,
+                        description=f"+{lost} pts deposited from {from_name} → {to_name} transfer ({amount} sent)")
             _log_tx(type="transfer_out", scope="student", subjectId=from_id,
                     subjectName=from_name, relatedId=to_id, relatedName=to_name,
                     amount=-amount,
-                    description=f"Sent {amount} pts to {to_name} · {amount-received} pts lost in transfer")
+                    description=f"Sent {amount} pts to {to_name} · {lost} pts deposited to the transactions bank")
             _log_tx(type="transfer_in", scope="student", subjectId=to_id,
                     subjectName=to_name, relatedId=from_id, relatedName=from_name,
                     amount=received,
                     description=f"Received {received} pts from {from_name} ({amount} sent, 50% kept)")
 
-        return jsonify(ok=True, data={"sent": amount, "received": received, "lost": amount - received})
+        return jsonify(ok=True, data={"sent": amount, "received": received, "lost": lost})
 
     @app.route("/api/students/me/luck", methods=["POST"])
     @require_student
@@ -1282,6 +1292,47 @@ def register_routes(app):
         frozen = bool(data.get("frozen"))
         _meta_set("points_frozen", "1" if frozen else "0")
         return jsonify(ok=True, frozen=frozen)
+
+    # ── Transactions bank ───────────────────────────────────────────
+    # All points lost to the 50% transfer tax accumulate here. Anyone
+    # can read the balance; only an admin can withdraw to a student.
+    @app.route("/api/transactions-bank", methods=["GET"])
+    def transactions_bank_balance():
+        return jsonify(ok=True, balance=int(_meta_get("transactions_bank", "0") or "0"))
+
+    @app.route("/api/admin/transactions-bank/withdraw", methods=["POST"])
+    @require_admin
+    def transactions_bank_withdraw():
+        d = request.get_json(silent=True) or {}
+        amount = int(d.get("amount") or 0)
+        to_id  = (d.get("toId") or "").strip()
+        note   = (d.get("note") or "").strip()
+        if amount <= 0:
+            return jsonify(ok=False, error="Enter a positive amount."), 400
+        if not to_id:
+            return jsonify(ok=False, error="Pick a recipient."), 400
+        with g.db:
+            balance = int(_meta_get("transactions_bank", "0") or "0")
+            if balance < amount:
+                return jsonify(ok=False, error=f"Bank has only {balance} pts."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (to_id,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Recipient not found."), 404
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            stats["privatePoints"]     = stats.get("privatePoints", 0) + amount
+            stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + amount
+            g.db.execute("UPDATE students SET stats = ? WHERE id = ?", (json.dumps(stats), to_id))
+            _meta_set("transactions_bank", str(balance - amount))
+            to_name = _full_name(row)
+            _log_tx(type="bank_withdraw", scope="bank",
+                    subjectId="transactions_bank", subjectName="Transactions Bank",
+                    relatedId=to_id, relatedName=to_name,
+                    amount=-amount,
+                    description=f"−{amount} pts withdrawn → {to_name}" + (f" · {note}" if note else ""))
+            _log_tx(type="earn", scope="student", subjectId=to_id,
+                    subjectName=to_name, amount=amount,
+                    description=f"🏦 Transactions-bank grant · +{amount} pts" + (f" · {note}" if note else ""))
+        return jsonify(ok=True, data={"awarded": amount, "newBalance": balance - amount})
 
     # ── Camp registration intake ────────────────────────────────────
     @app.route("/api/camp/register", methods=["POST"])

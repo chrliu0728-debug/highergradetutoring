@@ -362,6 +362,37 @@
     </div>
   </div>
 
+  <!-- ── Transactions bank ── -->
+  <div id="bank-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm);">
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between; margin-bottom:14px;">
+      <div style="flex:1; min-width:260px;">
+        <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Camp-wide vault</div>
+        <h2 style="font-size:1.1rem; margin:0 0 4px;">🏦 Transactions Bank</h2>
+        <p style="font-size:.88rem; color:var(--muted); margin:0; line-height:1.5;">Every time a student transfers points to another student, 50% is taxed away. Those points land here. Withdraw to award a student or class for any reason.</p>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em;">Current balance</div>
+        <div id="bank-balance" style="font-size:1.7rem; font-weight:800; color:var(--blush-dark); font-variant-numeric: tabular-nums;">— pts</div>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns: 2fr 1fr 2fr auto; gap:8px; align-items:end;">
+      <div>
+        <label style="font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;">Recipient</label>
+        <select id="bank-recipient" style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; background:var(--surface);"></select>
+      </div>
+      <div>
+        <label style="font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;">Amount</label>
+        <input id="bank-amount" type="number" min="1" placeholder="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-variant-numeric: tabular-nums;" />
+      </div>
+      <div>
+        <label style="font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;">Reason (optional)</label>
+        <input id="bank-note" type="text" placeholder="e.g. class clean-up bonus" style="width:100%; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem;" />
+      </div>
+      <button id="bank-withdraw-btn" type="button" style="background:linear-gradient(135deg, #16A34A, #166534); color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:700; cursor:pointer;">Withdraw →</button>
+    </div>
+    <div id="bank-msg" style="font-size:.85rem; margin-top:8px; min-height:1.2em;"></div>
+  </div>
+
   <!-- ── Camp-wide controls: point freeze ── -->
   <div id="freeze-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm); display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
     <div style="flex:1; min-width:260px;">
@@ -845,6 +876,76 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
     location.href = a.getAttribute('href') || 'index.html';
   });
 });
+
+/* ── Transactions Bank ── */
+(function () {
+  const balEl   = document.getElementById('bank-balance');
+  const selEl   = document.getElementById('bank-recipient');
+  const amtEl   = document.getElementById('bank-amount');
+  const noteEl  = document.getElementById('bank-note');
+  const btnEl   = document.getElementById('bank-withdraw-btn');
+  const msgEl   = document.getElementById('bank-msg');
+  if (!balEl) return;
+
+  async function refreshBalance() {
+    try {
+      const r = await fetch('/api/transactions-bank', { credentials: 'same-origin' });
+      const j = await r.json();
+      if (j && j.ok) balEl.textContent = (j.balance || 0).toLocaleString() + ' pts';
+    } catch (_) { balEl.textContent = '— pts'; }
+  }
+
+  async function loadStudents() {
+    try {
+      const r = await fetch('/api/students', { credentials: 'same-origin' });
+      const j = await r.json();
+      const students = (j && j.data) || [];
+      students.sort((a, b) => {
+        const an = ((a.firstName || '') + ' ' + (a.lastName || '')).trim().toLowerCase();
+        const bn = ((b.firstName || '') + ' ' + (b.lastName || '')).trim().toLowerCase();
+        return an.localeCompare(bn);
+      });
+      selEl.innerHTML = '<option value="">— pick a student —</option>' +
+        students.map(s => {
+          const name = ((s.firstName || '') + ' ' + (s.lastName || '')).trim() || '(no name)';
+          const cls  = s.className ? ` · ${s.className}` : '';
+          return `<option value="${s.id}">${name}${cls}</option>`;
+        }).join('');
+    } catch (_) {
+      selEl.innerHTML = '<option value="">(could not load students)</option>';
+    }
+  }
+
+  btnEl.addEventListener('click', async () => {
+    msgEl.textContent = '';
+    msgEl.style.color = '';
+    const toId   = selEl.value;
+    const amount = parseInt(amtEl.value, 10);
+    const note   = noteEl.value.trim();
+    if (!toId)               { msgEl.textContent = 'Pick a recipient.'; msgEl.style.color = '#B91C1C'; return; }
+    if (!amount || amount<1) { msgEl.textContent = 'Enter an amount.';  msgEl.style.color = '#B91C1C'; return; }
+    btnEl.disabled = true;
+    try {
+      const r = await fetch('/api/admin/transactions-bank/withdraw', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toId, amount, note }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'Failed');
+      msgEl.textContent = `✅ +${amount.toLocaleString()} pts awarded · bank now ${j.data.newBalance.toLocaleString()} pts.`;
+      msgEl.style.color = '#0F8A56';
+      amtEl.value = ''; noteEl.value = '';
+      refreshBalance();
+    } catch (e) {
+      msgEl.textContent = e.message || 'Failed.';
+      msgEl.style.color = '#B91C1C';
+    } finally { btnEl.disabled = false; }
+  });
+
+  refreshBalance();
+  loadStudents();
+})();
 
 /* ── Point-transaction freeze toggle ── */
 (function () {
