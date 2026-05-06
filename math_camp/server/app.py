@@ -1345,6 +1345,13 @@ def register_routes(app):
 
     @app.route("/api/camp/register", methods=["POST"])
     def camp_register():
+        # Hard freeze — admins can pause new registrations entirely.
+        if _meta_get("registrations_frozen", "0") == "1":
+            return jsonify(
+                ok=False,
+                frozen=True,
+                error="Registrations are temporarily closed by the camp admins. Please check back soon.",
+            ), 423
         d = request.get_json(silent=True) or {}
         first = (d.get("first_name") or "").strip()
         last  = (d.get("last_name")  or "").strip()
@@ -1407,6 +1414,18 @@ def register_routes(app):
             "SELECT COUNT(*) AS n FROM registrations WHERE COALESCE(waitlisted, 0) = 1"
         ).fetchone()["n"]
         return jsonify(ok=True, cap=cap, active=active, waitlisted=waitlisted)
+
+    @app.route("/api/settings/registrations-frozen", methods=["GET"])
+    def settings_registrations_frozen():
+        return jsonify(ok=True, frozen=(_meta_get("registrations_frozen", "0") == "1"))
+
+    @app.route("/api/admin/settings/registrations-frozen", methods=["POST"])
+    @require_admin
+    def settings_registrations_frozen_set():
+        d = request.get_json(silent=True) or {}
+        frozen = bool(d.get("frozen"))
+        _meta_set("registrations_frozen", "1" if frozen else "0")
+        return jsonify(ok=True, frozen=frozen)
 
     @app.route("/api/admin/settings/student-cap", methods=["POST"])
     @require_admin

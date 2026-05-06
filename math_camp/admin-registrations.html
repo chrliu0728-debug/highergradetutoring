@@ -178,6 +178,16 @@
     </div>
   </div>
 
+  <!-- ── Registration freeze ── -->
+  <div class="panel" id="freeze-panel" style="display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
+    <div style="flex:1; min-width:240px;">
+      <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Intake control</div>
+      <h2 style="margin:0 0 4px;">🚧 Registrations <span id="freeze-status" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);">— loading…</span></h2>
+      <p style="font-size:.85rem; color:var(--muted); margin:0; line-height:1.5;">Pause new sign-ups entirely (the public form will return a "registrations are closed" message). Existing registrations and the waitlist are untouched.</p>
+    </div>
+    <button id="freeze-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:200px;">Loading…</button>
+  </div>
+
   <!-- ── Student cap control ── -->
   <div class="panel" id="cap-panel">
     <div class="panel-head">
@@ -442,6 +452,60 @@ capSave.addEventListener('click', async () => {
   } finally { capSave.disabled = false; }
 });
 loadCap();
+
+/* ── Registration freeze toggle ── */
+(function () {
+  const statusEl = document.getElementById('freeze-status');
+  const btnEl    = document.getElementById('freeze-btn');
+  const panelEl  = document.getElementById('freeze-panel');
+  if (!btnEl) return;
+  function paint(frozen) {
+    if (frozen) {
+      statusEl.textContent = '— FROZEN';
+      statusEl.style.color = '#B91C1C';
+      btnEl.textContent = 'Reopen registrations 🔓';
+      btnEl.style.background = '#16A34A';
+      btnEl.style.color = 'white';
+      btnEl.style.borderColor = '#16A34A';
+      panelEl.style.background  = 'rgba(220, 38, 38, .04)';
+      panelEl.style.borderColor = '#FCA5A5';
+    } else {
+      statusEl.textContent = '— OPEN';
+      statusEl.style.color = '#0F8A56';
+      btnEl.textContent = 'Freeze registrations 🔒';
+      btnEl.style.background = '#DC2626';
+      btnEl.style.color = 'white';
+      btnEl.style.borderColor = '#DC2626';
+      panelEl.style.background = '';
+      panelEl.style.borderColor = '';
+    }
+  }
+  async function loadFreeze() {
+    try {
+      const r = await fetch('/api/settings/registrations-frozen', { credentials: 'same-origin' });
+      const j = await r.json();
+      paint(!!j.frozen);
+    } catch (_) { statusEl.textContent = '— unavailable'; }
+  }
+  btnEl.addEventListener('click', async () => {
+    const wasFrozen = btnEl.textContent.startsWith('Reopen');
+    if (!wasFrozen && !confirm('Freeze new registrations?\n\nThe public form will return a "registrations are closed" message until you reopen.')) return;
+    btnEl.disabled = true;
+    try {
+      const r = await fetch('/api/admin/settings/registrations-frozen', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frozen: !wasFrozen }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'failed');
+      paint(!!j.frozen);
+    } catch (e) {
+      alert('Failed: ' + e.message);
+    } finally { btnEl.disabled = false; }
+  });
+  loadFreeze();
+})();
 
 exportBtn.addEventListener('click', () => {
   const cols = [
