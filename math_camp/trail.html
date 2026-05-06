@@ -591,6 +591,155 @@
       background: linear-gradient(135deg, #4F8B58, #2F5A3A);
     }
 
+    /* ─────────────────────────────────────────────────────────────
+       STAGE DECORATIONS — pure-CSS foliage scattered through each
+       section so the hidden cranes have plenty of clutter to blend
+       into. Every shape is positioned via inline left/top set in JS
+       (with stable per-stage seeded randomness). All decorations
+       sit BEHIND the question card (z-index < 1) and do not catch
+       pointer events.
+       ─────────────────────────────────────────────────────────────── */
+    .stage-deco {
+      position: absolute;
+      pointer-events: none;
+      z-index: 0;
+      filter: drop-shadow(0 3px 5px rgba(0,0,0,0.45));
+    }
+
+    /* Fern — overlapping leaf blades */
+    .deco-fern {
+      width: 64px; height: 64px;
+    }
+    .deco-fern .blade {
+      position: absolute;
+      left: 50%; bottom: 0;
+      width: 8px; height: 56px;
+      background: linear-gradient(180deg, var(--leaf), var(--leaf-dark));
+      border-radius: 50% 50% 30% 30% / 70% 70% 30% 30%;
+      transform-origin: 50% 100%;
+      box-shadow: inset 1px -2px 4px rgba(0,0,0,0.3);
+    }
+    .deco-fern .blade.b1 { transform: translateX(-50%) rotate(-50deg); }
+    .deco-fern .blade.b2 { transform: translateX(-50%) rotate(-25deg); height: 60px; }
+    .deco-fern .blade.b3 { transform: translateX(-50%) rotate(0deg);   height: 64px; }
+    .deco-fern .blade.b4 { transform: translateX(-50%) rotate(25deg);  height: 60px; }
+    .deco-fern .blade.b5 { transform: translateX(-50%) rotate(50deg); }
+
+    /* Mushroom */
+    .deco-mushroom { width: 36px; height: 38px; }
+    .deco-mushroom .stem {
+      position: absolute; left: 36%; bottom: 0;
+      width: 28%; height: 50%;
+      background: linear-gradient(180deg, #F4E0C2, #C5A66F);
+      border-radius: 30% 30% 40% 40% / 20% 20% 50% 50%;
+    }
+    .deco-mushroom .cap {
+      position: absolute; left: 0; top: 0;
+      width: 100%; height: 60%;
+      background: radial-gradient(circle at 35% 35%, #D14A3B, #7E1F1A);
+      border-radius: 50% 50% 30% 30% / 90% 90% 25% 25%;
+      box-shadow: inset -3px -4px 6px rgba(0,0,0,0.45);
+    }
+    .deco-mushroom .cap::before,
+    .deco-mushroom .cap::after {
+      content: ''; position: absolute;
+      background: rgba(255, 240, 220, 0.75);
+      border-radius: 50%;
+    }
+    .deco-mushroom .cap::before { width: 6px; height: 6px; left: 22%; top: 30%; }
+    .deco-mushroom .cap::after  { width: 4px; height: 4px; left: 60%; top: 50%; }
+    .deco-mushroom.tiny { width: 22px; height: 24px; }
+    .deco-mushroom.brown .cap {
+      background: radial-gradient(circle at 35% 35%, #9C6B3D, #4F3320);
+    }
+
+    /* Flower cluster — 3 colored dots on stems */
+    .deco-flowers { width: 52px; height: 50px; }
+    .deco-flowers .stem {
+      position: absolute; bottom: 0;
+      width: 2px; height: 30px;
+      background: var(--leaf-dark);
+    }
+    .deco-flowers .stem.s1 { left: 10%; }
+    .deco-flowers .stem.s2 { left: 48%; height: 38px; }
+    .deco-flowers .stem.s3 { left: 84%; height: 26px; }
+    .deco-flowers .bloom {
+      position: absolute;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      box-shadow: inset -2px -2px 3px rgba(0,0,0,0.3);
+    }
+    .deco-flowers .bloom.b1 { left: 4%;  bottom: 26px; background: radial-gradient(circle at 30% 30%, #FFD27D, #C28A2E); }
+    .deco-flowers .bloom.b2 { left: 42%; bottom: 34px; background: radial-gradient(circle at 30% 30%, #F4A1C0, #A23E66); }
+    .deco-flowers .bloom.b3 { left: 78%; bottom: 22px; background: radial-gradient(circle at 30% 30%, #E0D2F0, #5B3E7A); width: 9px; height: 9px; }
+
+    /* Pebble cluster — 3 small rocks */
+    .deco-pebbles { width: 48px; height: 22px; }
+    .deco-pebbles .rock {
+      position: absolute;
+      background: linear-gradient(135deg, #8B7C66, #4A4232);
+      border-radius: 50%;
+      box-shadow: inset -2px -3px 4px rgba(0,0,0,0.45);
+    }
+    .deco-pebbles .rock.r1 { width: 22px; height: 14px; left: 0;  bottom: 0; }
+    .deco-pebbles .rock.r2 { width: 16px; height: 10px; left: 18px; bottom: 4px; background: linear-gradient(135deg, #6E5F4A, #2F2818); }
+    .deco-pebbles .rock.r3 { width: 12px; height: 8px;  left: 32px; bottom: 0; }
+
+    /* Twig — a thin diagonal stick with a knot */
+    .deco-twig {
+      width: 70px; height: 14px;
+    }
+    .deco-twig .stick {
+      position: absolute;
+      left: 0; top: 50%;
+      width: 100%; height: 4px;
+      background: linear-gradient(90deg, var(--bark-dark), var(--bark) 35%, var(--bark-dark));
+      border-radius: 4px;
+      transform: translateY(-50%) rotate(var(--twist, 12deg));
+      transform-origin: 50% 50%;
+      box-shadow: 0 2px 3px rgba(0,0,0,0.45);
+    }
+    .deco-twig .stick::before,
+    .deco-twig .stick::after {
+      content: ''; position: absolute;
+      background: var(--bark-dark);
+      border-radius: 50%;
+    }
+    .deco-twig .stick::before { width: 6px; height: 6px; left: 30%; top: -1px; }
+    .deco-twig .stick::after  { width: 5px; height: 5px; left: 65%; top: 0; }
+
+    /* Firefly — pulsing glow */
+    .deco-firefly {
+      width: 8px; height: 8px;
+      background: radial-gradient(circle, rgba(255, 235, 130, 1) 0%, rgba(255, 235, 130, 0) 65%);
+      border-radius: 50%;
+      animation: firefly-pulse var(--dur, 2.6s) ease-in-out infinite;
+      filter: blur(0.6px);
+    }
+    @keyframes firefly-pulse {
+      0%, 100% { opacity: 0.25; transform: scale(0.85); }
+      50%      { opacity: 1;    transform: scale(1.4); }
+    }
+
+    /* Vine — drooping rope of small leaf segments */
+    .deco-vine {
+      width: 14px; height: 90px;
+    }
+    .deco-vine .seg {
+      position: absolute;
+      width: 12px; height: 10px;
+      background: linear-gradient(135deg, var(--leaf), var(--leaf-dark));
+      border-radius: 50% 50% 30% 30%;
+      left: 0;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+    }
+    .deco-vine .seg.v1 { top: 0;  }
+    .deco-vine .seg.v2 { top: 14px; left: 4px; transform: rotate(8deg); }
+    .deco-vine .seg.v3 { top: 28px; }
+    .deco-vine .seg.v4 { top: 42px; left: 4px; transform: rotate(8deg); }
+    .deco-vine .seg.v5 { top: 56px; }
+    .deco-vine .seg.v6 { top: 70px; left: 4px; transform: rotate(8deg); }
+
     /* Hidden trail cranes — tiny, scattered through the foliage */
     .hidden-crane {
       position: absolute;
@@ -1135,10 +1284,10 @@ function onCorrect(idx, wrap) {
       return;
     }
     if (stage.unlocks) {
-      // The crane gets sprinkled somewhere in the already-rendered trail.
-      // The next stage is revealed immediately — finding the crane is the
-      // optional treasure-hunt side of the trail.
-      hideCraneSomewhere(stage.unlocks);
+      // The crane is hidden inside THIS stage's section — the patch of
+      // trail between the log they just cleared and the next one. The
+      // next stage opens regardless; finding the crane is optional.
+      hideCraneSomewhere(stage.unlocks, idx);
     }
     state.idx = idx + 1;
     saveProgress(state);
@@ -1148,14 +1297,14 @@ function onCorrect(idx, wrap) {
 }
 
 /* ── Hidden crane spawn ────────────────────────────────────────
-   Place a tiny crane at a random position inside one of the
-   already-rendered .stage sections. Edge-biased horizontally so it
-   blends with the foliage along the path; random vertically.
+   Place a tiny crane at a random position inside the stage that
+   just got cleared — i.e. on the patch of trail between this log
+   and the next one. Edge-biased horizontally so it blends with
+   the foliage decorations along the path.
    ─────────────────────────────────────────────────────────────── */
-function pickHidingSpot() {
-  const sections = Array.from(stagesContainer.querySelectorAll('.stage'));
-  if (!sections.length) return null;
-  const section = sections[Math.floor(Math.random() * sections.length)];
+function pickHidingSpot(stageIdx) {
+  const section = document.getElementById('stage-' + stageIdx);
+  if (!section) return null;
   // Edge-biased x: 4-26% from left or 74-96% from left
   const leftSide = Math.random() < 0.5;
   const x = leftSide
@@ -1166,8 +1315,8 @@ function pickHidingSpot() {
   return { sectionId: section.id, x, y, tilt };
 }
 
-function hideCraneSomewhere(letter) {
-  const spot = pickHidingSpot();
+function hideCraneSomewhere(letter, stageIdx) {
+  const spot = pickHidingSpot(stageIdx);
   if (!spot) return;
   state.pending.push({ letter, ...spot });
   saveProgress(state);
@@ -1259,8 +1408,71 @@ function appendEndSection() {
 function appendStage(idx) {
   const node = buildStage(idx);
   if (!node) return;
+  decorateStage(node, idx);
   stagesContainer.appendChild(node);
   scrollToElement(node);
+}
+
+/* ── Scatter foliage decorations into a stage section.
+   Each idx gets a stable layout (mulberry32 PRNG seeded by idx) so
+   decorations don't reshuffle when the user reloads mid-trail. The
+   seed offset 0xC0FFEE just keeps the early stages from clustering
+   in identical patterns. ── */
+function _seededRng(seed) {
+  let s = (seed | 0) + 0xC0FFEE;
+  return function () {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function decorateStage(section, idx) {
+  if (getComputedStyle(section).position === 'static') {
+    section.style.position = 'relative';
+  }
+  const rng  = _seededRng(idx + 1);
+  const KINDS = [
+    { html: '<div class="deco-fern"><div class="blade b1"></div><div class="blade b2"></div><div class="blade b3"></div><div class="blade b4"></div><div class="blade b5"></div></div>', size: 64 },
+    { html: '<div class="deco-mushroom"><div class="stem"></div><div class="cap"></div></div>', size: 36 },
+    { html: '<div class="deco-mushroom tiny brown"><div class="stem"></div><div class="cap"></div></div>', size: 22 },
+    { html: '<div class="deco-flowers"><div class="stem s1"></div><div class="stem s2"></div><div class="stem s3"></div><div class="bloom b1"></div><div class="bloom b2"></div><div class="bloom b3"></div></div>', size: 52 },
+    { html: '<div class="deco-pebbles"><div class="rock r1"></div><div class="rock r2"></div><div class="rock r3"></div></div>', size: 48 },
+    { html: '<div class="deco-twig"><div class="stick"></div></div>', size: 70 },
+    { html: '<div class="deco-vine"><div class="seg v1"></div><div class="seg v2"></div><div class="seg v3"></div><div class="seg v4"></div><div class="seg v5"></div><div class="seg v6"></div></div>', size: 14 },
+    { html: '<div class="deco-firefly"></div>', size: 8, glow: true },
+  ];
+  // 9-13 decorations per stage. Edge-bias x like the cranes so the
+  // path itself stays clear; full y-range so they line the whole walk.
+  const count = 9 + Math.floor(rng() * 5);
+  for (let i = 0; i < count; i++) {
+    const kind = KINDS[Math.floor(rng() * KINDS.length)];
+    const leftSide = rng() < 0.5;
+    const x = leftSide
+      ? 1 + rng() * 26
+      : 73 + rng() * 26;
+    const y = 4 + rng() * 90;
+    const tilt = (rng() - 0.5) * 22;
+    const scale = 0.75 + rng() * 0.7;
+    const wrap = document.createElement('div');
+    wrap.className = 'stage-deco';
+    wrap.style.left = x + '%';
+    wrap.style.top  = y + '%';
+    wrap.style.transform = `rotate(${tilt}deg) scale(${scale.toFixed(2)})`;
+    if (kind.glow) {
+      // Vary firefly pulse durations + opacity so a cluster feels alive.
+      wrap.style.setProperty('--dur', (1.6 + rng() * 2.4).toFixed(2) + 's');
+      wrap.style.opacity = (0.6 + rng() * 0.4).toFixed(2);
+    } else {
+      // Slight per-instance opacity drop so layered foliage looks deeper.
+      wrap.style.opacity = (0.78 + rng() * 0.22).toFixed(2);
+    }
+    wrap.innerHTML = kind.html;
+    // Random horizontal flip on half the props for variety.
+    if (rng() < 0.5) wrap.style.scale = '-1 1';
+    section.appendChild(wrap);
+  }
 }
 
 function scrollToElement(el) {
@@ -1352,6 +1564,7 @@ promptEl.addEventListener('click', (e) => {
       const obs = node.querySelector('.obstacle');
       if (obs) obs.style.display = 'none';
     }
+    decorateStage(node, i);
     stagesContainer.appendChild(node);
   }
   // Re-place any cranes that the user spawned but hasn't claimed yet.

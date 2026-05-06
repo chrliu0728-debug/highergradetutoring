@@ -80,6 +80,17 @@ DOOR_REWARD_TIERS = [
 ]
 DOOR_REWARD_FLOOR = 300
 
+# ── Reserved easter-egg email ────────────────────────────────────────
+# burntout@gmail.com is a hidden door (the bedroom scene at /bedroom.html),
+# not a real camper. Block it everywhere a student record could be
+# created or matched so it can never accidentally end up in the students
+# table — nor be wiped by an admin reset.
+RESERVED_STUDENT_EMAILS = {"burntout@gmail.com"}
+
+
+def _is_reserved_email(email):
+    return (email or "").strip().lower() in RESERVED_STUDENT_EMAILS
+
 # ── Vulgar Vault — staff-controlled rotating-code stash ──────────────
 # Admin-applied penalties (manual deductions for bad activities) deposit
 # the lost points into this vault. Students can drain the entire vault
@@ -405,6 +416,10 @@ def register_routes(app):
         pwd   = data.get("password")
         if not email or pwd is None:
             return jsonify(ok=False, error="Email and password required"), 400
+        # Reserved easter-egg emails never have a student record. The
+        # bedroom-door client check on /student-portal.html handles them.
+        if _is_reserved_email(email):
+            return jsonify(ok=False, error="No matching account"), 401
         row = g.db.execute(
             "SELECT * FROM students WHERE LOWER(TRIM(studentEmail)) = ? AND password = ?",
             (email, pwd),
@@ -477,6 +492,8 @@ def register_routes(app):
     @app.route("/api/students", methods=["POST"])
     def create_student():
         data = request.get_json(silent=True) or {}
+        if _is_reserved_email(data.get("studentEmail") or data.get("student_email")):
+            return jsonify(ok=False, error="That email isn't available — it's reserved."), 400
         s = _normalize_student(data)
         _insert_student(s)
         # Best-effort registration confirmation email — never blocks creation.
@@ -496,6 +513,9 @@ def register_routes(app):
         arr = data.get("students") or []
         if not isinstance(arr, list):
             return jsonify(ok=False, error="Body must be { students: [...] }"), 400
+        # Drop any reserved-email rows defensively so they can never get
+        # persisted via a bulk replace from the client.
+        arr = [r for r in arr if not _is_reserved_email(r.get("studentEmail"))]
         with g.db:
             g.db.execute("DELETE FROM students")
             for raw in arr:
@@ -1534,8 +1554,11 @@ def register_routes(app):
         first = (d.get("first_name") or "").strip()
         last  = (d.get("last_name")  or "").strip()
         password = (d.get("password") or "").strip() or None
+        student_email = (d.get("student_email") or "").strip()
         if not first or not last:
             return jsonify(ok=False, error="First and last name are required."), 400
+        if _is_reserved_email(student_email):
+            return jsonify(ok=False, error="That email isn't available — please use a different one."), 400
         # Cap check — count active (non-waitlisted) registrations.
         cap = _student_cap()
         active_count = g.db.execute(
