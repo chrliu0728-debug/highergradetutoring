@@ -688,38 +688,31 @@ async function updateStudentProfile(id, updates) {
   return true;
 }
 
-async function applyPenalty(studentId, amount) {
+/* Penalties + curse deductions hit the server so the lost points
+   are deposited into the Vulgar Vault. After the call returns we
+   patch the local cache with the server's authoritative student
+   record, so callers can re-render immediately. */
+async function _hitPenaltyEndpoint(studentId, amount, path) {
   amount = parseInt(amount, 10) || 0;
-  const students = getStudents();
-  const s = students.find(x => x.id === studentId);
-  if (!s) return { ok: false, error: 'Student not found.' };
-  s.stats = { ...defaultStats(), ...(s.stats || {}) };
-  s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
-  await saveStudents(students);
-  logTransaction({
-    type: 'penalty', scope: 'student',
-    subjectId: studentId, subjectName: studentFullName(s),
-    amount: -amount, description: `Admin penalty −${amount} pts`,
-  });
-  return { ok: true, data: { amount, remaining: s.stats.privatePoints } };
+  if (amount <= 0) return { ok: false, error: 'Pick a positive amount.' };
+  try {
+    const r = await _api(path, { method: 'POST', body: { amount } });
+    if (r && r.ok && r.data && r.data.student) {
+      const idx = HG.cache.students.findIndex(s => s.id === studentId);
+      if (idx >= 0) HG.cache.students[idx] = r.data.student;
+    }
+    return r;
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || 'Network error.' };
+  }
+}
+
+async function applyPenalty(studentId, amount) {
+  return _hitPenaltyEndpoint(studentId, amount, `/admin/students/${encodeURIComponent(studentId)}/penalty`);
 }
 
 async function applyCursePenalty(studentId, amount) {
-  amount = parseInt(amount, 10) || 0;
-  const students = getStudents();
-  const s = students.find(x => x.id === studentId);
-  if (!s) return { ok: false, error: 'Student not found.' };
-  s.stats = { ...defaultStats(), ...(s.stats || {}) };
-  s.stats.privatePoints = Math.max(0, (s.stats.privatePoints || 0) - amount);
-  s.stats.badWords = (s.stats.badWords || 0) + 1;
-  await saveStudents(students);
-  logTransaction({
-    type: 'curse', scope: 'student',
-    subjectId: studentId, subjectName: studentFullName(s),
-    amount: -amount,
-    description: `Curse-word penalty −${amount} pts (bad-word count +1)`,
-  });
-  return { ok: true, data: { amount, remaining: s.stats.privatePoints, badWords: s.stats.badWords } };
+  return _hitPenaltyEndpoint(studentId, amount, `/admin/students/${encodeURIComponent(studentId)}/curse`);
 }
 
 /* ──────────────────────────────────────────────────────────────

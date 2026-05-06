@@ -5,6 +5,8 @@ All endpoints are mounted under /api/* so Caddy can reverse-proxy just that
 prefix while continuing to serve the static site directly.
 """
 
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -77,6 +79,35 @@ DOOR_REWARD_TIERS = [
     ( 50,  450),
 ]
 DOOR_REWARD_FLOOR = 300
+
+# ── Vulgar Vault — staff-controlled rotating-code stash ──────────────
+# Admin-applied penalties (manual deductions for bad activities) deposit
+# the lost points into this vault. Students can drain the entire vault
+# from a widget at the bottom of the leaderboard if they enter the
+# current 5-digit code, which rotates every minute and is only visible
+# to staff in the admin panel.
+VULGAR_VAULT_PERIOD     = 60        # seconds — how often the code rotates
+VULGAR_VAULT_CODE_LEN   = 5
+VULGAR_VAULT_GRACE      = 1         # minutes of look-back accepted on claim
+# The HMAC key is derived from the admin passcode by default so the
+# code is not predictable from public knowledge alone, but admins
+# can override via env var if they want.
+VULGAR_VAULT_SECRET = os.environ.get(
+    "HIGHERGRADE_VAULT_SECRET",
+    "vulgar-vault::" + ADMIN_PASSCODE,
+).encode("utf-8")
+
+
+def _vulgar_code(minute=None):
+    """Return the 5-digit rotating code for the given epoch-minute.
+    Defaults to the current minute. The same minute always yields the
+    same code, so admins and students see matching values within a
+    single rotation window."""
+    if minute is None:
+        minute = int(time.time()) // VULGAR_VAULT_PERIOD
+    digest = hmac.new(VULGAR_VAULT_SECRET, str(minute).encode("ascii"), hashlib.sha256).digest()
+    n = int.from_bytes(digest[:4], "big") % (10 ** VULGAR_VAULT_CODE_LEN)
+    return f"{n:0{VULGAR_VAULT_CODE_LEN}d}"
 
 def reward_for_pct(pct):
     for cutoff, pts in DOOR_REWARD_TIERS:
@@ -941,9 +972,21 @@ def register_routes(app):
                 "UPDATE students SET stats = ?, roles = ? WHERE id = ?",
                 (json.dumps(stats), json.dumps(roles), sid),
             )
+            # Money-tree cost is "spending" — those points go to the
+            # transactions bank (not the Vulgar Vault, which is reserved
+            # for staff-applied penalties). Only the up-front cost flows
+            # in; the doubling reward is generated for the student.
+            bank_prev = int(_meta_get("transactions_bank", "0") or "0")
+            _meta_set("transactions_bank", str(bank_prev + MONEY_TREE_COST))
+            who = _full_name(row)
+            _log_tx(type="bank_deposit", scope="bank",
+                    subjectId="transactions_bank", subjectName="Transactions Bank",
+                    relatedId=sid, relatedName=who,
+                    amount=MONEY_TREE_COST,
+                    description=f"+{MONEY_TREE_COST} pts deposited from {who} · 🌳 Money Tree activation cost")
             _log_tx(type="earn", scope="student", subjectId=sid,
-                    subjectName=_full_name(row), amount=new_priv - cur,
-                    description=f"🌳 Money Tree activated · spent {MONEY_TREE_COST}, doubled remainder · {cur} → {new_priv}")
+                    subjectName=who, amount=new_priv - cur,
+                    description=f"🌳 Money Tree activated · spent {MONEY_TREE_COST} (→ bank), doubled remainder · {cur} → {new_priv}")
         return jsonify(ok=True, data={"newPrivatePoints": new_priv})
 
     @app.route("/api/students/me/money-tree/gift", methods=["POST"])
@@ -1342,6 +1385,131 @@ def register_routes(app):
                     subjectName=to_name, amount=amount,
                     description=f"🏦 Transactions-bank grant · +{amount} pts" + (f" · {note}" if note else ""))
         return jsonify(ok=True, data={"awarded": amount, "newBalance": balance - amount})
+
+    # ── Vulgar Vault — staff penalties + rotating claim code ───────
+    def _apply_penalty(sid, amount, *, kind):
+        """Shared core for penalty + curse: deducts points from the
+        student, deposits them into the Vulgar Vault, logs both sides.
+        Returns (response_dict, status). `kind` is 'penalty' or 'curse'."""
+        if amount <= 0:
+            return {"ok": False, "error": "Amount must be positive."}, 400
+        if amount > 100000:
+            return {"ok": False, "error": "Amount looks suspiciously large."}, 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return {"ok": False, "error": "Student not found."}, 404
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            cur = stats.get("privatePoints", 0)
+            taken = min(cur, amount)  # never go negative
+            stats["privatePoints"] = cur - taken
+            if kind == "curse":
+                stats["badWords"] = stats.get("badWords", 0) + 1
+            g.db.execute("UPDATE students SET stats = ? WHERE id = ?", (json.dumps(stats), sid))
+            who = _full_name(row)
+            # Vault deposit reflects the *requested* penalty amount even
+            # if the student couldn't cover it — staff intent is what
+            # the rule logs.
+            vault_prev = int(_meta_get("vulgar_vault", "0") or "0")
+            _meta_set("vulgar_vault", str(vault_prev + amount))
+            label = "🤬 Curse-word penalty" if kind == "curse" else "⚠️ Admin penalty"
+            _log_tx(type=kind, scope="student", subjectId=sid,
+                    subjectName=who, amount=-taken,
+                    description=f"{label} −{amount} pts" + (f" (only {taken} available)" if taken < amount else "") +
+                                (" (bad-word count +1)" if kind == "curse" else "") +
+                                f" · {amount} → Vulgar Vault")
+            _log_tx(type="vulgar_deposit", scope="bank",
+                    subjectId="vulgar_vault", subjectName="Vulgar Vault",
+                    relatedId=sid, relatedName=who,
+                    amount=amount,
+                    description=f"+{amount} pts from {who} · {label.lower()}")
+        return {
+            "ok": True,
+            "data": {
+                "amount": amount,
+                "remaining": stats["privatePoints"],
+                "badWords": stats.get("badWords", 0),
+                "student": row_to_student(g.db.execute(
+                    "SELECT * FROM students WHERE id = ?", (sid,)
+                ).fetchone()),
+            },
+        }, 200
+
+    @app.route("/api/admin/students/<sid>/penalty", methods=["POST"])
+    @require_admin
+    def admin_student_penalty(sid):
+        d = request.get_json(silent=True) or {}
+        amount = int(d.get("amount") or 0)
+        body, status = _apply_penalty(sid, amount, kind="penalty")
+        return jsonify(body), status
+
+    @app.route("/api/admin/students/<sid>/curse", methods=["POST"])
+    @require_admin
+    def admin_student_curse(sid):
+        d = request.get_json(silent=True) or {}
+        amount = int(d.get("amount") or 0)
+        body, status = _apply_penalty(sid, amount, kind="curse")
+        return jsonify(body), status
+
+    def _vault_state(include_code):
+        balance = int(_meta_get("vulgar_vault", "0") or "0")
+        now = int(time.time())
+        minute = now // VULGAR_VAULT_PERIOD
+        seconds_left = VULGAR_VAULT_PERIOD - (now % VULGAR_VAULT_PERIOD)
+        out = {"ok": True, "balance": balance, "secondsLeft": seconds_left, "rotation": VULGAR_VAULT_PERIOD}
+        if include_code:
+            out["code"] = _vulgar_code(minute)
+        return out
+
+    @app.route("/api/admin/vulgar-vault", methods=["GET"])
+    @require_admin
+    def admin_vulgar_vault():
+        return jsonify(_vault_state(include_code=True))
+
+    @app.route("/api/vulgar-vault/balance", methods=["GET"])
+    def vulgar_vault_balance():
+        return jsonify(_vault_state(include_code=False))
+
+    @app.route("/api/students/me/claim-vulgar-vault", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def claim_vulgar_vault():
+        d = request.get_json(silent=True) or {}
+        code = "".join(ch for ch in str(d.get("code") or "") if ch.isdigit())
+        if len(code) != VULGAR_VAULT_CODE_LEN:
+            return jsonify(ok=False, error=f"Enter the current {VULGAR_VAULT_CODE_LEN}-digit code."), 400
+        # Accept the current minute and the previous one so a student
+        # who reads the code in the last second can still submit.
+        now_minute = int(time.time()) // VULGAR_VAULT_PERIOD
+        valid = any(
+            hmac.compare_digest(_vulgar_code(now_minute - i), code)
+            for i in range(VULGAR_VAULT_GRACE + 1)
+        )
+        if not valid:
+            return jsonify(ok=False, error="That code is wrong or expired. The code rotates every minute."), 403
+        sid = g.session["studentId"]
+        with g.db:
+            balance = int(_meta_get("vulgar_vault", "0") or "0")
+            if balance <= 0:
+                return jsonify(ok=False, error="The Vulgar Vault is empty right now."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            stats["privatePoints"]     = stats.get("privatePoints", 0) + balance
+            stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + balance
+            g.db.execute("UPDATE students SET stats = ? WHERE id = ?", (json.dumps(stats), sid))
+            _meta_set("vulgar_vault", "0")
+            who = _full_name(row)
+            _log_tx(type="vulgar_claim", scope="bank",
+                    subjectId="vulgar_vault", subjectName="Vulgar Vault",
+                    relatedId=sid, relatedName=who,
+                    amount=-balance,
+                    description=f"−{balance} pts drained → {who} (correct rotating code)")
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=who, amount=balance,
+                    description=f"🤐 Vulgar Vault claim · +{balance} pts (entered the rotating code)")
+        return jsonify(ok=True, data={"awarded": balance, "newBalance": 0})
 
     # ── Camp registration intake ────────────────────────────────────
     DEFAULT_STUDENT_CAP = 40

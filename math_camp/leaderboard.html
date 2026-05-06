@@ -219,6 +219,39 @@
 
 <div id="lb-content"></div>
 
+<!-- ── Vulgar Vault claim widget ── -->
+<section id="vault-section" style="max-width:720px; margin:0 auto 80px; padding:0 20px;">
+  <div style="background:linear-gradient(135deg, rgba(124,58,237,.07), rgba(220,38,38,.05)); border:1px solid rgba(124,58,237,.22); border-radius:18px; padding:26px 28px; box-shadow:0 12px 32px rgba(124,58,237,.08);">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+      <div style="font-size:1.6rem;">🤐</div>
+      <div>
+        <h3 style="margin:0; font-size:1.15rem;">Vulgar Vault</h3>
+        <p style="margin:0; font-size:.85rem; color:var(--muted);">Lost points from staff-issued penalties pile up here. Got the rotating code? Claim the whole stash.</p>
+      </div>
+      <div style="margin-left:auto; text-align:right;">
+        <div style="font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em;">Up for grabs</div>
+        <div id="vault-balance" style="font-size:1.4rem; font-weight:800; color:#7C3AED; font-variant-numeric: tabular-nums;">— pts</div>
+      </div>
+    </div>
+    <div id="vault-locked" style="display:none; margin-top:10px; padding:12px 14px; background:rgba(255,255,255,.55); border:1px dashed rgba(124,58,237,.35); border-radius:10px; font-size:.88rem; color:var(--text-mid); line-height:1.5;">
+      Sign in to your camp account to claim. Profile → bottom of leaderboard.
+    </div>
+    <div id="vault-form" style="display:none; margin-top:10px;">
+      <label for="vault-code-input" style="font-size:.78rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:6px;">Enter the 5-digit code</label>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:stretch;">
+        <input type="text" id="vault-code-input" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="•••••"
+          style="flex:1; min-width:140px; padding:12px 14px; font-size:1.4rem; font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing:.18em; text-align:center; border:1.5px solid rgba(124,58,237,.35); border-radius:10px; background:rgba(255,255,255,.7); outline:none; font-variant-numeric:tabular-nums;" />
+        <button id="vault-claim-btn" type="button"
+          style="background:linear-gradient(135deg, #7C3AED, #5B21B6); color:white; border:none; padding:0 22px; font-weight:700; font-size:.95rem; border-radius:10px; cursor:pointer; min-width:160px;">Claim 🤐</button>
+      </div>
+      <div id="vault-msg" style="font-size:.86rem; margin-top:8px; min-height:1.2em;"></div>
+    </div>
+    <div id="vault-empty" style="display:none; margin-top:10px; padding:12px 14px; background:rgba(255,255,255,.55); border:1px dashed rgba(124,58,237,.35); border-radius:10px; font-size:.88rem; color:var(--muted);">
+      The vault is empty right now — wait for the next penalty to land here.
+    </div>
+  </div>
+</section>
+
 <script src="students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
@@ -323,6 +356,94 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
 
   html += `</div>`;
   root.innerHTML = html;
+})();
+
+/* ── Vulgar Vault claim widget ── */
+(async function () {
+  if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
+  const balEl   = document.getElementById('vault-balance');
+  const formEl  = document.getElementById('vault-form');
+  const lockEl  = document.getElementById('vault-locked');
+  const emptyEl = document.getElementById('vault-empty');
+  const inputEl = document.getElementById('vault-code-input');
+  const btnEl   = document.getElementById('vault-claim-btn');
+  const msgEl   = document.getElementById('vault-msg');
+  if (!balEl) return;
+
+  const isStudent = !!getLoggedInStudent();
+  let balance = 0;
+
+  function paint() {
+    balEl.textContent = balance.toLocaleString() + ' pts';
+    if (!isStudent) {
+      lockEl.style.display = '';
+      formEl.style.display = 'none';
+      emptyEl.style.display = 'none';
+      return;
+    }
+    lockEl.style.display = 'none';
+    if (balance <= 0) {
+      formEl.style.display = 'none';
+      emptyEl.style.display = '';
+    } else {
+      formEl.style.display = '';
+      emptyEl.style.display = 'none';
+    }
+  }
+  async function refresh() {
+    try {
+      const r = await fetch('/api/vulgar-vault/balance', { credentials: 'same-origin' });
+      const j = await r.json();
+      balance = (j && j.ok) ? (j.balance || 0) : 0;
+    } catch (_) { balance = 0; }
+    paint();
+  }
+  refresh();
+  setInterval(refresh, 20000);
+
+  inputEl && inputEl.addEventListener('input', () => {
+    inputEl.value = inputEl.value.replace(/\D/g, '').slice(0, 5);
+    msgEl.textContent = '';
+  });
+  inputEl && inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); btnEl.click(); }
+  });
+
+  btnEl && btnEl.addEventListener('click', async () => {
+    const code = (inputEl.value || '').trim();
+    if (code.length !== 5) {
+      msgEl.textContent = 'Enter all 5 digits.';
+      msgEl.style.color = '#B91C1C';
+      inputEl.focus();
+      return;
+    }
+    btnEl.disabled = true;
+    msgEl.textContent = '';
+    try {
+      const r = await fetch('/api/students/me/claim-vulgar-vault', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'Claim failed.');
+      msgEl.style.color = '#0F8A56';
+      msgEl.textContent = `🎉 Claimed +${(j.data.awarded || 0).toLocaleString()} pts! Vault is now empty.`;
+      inputEl.value = '';
+      balance = 0;
+      paint();
+      // Refresh leaderboard data so the claimer's totals update.
+      if (typeof HG !== 'undefined' && HG.refresh) {
+        HG.refresh();
+      }
+    } catch (e) {
+      msgEl.style.color = '#B91C1C';
+      msgEl.textContent = e.message || 'Claim failed.';
+      // Bad code attempts don't change balance, but the user might
+      // have raced the rotation — refresh to be safe.
+      refresh();
+    } finally { btnEl.disabled = false; }
+  });
 })();
 
 // Back-to-top button

@@ -394,6 +394,31 @@
     <div id="bank-msg" style="font-size:.85rem; margin-top:8px; min-height:1.2em;"></div>
   </div>
 
+  <!-- ── Vulgar Vault: rotating-code stash for staff penalties ── -->
+  <div id="vulgar-card" style="background:linear-gradient(135deg, rgba(124,58,237,.07), rgba(220,38,38,.05)); border:1px solid rgba(124,58,237,.22); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm);">
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
+      <div style="flex:1; min-width:260px;">
+        <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#7C3AED; margin-bottom:4px;">Staff-only stash</div>
+        <h2 style="font-size:1.1rem; margin:0 0 4px;">🤐 Vulgar Vault</h2>
+        <p style="font-size:.88rem; color:var(--muted); margin:0; line-height:1.5;">Every penalty / curse-word deduction lands here. The 5-digit claim code below rotates every minute — share it with whichever student you've decided should redeem the points (a reward for behaviour, a class race, etc.). Students enter it at the bottom of the leaderboard.</p>
+      </div>
+      <div style="text-align:right; min-width:180px;">
+        <div style="font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em;">Vault balance</div>
+        <div id="vulgar-balance" style="font-size:1.7rem; font-weight:800; color:#7C3AED; font-variant-numeric: tabular-nums;">— pts</div>
+      </div>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px;">
+      <div style="flex:1; min-width:220px; background:rgba(255,255,255,.65); border:1.5px dashed rgba(124,58,237,.45); border-radius:12px; padding:14px 18px;">
+        <div style="font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px;">Current claim code</div>
+        <div id="vulgar-code" style="font-size:2.2rem; font-weight:800; letter-spacing:.18em; color:#3B0764; font-variant-numeric: tabular-nums; font-family: ui-monospace, 'SF Mono', Menlo, monospace;">— — — — —</div>
+        <div id="vulgar-rotation" style="font-size:.78rem; color:var(--muted); margin-top:4px;">Rotates in <span id="vulgar-countdown">—</span>s</div>
+      </div>
+      <div style="font-size:.82rem; color:var(--muted); flex-basis:240px; line-height:1.5;">
+        Don't post this code anywhere public — it's a one-minute window, but if you tell the whole camp at once, whoever types fastest wins everything.
+      </div>
+    </div>
+  </div>
+
   <!-- ── Camp-wide controls: point freeze ── -->
   <div id="freeze-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm); display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
     <div style="flex:1; min-width:260px;">
@@ -946,6 +971,55 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
 
   refreshBalance();
   loadStudents();
+})();
+
+/* ── Vulgar Vault — rotating-code + balance panel ── */
+(function () {
+  const balEl = document.getElementById('vulgar-balance');
+  const codeEl = document.getElementById('vulgar-code');
+  const cdEl   = document.getElementById('vulgar-countdown');
+  if (!balEl || !codeEl) return;
+  let lastCode = null;
+  async function refresh() {
+    try {
+      const r = await fetch('/api/admin/vulgar-vault', { credentials: 'same-origin' });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'failed');
+      balEl.textContent = (j.balance || 0).toLocaleString() + ' pts';
+      const code = j.code || '—————';
+      if (code !== lastCode) {
+        codeEl.textContent = code.split('').join(' ');
+        codeEl.style.transition = 'opacity .2s';
+        codeEl.style.opacity = '0';
+        setTimeout(() => { codeEl.style.opacity = '1'; }, 60);
+        lastCode = code;
+      }
+      let left = Math.max(0, parseInt(j.secondsLeft, 10) || 0);
+      cdEl.textContent = left;
+      // Tick the countdown locally; refetch when it hits zero so we
+      // pick up the new code without polling the server every second.
+      if (window.__vulgarTimer) clearInterval(window.__vulgarTimer);
+      window.__vulgarTimer = setInterval(() => {
+        left = Math.max(0, left - 1);
+        cdEl.textContent = left;
+        if (left <= 0) {
+          clearInterval(window.__vulgarTimer);
+          refresh();
+        }
+      }, 1000);
+    } catch (_) {
+      balEl.textContent = '— pts';
+      codeEl.textContent = '— — — — —';
+      cdEl.textContent = '—';
+    }
+  }
+  refresh();
+  // Poll every 30s as a safety net (e.g. after admins stay logged in
+  // overnight and the page tab loses focus → JS timers throttle).
+  setInterval(refresh, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh();
+  });
 })();
 
 /* ── Point-transaction freeze toggle ── */
