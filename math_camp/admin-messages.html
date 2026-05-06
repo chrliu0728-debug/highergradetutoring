@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Messages Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="logo.webp" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1300px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text-mid);
+      text-decoration: none;
+      border-radius: 8px;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: flex; gap: 18px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px 28px; margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon { font-size: 2rem; }
+    .admin-welcome h1 { font-size: 1.3rem; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .92rem; color: var(--muted); margin: 0; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+    .panel-head {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 12px;
+    }
+    .panel-head h2 { font-size: 1.05rem; }
+    .panel-head .count { font-size: .85rem; color: var(--muted); }
+    .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-tidy {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 14px; font-size: .85rem;
+      border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .btn-tidy:hover { background: var(--blush-bg); border-color: var(--blush); color: var(--blush-dark); }
+
+    .filter-row {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      align-items: center; margin-bottom: 14px;
+    }
+    .filter-row input {
+      flex: 1; min-width: 220px;
+      padding: 9px 14px; font-size: .9rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none;
+    }
+    .filter-row input:focus { border-color: var(--blush); background: white; }
+    .filter-pill {
+      padding: 7px 13px; font-size: .82rem; font-weight: 600;
+      border: 1.5px solid var(--border); background: var(--surface2);
+      color: var(--text-mid); border-radius: 999px; cursor: pointer;
+    }
+    .filter-pill.active {
+      background: var(--blush); color: white; border-color: var(--blush);
+    }
+
+    .msg-list { display: flex; flex-direction: column; gap: 12px; }
+    .msg-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .msg-card.unread {
+      border-color: var(--blush);
+      background: linear-gradient(180deg, rgba(232,128,138,.05), var(--surface));
+    }
+    .msg-head {
+      display: flex; align-items: flex-start; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 6px;
+    }
+    .msg-name {
+      font-weight: 700; font-size: 1rem; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .msg-source-pill {
+      font-size: .7rem; font-weight: 700; padding: 2px 8px;
+      border-radius: 999px; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .msg-source-pill.contact { background: #DBEAFE; color: #1E40AF; }
+    .msg-source-pill.sponsor { background: #FEF3C7; color: #92400E; }
+    .msg-unread-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--blush); flex-shrink: 0;
+    }
+    .msg-meta {
+      font-size: .8rem; color: var(--muted);
+      display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto;
+    }
+    .msg-meta a { color: var(--blush-dark); text-decoration: none; font-weight: 600; }
+    .msg-meta a:hover { text-decoration: underline; }
+    .msg-type {
+      display: inline-block; font-size: .78rem; color: var(--text-mid);
+      background: var(--surface2); padding: 2px 8px; border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .msg-body {
+      font-size: .92rem; line-height: 1.6; color: var(--text);
+      white-space: pre-wrap; margin-top: 6px;
+      padding: 10px 14px; background: var(--surface2);
+      border-radius: 10px; border-left: 3px solid var(--border);
+    }
+    .msg-card.unread .msg-body { border-left-color: var(--blush); }
+    .msg-actions {
+      display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+    }
+    .msg-actions button {
+      font-size: .82rem; padding: 6px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text); font-weight: 600; cursor: pointer;
+    }
+    .msg-actions button:hover { background: var(--blush-bg); border-color: var(--blush); color: var(--blush-dark); }
+    .msg-actions .btn-delete:hover { background: #FEE2E2; border-color: #FCA5A5; color: #991B1B; }
+
+    .empty {
+      padding: 50px 20px; text-align: center; color: var(--muted); font-size: .92rem;
+    }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--text); color: white;
+      padding: 12px 18px; border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      font-size: .9rem; opacity: 0; pointer-events: none;
+      transition: opacity .2s ease; z-index: 1000;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to view contact messages.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px; font-size:.78rem; color:var(--muted);">
+      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="admin.html">Staff</a>
+    <a href="admin-students.html">Students</a>
+    <a href="admin-classes.html">Classes</a>
+    <a href="admin-base-stats.html">Base Stats</a>
+    <a href="admin-transactions.html">Transactions</a>
+    <a href="admin-hints.html">Game</a>
+    <a href="admin-registrations.html">Registrations</a>
+    <a href="admin-messages.html" class="active">Messages</a>
+    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="index.html" data-admin-logout>Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">📨</div>
+    <div>
+      <h1>Inbox</h1>
+      <p>Messages submitted from the public Contact form and sponsor pop-ups. Reply directly via email when you want to — visitors are not promised an automated response.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>📬 All messages</h2>
+        <span class="count" id="msg-count">—</span>
+      </div>
+      <div class="panel-actions">
+        <button class="btn-tidy" id="refresh-btn">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <input id="search-input" placeholder="Search by name, email, organization, message…" />
+      <button class="filter-pill active" data-filter="all">All</button>
+      <button class="filter-pill" data-filter="unread">Unread</button>
+      <button class="filter-pill" data-filter="contact">Contact form</button>
+      <button class="filter-pill" data-filter="sponsor">Sponsor inquiries</button>
+    </div>
+
+    <div id="msg-list" class="msg-list"></div>
+    <div id="msg-empty" class="empty" style="display:none;">No messages match your filter.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const gate      = document.getElementById('gate');
+const shell     = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+const listEl    = document.getElementById('msg-list');
+const emptyEl   = document.getElementById('msg-empty');
+const countEl   = document.getElementById('msg-count');
+const searchEl  = document.getElementById('search-input');
+const refreshEl = document.getElementById('refresh-btn');
+const toastEl   = document.getElementById('toast');
+const filterPills = document.querySelectorAll('.filter-pill');
+
+let DATA = [];
+let activeFilter = 'all';
+let toastTimer = null;
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function passesFilter(m) {
+  if (activeFilter === 'unread')  return !m.isRead;
+  if (activeFilter === 'contact') return m.source === 'contact';
+  if (activeFilter === 'sponsor') return m.source === 'sponsor';
+  return true;
+}
+
+function passesSearch(m, q) {
+  if (!q) return true;
+  const hay = [m.name, m.email, m.org, m.message, m.type].map(s => (s || '').toLowerCase()).join(' ');
+  return hay.includes(q);
+}
+
+function render() {
+  const q = (searchEl.value || '').trim().toLowerCase();
+  const rows = DATA.filter(m => passesFilter(m) && passesSearch(m, q));
+  countEl.textContent = `${rows.length} of ${DATA.length}`;
+  listEl.innerHTML = '';
+  emptyEl.style.display = rows.length ? 'none' : 'block';
+  rows.forEach(m => {
+    const card = document.createElement('div');
+    card.className = 'msg-card' + (m.isRead ? '' : ' unread');
+    const sourceLabel = m.source === 'sponsor' ? 'Sponsor' : 'Contact';
+    const subjectLine = m.source === 'sponsor'
+      ? (m.type || 'Sponsorship inquiry')
+      : (m.type || 'General Inquiry');
+    const bodyText = (m.message || '').trim() || '(no message provided)';
+    card.innerHTML = `
+      <div class="msg-head">
+        <div class="msg-name">
+          ${m.isRead ? '' : '<span class="msg-unread-dot"></span>'}
+          ${escHtml(m.name || '(no name)')}
+          <span class="msg-source-pill ${m.source === 'sponsor' ? 'sponsor' : 'contact'}">${sourceLabel}</span>
+        </div>
+        <div class="msg-meta">
+          <span>📅 ${escHtml(fmtTime(m.createdAt))}</span>
+          ${m.email ? `<a href="mailto:${escHtml(m.email)}">📧 ${escHtml(m.email)}</a>` : ''}
+          ${m.org ? `<span>🏢 ${escHtml(m.org)}</span>` : ''}
+        </div>
+      </div>
+      <div class="msg-type">${escHtml(subjectLine)}</div>
+      <div class="msg-body">${escHtml(bodyText)}</div>
+      <div class="msg-actions">
+        <button data-action="toggle-read">${m.isRead ? 'Mark as unread' : 'Mark as read'}</button>
+        ${m.email ? `<button data-action="reply">Reply via email →</button>` : ''}
+        <button data-action="delete" class="btn-delete">Delete</button>
+      </div>
+    `;
+    card.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      if (action === 'toggle-read') {
+        await markRead(m.id, !m.isRead);
+      } else if (action === 'reply') {
+        const subj = encodeURIComponent(`Re: ${subjectLine}`);
+        window.location.href = `mailto:${m.email}?subject=${subj}`;
+        if (!m.isRead) await markRead(m.id, true);
+      } else if (action === 'delete') {
+        if (!confirm(`Delete the message from ${m.name || m.email || 'this sender'}? This cannot be undone.`)) return;
+        await deleteMsg(m.id);
+      }
+    });
+    listEl.appendChild(card);
+  });
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/admin/contact-messages', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    DATA = (j.messages || []).map(m => ({ ...m, isRead: !!m.isRead }));
+    render();
+  } catch (e) {
+    countEl.textContent = 'failed to load';
+    listEl.innerHTML = `<div class="empty">Couldn't load messages: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function markRead(id, read) {
+  try {
+    const r = await fetch(`/api/admin/contact-messages/${encodeURIComponent(id)}/read`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const m = DATA.find(x => x.id === id);
+    if (m) m.isRead = !!j.read;
+    render();
+    showToast(j.read ? 'Marked as read' : 'Marked as unread');
+  } catch (e) { showToast('Failed: ' + e.message); }
+}
+
+async function deleteMsg(id) {
+  try {
+    const r = await fetch(`/api/admin/contact-messages/${encodeURIComponent(id)}`, {
+      method: 'DELETE', credentials: 'same-origin',
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    DATA = DATA.filter(x => x.id !== id);
+    render();
+    showToast('Deleted');
+  } catch (e) { showToast('Failed: ' + e.message); }
+}
+
+filterPills.forEach(pill => {
+  pill.addEventListener('click', () => {
+    filterPills.forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    activeFilter = pill.dataset.filter;
+    render();
+  });
+});
+searchEl.addEventListener('input', render);
+refreshEl.addEventListener('click', load);
+
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      load();
+      return;
+    }
+  } catch (_) {}
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+}
+(async function () {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      load();
+    } else {
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = '';
+      shell.classList.remove('unlocked');
+    }
+  } catch (_) {}
+})();
+
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest('a[data-admin-logout]');
+  if (!a) return;
+  e.preventDefault();
+  sessionStorage.removeItem('hg_admin_unlocked');
+  try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+  window.location.href = a.getAttribute('href') || 'index.html';
+});
+</script>
+</body>
+</html>

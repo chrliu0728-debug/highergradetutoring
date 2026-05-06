@@ -277,7 +277,9 @@ def register_routes(app):
     def health():
         return jsonify(ok=True, ts=int(time.time()))
 
-    # ── Public email endpoints ─────────────────────────────────────
+    # ── Public inbound-message endpoints ───────────────────────────
+    # Saves to the contact_messages table — admins read them in the
+    # /admin-messages.html dashboard rather than receiving an email.
     @app.route("/api/contact", methods=["POST"])
     def contact_form():
         data = request.get_json(silent=True) or {}
@@ -290,22 +292,13 @@ def register_routes(app):
             return jsonify(ok=False, error="Name, email, and message are required."), 400
         if "@" not in email or len(message) > 5000 or len(name) > 200:
             return jsonify(ok=False, error="Invalid input."), 400
-
-        subject = f"[Contact form] {type_} from {name}"
-        body = (
-            f"Name: {name}\n"
-            f"Email: {email}\n"
-            f"Organization / School: {org or '(not provided)'}\n"
-            f"Inquiry type: {type_}\n\n"
-            f"Message:\n{message}\n\n"
-            f"---\nSent from {SITE_URL}/support.html\n"
+        mid = "msg-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO contact_messages
+               (id, createdAt, source, type, name, email, org, message, isRead)
+               VALUES (?, ?, 'contact', ?, ?, ?, ?, ?, 0)""",
+            (mid, int(time.time()), type_, name, email, org or None, message),
         )
-        sent = send_email(ORGANIZER_EMAIL, subject, body, reply_to=email)
-        if not sent:
-            return jsonify(
-                ok=False,
-                error=f"Couldn't send right now. Please email {ORGANIZER_EMAIL} directly."
-            ), 502
         return jsonify(ok=True)
 
     @app.route("/api/sponsor-inquiry", methods=["POST"])
@@ -329,23 +322,39 @@ def register_routes(app):
         if "@" not in email or len(name) > 200:
             return jsonify(ok=False, error="Invalid input."), 400
 
-        body = (
-            f"Sponsorship interest: {title}\n\n"
-            f"Name: {name}\n"
-            f"Email: {email}\n"
-            f"Organization: {org or '(not provided)'}\n"
-            + (f"\nNotes from sender:\n{notes}\n" if notes else "")
-            + f"\n---\nThis person clicked the {title} button on the support page.\n"
-            f"Reply to this email to reach them — Reply-To is set to their address.\n"
-            f"Sent from {SITE_URL}/support.html\n"
+        mid = "msg-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO contact_messages
+               (id, createdAt, source, type, name, email, org, message, isRead)
+               VALUES (?, ?, 'sponsor', ?, ?, ?, ?, ?, 0)""",
+            (mid, int(time.time()), title, name, email, org or None, notes or None),
         )
-        sent = send_email(ORGANIZER_EMAIL, title, body, reply_to=email)
-        if not sent:
-            return jsonify(
-                ok=False,
-                error=f"Couldn't send right now. Please email {ORGANIZER_EMAIL} directly."
-            ), 502
         return jsonify(ok=True)
+
+    # ── Admin: contact-message inbox ───────────────────────────────
+    @app.route("/api/admin/contact-messages", methods=["GET"])
+    @require_admin
+    def admin_contact_messages():
+        rows = g.db.execute(
+            "SELECT * FROM contact_messages ORDER BY createdAt DESC"
+        ).fetchall()
+        return jsonify(ok=True, messages=[dict(r) for r in rows])
+
+    @app.route("/api/admin/contact-messages/<mid>", methods=["DELETE"])
+    @require_admin
+    def admin_contact_message_delete(mid):
+        g.db.execute("DELETE FROM contact_messages WHERE id = ?", (mid,))
+        return jsonify(ok=True)
+
+    @app.route("/api/admin/contact-messages/<mid>/read", methods=["POST"])
+    @require_admin
+    def admin_contact_message_read(mid):
+        d = request.get_json(silent=True) or {}
+        is_read = 1 if d.get("read", True) else 0
+        g.db.execute(
+            "UPDATE contact_messages SET isRead = ? WHERE id = ?", (is_read, mid)
+        )
+        return jsonify(ok=True, read=bool(is_read))
 
     # ── Auth ───────────────────────────────────────────────────────
     @app.route("/api/auth/me", methods=["GET"])
@@ -1350,6 +1359,7 @@ def register_routes(app):
             return jsonify(
                 ok=False,
                 frozen=True,
+                reason=(_meta_get("registrations_frozen_reason", "") or ""),
                 error="Registrations are temporarily closed by the camp admins. Please check back soon.",
             ), 423
         d = request.get_json(silent=True) or {}
@@ -1417,15 +1427,24 @@ def register_routes(app):
 
     @app.route("/api/settings/registrations-frozen", methods=["GET"])
     def settings_registrations_frozen():
-        return jsonify(ok=True, frozen=(_meta_get("registrations_frozen", "0") == "1"))
+        return jsonify(
+            ok=True,
+            frozen=(_meta_get("registrations_frozen", "0") == "1"),
+            reason=(_meta_get("registrations_frozen_reason", "") or ""),
+        )
 
     @app.route("/api/admin/settings/registrations-frozen", methods=["POST"])
     @require_admin
     def settings_registrations_frozen_set():
         d = request.get_json(silent=True) or {}
         frozen = bool(d.get("frozen"))
+        # Reason is only meaningful while frozen; clear it on reopen.
+        reason = (d.get("reason") or "").strip()
+        if len(reason) > 1000:
+            reason = reason[:1000]
         _meta_set("registrations_frozen", "1" if frozen else "0")
-        return jsonify(ok=True, frozen=frozen)
+        _meta_set("registrations_frozen_reason", reason if frozen else "")
+        return jsonify(ok=True, frozen=frozen, reason=reason if frozen else "")
 
     @app.route("/api/admin/settings/student-cap", methods=["POST"])
     @require_admin

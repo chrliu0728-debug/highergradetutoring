@@ -165,6 +165,7 @@
     <a href="admin-transactions.html">Transactions</a>
     <a href="admin-hints.html">Game</a>
     <a href="admin-registrations.html" class="active">Registrations</a>
+    <a href="admin-messages.html">Messages</a>
     <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
     <a href="index.html" data-admin-logout>Log out</a>
@@ -179,13 +180,24 @@
   </div>
 
   <!-- ── Registration freeze ── -->
-  <div class="panel" id="freeze-panel" style="display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
-    <div style="flex:1; min-width:240px;">
-      <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Intake control</div>
-      <h2 style="margin:0 0 4px;">🚧 Registrations <span id="freeze-status" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);">— loading…</span></h2>
-      <p style="font-size:.85rem; color:var(--muted); margin:0; line-height:1.5;">Pause new sign-ups entirely (the public form will return a "registrations are closed" message). Existing registrations and the waitlist are untouched.</p>
+  <div class="panel" id="freeze-panel" style="display:block;">
+    <div style="display:flex; flex-wrap:wrap; align-items:flex-start; gap:18px; justify-content:space-between;">
+      <div style="flex:1; min-width:240px;">
+        <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Intake control</div>
+        <h2 style="margin:0 0 4px;">🚧 Registrations <span id="freeze-status" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);">— loading…</span></h2>
+        <p style="font-size:.85rem; color:var(--muted); margin:0; line-height:1.5;">Pause new sign-ups entirely. Visitors who open the registration page will see a pop-up with the reason you write below — the form is hidden until you reopen.</p>
+      </div>
+      <button id="freeze-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:200px;">Loading…</button>
     </div>
-    <button id="freeze-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:200px;">Loading…</button>
+    <div style="margin-top:14px;">
+      <label for="freeze-reason" style="font-size:.78rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:6px;">
+        Reason shown to visitors <span style="color:var(--muted); font-weight:500;">(written each time you freeze — students see this in the pop-up)</span>
+      </label>
+      <textarea id="freeze-reason" rows="3" maxlength="1000"
+        placeholder="e.g. We hit our 40-student cap for this summer — we'll re-open if a spot opens up. Thanks for your interest!"
+        style="width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font-size:.92rem; font-family:inherit; resize:vertical; background:var(--surface);"></textarea>
+      <div id="freeze-reason-msg" style="font-size:.78rem; color:var(--muted); margin-top:4px; min-height:1em;"></div>
+    </div>
   </div>
 
   <!-- ── Student cap control ── -->
@@ -458,8 +470,10 @@ loadCap();
   const statusEl = document.getElementById('freeze-status');
   const btnEl    = document.getElementById('freeze-btn');
   const panelEl  = document.getElementById('freeze-panel');
+  const reasonEl = document.getElementById('freeze-reason');
+  const reasonMsg = document.getElementById('freeze-reason-msg');
   if (!btnEl) return;
-  function paint(frozen) {
+  function paint(frozen, reason) {
     if (frozen) {
       statusEl.textContent = '— FROZEN';
       statusEl.style.color = '#B91C1C';
@@ -469,6 +483,9 @@ loadCap();
       btnEl.style.borderColor = '#16A34A';
       panelEl.style.background  = 'rgba(220, 38, 38, .04)';
       panelEl.style.borderColor = '#FCA5A5';
+      reasonEl.disabled = true;
+      reasonEl.style.opacity = '.7';
+      if (reasonMsg) reasonMsg.textContent = 'Frozen — visitors see this message. Reopen to edit.';
     } else {
       statusEl.textContent = '— OPEN';
       statusEl.style.color = '#0F8A56';
@@ -478,28 +495,48 @@ loadCap();
       btnEl.style.borderColor = '#DC2626';
       panelEl.style.background = '';
       panelEl.style.borderColor = '';
+      reasonEl.disabled = false;
+      reasonEl.style.opacity = '1';
+      if (reasonMsg) reasonMsg.textContent = '';
     }
+    if (typeof reason === 'string') reasonEl.value = reason;
   }
   async function loadFreeze() {
     try {
       const r = await fetch('/api/settings/registrations-frozen', { credentials: 'same-origin' });
       const j = await r.json();
-      paint(!!j.frozen);
+      paint(!!j.frozen, j.reason || '');
     } catch (_) { statusEl.textContent = '— unavailable'; }
   }
   btnEl.addEventListener('click', async () => {
     const wasFrozen = btnEl.textContent.startsWith('Reopen');
-    if (!wasFrozen && !confirm('Freeze new registrations?\n\nThe public form will return a "registrations are closed" message until you reopen.')) return;
+    let payload;
+    if (!wasFrozen) {
+      const reason = (reasonEl.value || '').trim();
+      if (!reason) {
+        reasonEl.focus();
+        if (reasonMsg) {
+          reasonMsg.textContent = 'Write a reason — visitors will see this in the pop-up.';
+          reasonMsg.style.color = '#B91C1C';
+          setTimeout(() => { reasonMsg.style.color = 'var(--muted)'; }, 2400);
+        }
+        return;
+      }
+      if (!confirm(`Freeze new registrations?\n\nVisitors who try to register will see a pop-up with this reason:\n\n"${reason}"`)) return;
+      payload = { frozen: true, reason };
+    } else {
+      payload = { frozen: false };
+    }
     btnEl.disabled = true;
     try {
       const r = await fetch('/api/admin/settings/registrations-frozen', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frozen: !wasFrozen }),
+        body: JSON.stringify(payload),
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'failed');
-      paint(!!j.frozen);
+      paint(!!j.frozen, j.reason || '');
     } catch (e) {
       alert('Failed: ' + e.message);
     } finally { btnEl.disabled = false; }

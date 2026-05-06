@@ -114,6 +114,20 @@ CREATE TABLE IF NOT EXISTS infinity_questions (
 );
 CREATE INDEX IF NOT EXISTS idx_inf_pos ON infinity_questions(position);
 
+-- Contact-form / sponsor-inquiry submissions (replaces the email-only flow).
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id          TEXT PRIMARY KEY,
+  createdAt   INTEGER NOT NULL,
+  source      TEXT NOT NULL,           -- 'contact' | 'sponsor'
+  type        TEXT,                    -- e.g. 'sponsor-gold', 'donate', 'other'
+  name        TEXT,
+  email       TEXT,
+  org         TEXT,
+  message     TEXT,
+  isRead      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_msg_at ON contact_messages(createdAt);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,

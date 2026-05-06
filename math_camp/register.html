@@ -13,29 +13,96 @@
   <style id="auth-cloak">html { visibility: hidden; }</style>
   <script>
     (function () {
+      function reveal() {
+        const c = document.getElementById('auth-cloak');
+        if (c) c.remove();
+      }
       // Fast-path on repeat visits inside the same tab.
       if (sessionStorage.getItem('hg_signed_in_student') === '1') {
         window.location.replace('trail.html');
         return;
       }
-      fetch('/api/auth/me', { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(j => {
-          if (j && j.kind === 'student') {
-            sessionStorage.setItem('hg_signed_in_student', '1');
-            window.location.replace('trail.html');
-          } else {
-            sessionStorage.removeItem('hg_signed_in_student');
-            const c = document.getElementById('auth-cloak');
-            if (c) c.remove();
+      // Run the auth check and freeze check in parallel; reveal only
+      // after both return so we never flash the form before the
+      // "registrations are closed" pop-up paints.
+      const authP   = fetch('/api/auth/me', { credentials: 'same-origin' }).then(r => r.json()).catch(() => null);
+      const frozenP = fetch('/api/settings/registrations-frozen', { credentials: 'same-origin' }).then(r => r.json()).catch(() => null);
+
+      authP.then(j => {
+        if (j && j.kind === 'student') {
+          sessionStorage.setItem('hg_signed_in_student', '1');
+          window.location.replace('trail.html');
+          return; // navigating away — leave cloak in place
+        }
+        sessionStorage.removeItem('hg_signed_in_student');
+        // Wait for the freeze flag too so the modal can render before reveal.
+        frozenP.then(f => {
+          if (f && f.frozen) {
+            window.__hgFrozen = true;
+            window.__hgFrozenReason = (f.reason || '').trim();
           }
-        })
-        .catch(() => {
-          const c = document.getElementById('auth-cloak');
-          if (c) c.remove();
+          reveal();
+          if (window.__hgFrozen && typeof window.__hgShowFrozenModal === 'function') {
+            window.__hgShowFrozenModal(window.__hgFrozenReason);
+          }
         });
+      });
     })();
   </script>
+  <style>
+    #frozen-modal {
+      display: none;
+      position: fixed; inset: 0; z-index: 2000;
+      align-items: center; justify-content: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, .58);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    #frozen-modal.open { display: flex; }
+    #frozen-modal .frozen-card {
+      background: var(--surface);
+      border-radius: 18px;
+      max-width: 480px;
+      width: 100%;
+      padding: 30px 28px 26px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.4);
+      border: 1px solid var(--border);
+      text-align: center;
+      animation: frozenPop .25s ease-out;
+    }
+    @keyframes frozenPop {
+      from { opacity: 0; transform: translateY(8px) scale(.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #frozen-modal .frozen-icon {
+      font-size: 2.6rem; line-height: 1; margin-bottom: 10px;
+    }
+    #frozen-modal h2 {
+      font-size: 1.35rem; font-weight: 800; margin: 0 0 10px;
+      color: #B91C1C;
+    }
+    #frozen-modal .frozen-reason {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 4px solid #DC2626;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: .95rem;
+      color: var(--text);
+      line-height: 1.55;
+      text-align: left;
+      white-space: pre-wrap;
+      margin: 14px 0 18px;
+    }
+    #frozen-modal .frozen-actions {
+      display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    }
+    #frozen-modal .frozen-actions a,
+    #frozen-modal .frozen-actions button {
+      flex: 1; min-width: 140px;
+    }
+  </style>
   <style>
     .progress-bar {
       display: flex; align-items: center; gap: 0;
@@ -155,6 +222,41 @@
   </style>
 </head>
 <body>
+
+<!-- ─────────────────── REGISTRATIONS-CLOSED MODAL ─────────────────── -->
+<div id="frozen-modal" role="dialog" aria-modal="true" aria-labelledby="frozen-title">
+  <div class="frozen-card">
+    <div class="frozen-icon">🚧</div>
+    <h2 id="frozen-title">Registrations are closed</h2>
+    <p style="color:var(--muted); font-size:.92rem; margin:0;">A note from the camp organizers:</p>
+    <div class="frozen-reason" id="frozen-reason-text">Registrations are temporarily closed. Please check back soon.</div>
+    <div class="frozen-actions">
+      <a href="index.html" class="btn btn-blue" style="justify-content:center;">← Back to home</a>
+      <a href="support.html#contact-sponsor" class="btn" style="justify-content:center; background:var(--surface2); color:var(--text); border:1px solid var(--border);">Contact us</a>
+    </div>
+  </div>
+</div>
+<script>
+  // Defined early so the auth/freeze script in <head> can call it
+  // immediately after revealing the page.
+  window.__hgShowFrozenModal = function (reason) {
+    const modal = document.getElementById('frozen-modal');
+    const txt   = document.getElementById('frozen-reason-text');
+    if (!modal || !txt) return;
+    if (reason && reason.length) txt.textContent = reason;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    // Make the form behind the modal non-interactive — visitors can
+    // still see it dimmed, but cannot scroll-tab into it.
+    const form = document.getElementById('reg-form');
+    if (form) {
+      form.setAttribute('aria-hidden', 'true');
+      form.style.pointerEvents = 'none';
+      form.style.filter = 'blur(2px) grayscale(.4)';
+      form.style.userSelect = 'none';
+    }
+  };
+</script>
 
 <!-- ─────────────────── NAVBAR ─────────────────── -->
 <nav class="navbar">
@@ -733,6 +835,12 @@
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // If an admin froze registrations between page-load and submit,
+        // show the same pop-up the page would have shown initially.
+        if (res.status === 423 && data && data.frozen && typeof window.__hgShowFrozenModal === 'function') {
+          window.__hgShowFrozenModal((data.reason || '').trim());
+          return;
+        }
         throw new Error(data.detail || data.error || 'Submission failed. Please try again.');
       }
       const respData = await res.json().catch(() => ({}));
