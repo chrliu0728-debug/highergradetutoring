@@ -104,11 +104,11 @@ DEFAULT_ROLES = [
     },
 ]
 
-DEFAULT_BASE_STATS = [
-    {"id": "homework",  "name": "Homework Pages",    "icon": "📚", "pointsPerUnit": 5, "position": 0},
-    {"id": "practice",  "name": "Practice Problems", "icon": "📝", "pointsPerUnit": 2, "position": 1},
-    {"id": "reading",   "name": "Reading Minutes",   "icon": "📖", "pointsPerUnit": 1, "position": 2},
-]
+# Base stats are entirely admin-defined now. A fresh database starts
+# with no categories — the admin adds whatever they want at
+# /admin-base-stats.html. Each category's `pointsPerUnit` decides how
+# many points a student earns (or loses) when the count changes by 1.
+DEFAULT_BASE_STATS = []
 
 DEFAULT_STAFF = [
     {"id": "alex-chen", "category": "organizers",

@@ -315,8 +315,10 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     `;
   }
 
-  // Pills for each stat field (excluding totalPointsEarned, which is in its own cell)
-  const pillFields = STAT_FIELDS.filter(f => f.key !== 'totalPointsEarned');
+  // Pills come from the admin-defined Base Stats. Each pill shows
+  // the student's count for that stat (their points already live in
+  // the total-pts cell, so no need to repeat them here).
+  const pillCats = getBaseStatCategories();
 
   html += `
     <div class="lb-list-wrap">
@@ -348,7 +350,10 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
           <div class="lb-total-sub">Total pts</div>
         </div>
         <div class="lb-stat-strip">
-          ${pillFields.map(f => `<span class="lb-stat-pill" title="${esc(f.label)}"><span class="pill-ic">${f.icon}</span>${stats[f.key] || 0}</span>`).join('')}
+          ${pillCats.map(c => {
+            const v = (s.baseStats && s.baseStats[c.id]) || 0;
+            return `<span class="lb-stat-pill" title="${esc(c.name)}"><span class="pill-ic">${esc(c.icon || '📊')}</span>${v}</span>`;
+          }).join('')}
         </div>
       </div>
     `;

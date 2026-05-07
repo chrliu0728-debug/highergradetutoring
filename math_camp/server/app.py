@@ -1455,6 +1455,65 @@ def register_routes(app):
             },
         }, 200
 
+    @app.route("/api/admin/students/<sid>/base-stat", methods=["POST"])
+    @require_admin
+    def admin_student_base_stat(sid):
+        """Adjust an admin-defined base stat for a student. The stat's
+        `pointsPerUnit` (set on the Base Stats admin page) determines
+        how many private points the student gains or loses per unit.
+        Body: { catId: str, delta: int }."""
+        d = request.get_json(silent=True) or {}
+        cat_id = (d.get("catId") or "").strip()
+        try:
+            delta = int(d.get("delta") or 0)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Delta must be an integer."), 400
+        if not cat_id:
+            return jsonify(ok=False, error="catId is required."), 400
+        if delta == 0:
+            return jsonify(ok=False, error="Delta cannot be zero."), 400
+        if abs(delta) > 1000:
+            return jsonify(ok=False, error="Delta out of range."), 400
+        with g.db:
+            cat = g.db.execute(
+                "SELECT * FROM base_stat_categories WHERE id = ?", (cat_id,)
+            ).fetchone()
+            if not cat:
+                return jsonify(ok=False, error="Stat category not found."), 404
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            ppu = int(cat["pointsPerUnit"] or 0)
+            base = json.loads(row["baseStats"] or "{}")
+            cur_count = int(base.get(cat_id, 0) or 0)
+            new_count = max(0, cur_count + delta)
+            applied_delta = new_count - cur_count
+            if applied_delta == 0:
+                return jsonify(ok=False, error="Stat is already at zero."), 400
+            base[cat_id] = new_count
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            point_delta = applied_delta * ppu
+            stats["privatePoints"]     = max(0, stats.get("privatePoints", 0) + point_delta)
+            stats["totalPointsEarned"] = max(0, stats.get("totalPointsEarned", 0) + point_delta)
+            g.db.execute(
+                "UPDATE students SET stats = ?, baseStats = ? WHERE id = ?",
+                (json.dumps(stats), json.dumps(base), sid),
+            )
+            who = _full_name(row)
+            sign = "+" if point_delta >= 0 else "−"
+            label = cat["name"] or cat_id
+            _log_tx(type=("stat_award" if point_delta > 0 else "stat_penalty"),
+                    scope="student", subjectId=sid, subjectName=who,
+                    amount=point_delta,
+                    description=f"{cat['icon'] or '📊'} {label} {applied_delta:+d} → {sign}{abs(point_delta)} pts ({sign}{abs(applied_delta)} × {ppu} pts/unit)")
+            updated = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        return jsonify(ok=True, data={
+            "appliedDelta": applied_delta,
+            "newCount": new_count,
+            "pointDelta": point_delta,
+            "student": row_to_student(updated),
+        })
+
     @app.route("/api/admin/students/<sid>/penalty", methods=["POST"])
     @require_admin
     def admin_student_penalty(sid):
@@ -1753,13 +1812,38 @@ def register_routes(app):
     @app.route("/api/admin/reset", methods=["POST"])
     @require_admin
     def admin_reset():
+        """Reset the camp game-board WITHOUT erasing student records.
+        Wipes every student's points, roles, base-stat counts, and the
+        camp-wide stashes (transactions bank, Vulgar Vault, class
+        points + bank). The students themselves — names, emails,
+        class assignments, passwords — stay put."""
+        zero_stats = json.dumps(default_stats())
+        zero_base  = json.dumps({})
+        empty_roles = json.dumps([])
         with g.db:
-            g.db.execute("DELETE FROM students")
-            g.db.execute("DELETE FROM classes")
-            g.db.execute("DELETE FROM roles")
+            # Per-student state — keep identity, blank out gameboard.
+            g.db.execute(
+                "UPDATE students SET stats = ?, roles = ?, baseStats = ?, extras = '{}'",
+                (zero_stats, empty_roles, zero_base),
+            )
+            # Camp-wide stashes back to zero.
+            _meta_set("transactions_bank", "0")
+            _meta_set("vulgar_vault", "0")
+            # Reset class points + bank but keep the class records so
+            # student.classId references stay intact.
+            g.db.execute(
+                "UPDATE classes SET classPoints = 0, classBank = 0, bankLastUpdate = NULL"
+            )
+            # Wipe the transaction log too — it's a record of points
+            # that no longer exist.
+            g.db.execute("DELETE FROM transactions")
+            # End any active student sessions so the next sign-in pulls
+            # the freshly-zeroed stats.
             g.db.execute("DELETE FROM sessions WHERE kind = 'student'")
-        from db import _seed
-        with g.db:
+            # Re-seed default roles in case any were renamed/deleted —
+            # students hold no role refs after the reset, but the
+            # role definitions need to exist for future awards.
+            from db import _seed
             _seed(g.db)
         return jsonify(ok=True)
 

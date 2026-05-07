@@ -204,12 +204,35 @@ function newBaseStatId() {
 }
 
 async function updateStudentBaseStat(studentId, catId, value) {
+  // Old absolute-value setter, kept for the admin-base-stats page
+  // (which still edits totals directly). Doesn't touch points — that
+  // path is reserved for the +/- delta endpoint.
   const s = HG.cache.students.find(x => x.id === studentId);
   if (!s) return false;
   s.baseStats = s.baseStats || {};
   s.baseStats[catId] = Math.max(0, parseInt(value, 10) || 0);
   await saveStudents(HG.cache.students);
   return true;
+}
+
+/* Hits the server endpoint that ALSO credits/penalizes points by
+   delta * pointsPerUnit. After the call, patches local cache with the
+   server's authoritative student record. */
+async function applyBaseStatDelta(studentId, catId, delta) {
+  delta = parseInt(delta, 10) || 0;
+  if (!delta) return { ok: false, error: 'Pick a non-zero delta.' };
+  try {
+    const r = await _api(`/admin/students/${encodeURIComponent(studentId)}/base-stat`, {
+      method: 'POST', body: { catId, delta },
+    });
+    if (r && r.ok && r.data && r.data.student) {
+      const idx = HG.cache.students.findIndex(s => s.id === studentId);
+      if (idx >= 0) HG.cache.students[idx] = r.data.student;
+    }
+    return r;
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || 'Network error.' };
+  }
 }
 
 function studentBaseStatTotal(student) {
