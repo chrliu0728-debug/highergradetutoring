@@ -1,0 +1,19 @@
+[Unit]
+Description=HigherGrade Tutoring — Discord bot
+After=network-online.target highergrade-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/highergrade/math_camp/discord-bot
+EnvironmentFile=/etc/highergrade-bot.env
+ExecStart=/var/www/highergrade/math_camp/discord-bot/.venv/bin/python bot.py
+Restart=on-failure
+RestartSec=5
+# Logs go to journalctl — view with `journalctl -u highergrade-bot -f`.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

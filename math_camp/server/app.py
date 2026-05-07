@@ -25,6 +25,12 @@ from db import (
 
 ADMIN_PASSCODE = os.environ.get("HIGHERGRADE_ADMIN_PASSCODE", "HigherGrade Tutoring")
 
+# Shared secret the Discord bot sends as `Authorization: Bearer <token>`.
+# Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
+# and put it in /etc/highergrade.env (BOT_API_TOKEN=…) on the VM, then
+# the same value into the bot's environment.
+BOT_API_TOKEN = os.environ.get("HIGHERGRADE_BOT_TOKEN", "")
+
 # ── SMTP / email config ─────────────────────────────────────────────
 # All four are pulled from the systemd EnvironmentFile (/etc/highergrade.env)
 # on the VM so the Gmail app password never lands in git. Gmail SMTP defaults.
@@ -272,6 +278,26 @@ def require_student(fn):
         if not s or s["kind"] != "student" or not s["studentId"]:
             return jsonify(ok=False, error="Student authentication required"), 401
         g.session = s
+        return fn(*a, **kw)
+    return wrapper
+
+
+def require_bot(fn):
+    """The Discord bot authenticates via a shared secret rather than a
+    cookie. Reject every request unless BOT_API_TOKEN is configured AND
+    the Authorization header carries it as a Bearer token. constant-time
+    compare so we don't leak the token via timing."""
+    @wraps(fn)
+    def wrapper(*a, **kw):
+        if not BOT_API_TOKEN:
+            return jsonify(ok=False, error="Bot integration is disabled on this server."), 503
+        header = request.headers.get("Authorization", "")
+        prefix = "Bearer "
+        if not header.startswith(prefix):
+            return jsonify(ok=False, error="Bot authentication required."), 401
+        supplied = header[len(prefix):].strip()
+        if not hmac.compare_digest(supplied, BOT_API_TOKEN):
+            return jsonify(ok=False, error="Bad bot token."), 403
         return fn(*a, **kw)
     return wrapper
 
@@ -1803,6 +1829,213 @@ def register_routes(app):
     def admin_delete_registration(rid):
         g.db.execute("DELETE FROM registrations WHERE id = ?", (rid,))
         return jsonify(ok=True)
+
+    # ── Discord-bot integration ────────────────────────────────────
+    # All /api/bot/* endpoints expect Authorization: Bearer <BOT_TOKEN>.
+    def _student_summary_for_bot(row, link):
+        if not row:
+            return None
+        s = row_to_student(row)
+        stats = s.get("stats") or {}
+        return {
+            "studentId":   s["id"],
+            "discordId":   link["discordId"] if link else None,
+            "guildId":     (link["guildId"] if link else None),
+            "fullName":    _full_name(row),
+            "firstName":   s.get("firstName"),
+            "lastName":    s.get("lastName"),
+            "className":   s.get("className"),
+            "privatePoints":     int(stats.get("privatePoints") or 0),
+            "totalPointsEarned": int(stats.get("totalPointsEarned") or 0),
+            "roles":       s.get("roles") or [],
+        }
+
+    @app.route("/api/bot/link", methods=["POST"])
+    @require_bot
+    def bot_link():
+        d = request.get_json(silent=True) or {}
+        discord_id = (d.get("discordId") or "").strip()
+        guild_id   = (d.get("guildId") or "").strip() or None
+        email = (d.get("email") or "").strip().lower()
+        pwd   = d.get("password")
+        if not discord_id or not email or pwd is None:
+            return jsonify(ok=False, error="discordId, email, and password are required."), 400
+        if _is_reserved_email(email):
+            return jsonify(ok=False, error="That email isn't a real camp account."), 401
+        row = g.db.execute(
+            "SELECT * FROM students WHERE LOWER(TRIM(studentEmail)) = ? AND password = ?",
+            (email, pwd),
+        ).fetchone()
+        if not row:
+            return jsonify(ok=False, error="No matching camp account."), 401
+        sid = row["id"]
+        # Refuse to silently overwrite an existing claim. If a different
+        # Discord user already linked this student, the bot must clear
+        # the old link first (admin tooling).
+        existing = g.db.execute(
+            "SELECT * FROM discord_links WHERE studentId = ? AND discordId != ?",
+            (sid, discord_id),
+        ).fetchone()
+        if existing:
+            return jsonify(ok=False, error="That camp account is already linked to another Discord user."), 409
+        g.db.execute(
+            """INSERT INTO discord_links (discordId, studentId, guildId, linkedAt)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(discordId) DO UPDATE SET
+                 studentId = excluded.studentId,
+                 guildId   = excluded.guildId,
+                 linkedAt  = excluded.linkedAt""",
+            (discord_id, sid, guild_id, int(time.time())),
+        )
+        link = {"discordId": discord_id, "guildId": guild_id}
+        return jsonify(ok=True, data=_student_summary_for_bot(row, link))
+
+    @app.route("/api/bot/unlink", methods=["POST"])
+    @require_bot
+    def bot_unlink():
+        d = request.get_json(silent=True) or {}
+        discord_id = (d.get("discordId") or "").strip()
+        if not discord_id:
+            return jsonify(ok=False, error="discordId is required."), 400
+        g.db.execute("DELETE FROM discord_links WHERE discordId = ?", (discord_id,))
+        return jsonify(ok=True)
+
+    @app.route("/api/bot/students", methods=["GET"])
+    @require_bot
+    def bot_students():
+        guild_id = (request.args.get("guildId") or "").strip() or None
+        if guild_id:
+            rows = g.db.execute(
+                """SELECT s.*, dl.discordId AS dl_discordId, dl.guildId AS dl_guildId
+                   FROM discord_links dl
+                   JOIN students s ON s.id = dl.studentId
+                   WHERE dl.guildId = ?""",
+                (guild_id,),
+            ).fetchall()
+        else:
+            rows = g.db.execute(
+                """SELECT s.*, dl.discordId AS dl_discordId, dl.guildId AS dl_guildId
+                   FROM discord_links dl
+                   JOIN students s ON s.id = dl.studentId"""
+            ).fetchall()
+        out = []
+        for r in rows:
+            link = {"discordId": r["dl_discordId"], "guildId": r["dl_guildId"]}
+            summary = _student_summary_for_bot(r, link)
+            if summary:
+                out.append(summary)
+        return jsonify(ok=True, data=out)
+
+    @app.route("/api/bot/me", methods=["GET"])
+    @require_bot
+    def bot_me():
+        discord_id = (request.args.get("discordId") or "").strip()
+        if not discord_id:
+            return jsonify(ok=False, error="discordId is required."), 400
+        link = g.db.execute(
+            "SELECT * FROM discord_links WHERE discordId = ?", (discord_id,)
+        ).fetchone()
+        if not link:
+            return jsonify(ok=True, data=None)
+        row = g.db.execute(
+            "SELECT * FROM students WHERE id = ?", (link["studentId"],)
+        ).fetchone()
+        return jsonify(ok=True, data=_student_summary_for_bot(row, dict(link)))
+
+    @app.route("/api/bot/chests", methods=["POST"])
+    @require_bot
+    def bot_chest_create():
+        d = request.get_json(silent=True) or {}
+        guild_id = (d.get("guildId") or "").strip()
+        code     = (d.get("code") or "").strip()
+        role_id  = (d.get("roleId") or "").strip()
+        if not guild_id or not code or not role_id:
+            return jsonify(ok=False, error="guildId, code, and roleId are required."), 400
+        existing = g.db.execute(
+            "SELECT id FROM discord_chests WHERE guildId = ? AND code = ?",
+            (guild_id, code),
+        ).fetchone()
+        if existing:
+            return jsonify(ok=False, error="A chest with that code already exists in this server."), 409
+        cid = "chest-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO discord_chests
+               (id, code, description, roleId, roleName, guildId, createdBy, createdAt, claimedBy)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]')""",
+            (
+                cid, code,
+                (d.get("description") or "").strip() or None,
+                role_id,
+                (d.get("roleName") or "").strip() or None,
+                guild_id,
+                (d.get("createdBy") or "").strip() or None,
+                int(time.time()),
+            ),
+        )
+        return jsonify(ok=True, data={"id": cid})
+
+    @app.route("/api/bot/chests", methods=["GET"])
+    @require_bot
+    def bot_chest_list():
+        guild_id = (request.args.get("guildId") or "").strip()
+        if not guild_id:
+            return jsonify(ok=False, error="guildId is required."), 400
+        rows = g.db.execute(
+            "SELECT * FROM discord_chests WHERE guildId = ? ORDER BY createdAt DESC",
+            (guild_id,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            try:
+                claimed = json.loads(d.get("claimedBy") or "[]")
+            except Exception:  # noqa: BLE001
+                claimed = []
+            d["claimedBy"]    = claimed
+            d["claimedCount"] = len(claimed)
+            out.append(d)
+        return jsonify(ok=True, data=out)
+
+    @app.route("/api/bot/chests/<cid>", methods=["DELETE"])
+    @require_bot
+    def bot_chest_delete(cid):
+        g.db.execute("DELETE FROM discord_chests WHERE id = ?", (cid,))
+        return jsonify(ok=True)
+
+    @app.route("/api/bot/chests/claim", methods=["POST"])
+    @require_bot
+    def bot_chest_claim():
+        d = request.get_json(silent=True) or {}
+        guild_id   = (d.get("guildId") or "").strip()
+        discord_id = (d.get("discordId") or "").strip()
+        code       = (d.get("code") or "").strip()
+        if not guild_id or not discord_id or not code:
+            return jsonify(ok=False, error="guildId, discordId, and code are required."), 400
+        with g.db:
+            chest = g.db.execute(
+                "SELECT * FROM discord_chests WHERE guildId = ? AND code = ?",
+                (guild_id, code),
+            ).fetchone()
+            if not chest:
+                return jsonify(ok=False, error="That code doesn't open any chest in this server."), 404
+            try:
+                claimed = json.loads(chest["claimedBy"] or "[]")
+            except Exception:  # noqa: BLE001
+                claimed = []
+            already = discord_id in claimed
+            if not already:
+                claimed.append(discord_id)
+                g.db.execute(
+                    "UPDATE discord_chests SET claimedBy = ? WHERE id = ?",
+                    (json.dumps(claimed), chest["id"]),
+                )
+        return jsonify(ok=True, data={
+            "chestId":     chest["id"],
+            "roleId":      chest["roleId"],
+            "roleName":    chest["roleName"],
+            "description": chest["description"],
+            "alreadyClaimed": already,
+        })
 
     # ── Camp reset (scoped) ────────────────────────────────────────
     # Wipes students, classes, and roles (re-seeding the default roles

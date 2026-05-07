@@ -128,6 +128,34 @@ CREATE TABLE IF NOT EXISTS contact_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_msg_at ON contact_messages(createdAt);
 
+-- Discord-bot integration: maps a Discord user-id to a camp student.
+-- One Discord user can only be linked to one student at a time, and
+-- only one Discord user can claim a given student.
+CREATE TABLE IF NOT EXISTS discord_links (
+  discordId   TEXT PRIMARY KEY,
+  studentId   TEXT NOT NULL UNIQUE,
+  guildId     TEXT,
+  linkedAt    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dl_student ON discord_links(studentId);
+
+-- "Locked chests" placed in Discord by camp admins. Anyone who runs
+-- /unlock with the right code receives the linked Discord role and the
+-- chest's description as a reveal message. Multi-claim is allowed —
+-- claimedBy is a JSON array of Discord user-ids that have unlocked it.
+CREATE TABLE IF NOT EXISTS discord_chests (
+  id           TEXT PRIMARY KEY,
+  code         TEXT NOT NULL,
+  description  TEXT,
+  roleId       TEXT NOT NULL,
+  roleName     TEXT,
+  guildId      TEXT NOT NULL,
+  createdBy    TEXT,
+  createdAt    INTEGER NOT NULL,
+  claimedBy    TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,
