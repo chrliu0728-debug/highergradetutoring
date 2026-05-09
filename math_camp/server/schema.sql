@@ -159,6 +159,22 @@ CREATE TABLE IF NOT EXISTS discord_chests (
 );
 CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
 
+-- Per-guild slash-command permissions. If a (guildId, command) has at
+-- least one row, only members of those roles (plus server owner +
+-- Administrator) can run that command. If no rows exist for a command,
+-- the bot defaults to "Administrator only".
+CREATE TABLE IF NOT EXISTS discord_command_perms (
+  id          TEXT PRIMARY KEY,
+  guildId     TEXT NOT NULL,
+  command     TEXT NOT NULL,
+  roleId      TEXT NOT NULL,
+  roleName    TEXT,
+  createdBy   TEXT,
+  createdAt   INTEGER NOT NULL,
+  UNIQUE (guildId, command, roleId)
+);
+CREATE INDEX IF NOT EXISTS idx_dcp_guild_cmd ON discord_command_perms(guildId, command);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,

@@ -164,6 +164,22 @@ class CampAPI:
             body["chestId"] = chest_id
         return await self._post("/api/bot/chests/claim", body)
 
+    # — Command-permission grants —
+    async def perms_list(self, guild_id: str) -> Dict[str, Any]:
+        return await self._get("/api/bot/perms", {"guildId": guild_id})
+
+    async def perms_grant(self, guild_id: str, command: str, role_id: str,
+                          role_name: str, created_by: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/perms", {
+            "guildId": guild_id, "command": command, "roleId": role_id,
+            "roleName": role_name, "createdBy": created_by,
+        })
+
+    async def perms_revoke(self, guild_id: str, command: str, role_id: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/perms/revoke", {
+            "guildId": guild_id, "command": command, "roleId": role_id,
+        })
+
 
 api = CampAPI(CAMP_API_BASE, BOT_API_TOKEN)
 
@@ -536,9 +552,44 @@ async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
 
 
 # ── Admin commands ───────────────────────────────────────────────────
-def _admin_only(interaction: discord.Interaction) -> bool:
-    perms = getattr(interaction.user, "guild_permissions", None)
-    return bool(perms and (perms.manage_roles or perms.administrator))
+# Commands whose access can be opened up to specific roles via
+# /perms-grant. Anything not in this list is implicitly admin/owner-only
+# (or open, depending on the command).
+RESTRICTABLE_COMMANDS: List[str] = ["chest-create", "chest-list", "chest-delete"]
+
+
+def _is_server_admin(interaction: discord.Interaction) -> bool:
+    """Server owner OR Administrator permission. Used for the meta
+    permission commands (only owner/admin can grant access to others)."""
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        return False
+    if interaction.user.id == interaction.guild.owner_id:
+        return True
+    return bool(interaction.user.guild_permissions.administrator)
+
+
+async def _user_can_run(interaction: discord.Interaction, command: str) -> bool:
+    """Return True if the interacting member is allowed to run the
+    given command in this guild. Server owners and Administrators always
+    pass. Otherwise the user must hold a role explicitly granted access
+    via /perms-grant; if no grants exist yet, only owner/admin pass."""
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        return False
+    if _is_server_admin(interaction):
+        return True
+    res = await api.perms_list(str(interaction.guild.id))
+    if not res.get("ok"):
+        # Be conservative if the API is down — only owner/admin run.
+        return False
+    allowed = {
+        p["roleId"]
+        for p in (res.get("data") or [])
+        if p.get("command") == command
+    }
+    if not allowed:
+        return False
+    user_role_ids = {str(r.id) for r in interaction.user.roles}
+    return bool(allowed & user_role_ids)
 
 
 @bot.tree.command(name="chest-create", description="Place a locked chest in this channel.")
@@ -556,8 +607,12 @@ async def cmd_chest_create(
     image: Optional[discord.Attachment] = None,
 ) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
-    if not _admin_only(interaction):
-        await interaction.followup.send("This command is admin-only.", ephemeral=True)
+    if not await _user_can_run(interaction, "chest-create"):
+        await interaction.followup.send(
+            "🚫 You don't have permission to run **chest-create** in this server. "
+            "Ask a server admin to grant your role with `/perms-grant`.",
+            ephemeral=True,
+        )
         return
     me = interaction.guild.me if interaction.guild else None
     if me and role >= me.top_role:
@@ -623,8 +678,12 @@ async def cmd_chest_create(
 @bot.tree.command(name="chest-list", description="List every chest in this server.")
 async def cmd_chest_list(interaction: discord.Interaction) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
-    if not _admin_only(interaction):
-        await interaction.followup.send("This command is admin-only.", ephemeral=True)
+    if not await _user_can_run(interaction, "chest-list"):
+        await interaction.followup.send(
+            "🚫 You don't have permission to run **chest-list**. "
+            "Ask a server admin to grant your role with `/perms-grant`.",
+            ephemeral=True,
+        )
         return
     res = await api.chest_list(str(interaction.guild.id))
     if not res.get("ok"):
@@ -647,11 +706,115 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
 @app_commands.describe(chest_id="ID shown by /chest-list")
 async def cmd_chest_delete(interaction: discord.Interaction, chest_id: str) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
-    if not _admin_only(interaction):
-        await interaction.followup.send("This command is admin-only.", ephemeral=True)
+    if not await _user_can_run(interaction, "chest-delete"):
+        await interaction.followup.send(
+            "🚫 You don't have permission to run **chest-delete**. "
+            "Ask a server admin to grant your role with `/perms-grant`.",
+            ephemeral=True,
+        )
         return
     await api.chest_delete(chest_id.strip())
     await interaction.followup.send(f"🗑 Chest `{chest_id}` deleted.", ephemeral=True)
+
+
+# ── Permission management (admin/owner only) ────────────────────────
+
+@bot.tree.command(name="perms-grant", description="Allow a role to run a restricted command.")
+@app_commands.describe(
+    command="The command to grant access to",
+    role="Members of this role will be able to run the command",
+)
+@app_commands.choices(command=[
+    app_commands.Choice(name=c, value=c) for c in RESTRICTABLE_COMMANDS
+])
+async def cmd_perms_grant(
+    interaction: discord.Interaction,
+    command: app_commands.Choice[str],
+    role: discord.Role,
+) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not _is_server_admin(interaction):
+        await interaction.followup.send(
+            "🚫 Only the server owner or members with **Administrator** can manage permissions.",
+            ephemeral=True,
+        )
+        return
+    res = await api.perms_grant(
+        str(interaction.guild.id), command.value, str(role.id), role.name,
+        str(interaction.user.id),
+    )
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    already = (res.get("data") or {}).get("alreadyExisted")
+    msg = (
+        f"{'ℹ️ Already granted' if already else '✅ Granted'} "
+        f"**{role.name}** access to `/{command.value}`."
+    )
+    await interaction.followup.send(msg, ephemeral=True)
+
+
+@bot.tree.command(name="perms-revoke", description="Remove a role's access to a restricted command.")
+@app_commands.describe(
+    command="The command to revoke access from",
+    role="The role losing access",
+)
+@app_commands.choices(command=[
+    app_commands.Choice(name=c, value=c) for c in RESTRICTABLE_COMMANDS
+])
+async def cmd_perms_revoke(
+    interaction: discord.Interaction,
+    command: app_commands.Choice[str],
+    role: discord.Role,
+) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not _is_server_admin(interaction):
+        await interaction.followup.send(
+            "🚫 Only the server owner or members with **Administrator** can manage permissions.",
+            ephemeral=True,
+        )
+        return
+    res = await api.perms_revoke(str(interaction.guild.id), command.value, str(role.id))
+    removed = ((res.get("data") or {}).get("removed") or 0) if res.get("ok") else 0
+    if removed:
+        await interaction.followup.send(
+            f"✅ Revoked **{role.name}**'s access to `/{command.value}`.",
+            ephemeral=True,
+        )
+    else:
+        await interaction.followup.send(
+            f"ℹ️ **{role.name}** didn't have access to `/{command.value}` in the first place.",
+            ephemeral=True,
+        )
+
+
+@bot.tree.command(name="perms-list", description="Show which roles can run which commands.")
+async def cmd_perms_list(interaction: discord.Interaction) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not _is_server_admin(interaction):
+        await interaction.followup.send(
+            "🚫 Only the server owner or Administrators can view the permission list.",
+            ephemeral=True,
+        )
+        return
+    res = await api.perms_list(str(interaction.guild.id))
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    perms = res.get("data") or []
+    by_cmd: Dict[str, List[str]] = {c: [] for c in RESTRICTABLE_COMMANDS}
+    for p in perms:
+        cmd = p.get("command") or ""
+        if cmd in by_cmd:
+            by_cmd[cmd].append(f"<@&{p['roleId']}>")
+    lines = ["**Command access (Server owner & Administrators always pass):**", ""]
+    for cmd in RESTRICTABLE_COMMANDS:
+        roles = by_cmd[cmd]
+        if roles:
+            lines.append(f"• `/{cmd}` → {', '.join(roles)}")
+        else:
+            lines.append(f"• `/{cmd}` → *(no roles granted — admin/owner only)*")
+    await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 
 # ── Lifecycle ────────────────────────────────────────────────────────

@@ -2020,6 +2020,59 @@ def register_routes(app):
         g.db.execute("DELETE FROM discord_chests WHERE id = ?", (cid,))
         return jsonify(ok=True)
 
+    @app.route("/api/bot/perms", methods=["GET"])
+    @require_bot
+    def bot_perms_list():
+        guild_id = (request.args.get("guildId") or "").strip()
+        if not guild_id:
+            return jsonify(ok=False, error="guildId required."), 400
+        rows = g.db.execute(
+            "SELECT * FROM discord_command_perms WHERE guildId = ? ORDER BY command, createdAt",
+            (guild_id,),
+        ).fetchall()
+        return jsonify(ok=True, data=[dict(r) for r in rows])
+
+    @app.route("/api/bot/perms", methods=["POST"])
+    @require_bot
+    def bot_perms_grant():
+        d = request.get_json(silent=True) or {}
+        guild_id  = (d.get("guildId") or "").strip()
+        command   = (d.get("command") or "").strip()
+        role_id   = (d.get("roleId") or "").strip()
+        role_name = (d.get("roleName") or "").strip() or None
+        created_by = (d.get("createdBy") or "").strip() or None
+        if not guild_id or not command or not role_id:
+            return jsonify(ok=False, error="guildId, command, roleId required."), 400
+        existing = g.db.execute(
+            "SELECT id FROM discord_command_perms WHERE guildId = ? AND command = ? AND roleId = ?",
+            (guild_id, command, role_id),
+        ).fetchone()
+        if existing:
+            return jsonify(ok=True, data={"id": existing["id"], "alreadyExisted": True})
+        pid = "perm-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO discord_command_perms
+               (id, guildId, command, roleId, roleName, createdBy, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (pid, guild_id, command, role_id, role_name, created_by, int(time.time())),
+        )
+        return jsonify(ok=True, data={"id": pid, "alreadyExisted": False})
+
+    @app.route("/api/bot/perms/revoke", methods=["POST"])
+    @require_bot
+    def bot_perms_revoke():
+        d = request.get_json(silent=True) or {}
+        guild_id = (d.get("guildId") or "").strip()
+        command  = (d.get("command") or "").strip()
+        role_id  = (d.get("roleId") or "").strip()
+        if not guild_id or not command or not role_id:
+            return jsonify(ok=False, error="guildId, command, roleId required."), 400
+        cur = g.db.execute(
+            "DELETE FROM discord_command_perms WHERE guildId = ? AND command = ? AND roleId = ?",
+            (guild_id, command, role_id),
+        )
+        return jsonify(ok=True, data={"removed": cur.rowcount})
+
     @app.route("/api/bot/chests/claim", methods=["POST"])
     @require_bot
     def bot_chest_claim():
