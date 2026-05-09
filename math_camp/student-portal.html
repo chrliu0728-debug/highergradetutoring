@@ -94,6 +94,12 @@
       transition: background .15s, transform .12s;
     }
     .staff-hidden .staff-go:hover { background: var(--blush-dark); transform: translateY(-1px); }
+    /* On mobile the login card is shorter than the staff card, so the
+       navy panel pokes out top + bottom. Hide it entirely on phones —
+       the 9-click drag-to-reveal trick is desktop-only anyway. */
+    @media (max-width: 760px) {
+      .staff-hidden { display: none !important; }
+    }
     .login-card .logo-bubble {
       width: 96px; height: 96px;
       border-radius: 22px;

@@ -1239,3 +1239,23 @@ footer {
   .hero-buttons .btn { justify-content: center; }
   .camp-photos-grid { grid-template-columns: 1fr; }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   About-page two-column layouts (Mission + Values). Side-by-side on
+   desktop, single column on tablet, photo entirely hidden on phone.
+   ───────────────────────────────────────────────────────────────── */
+.about-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .about-split { grid-template-columns: 1fr; gap: 32px; }
+}
+@media (max-width: 760px) {
+  /* Hide every themed photo on the about page on phones — the
+     surrounding text is what matters and the images were dragging the
+     layout out of shape on small screens. */
+  .about-photo { display: none !important; }
+}
