@@ -51,16 +51,30 @@ POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS") or 120)
 # and only ever adds/removes these specific roles — it never touches
 # user-defined roles outside this set.
 STUDENT_ROLE_NAME = "Student"
-CAMP_ROLE_PREFIX  = "Camp · "  # camp-game roles get this prefix in Discord
 
 # Mapping of camp-side role IDs (from the `roles` table) to a friendly
-# Discord role name. The bot creates each as "Camp · <name>" if missing.
+# Discord role name. Names match exactly so admins can also create roles
+# directly on Discord with the same name and have them mirror to camp.
 CAMP_ROLE_NAMES: Dict[str, str] = {
     "mazewiz":    "Maze Wizard",
     "money_tree": "Money Tree",
     "clicker":    "Clicker",
     "crane":      "Paper Crane",
 }
+
+
+def _normalize_role_name(name: str) -> str:
+    """Mirror server-side normalization so blocklist matching is
+    consistent across the boundary. Case + whitespace + 'Camp · '-prefix
+    insensitive."""
+    if not name:
+        return ""
+    n = name.lower().strip()
+    for prefix in ("camp · ", "camp - ", "camp: ", "camp ", "camp·", "camp:"):
+        if n.startswith(prefix):
+            n = n[len(prefix):].strip()
+            break
+    return "".join(c for c in n if not c.isspace())
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("hg-bot")
@@ -164,6 +178,28 @@ class CampAPI:
             body["chestId"] = chest_id
         return await self._post("/api/bot/chests/claim", body)
 
+    # — Role-mirror blocklist + per-student push —
+    async def role_mirror_list(self, guild_id: str) -> Dict[str, Any]:
+        return await self._get("/api/bot/role-mirror/blocklist", {"guildId": guild_id})
+
+    async def role_mirror_add(self, guild_id: str, role_id: str, role_name: str,
+                              added_by: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/role-mirror/blocklist", {
+            "guildId": guild_id, "roleId": role_id, "roleName": role_name,
+            "addedBy": added_by,
+        })
+
+    async def role_mirror_remove(self, guild_id: str, role_id: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/role-mirror/blocklist/remove", {
+            "guildId": guild_id, "roleId": role_id,
+        })
+
+    async def mirror_discord_roles(self, student_id: str, role_names: List[str]) -> Dict[str, Any]:
+        return await self._post(
+            f"/api/bot/students/{student_id}/mirror-discord-roles",
+            {"roleNames": role_names},
+        )
+
     # — Command-permission grants —
     async def perms_list(self, guild_id: str) -> Dict[str, Any]:
         return await self._get("/api/bot/perms", {"guildId": guild_id})
@@ -228,21 +264,34 @@ async def ensure_role(guild: discord.Guild, name: str, *, color: discord.Color =
 
 
 def _camp_discord_role_names() -> List[str]:
-    return [CAMP_ROLE_PREFIX + v for v in CAMP_ROLE_NAMES.values()]
+    """Discord role names that mirror the standard camp roles."""
+    return list(CAMP_ROLE_NAMES.values())
 
 
-async def _sync_member(member: discord.Member, summary: Dict[str, Any]) -> None:
+async def _sync_member(
+    member: discord.Member,
+    summary: Dict[str, Any],
+    blocklist_normalized: Optional[set] = None,
+) -> None:
     """Reconcile a single member's nickname + roles against the camp
-    summary returned by /api/bot/students."""
+    summary returned by /api/bot/students. Also pushes the member's
+    mirrorable Discord roles back to the camp so admin-granted Discord
+    roles show up under the student's profile (additive — never
+    removes camp roles)."""
+    if blocklist_normalized is None:
+        blocklist_normalized = set()
     full_name = (summary.get("fullName") or "").strip()
+
+    # 1. Camp → Discord: ensure the user has a Discord role for every
+    #    standard camp role (Maze Wizard, Money Tree, Clicker, Paper
+    #    Crane), plus the Student verify marker.
     desired_camp_roles = {
-        CAMP_ROLE_PREFIX + CAMP_ROLE_NAMES[r]
+        CAMP_ROLE_NAMES[r]
         for r in (summary.get("roles") or [])
         if r in CAMP_ROLE_NAMES
     }
     desired_camp_roles.add(STUDENT_ROLE_NAME)
 
-    # Build the union of roles we manage so we can untouch the rest.
     managed_names = set(_camp_discord_role_names()) | {STUDENT_ROLE_NAME}
 
     add: List[discord.Role] = []
@@ -266,6 +315,33 @@ async def _sync_member(member: discord.Member, summary: Dict[str, Any]) -> None:
     except discord.Forbidden:
         log.warning("Missing permission to update roles on %s", member)
 
+    # 2. Discord → Camp: push the union of mirrorable Discord role names
+    #    back to the camp. Skip @everyone, the Student verify marker,
+    #    Discord-managed roles (Boosters / integrations), and anything
+    #    in the blocklist. Server merges additively + auto-creates
+    #    matching camp roles when needed.
+    student_id = summary.get("studentId")
+    if student_id:
+        mirror_names: List[str] = []
+        seen_norm: set = set()
+        for r in member.roles:
+            if r.is_default():
+                continue
+            if r.managed:
+                continue
+            if r.name == STUDENT_ROLE_NAME:
+                continue
+            norm = _normalize_role_name(r.name)
+            if not norm or norm in blocklist_normalized or norm in seen_norm:
+                continue
+            seen_norm.add(norm)
+            mirror_names.append(r.name)
+        try:
+            await api.mirror_discord_roles(student_id, mirror_names)
+        except Exception:  # noqa: BLE001
+            log.exception("mirror_discord_roles failed for %s", student_id)
+
+    # 3. Nickname.
     if full_name and member.display_name != full_name:
         try:
             await member.edit(nick=full_name[:32], reason="HigherGrade sync")
@@ -284,7 +360,10 @@ async def sync_loop() -> None:
             # Make sure the managed roles exist before we try to assign them.
             await ensure_role(guild, STUDENT_ROLE_NAME, color=discord.Color.blurple(), hoist=True)
             for camp_role_name in CAMP_ROLE_NAMES.values():
-                await ensure_role(guild, CAMP_ROLE_PREFIX + camp_role_name, color=discord.Color.gold())
+                await ensure_role(guild, camp_role_name, color=discord.Color.gold())
+            # Fetch the blocklist once per guild so _sync_member doesn't
+            # round-trip the API for every member.
+            blocklist_normalized = await _fetch_blocklist_normalized(guild.id)
             data = await api.students(str(guild.id))
             if not data.get("ok"):
                 log.warning("Skipping guild %s — students fetch failed: %s", guild.id, data)
@@ -299,9 +378,28 @@ async def sync_loop() -> None:
                         member = await guild.fetch_member(int(discord_id))
                     except discord.NotFound:
                         continue
-                await _sync_member(member, summary)
+                await _sync_member(member, summary, blocklist_normalized)
         except Exception:  # noqa: BLE001
             log.exception("sync error in guild %s", getattr(guild, "id", "?"))
+
+
+async def _fetch_blocklist_normalized(guild_id: int) -> set:
+    """Pull the role-mirror blocklist for a guild and return the set of
+    normalized role names. Falls back to empty on API failure (so a
+    transient outage doesn't silently start mirroring blocklisted roles
+    — the rest of sync still runs)."""
+    try:
+        res = await api.role_mirror_list(str(guild_id))
+        if not res.get("ok"):
+            return set()
+        return {
+            _normalize_role_name((r.get("roleName") or ""))
+            for r in (res.get("data") or [])
+            if r.get("roleName")
+        }
+    except Exception:  # noqa: BLE001
+        log.exception("blocklist fetch failed for guild %s", guild_id)
+        return set()
 
 
 @sync_loop.before_loop
@@ -443,7 +541,8 @@ async def cmd_verify(interaction: discord.Interaction, email: str, password: str
         role_warning = "⚠️ Couldn't grant the **Student** role — ask an admin to put my role above it."
 
     # Also sync any camp-game roles the student already holds.
-    await _sync_member(member, summary)
+    blocklist_normalized = await _fetch_blocklist_normalized(interaction.guild.id)
+    await _sync_member(member, summary, blocklist_normalized)
 
     # Force a nickname update directly here (even if _sync_member skipped
     # it) so we can give the user a clear pass/fail reason.
@@ -814,6 +913,85 @@ async def cmd_perms_list(interaction: discord.Interaction) -> None:
             lines.append(f"• `/{cmd}` → {', '.join(roles)}")
         else:
             lines.append(f"• `/{cmd}` → *(no roles granted — admin/owner only)*")
+    await interaction.followup.send("\n".join(lines), ephemeral=True)
+
+
+# ── Role-mirror blocklist (admin/owner only) ────────────────────────
+
+@bot.tree.command(name="role-mirror-block",
+                  description="Stop a Discord role from mirroring to the camp website.")
+@app_commands.describe(role="The role that should NOT mirror to the website")
+async def cmd_role_mirror_block(interaction: discord.Interaction, role: discord.Role) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not _is_server_admin(interaction):
+        await interaction.followup.send(
+            "🚫 Only the server owner or Administrators can manage the mirror blocklist.",
+            ephemeral=True,
+        )
+        return
+    res = await api.role_mirror_add(
+        str(interaction.guild.id), str(role.id), role.name,
+        str(interaction.user.id),
+    )
+    already = (res.get("data") or {}).get("alreadyExisted")
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    msg = (
+        f"{'ℹ️ Already blocked' if already else '✅ Blocked'} "
+        f"**{role.name}** from mirroring to the website."
+    )
+    await interaction.followup.send(msg, ephemeral=True)
+
+
+@bot.tree.command(name="role-mirror-unblock",
+                  description="Allow a Discord role to mirror to the website again.")
+@app_commands.describe(role="The role to unblock from mirroring")
+async def cmd_role_mirror_unblock(interaction: discord.Interaction, role: discord.Role) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not _is_server_admin(interaction):
+        await interaction.followup.send(
+            "🚫 Only the server owner or Administrators can manage the mirror blocklist.",
+            ephemeral=True,
+        )
+        return
+    res = await api.role_mirror_remove(str(interaction.guild.id), str(role.id))
+    removed = ((res.get("data") or {}).get("removed") or 0) if res.get("ok") else 0
+    if removed:
+        await interaction.followup.send(
+            f"✅ **{role.name}** will now mirror to the website on the next sync.",
+            ephemeral=True,
+        )
+    else:
+        await interaction.followup.send(
+            f"ℹ️ **{role.name}** wasn't on the blocklist.", ephemeral=True,
+        )
+
+
+@bot.tree.command(name="role-mirror-list",
+                  description="Show every Discord role currently blocked from mirroring.")
+async def cmd_role_mirror_list(interaction: discord.Interaction) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not _is_server_admin(interaction):
+        await interaction.followup.send(
+            "🚫 Only the server owner or Administrators can view the blocklist.",
+            ephemeral=True,
+        )
+        return
+    res = await api.role_mirror_list(str(interaction.guild.id))
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    rows = res.get("data") or []
+    if not rows:
+        await interaction.followup.send(
+            "📭 No roles are blocked. Every Discord role you grant a verified student will mirror to the website.",
+            ephemeral=True,
+        )
+        return
+    lines = ["**Blocked roles (these won't mirror to the website):**", ""]
+    for r in rows:
+        lines.append(f"• <@&{r['roleId']}> — *{r.get('roleName') or '?'}*")
     await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 

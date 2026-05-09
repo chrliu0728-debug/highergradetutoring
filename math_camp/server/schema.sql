@@ -175,6 +175,21 @@ CREATE TABLE IF NOT EXISTS discord_command_perms (
 );
 CREATE INDEX IF NOT EXISTS idx_dcp_guild_cmd ON discord_command_perms(guildId, command);
 
+-- Discord roles whose grants should NOT be mirrored to the website's
+-- per-student `roles` JSON. Server admins manage this list via
+-- /role-mirror-block etc. Matching is case + whitespace insensitive on
+-- the role name (the bot stores both id and name to handle renames).
+CREATE TABLE IF NOT EXISTS discord_role_blocklist (
+  id          TEXT PRIMARY KEY,
+  guildId     TEXT NOT NULL,
+  roleId      TEXT NOT NULL,
+  roleName    TEXT,
+  addedBy     TEXT,
+  createdAt   INTEGER NOT NULL,
+  UNIQUE (guildId, roleId)
+);
+CREATE INDEX IF NOT EXISTS idx_drb_guild ON discord_role_blocklist(guildId);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,

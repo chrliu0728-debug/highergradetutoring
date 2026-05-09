@@ -97,6 +97,19 @@ RESERVED_STUDENT_EMAILS = {"burntout@gmail.com"}
 def _is_reserved_email(email):
     return (email or "").strip().lower() in RESERVED_STUDENT_EMAILS
 
+
+def _normalize_role_name(name):
+    """Normalize a role name for case + whitespace + 'Camp · ' prefix
+    insensitive matching between Discord roles and camp roles."""
+    if not name:
+        return ""
+    n = name.lower().strip()
+    for prefix in ("camp · ", "camp - ", "camp: ", "camp ", "camp·", "camp:"):
+        if n.startswith(prefix):
+            n = n[len(prefix):].strip()
+            break
+    return "".join(c for c in n if not c.isspace())
+
 # ── Vulgar Vault — staff-controlled rotating-code stash ──────────────
 # Admin-applied penalties (manual deductions for bad activities) deposit
 # the lost points into this vault. Students can drain the entire vault
@@ -2057,6 +2070,115 @@ def register_routes(app):
             (pid, guild_id, command, role_id, role_name, created_by, int(time.time())),
         )
         return jsonify(ok=True, data={"id": pid, "alreadyExisted": False})
+
+    # — Role-mirror blocklist (Discord roles that should NOT propagate
+    #   to the website's per-student role list) —
+    @app.route("/api/bot/role-mirror/blocklist", methods=["GET"])
+    @require_bot
+    def bot_role_mirror_list():
+        guild_id = (request.args.get("guildId") or "").strip()
+        if not guild_id:
+            return jsonify(ok=False, error="guildId required."), 400
+        rows = g.db.execute(
+            "SELECT * FROM discord_role_blocklist WHERE guildId = ? ORDER BY createdAt",
+            (guild_id,),
+        ).fetchall()
+        return jsonify(ok=True, data=[dict(r) for r in rows])
+
+    @app.route("/api/bot/role-mirror/blocklist", methods=["POST"])
+    @require_bot
+    def bot_role_mirror_add():
+        d = request.get_json(silent=True) or {}
+        guild_id  = (d.get("guildId") or "").strip()
+        role_id   = (d.get("roleId") or "").strip()
+        role_name = (d.get("roleName") or "").strip() or None
+        added_by  = (d.get("addedBy") or "").strip() or None
+        if not guild_id or not role_id:
+            return jsonify(ok=False, error="guildId and roleId required."), 400
+        existing = g.db.execute(
+            "SELECT id FROM discord_role_blocklist WHERE guildId = ? AND roleId = ?",
+            (guild_id, role_id),
+        ).fetchone()
+        if existing:
+            return jsonify(ok=True, data={"id": existing["id"], "alreadyExisted": True})
+        bid = "drb-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO discord_role_blocklist
+               (id, guildId, roleId, roleName, addedBy, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (bid, guild_id, role_id, role_name, added_by, int(time.time())),
+        )
+        return jsonify(ok=True, data={"id": bid, "alreadyExisted": False})
+
+    @app.route("/api/bot/role-mirror/blocklist/remove", methods=["POST"])
+    @require_bot
+    def bot_role_mirror_remove():
+        d = request.get_json(silent=True) or {}
+        guild_id = (d.get("guildId") or "").strip()
+        role_id  = (d.get("roleId") or "").strip()
+        if not guild_id or not role_id:
+            return jsonify(ok=False, error="guildId and roleId required."), 400
+        cur = g.db.execute(
+            "DELETE FROM discord_role_blocklist WHERE guildId = ? AND roleId = ?",
+            (guild_id, role_id),
+        )
+        return jsonify(ok=True, data={"removed": cur.rowcount})
+
+    # — Push the union of a member's mirrorable Discord roles into the
+    #   student's `roles` field (additive: never removes, just merges in).
+    @app.route("/api/bot/students/<sid>/mirror-discord-roles", methods=["POST"])
+    @require_bot
+    def bot_mirror_discord_roles(sid):
+        d = request.get_json(silent=True) or {}
+        names_in = d.get("roleNames") or []
+        if not isinstance(names_in, list):
+            return jsonify(ok=False, error="roleNames must be a list."), 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            # Look up every existing camp role once so we can match by
+            # normalized name without N queries.
+            all_roles = g.db.execute("SELECT * FROM roles").fetchall()
+            by_norm = {_normalize_role_name(r["name"]): dict(r) for r in all_roles}
+
+            existing_role_ids = json.loads(row["roles"] or "[]")
+            new_role_ids = list(existing_role_ids)
+            created = []
+            matched = []
+            for raw in names_in:
+                name = (raw or "").strip()
+                if not name:
+                    continue
+                norm = _normalize_role_name(name)
+                if not norm:
+                    continue
+                if norm in by_norm:
+                    rid = by_norm[norm]["id"]
+                    matched.append(rid)
+                else:
+                    # Auto-create a camp role for this Discord role.
+                    rid = "role-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(2)
+                    g.db.execute(
+                        """INSERT INTO roles (id, name, icon, color, description, special)
+                           VALUES (?, ?, '🏅', '#3B82F6', 'Auto-created from Discord role.', 0)""",
+                        (rid, name),
+                    )
+                    by_norm[norm] = {"id": rid, "name": name}
+                    created.append(rid)
+                if rid not in new_role_ids:
+                    new_role_ids.append(rid)
+            if new_role_ids != existing_role_ids:
+                g.db.execute(
+                    "UPDATE students SET roles = ? WHERE id = ?",
+                    (json.dumps(new_role_ids), sid),
+                )
+        return jsonify(ok=True, data={
+            "added":   list(set(new_role_ids) - set(existing_role_ids)),
+            "created": created,
+            "matched": matched,
+            "studentRoles": new_role_ids,
+        })
 
     @app.route("/api/bot/perms/revoke", methods=["POST"])
     @require_bot
