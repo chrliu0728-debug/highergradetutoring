@@ -1960,19 +1960,37 @@ def register_routes(app):
         cid = "chest-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         g.db.execute(
             """INSERT INTO discord_chests
-               (id, code, description, roleId, roleName, guildId, createdBy, createdAt, claimedBy)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]')""",
+               (id, code, description, imageUrl, roleId, roleName, guildId,
+                channelId, messageId, createdBy, createdAt, claimedBy)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]')""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
+                (d.get("imageUrl") or "").strip() or None,
                 role_id,
                 (d.get("roleName") or "").strip() or None,
                 guild_id,
+                (d.get("channelId") or "").strip() or None,
+                (d.get("messageId") or "").strip() or None,
                 (d.get("createdBy") or "").strip() or None,
                 int(time.time()),
             ),
         )
         return jsonify(ok=True, data={"id": cid})
+
+    @app.route("/api/bot/chests/<cid>/message", methods=["POST"])
+    @require_bot
+    def bot_chest_set_message(cid):
+        """Bot calls this after posting the chest's public message so the
+        record knows which channel + message to point back at."""
+        d = request.get_json(silent=True) or {}
+        channel_id = (d.get("channelId") or "").strip() or None
+        message_id = (d.get("messageId") or "").strip() or None
+        g.db.execute(
+            "UPDATE discord_chests SET channelId = ?, messageId = ? WHERE id = ?",
+            (channel_id, message_id, cid),
+        )
+        return jsonify(ok=True)
 
     @app.route("/api/bot/chests", methods=["GET"])
     @require_bot
@@ -2009,15 +2027,25 @@ def register_routes(app):
         guild_id   = (d.get("guildId") or "").strip()
         discord_id = (d.get("discordId") or "").strip()
         code       = (d.get("code") or "").strip()
+        chest_id   = (d.get("chestId") or "").strip() or None
         if not guild_id or not discord_id or not code:
             return jsonify(ok=False, error="guildId, discordId, and code are required."), 400
         with g.db:
-            chest = g.db.execute(
-                "SELECT * FROM discord_chests WHERE guildId = ? AND code = ?",
-                (guild_id, code),
-            ).fetchone()
+            # If chestId is supplied (button-driven flow), validate that
+            # the typed code matches the SPECIFIC chest the user clicked.
+            # Otherwise fall back to the older "any chest with this code".
+            if chest_id:
+                chest = g.db.execute(
+                    "SELECT * FROM discord_chests WHERE id = ? AND code = ? AND guildId = ?",
+                    (chest_id, code, guild_id),
+                ).fetchone()
+            else:
+                chest = g.db.execute(
+                    "SELECT * FROM discord_chests WHERE guildId = ? AND code = ?",
+                    (guild_id, code),
+                ).fetchone()
             if not chest:
-                return jsonify(ok=False, error="That code doesn't open any chest in this server."), 404
+                return jsonify(ok=False, error="That code doesn't open this chest."), 404
             try:
                 claimed = json.loads(chest["claimedBy"] or "[]")
             except Exception:  # noqa: BLE001

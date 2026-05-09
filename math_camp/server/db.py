@@ -65,6 +65,14 @@ def _migrate(conn):
             )
     except sqlite3.OperationalError:
         pass
+    # Chests gained imageUrl + channelId + messageId for the public-message
+    # button flow. Add them to existing tables that pre-date the change.
+    for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT")):
+        try:
+            if _has_column("discord_chests", "id") and not _has_column("discord_chests", col[0]):
+                conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")
+        except sqlite3.OperationalError:
+            pass
 
 
 # ── Seed defaults ─────────────────────────────────────────────────────

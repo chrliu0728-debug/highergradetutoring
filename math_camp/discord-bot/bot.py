@@ -138,10 +138,17 @@ class CampAPI:
 
     # — Chests —
     async def chest_create(self, guild_id: str, code: str, role_id: str, role_name: str,
-                           description: str, created_by: str) -> Dict[str, Any]:
+                           description: str, created_by: str,
+                           image_url: Optional[str] = None) -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
+            "imageUrl": image_url or "",
+        })
+
+    async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
+        return await self._post(f"/api/bot/chests/{chest_id}/message", {
+            "channelId": channel_id, "messageId": message_id,
         })
 
     async def chest_list(self, guild_id: str) -> Dict[str, Any]:
@@ -150,10 +157,12 @@ class CampAPI:
     async def chest_delete(self, chest_id: str) -> Dict[str, Any]:
         return await self._delete(f"/api/bot/chests/{chest_id}")
 
-    async def chest_claim(self, guild_id: str, discord_id: str, code: str) -> Dict[str, Any]:
-        return await self._post("/api/bot/chests/claim", {
-            "guildId": guild_id, "discordId": discord_id, "code": code,
-        })
+    async def chest_claim(self, guild_id: str, discord_id: str, code: str,
+                          chest_id: Optional[str] = None) -> Dict[str, Any]:
+        body = {"guildId": guild_id, "discordId": discord_id, "code": code}
+        if chest_id:
+            body["chestId"] = chest_id
+        return await self._post("/api/bot/chests/claim", body)
 
 
 api = CampAPI(CAMP_API_BASE, BOT_API_TOKEN)
@@ -170,6 +179,10 @@ class HGBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self) -> None:
+        # Persistent chest buttons — survive bot restarts because the
+        # button's custom_id encodes the chest_id and discord.py
+        # reconstructs the handler from the regex template.
+        self.add_dynamic_items(ChestUnlockButton)
         # Sync slash commands. If GUILD_ID is set we sync to that guild
         # only (instant); otherwise the global sync that can take up
         # to an hour to propagate is used.
@@ -280,6 +293,112 @@ async def _before_sync() -> None:
     await bot.wait_until_ready()
 
 
+# ── Locked-chest interactive UI ──────────────────────────────────────
+# Each chest gets posted as a public embed with a button. Clicking the
+# button opens a modal asking for the passcode. Submitting the right
+# code grants the role. Multi-claim is allowed — the chest message stays
+# in the channel so anyone with the code can keep opening it.
+
+class ChestUnlockModal(discord.ui.Modal, title="🔒 Locked chest"):
+    code = discord.ui.TextInput(
+        label="Passcode",
+        placeholder="Enter the chest's secret code",
+        min_length=1, max_length=128, required=True,
+    )
+
+    def __init__(self, chest_id: str) -> None:
+        super().__init__()
+        self.chest_id = chest_id
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        if not interaction.guild:
+            await interaction.followup.send("Run this in a server.", ephemeral=True)
+            return
+        res = await api.chest_claim(
+            str(interaction.guild.id), str(interaction.user.id),
+            str(self.code.value).strip(), chest_id=self.chest_id,
+        )
+        if not res.get("ok"):
+            await interaction.followup.send(
+                f"🔒 {res.get('error') or 'Wrong code.'}", ephemeral=True,
+            )
+            return
+        payload = res.get("data") or {}
+        role_id = payload.get("roleId")
+        description = payload.get("description") or "(no description set)"
+        role = interaction.guild.get_role(int(role_id)) if role_id else None
+        member = interaction.user if isinstance(interaction.user, discord.Member) else \
+                 await interaction.guild.fetch_member(interaction.user.id)
+        granted = False
+        already = bool(payload.get("alreadyClaimed"))
+        if role and member and role not in member.roles:
+            try:
+                await member.add_roles(role, reason="HigherGrade chest unlock")
+                granted = True
+            except discord.Forbidden:
+                pass
+        msg = f"🗝 **Chest opened!**\n\n{description}"
+        if granted and role:
+            msg += f"\n\n✅ Role granted: **{role.name}**"
+        elif already and role:
+            msg += f"\n\n(You already have **{role.name}** — opened previously.)"
+        elif role:
+            msg += "\n\n⚠️ Couldn't grant the role — ask an admin to put my role above it in Server Settings → Roles."
+        await interaction.followup.send(msg, ephemeral=True)
+
+
+class ChestUnlockButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"chest_unlock:(?P<chest_id>[A-Za-z0-9_\-]+)",
+):
+    """Persistent button. discord.py reconstructs the instance on every
+    restart by matching the custom_id against the regex template — so old
+    chest messages keep working even after a deploy."""
+
+    def __init__(self, chest_id: str) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Open with code 🗝",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"chest_unlock:{chest_id}",
+            )
+        )
+        self.chest_id = chest_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction,
+                             item: discord.ui.Button, match):
+        return cls(match["chest_id"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(ChestUnlockModal(self.chest_id))
+
+
+def _chest_view(chest_id: str) -> discord.ui.View:
+    """Build a one-shot view containing a persistent button. Used at
+    chest-creation time when we post the embed."""
+    view = discord.ui.View(timeout=None)
+    view.add_item(ChestUnlockButton(chest_id))
+    return view
+
+
+def _chest_embed(description: str, image_url: Optional[str] = None,
+                 role_name: Optional[str] = None) -> discord.Embed:
+    e = discord.Embed(
+        title="🔒 Locked Chest",
+        description=description or "*(no description)*",
+        color=discord.Color.purple(),
+    )
+    if image_url:
+        e.set_image(url=image_url)
+    footer = "Tap the button below and enter the passcode to open."
+    if role_name:
+        footer += f" Unlocks: {role_name}."
+    e.set_footer(text=footer)
+    return e
+
+
 # ── Slash commands ───────────────────────────────────────────────────
 @bot.tree.command(name="verify", description="Link your Discord account to your camp account.")
 @app_commands.describe(
@@ -296,20 +415,51 @@ async def cmd_verify(interaction: discord.Interaction, email: str, password: str
         await interaction.followup.send(f"❌ {res.get('error') or 'Verification failed.'}", ephemeral=True)
         return
     summary = res.get("data") or {}
+    full_name = (summary.get("fullName") or "").strip()
     student_role = await ensure_role(interaction.guild, STUDENT_ROLE_NAME,
                                      color=discord.Color.blurple(), hoist=True)
     member = interaction.user if isinstance(interaction.user, discord.Member) else \
              await interaction.guild.fetch_member(interaction.user.id)
+    role_warning = ""
     try:
         await member.add_roles(student_role, reason="HigherGrade verify")
     except discord.Forbidden:
-        pass
+        role_warning = "⚠️ Couldn't grant the **Student** role — ask an admin to put my role above it."
+
+    # Also sync any camp-game roles the student already holds.
     await _sync_member(member, summary)
-    await interaction.followup.send(
-        f"✅ Linked to **{summary.get('fullName') or 'your camp account'}** · "
-        f"{summary.get('privatePoints', 0)} pts. Welcome!",
-        ephemeral=True,
+
+    # Force a nickname update directly here (even if _sync_member skipped
+    # it) so we can give the user a clear pass/fail reason.
+    nick_status = ""
+    if full_name:
+        if member.id == interaction.guild.owner_id:
+            nick_status = (
+                f"\n\nℹ️ Discord doesn't let bots rename the **server owner** — "
+                f"please set your nickname to **{full_name}** manually."
+            )
+        elif member.top_role >= (interaction.guild.me.top_role if interaction.guild.me else member.top_role):
+            nick_status = (
+                f"\n\nℹ️ Couldn't update your nickname because your top role is at-or-above mine. "
+                f"Set it to **{full_name}** manually, or ask an admin to move my role higher."
+            )
+        else:
+            try:
+                await member.edit(nick=full_name[:32], reason="HigherGrade verify")
+                nick_status = f"\n\n📛 Nickname updated to **{full_name[:32]}**."
+            except discord.Forbidden:
+                nick_status = (
+                    f"\n\nℹ️ Couldn't update your nickname — please set it to **{full_name}** manually."
+                )
+
+    msg = (
+        f"✅ Linked to **{full_name or 'your camp account'}** · "
+        f"{summary.get('privatePoints', 0)} pts. Welcome!"
     )
+    if role_warning:
+        msg += "\n\n" + role_warning
+    msg += nick_status
+    await interaction.followup.send(msg, ephemeral=True)
 
 
 @bot.tree.command(name="whoami", description="Show your linked camp profile.")
@@ -391,14 +541,20 @@ def _admin_only(interaction: discord.Interaction) -> bool:
     return bool(perms and (perms.manage_roles or perms.administrator))
 
 
-@bot.tree.command(name="chest-create", description="Place a locked chest in this server.")
+@bot.tree.command(name="chest-create", description="Place a locked chest in this channel.")
 @app_commands.describe(
     code="The passcode players must type to unlock",
     role="The role granted on unlock",
     description="Reveal text shown when the chest is opened",
+    image="Optional image to embed in the chest message",
 )
-async def cmd_chest_create(interaction: discord.Interaction, code: str, role: discord.Role,
-                            description: str) -> None:
+async def cmd_chest_create(
+    interaction: discord.Interaction,
+    code: str,
+    role: discord.Role,
+    description: str,
+    image: Optional[discord.Attachment] = None,
+) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
     if not _admin_only(interaction):
         await interaction.followup.send("This command is admin-only.", ephemeral=True)
@@ -411,15 +567,55 @@ async def cmd_chest_create(interaction: discord.Interaction, code: str, role: di
             ephemeral=True,
         )
         return
+    if image is not None and not (image.content_type or "").startswith("image/"):
+        await interaction.followup.send(
+            "❌ The `image` attachment doesn't look like an image file.",
+            ephemeral=True,
+        )
+        return
+    image_url = image.url if image else None
     res = await api.chest_create(
         str(interaction.guild.id), code.strip(), str(role.id), role.name,
         description.strip(), str(interaction.user.id),
+        image_url=image_url,
     )
     if not res.get("ok"):
         await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
         return
+    chest_id = (res.get("data") or {}).get("id")
+    if not chest_id:
+        await interaction.followup.send("❌ Server didn't return a chest id.", ephemeral=True)
+        return
+
+    embed = _chest_embed(description.strip(), image_url=image_url, role_name=role.name)
+    view = _chest_view(chest_id)
+
+    # Post the public chest message into the same channel the admin ran
+    # the command in. The button is persistent, so this message keeps
+    # working forever (until the chest is deleted).
+    posted = None
+    try:
+        posted = await interaction.channel.send(embed=embed, view=view)
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ I can't send messages in this channel — give me Send Messages + Embed Links permission and try again.",
+            ephemeral=True,
+        )
+        # Roll back the chest record so we don't leave a phantom entry.
+        await api.chest_delete(chest_id)
+        return
+
+    # Save the channel + message id back to the chest record so admins
+    # can find / clean up old chests later.
+    if posted:
+        try:
+            await api.chest_set_message(chest_id, str(posted.channel.id), str(posted.id))
+        except Exception:  # noqa: BLE001
+            log.exception("failed to save chest message id")
+
     await interaction.followup.send(
-        f"📦 Chest placed. Code is **{code}**, opens to **{role.name}**.",
+        f"📦 Chest placed in {posted.channel.mention if posted else 'this channel'}. "
+        f"Code is **{code}** · unlocks **{role.name}**.",
         ephemeral=True,
     )
 

@@ -147,9 +147,12 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   id           TEXT PRIMARY KEY,
   code         TEXT NOT NULL,
   description  TEXT,
+  imageUrl     TEXT,
   roleId       TEXT NOT NULL,
   roleName     TEXT,
   guildId      TEXT NOT NULL,
+  channelId    TEXT,
+  messageId    TEXT,
   createdBy    TEXT,
   createdAt    INTEGER NOT NULL,
   claimedBy    TEXT NOT NULL DEFAULT '[]'
