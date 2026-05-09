@@ -73,6 +73,12 @@ def _migrate(conn):
                 conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")
         except sqlite3.OperationalError:
             pass
+    # Staff transcript file uploads — added after launch.
+    try:
+        if _has_column("staff", "id") and not _has_column("staff", "transcriptFile"):
+            conn.execute("ALTER TABLE staff ADD COLUMN transcriptFile TEXT")
+    except sqlite3.OperationalError:
+        pass
 
 
 # ── Seed defaults ─────────────────────────────────────────────────────
@@ -283,4 +289,15 @@ def row_to_tx(r):
 def row_to_staff(r):
     if r is None:
         return None
-    return dict(r)
+    d = dict(r)
+    # transcriptFile is stored as JSON text; deserialize so the
+    # frontend can read d.transcriptFile.data and .name directly.
+    raw = d.get("transcriptFile")
+    if raw:
+        try:
+            d["transcriptFile"] = json.loads(raw)
+        except (TypeError, ValueError):
+            d["transcriptFile"] = None
+    else:
+        d["transcriptFile"] = None
+    return d

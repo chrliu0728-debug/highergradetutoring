@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS staff (
   interests       TEXT,
   bio             TEXT,
   transcript      TEXT,
+  transcriptFile  TEXT,           -- JSON: { data, name, type, size }
   position        INTEGER NOT NULL DEFAULT 0
 );
 

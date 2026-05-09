@@ -1301,16 +1301,18 @@ def register_routes(app):
         with g.db:
             g.db.execute("DELETE FROM staff")
             for i, s in enumerate(arr):
+                tf = s.get("transcriptFile")
+                tf_json = json.dumps(tf) if isinstance(tf, dict) and tf.get("data") else None
                 g.db.execute(
                     """INSERT INTO staff
-                       (id, category, name, role, image, quote, age, school, gender, pronouns, interests, bio, transcript, position)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (id, category, name, role, image, quote, age, school, gender, pronouns, interests, bio, transcript, transcriptFile, position)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (s["id"], s.get("category") or "", s.get("name") or "",
                      s.get("role") or "", s.get("image") or "", s.get("quote") or "",
                      s.get("age") or "", s.get("school") or "",
                      s.get("gender") or "", s.get("pronouns") or "",
                      s.get("interests") or "", s.get("bio") or "",
-                     s.get("transcript") or "", i),
+                     s.get("transcript") or "", tf_json, i),
                 )
         return jsonify(ok=True, count=len(arr))
 
@@ -1377,16 +1379,18 @@ def register_routes(app):
             if "staff" in data:
                 g.db.execute("DELETE FROM staff")
                 for i, s in enumerate(data["staff"]):
+                    tf = s.get("transcriptFile")
+                    tf_json = json.dumps(tf) if isinstance(tf, dict) and tf.get("data") else None
                     g.db.execute(
                         """INSERT INTO staff
-                           (id, category, name, role, image, quote, age, school, gender, pronouns, interests, bio, transcript, position)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           (id, category, name, role, image, quote, age, school, gender, pronouns, interests, bio, transcript, transcriptFile, position)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (s["id"], s.get("category") or "", s.get("name") or "",
                          s.get("role") or "", s.get("image") or "", s.get("quote") or "",
                          s.get("age") or "", s.get("school") or "",
                          s.get("gender") or "", s.get("pronouns") or "",
                          s.get("interests") or "", s.get("bio") or "",
-                         s.get("transcript") or "", i),
+                         s.get("transcript") or "", tf_json, i),
                     )
                 imported["staff"] = len(data["staff"])
         return jsonify(ok=True, imported=imported)
