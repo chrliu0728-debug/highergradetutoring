@@ -249,19 +249,27 @@ function studentBaseStatTotal(student) {
    Auth — server-side cookie session.
    ────────────────────────────────────────────────────────────── */
 async function findStudentByLogin(email, password) {
+  HG.cache.lastLoginError = null;
   try {
     const r = await _api('/auth/student/login', {
       method: 'POST', body: { email, password },
     });
     if (r && r.ok && r.student) {
       HG.cache.me = { kind: 'student', student: r.student };
-      // Make sure new student appears in the cache too.
       const idx = HG.cache.students.findIndex(s => s.id === r.student.id);
       if (idx >= 0) HG.cache.students[idx] = r.student;
       else HG.cache.students.push(r.student);
       return r.student;
     }
-  } catch (_) { /* fallthrough → null */ }
+  } catch (err) {
+    // Capture the server-side reason so the calling page can show
+    // a useful message (e.g. account frozen / awaiting payment).
+    HG.cache.lastLoginError = {
+      status:  err && err.status,
+      message: (err && err.message) || 'Login failed.',
+      frozen:  !!(err && err.data && err.data.frozen),
+    };
+  }
   return null;
 }
 

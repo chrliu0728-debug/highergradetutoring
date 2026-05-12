@@ -852,7 +852,13 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     }
     const student = await findStudentByLogin(email, pwd);
     if (!student) {
-      loginError.textContent = "Couldn't find a matching account. Check your email and password.";
+      const last = HG.cache.lastLoginError;
+      if (last && last.frozen) {
+        loginError.textContent = last.message
+          || "Your account is frozen until our staff confirms your $75 CAD e-Transfer to h.ghergradetutor.ng@gmail.com.";
+      } else {
+        loginError.textContent = "Couldn't find a matching account. Check your email and password.";
+      }
       return;
     }
     renderDashboard();

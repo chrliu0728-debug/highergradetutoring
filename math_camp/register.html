@@ -470,8 +470,8 @@
 
             <!-- Location notice for parents -->
             <div style="margin-top:18px; background:#FFF8E5; border:1px solid #F0D580; border-radius: var(--radius-sm); padding: 14px 18px; font-size:.88rem; color:#5A4500; line-height:1.55;">
-              <strong>📍 Heads up — camp location is subject to change.</strong><br>
-              We currently plan to run camp at Abbey Park High School, but the venue may change while we finalize details. <strong>The camp will always be in Oakville</strong>, but please be prepared to drop off / pick up at a different Oakville site if needed. We'll email registered families at least two weeks before Day 1 with the confirmed address.
+              <strong>📍 Camp location.</strong><br>
+              All 10 days run at <a href="https://www.google.com/maps/dir/?api=1&destination=Abbey+Park+High+School%2C+1455+Glen+Abbey+Gate%2C+Oakville%2C+ON" target="_blank" rel="noopener"><strong>Abbey Park High School</strong></a> (1455 Glen Abbey Gate, Oakville). Click the address to get directions in Google Maps. Specific room assignments and drop-off / pick-up details will be emailed to registered families ahead of Day 1.
             </div>
 
             <div class="form-nav">
@@ -504,6 +504,16 @@
 
             <div style="background: var(--blush-bg); border: 1px solid var(--blush-light); border-radius: var(--radius-sm); padding: 12px 16px; margin-top: 8px; font-size: .85rem; color: var(--text-mid); line-height: 1.5;">
               <strong>📅 Attendance:</strong> We assume all registered campers attend the full two weeks (July 20–31). If you can only attend part of the camp, please email <a href="mailto:lucas.liu.ca2009@gmail.com" style="color:var(--blush-dark);">lucas.liu.ca2009@gmail.com</a> after registering so we can plan accordingly.
+            </div>
+
+            <!-- Authorized pickup people -->
+            <div style="margin-top:24px;">
+              <div class="form-section-title" style="font-size:1.05rem;">🚗 Authorized Pickup People</div>
+              <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px;line-height:1.55;">
+                List anyone <em>besides the parent/guardian above</em> who is allowed to pick up the camper. We'll only release the camper to people on this list (or the parent/guardian). Leave blank if only the parent/guardian will pick up. You can add multiple people.
+              </p>
+              <div id="pickup-list"></div>
+              <button type="button" id="add-pickup-btn" class="btn btn-ghost" style="margin-top:6px;">+ Add another pickup person</button>
             </div>
 
             <div class="form-nav">
@@ -567,10 +577,10 @@
                 <!-- Checkbox 2: Transportation / location -->
                 <label class="checkbox-label" style="margin-top:14px;">
                   <input type="checkbox" id="consent-transport" name="consent_transport" required />
-                  <span>I/We understand the <strong>camp's host school may change before July 20</strong> and can arrange transportation for the student to <strong>any HDSB school within Oakville</strong>. <span class="req">*</span></span>
+                  <span>I/We can arrange transportation for the student to and from <strong>Abbey Park High School</strong> (1455 Glen Abbey Gate, Oakville) each day of camp. <span class="req">*</span></span>
                 </label>
                 <div style="background:#FEF3C7; border:1px solid #FDE68A; border-radius:var(--radius-sm); padding:10px 14px; margin-top:6px; font-size:.82rem; line-height:1.5; color:#92400E;">
-                  <strong>Heads up to parents:</strong> we're currently planning to host at Abbey Park High School, but space at HDSB schools is allocated closer to summer. The final location could be any Oakville HDSB school (Abbey Park, Iroquois Ridge, Oakville Trafalgar, White Oaks, etc.). We'll confirm the final venue at least two weeks before camp starts.
+                  <strong>Heads up to parents:</strong> camp runs at <a href="https://www.google.com/maps/dir/?api=1&destination=Abbey+Park+High+School%2C+1455+Glen+Abbey+Gate%2C+Oakville%2C+ON" target="_blank" rel="noopener"><strong>Abbey Park High School</strong></a> in Oakville. Click the link for Google Maps directions. Specific room and drop-off / pick-up details will be emailed at least two weeks before camp starts.
                 </div>
 
                 <!-- Checkbox 3: Photo / Social Media -->
@@ -604,10 +614,28 @@
           <p>
             Thanks for registering for HigherGrade Tutoring's Summer Camp 2026. We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before July 20.
           </p>
-          <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:380px;text-align:left;font-size:.88rem;color:var(--text-mid);">
+
+          <!-- ── $75 e-Transfer payment step ── -->
+          <div style="background:#FEF6D6;border:2px solid #F2C94C;border-radius:var(--radius-sm);padding:20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#5A4500;line-height:1.55;">
+            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;">💸 Final step — send $75 CAD by e-Transfer</div>
+            <p style="margin:0 0 8px;font-size:.9rem;">
+              To complete your registration, please send a <strong>$75 CAD</strong> Interac e-Transfer to:
+            </p>
+            <div style="background:#fff;border:1px solid #E2C97A;border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono', monospace;font-size:.95rem;font-weight:700;text-align:center;letter-spacing:.02em;color:#3A2E00;margin-bottom:10px;">
+              h.ghergradetutor.ng@gmail.com
+            </div>
+            <p style="margin:0 0 6px;font-size:.85rem;">
+              In the <strong>message</strong> field, please include the camper's full name so we can match the payment to your registration.
+            </p>
+            <p style="margin:0;font-size:.85rem;">
+              <strong>Heads up:</strong> your camper's account will stay <strong>frozen</strong> until our staff confirms the e-Transfer. Once we see it, we'll unfreeze the account (usually within 24 hours) and the camper will be able to sign in to the student portal.
+            </p>
+          </div>
+
+          <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:520px;text-align:left;font-size:.88rem;color:var(--text-mid);">
             <div style="margin-bottom:8px;">📅 <strong>Camp Dates:</strong> July 20–31, 2026</div>
-            <div style="margin-bottom:8px;">📧 <strong>Confirmation:</strong> Check your email</div>
-            <div>📍 <strong>Location:</strong> An HDSB school in Oakville (final venue confirmed by July 6)</div>
+            <div style="margin-bottom:8px;">📧 <strong>Confirmation:</strong> Check your email (and spam)</div>
+            <div>📍 <strong>Location:</strong> Abbey Park High School, Oakville</div>
           </div>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <a href="student-portal.html" class="btn btn-primary">Go to your student portal →</a>
@@ -624,7 +652,7 @@
           <div class="sidebar-item"><span class="si-icon">📅</span><span><strong>July 20–31, 2026</strong><br>Week 1: Mon–Sat · Week 2: Mon–Thu</span></div>
           <div class="sidebar-item"><span class="si-icon">⏰</span><span><strong>9:00 AM – 3:30 PM</strong> daily</span></div>
           <div class="sidebar-item"><span class="si-icon">🎓</span><span>For <strong>Grade 9 students</strong> — HDSB &amp; all boards welcome</span></div>
-          <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>An HDSB school in Oakville</strong> — venue subject to change. Plan transportation for any Oakville HDSB campus.</span></div>
+          <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>Abbey Park High School</strong>, 1455 Glen Abbey Gate, Oakville</span></div>
           <div class="sidebar-item"><span class="si-icon">💰</span><span><strong>100% free</strong> to attend</span></div>
           <div class="sidebar-item"><span class="si-icon">👥</span><span>Limited to <strong>40 participants</strong></span></div>
         </div>
@@ -744,7 +772,79 @@
 
   function get(id) { return document.getElementById(id)?.value?.trim() || '—'; }
 
+  // ── Authorized pickup people (dynamic list) ──
+  const pickupList = document.getElementById('pickup-list');
+  const addPickupBtn = document.getElementById('add-pickup-btn');
+  let pickupSeq = 0;
+
+  function pickupRowHTML(seq) {
+    return `
+      <div class="emerg-block pickup-row" data-pickup-row="${seq}" style="margin-bottom:10px;">
+        <div class="emerg-block-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Authorized pickup #<span class="pickup-num">${seq}</span></span>
+          <button type="button" class="btn btn-ghost remove-pickup-btn" data-row="${seq}" style="padding:4px 10px;font-size:.78rem;">Remove</button>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Full name</label>
+            <input type="text" class="pickup-name"  placeholder="e.g. Emma Wong" />
+          </div>
+          <div class="field">
+            <label>Relationship</label>
+            <input type="text" class="pickup-relationship" placeholder="e.g. Aunt, Family friend" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Phone number</label>
+          <input type="tel" class="pickup-phone" placeholder="e.g. (905) 555-0789" />
+        </div>
+      </div>
+    `;
+  }
+  function renumberPickup() {
+    pickupList.querySelectorAll('.pickup-row').forEach((row, i) => {
+      row.querySelector('.pickup-num').textContent = (i + 1);
+    });
+  }
+  function addPickupRow() {
+    pickupSeq += 1;
+    pickupList.insertAdjacentHTML('beforeend', pickupRowHTML(pickupSeq));
+    renumberPickup();
+  }
+  pickupList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.remove-pickup-btn');
+    if (!btn) return;
+    const row = btn.closest('.pickup-row');
+    if (row) row.remove();
+    renumberPickup();
+  });
+  addPickupBtn.addEventListener('click', addPickupRow);
+  // Start with one empty row so the structure is visible.
+  addPickupRow();
+
+  function collectPickupPeople() {
+    const out = [];
+    pickupList.querySelectorAll('.pickup-row').forEach((row) => {
+      const name = row.querySelector('.pickup-name')?.value?.trim() || '';
+      const phone = row.querySelector('.pickup-phone')?.value?.trim() || '';
+      const rel  = row.querySelector('.pickup-relationship')?.value?.trim() || '';
+      if (!name && !phone && !rel) return;
+      out.push({ name, phone, relationship: rel });
+    });
+    return out;
+  }
+
   function buildReview() {
+    const pickups = collectPickupPeople();
+    const pickupHtml = pickups.length
+      ? pickups.map((p) => {
+          const parts = [];
+          if (p.name) parts.push(p.name);
+          if (p.relationship) parts.push(`(${p.relationship})`);
+          if (p.phone) parts.push(`· ${p.phone}`);
+          return parts.join(' ');
+        }).map((line) => `<div>• ${line}</div>`).join('')
+      : '<div style="color:var(--muted);font-style:italic;">None listed — only the parent/guardian above will be allowed to pick up.</div>';
     document.getElementById('review-summary').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;">
         <div><strong>Student:</strong> ${get('first-name')} ${get('last-name')}</div>
@@ -757,6 +857,10 @@
         <div style="grid-column:1/-1;"><strong>Parent Email:</strong> ${get('parent-email')}</div>
         <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
           <strong>Emergency Contact:</strong> ${get('emerg1-name')} (${get('emerg1-relationship')}) · ${get('emerg1-phone')}
+        </div>
+        <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
+          <strong>Authorized Pickup People:</strong>
+          <div style="margin-top:4px;">${pickupHtml}</div>
         </div>
       </div>
     `;
@@ -821,6 +925,7 @@
       why_join:            document.getElementById('why-join')?.value?.trim() || null,
       consent_photo:       document.getElementById('consent-photo').checked,
       password:            pwdVal,
+      pickup_people:       collectPickupPeople(),
     };
 
     submitEl.disabled = true;

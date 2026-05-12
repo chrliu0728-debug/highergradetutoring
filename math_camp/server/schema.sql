@@ -27,7 +27,11 @@ CREATE TABLE IF NOT EXISTS students (
   stats           TEXT NOT NULL DEFAULT '{}',
   roles           TEXT NOT NULL DEFAULT '[]',
   baseStats       TEXT NOT NULL DEFAULT '{}',
-  extras          TEXT NOT NULL DEFAULT '{}'
+  extras          TEXT NOT NULL DEFAULT '{}',
+  -- Accounts start frozen on fresh installs. Admins unfreeze a student
+  -- from the staff/admin-students.html page once the $75 e-Transfer
+  -- payment for the camp has been confirmed.
+  frozen          INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_students_email ON students(studentEmail);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(classId);
@@ -212,6 +216,7 @@ CREATE TABLE IF NOT EXISTS registrations (
   whyJoin             TEXT,
   consentPhoto        INTEGER NOT NULL DEFAULT 0,
   password            TEXT,
-  waitlisted          INTEGER NOT NULL DEFAULT 0
+  waitlisted          INTEGER NOT NULL DEFAULT 0,
+  pickupPeople        TEXT NOT NULL DEFAULT '[]'   -- JSON: [{name, phone, relationship}]
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);

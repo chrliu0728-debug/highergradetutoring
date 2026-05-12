@@ -252,6 +252,7 @@
             <th>Emergency contact</th>
             <th>Em. relationship</th>
             <th>Em. phone</th>
+            <th class="wrap">Authorized pickup</th>
             <th>Photo consent</th>
             <th class="wrap">Hobbies</th>
             <th class="wrap">Why join</th>
@@ -292,6 +293,36 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function pickupArray(p) {
+  if (Array.isArray(p)) return p;
+  if (typeof p === 'string' && p.trim()) {
+    try { const v = JSON.parse(p); return Array.isArray(v) ? v : []; }
+    catch (_e) { return []; }
+  }
+  return [];
+}
+function renderPickup(p) {
+  const list = pickupArray(p);
+  if (!list.length) return '<span style="color:var(--muted);">—</span>';
+  return list.map((it) => {
+    const parts = [];
+    if (it.name) parts.push(esc(it.name));
+    if (it.relationship) parts.push('(' + esc(it.relationship) + ')');
+    if (it.phone) parts.push('· ' + esc(it.phone));
+    return '• ' + parts.join(' ');
+  }).join('<br>');
+}
+function pickupCsv(p) {
+  const list = pickupArray(p);
+  return list.map((it) => {
+    const bits = [];
+    if (it.name) bits.push(it.name);
+    if (it.relationship) bits.push('(' + it.relationship + ')');
+    if (it.phone) bits.push(it.phone);
+    return bits.join(' ');
+  }).join(' | ');
 }
 
 function fmtTime(unix) {
@@ -399,6 +430,7 @@ function render() {
       <td>${esc(r.emerg1Name || '')}</td>
       <td>${esc(r.emerg1Relationship || '')}</td>
       <td>${esc(r.emerg1Phone || '')}</td>
+      <td class="wrap">${renderPickup(r.pickupPeople)}</td>
       <td>${r.consentPhoto ? '✅ yes' : '—'}</td>
       <td class="wrap">${esc(r.hobbies || '')}</td>
       <td class="wrap">${esc(r.whyJoin || '')}</td>
@@ -562,6 +594,7 @@ exportBtn.addEventListener('click', () => {
     ['emerg1Name',         'Emergency contact'],
     ['emerg1Relationship', 'Emergency relationship'],
     ['emerg1Phone',        'Emergency phone'],
+    ['pickupPeople',       'Authorized pickup'],
     ['consentPhoto',       'Photo consent'],
     ['hobbies',     'Hobbies'],
     ['whyJoin',     'Why join'],
@@ -578,6 +611,7 @@ exportBtn.addEventListener('click', () => {
       if (k === 'createdAt')    v = v ? new Date(v * 1000).toISOString() : '';
       if (k === 'consentPhoto') v = v ? 'yes' : 'no';
       if (k === 'waitlisted')   v = v ? 'waitlist' : 'active';
+      if (k === 'pickupPeople') v = pickupCsv(v);
       return escCsv(v);
     }).join(','));
   });

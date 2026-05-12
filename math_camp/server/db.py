@@ -65,6 +65,13 @@ def _migrate(conn):
             )
     except sqlite3.OperationalError:
         pass
+    try:
+        if _has_column("registrations", "id") and not _has_column("registrations", "pickupPeople"):
+            conn.execute(
+                "ALTER TABLE registrations ADD COLUMN pickupPeople TEXT NOT NULL DEFAULT '[]'"
+            )
+    except sqlite3.OperationalError:
+        pass
     # Chests gained imageUrl + channelId + messageId for the public-message
     # button flow. Add them to existing tables that pre-date the change.
     for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT")):
@@ -77,6 +84,17 @@ def _migrate(conn):
     try:
         if _has_column("staff", "id") and not _has_column("staff", "transcriptFile"):
             conn.execute("ALTER TABLE staff ADD COLUMN transcriptFile TEXT")
+    except sqlite3.OperationalError:
+        pass
+    # `frozen` column on students. Added after launch — existing students
+    # were already paid up so they are grandfathered in as unfrozen
+    # (DEFAULT 0). Newly created students default to frozen=1 via the
+    # server-side _normalize_student helper.
+    try:
+        if _has_column("students", "id") and not _has_column("students", "frozen"):
+            conn.execute(
+                "ALTER TABLE students ADD COLUMN frozen INTEGER NOT NULL DEFAULT 0"
+            )
     except sqlite3.OperationalError:
         pass
 
@@ -256,6 +274,7 @@ def row_to_student(r):
     if isinstance(extras, dict):
         for k, v in extras.items():
             d.setdefault(k, v)
+    d["frozen"] = bool(d.get("frozen"))
     return d
 
 

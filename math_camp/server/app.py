@@ -224,13 +224,30 @@ def _send_registration_confirm(student_email, name, parent_email=None):
         f"Thanks for registering for HigherGrade Tutoring's Summer Camp 2026!\n\n"
         f"📅 Camp dates: July 20 – July 31, 2026 (Mon–Fri, both weeks)\n"
         f"⏰ Hours: 9:00 AM – 3:30 PM daily\n"
-        f"📍 Location: An HDSB school in Oakville (final venue confirmed by July 6)\n"
+        f"📍 Location: Abbey Park High School, 1455 Glen Abbey Gate, Oakville, ON\n"
+        f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Abbey+Park+High+School%2C+1455+Glen+Abbey+Gate%2C+Oakville%2C+ON\n"
         f"💰 Cost: Free — fully funded\n\n"
+        f"💸 Final step — please send $75 CAD by e-Transfer\n"
+        f"To complete your registration, please send a $75 CAD Interac e-Transfer to:\n\n"
+        f"      h.ghergradetutor.ng@gmail.com\n\n"
+        f"In the message field, please include the camper's full name so we can match\n"
+        f"the payment to your registration. Heads up: the camper's account will stay\n"
+        f"FROZEN (no sign-in to the student portal) until our staff confirms the\n"
+        f"e-Transfer. Once we see it, we'll unfreeze the account within 24 hours.\n\n"
+        f"📺 Parent / camper info session — Google Meet\n"
+        f"We're hosting a kickoff Google Meet at 10:00 AM on Saturday, June 27, 2026.\n"
+        f"We'll walk through the daily schedule, drop-off / pick-up logistics, what to\n"
+        f"bring, and answer any questions you have. The Google Meet link will be\n"
+        f"emailed to this address closer to the date — please mark your calendar.\n\n"
         f"A few things to know:\n"
-        f"• The host school may shift before camp starts — please make sure\n"
-        f"  parents/guardians can arrange transport to any HDSB school in\n"
-        f"  Oakville (Abbey Park, Iroquois Ridge, Oakville Trafalgar,\n"
-        f"  White Oaks, etc.).\n"
+        f"• Please bring your own lunch each day. A water bottle, notebook, and\n"
+        f"  pencil are also a good idea. All math materials are provided.\n"
+        f"• 🍱 Food partners (in progress): our team is currently in talks with\n"
+        f"  local restaurants and food spots about partnering with the camp. If\n"
+        f"  any food places confirm, we'll send a separate email with a link\n"
+        f"  where parents can pre-purchase lunches for their camper on specific\n"
+        f"  days — completely optional. If you'd rather just pack lunch, that's\n"
+        f"  perfectly fine and is what we expect by default.\n"
         f"• Sign in to your dashboard at {SITE_URL}/student-portal.html\n"
         f"  to track points, see your class, and find the hidden mini-game.\n"
         f"• Questions? Reply to this email — it goes straight to the organizers.\n\n"
@@ -465,6 +482,19 @@ def register_routes(app):
         ).fetchone()
         if not row:
             return jsonify(ok=False, error="No matching account"), 401
+        # Account is frozen until staff confirms the $75 e-Transfer.
+        if row["frozen"]:
+            return jsonify(
+                ok=False,
+                frozen=True,
+                error=(
+                    "Your camp account is frozen until our staff confirms your "
+                    "$75 CAD registration payment. Please send the e-Transfer to "
+                    "h.ghergradetutor.ng@gmail.com if you haven't already — your "
+                    "account will be unlocked within 24 hours of the payment "
+                    "being received."
+                ),
+            ), 423
         token = _new_token()
         g.db.execute(
             "INSERT INTO sessions (token, kind, studentId, createdAt) VALUES (?, 'student', ?, ?)",
@@ -1573,6 +1603,24 @@ def register_routes(app):
         body, status = _apply_penalty(sid, amount, kind="curse")
         return jsonify(body), status
 
+    @app.route("/api/admin/students/<sid>/freeze", methods=["POST"])
+    @require_admin
+    def admin_student_freeze(sid):
+        d = request.get_json(silent=True) or {}
+        frozen = 1 if d.get("frozen", 1) else 0
+        row = g.db.execute("SELECT id FROM students WHERE id = ?", (sid,)).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Student not found"), 404
+        g.db.execute("UPDATE students SET frozen = ? WHERE id = ?", (frozen, sid))
+        # If we're freezing, drop any active student sessions so the next
+        # request from that camper bounces them back to the login screen.
+        if frozen:
+            g.db.execute(
+                "DELETE FROM sessions WHERE kind = 'student' AND studentId = ?",
+                (sid,),
+            )
+        return jsonify(ok=True, frozen=bool(frozen))
+
     def _vault_state(include_code):
         balance = int(_meta_get("vulgar_vault", "0") or "0")
         now = int(time.time())
@@ -1668,14 +1716,28 @@ def register_routes(app):
         ).fetchone()["n"]
         waitlisted = 1 if active_count >= cap else 0
         rid = "reg-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        # Authorized pickup people — optional list of {name, phone, relationship}.
+        raw_pickup = d.get("pickup_people")
+        clean_pickup = []
+        if isinstance(raw_pickup, list):
+            for p in raw_pickup:
+                if not isinstance(p, dict):
+                    continue
+                nm = (p.get("name") or "").strip()
+                ph = (p.get("phone") or "").strip()
+                rel = (p.get("relationship") or "").strip()
+                if not nm and not ph and not rel:
+                    continue
+                clean_pickup.append({"name": nm, "phone": ph, "relationship": rel})
+        pickup_json = json.dumps(clean_pickup)
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
                 parentFirst, parentLast, relationship, parentPhone, parentEmail,
                 emerg1Name, emerg1Phone, emerg1Relationship,
-                hobbies, whyJoin, consentPhoto, password, waitlisted)
+                hobbies, whyJoin, consentPhoto, password, waitlisted, pickupPeople)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
                 first, last,
@@ -1695,8 +1757,34 @@ def register_routes(app):
                 1 if d.get("consent_photo") else 0,
                 password,
                 waitlisted,
+                pickup_json,
             ),
         )
+        # Auto-provision a frozen student account so the camper can attempt
+        # to sign in once staff confirms the $75 e-Transfer. Skip silently
+        # if email is blank or a student record already exists for this
+        # email.
+        try:
+            normalized_email = (d.get("student_email") or "").strip()
+            if normalized_email:
+                already = g.db.execute(
+                    "SELECT id FROM students WHERE LOWER(TRIM(studentEmail)) = ?",
+                    (normalized_email.lower(),),
+                ).fetchone()
+                if not already:
+                    _insert_student(_normalize_student({
+                        "firstName":    first,
+                        "lastName":     last,
+                        "studentEmail": normalized_email,
+                        "password":     password,
+                        "parentEmail":  (d.get("parent_email") or "").strip() or None,
+                        "phone":        (d.get("parent_phone") or "").strip() or None,
+                        "school":       (d.get("school") or "").strip() or None,
+                        "registeredAt": str(int(time.time())),
+                        "frozen":       1,
+                    }))
+        except Exception:  # noqa: BLE001
+            pass
         try:
             _send_registration_confirm(
                 (d.get("student_email") or "").strip(),
@@ -1838,6 +1926,10 @@ def register_routes(app):
         for r in rows:
             d = dict(r)
             d["consentPhoto"] = bool(d.get("consentPhoto"))
+            try:
+                d["pickupPeople"] = json.loads(d.get("pickupPeople") or "[]")
+            except (TypeError, ValueError):
+                d["pickupPeople"] = []
             out.append(d)
         return jsonify(ok=True, data=out)
 
@@ -2294,12 +2386,20 @@ KNOWN_STUDENT_COLS = {
     "id", "firstName", "lastName", "studentEmail", "password",
     "parentEmail", "phone", "school", "grade",
     "classId", "className", "registeredAt",
+    "frozen",
 }
 
 def _normalize_student(raw):
     if not raw.get("id"):
         raw["id"] = "student-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
     s = {k: raw.get(k) for k in KNOWN_STUDENT_COLS}
+    # `frozen` defaults to 1 (frozen until staff confirms payment). Existing
+    # rows that flow back through admin-side bulk saves carry their current
+    # state through unchanged.
+    if "frozen" in raw and raw.get("frozen") is not None:
+        s["frozen"] = 1 if raw.get("frozen") else 0
+    else:
+        s["frozen"] = 1
     s["stats"]     = json.dumps({**default_stats(), **(raw.get("stats") or {})})
     s["roles"]     = json.dumps(raw.get("roles") or [])
     s["baseStats"] = json.dumps(raw.get("baseStats") or {})
@@ -2314,11 +2414,11 @@ def _insert_student(s):
         """INSERT OR REPLACE INTO students
            (id, firstName, lastName, studentEmail, password, parentEmail, phone,
             school, grade, classId, className, registeredAt,
-            stats, roles, baseStats, extras)
+            stats, roles, baseStats, extras, frozen)
            VALUES
            (:id, :firstName, :lastName, :studentEmail, :password, :parentEmail, :phone,
             :school, :grade, :classId, :className, :registeredAt,
-            :stats, :roles, :baseStats, :extras)""",
+            :stats, :roles, :baseStats, :extras, :frozen)""",
         s,
     )
 

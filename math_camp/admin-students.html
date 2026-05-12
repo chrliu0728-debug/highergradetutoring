@@ -213,7 +213,26 @@
     .student-info { min-width: 0; }
     .student-name { font-size: 1.08rem; font-weight: 800; letter-spacing: -.01em; }
     .student-meta { font-size: .82rem; color: var(--muted); margin-top: 2px; }
-    .student-actions { display: flex; gap: 6px; }
+    .student-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .frozen-pill {
+      display: inline-block;
+      background: #E0F2FE;
+      color: #075985;
+      border: 1px solid #7DD3FC;
+      border-radius: 999px;
+      padding: 1px 10px;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .icon-btn.unfreeze {
+      background: #ECFDF5;
+      color: #065F46;
+      border-color: #6EE7B7;
+    }
+    .icon-btn.unfreeze:hover { background: #D1FAE5; }
 
     .class-row {
       display: flex; gap: 8px; align-items: center;
@@ -752,16 +771,22 @@ function render() {
     const card = document.createElement('div');
     card.className = 'student-card';
     card.dataset.id = s.id;
+    const frozenBadge = s.frozen
+      ? `<span class="frozen-pill" title="Account is frozen until payment is confirmed">❄️ Frozen — payment pending</span>`
+      : '';
+    const freezeBtnLabel = s.frozen ? '🔓 Unfreeze (payment received)' : '❄️ Freeze account';
+    const freezeBtnClass = s.frozen ? 'icon-btn unfreeze' : 'icon-btn';
     card.innerHTML = `
       <div class="student-top">
         <div class="student-rank ${rankCls}">${rankLabel}</div>
         <div class="student-info">
-          <div class="student-name">${escapeHtml(studentFullName(s))}</div>
+          <div class="student-name">${escapeHtml(studentFullName(s))} ${frozenBadge}</div>
           <div class="student-meta">
             ${escapeHtml(s.studentEmail || '')}${s.school ? ' · ' + escapeHtml(s.school) : ''}
           </div>
         </div>
         <div class="student-actions">
+          <button class="${freezeBtnClass}" data-toggle-frozen="${s.frozen ? 0 : 1}">${freezeBtnLabel}</button>
           <button class="icon-btn" data-edit>Edit profile</button>
           <button class="icon-btn danger" data-del>Delete</button>
         </div>
@@ -965,6 +990,37 @@ function render() {
       showToast('Student deleted');
       render();
     });
+
+    const freezeBtn = card.querySelector('[data-toggle-frozen]');
+    if (freezeBtn) {
+      freezeBtn.addEventListener('click', async () => {
+        const nextFrozen = freezeBtn.dataset.toggleFrozen === '1';
+        const verb = nextFrozen ? 'freeze' : 'unfreeze';
+        const noun = nextFrozen
+          ? "This will lock the camper out of the student portal until you unfreeze them. Freeze this account?"
+          : "Only unfreeze once you've confirmed the $75 CAD e-Transfer has arrived. Unfreeze this account?";
+        if (!confirm(noun)) return;
+        freezeBtn.disabled = true;
+        try {
+          const res = await _api(`/admin/students/${encodeURIComponent(id)}/freeze`, {
+            method: 'POST', body: { frozen: nextFrozen ? 1 : 0 },
+          });
+          if (!res || !res.ok) throw new Error((res && res.error) || (verb + ' failed'));
+          // Reflect on the cached student so re-render shows new state.
+          const students = getStudents();
+          const idx = students.findIndex(x => x.id === id);
+          if (idx >= 0) {
+            students[idx].frozen = nextFrozen;
+            HG.cache.students = students;
+          }
+          showToast(nextFrozen ? '❄️ Account frozen' : '🔓 Account unfrozen');
+          render();
+        } catch (e) {
+          alert('Failed to ' + verb + ': ' + e.message);
+          freezeBtn.disabled = false;
+        }
+      });
+    }
   });
 }
 
