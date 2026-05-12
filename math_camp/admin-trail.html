@@ -177,32 +177,38 @@
     }
     .log-preview.has-img { border-style: solid; color: transparent; }
 
-    /* Path canvas — fixed size, mimics a stage. Dots are draggable. */
+    /* Path canvas — mimics a stage. Dots are draggable. The aspect
+       leans tall so the four blue path dots have room to spread out
+       between WP1 (entry) and WP5 (log). When a backdrop is set the
+       canvas previews the slice of the image that maps to the
+       currently-selected stage. */
     .path-canvas {
       position: relative;
-      width: 280px;
-      height: 480px;
+      width: 320px;
+      height: 420px;
       border-radius: 14px;
       overflow: hidden;
       border: 2px solid var(--border);
       box-shadow: var(--shadow-sm);
       background-color: #3F6431;
-      background-size: cover;
-      background-position: center;
+      background-repeat: no-repeat;
       user-select: none;
       touch-action: none;
     }
     .path-canvas.no-bg::after {
       /* Visual proxy for the procedural dirt path used when no custom
-         background is uploaded. */
+         background is uploaded. Narrower (14%) in cozy/custom mode is
+         set by the .narrow-path modifier; default is the wider 20%
+         strip that matches the default procedural trail. */
       content: '';
       position: absolute;
       left: 50%; top: 0; bottom: 0;
-      width: 28%;
+      width: 20%;
       transform: translateX(-50%);
       background: linear-gradient(180deg, #8B6A3B, #74552B);
       box-shadow: inset 0 0 22px rgba(0,0,0,0.25);
     }
+    .path-canvas.narrow-path.no-bg::after { width: 14%; }
     .wp-line {
       position: absolute; inset: 0;
       pointer-events: none;
@@ -230,6 +236,14 @@
       color: #4A3500;
       font-size: .78rem;
     }
+    .wp-dot.is-crane {
+      width: 30px; height: 30px;
+      border-color: #be185d;
+      background: #fce7f3;
+      color: #831843;
+      font-size: .8rem;
+    }
+    .wp-dot.is-crane.hidden { display: none; }
 
     .save-bar {
       position: sticky; bottom: 0;
@@ -300,18 +314,30 @@
   <!-- ── Background ────────────────────────────────────────── -->
   <div class="panel">
     <h2>🖼 Trail backdrop</h2>
-    <p class="panel-desc">A single tall image that tiles vertically beneath every stage. When set, the default grass + dirt path scenery + scattered foliage are hidden so your backdrop owns the look.</p>
+    <p class="panel-desc">A single image that tiles vertically beneath every stage. When set, the trail switches to a cozy 1/7-screen-wide layout, stages shrink so there's less walking distance between logs, and the procedural grass scenery is hidden so your backdrop owns the look.</p>
     <div class="bg-preview" id="bg-preview">Drop an image or click below to choose one.</div>
     <div class="file-row">
       <input type="file" id="bg-input" accept="image/*" style="font-size:.85rem;" />
       <button class="btn-mini danger" id="bg-clear-btn">Reset to default</button>
+    </div>
+    <div class="file-row" style="margin-top:14px; gap:10px;">
+      <label style="font-size:.88rem; color:var(--muted);">Backdrop tiles every</label>
+      <select id="tile-select" style="padding:6px 10px; border:1.5px solid var(--border); border-radius:8px; background:var(--surface); font-size:.88rem;">
+        <option value="1">1 stage (one log per backdrop)</option>
+        <option value="2">2 stages (two logs per backdrop)</option>
+        <option value="3">3 stages (three logs per backdrop)</option>
+      </select>
+      <span style="font-size:.78rem; color:var(--muted);">— controls how many stages of trail one backdrop image covers before it repeats.</span>
     </div>
   </div>
 
   <!-- ── Stages ───────────────────────────────────────────── -->
   <div class="panel">
     <h2>🌲 Stages</h2>
-    <p class="panel-desc">53 stages total. For each one you can upload a custom log image and drag 5 dots to choose the path the character walks. The <span style="color:#b8860b;font-weight:700;">gold dot</span> is the log's resting place (waypoint #5); the four <span style="color:#1d4ed8;font-weight:700;">blue dots</span> are the path the character walks before reaching it.</p>
+    <p class="panel-desc">53 stages total. For each one you can upload a custom log image, drag 5 path dots, and (when the stage unlocks a paper crane) drag the crane's hiding spot.<br>
+      <span style="color:#1d4ed8;font-weight:700;">Blue dots 1–4</span> are the path the character walks.
+      <span style="color:#b8860b;font-weight:700;">Gold dot</span> is the log (waypoint 5 — where the question appears).
+      <span style="color:#be185d;font-weight:700;">Pink crane dot</span> only shows on stages whose answer unlocks a letter; drag it to choose where the hidden crane appears for campers to find.</p>
 
     <div class="stage-nav">
       <button class="btn-mini" id="prev-btn">← Prev</button>
@@ -429,7 +455,7 @@ const STAGES      = window.TRAIL_STAGES;
 const DEFAULT_WP  = window.TRAIL_DEFAULT_WAYPOINTS;
 const STAGE_COUNT = STAGES.length;
 
-let config = { background: null, stages: {} };
+let config = { background: null, stagesPerBackdrop: 1, stages: {} };
 let originalConfigJSON = '{}';
 let currentStageIdx = 0;
 
@@ -478,6 +504,14 @@ function readImageFile(file, maxWidth, quality) {
 const bgPreview   = document.getElementById('bg-preview');
 const bgInput     = document.getElementById('bg-input');
 const bgClearBtn  = document.getElementById('bg-clear-btn');
+const tileSelect  = document.getElementById('tile-select');
+
+tileSelect.addEventListener('change', () => {
+  const n = Math.max(1, Math.min(6, parseInt(tileSelect.value, 10) || 1));
+  config.stagesPerBackdrop = n;
+  refreshCanvasBg();
+  markDirty();
+});
 
 function refreshBgPreview() {
   if (config.background) {
@@ -602,6 +636,17 @@ for (let i = 0; i < 5; i++) {
   dots.push(d);
 }
 
+/* Crane dot — only displayed for stages whose answer unlocks a
+   letter-bearing paper crane. The admin drags it to choose where
+   the crane hides on the trail. Coordinates are stored in
+   config.stages[idx].cranePos = { x, y } normalised 0–1. */
+const craneDot = document.createElement('div');
+craneDot.className = 'wp-dot is-crane hidden';
+craneDot.textContent = '🕊';
+craneDot.title = 'Hidden crane spawn point';
+canvas.appendChild(craneDot);
+const DEFAULT_CRANE = { x: 0.18, y: 0.5 };
+
 function applyWaypointsToDots(wps) {
   wps.forEach((wp, i) => {
     dots[i].style.left = (wp.x * 100) + '%';
@@ -616,11 +661,25 @@ function updatePolyline(wps) {
 }
 function refreshCanvasBg() {
   if (config.background) {
-    canvas.style.backgroundImage = `url("${config.background}")`;
+    /* Show the slice of the backdrop image that maps to the current
+       stage. If the admin set "tile every 2 stages", stage 0 sees the
+       top half, stage 1 the bottom half, stage 2 the top again, etc. */
+    const N = Math.max(1, Math.min(6, parseInt(config.stagesPerBackdrop || 1, 10) || 1));
+    const slice = currentStageIdx % N;
+    canvas.style.backgroundImage   = `url("${config.background}")`;
+    canvas.style.backgroundSize    = `100% ${N * 100}%`;
+    canvas.style.backgroundPositionY = (N === 1) ? '0%' : `${(slice / (N - 1)) * 100}%`;
+    canvas.style.backgroundPositionX = 'center';
+    canvas.style.backgroundRepeat  = 'no-repeat';
     canvas.classList.remove('no-bg');
+    /* Custom backdrop ⇒ cozy narrow trail. */
+    canvas.classList.add('narrow-path');
   } else {
-    canvas.style.backgroundImage = '';
+    canvas.style.backgroundImage   = '';
+    canvas.style.backgroundSize    = '';
+    canvas.style.backgroundPositionY = '';
     canvas.classList.add('no-bg');
+    canvas.classList.remove('narrow-path');
   }
 }
 
@@ -634,7 +693,9 @@ function readCurrentWaypoints() {
   return arr;
 }
 
-function attachDrag(dot) {
+function attachDrag(dot, opts) {
+  /* opts.kind = 'path' | 'crane'. Path dots persist into the
+     stage's waypoints array; the crane dot persists into cranePos. */
   let dragging = false;
   function start(e) {
     e.preventDefault();
@@ -649,15 +710,20 @@ function attachDrag(dot) {
     const y = Math.max(0.02, Math.min(0.98, (p.clientY - r.top)  / r.height));
     dot.style.left = (x * 100) + '%';
     dot.style.top  = (y * 100) + '%';
-    updatePolyline(readCurrentWaypoints());
+    if (opts.kind === 'path') updatePolyline(readCurrentWaypoints());
   }
   function end() {
     if (!dragging) return;
     dragging = false;
     dot.classList.remove('dragging');
-    // Persist into config
     const idx = currentStageIdx;
-    getStage(idx).waypoints = readCurrentWaypoints();
+    if (opts.kind === 'path') {
+      getStage(idx).waypoints = readCurrentWaypoints();
+    } else {
+      const x = parseFloat(dot.style.left) / 100;
+      const y = parseFloat(dot.style.top)  / 100;
+      getStage(idx).cranePos = { x, y };
+    }
     markDirty();
   }
   dot.addEventListener('mousedown',  start);
@@ -668,7 +734,8 @@ function attachDrag(dot) {
   window.addEventListener('touchend',  end);
   window.addEventListener('touchcancel', end);
 }
-dots.forEach(attachDrag);
+dots.forEach((d) => attachDrag(d, { kind: 'path' }));
+attachDrag(craneDot, { kind: 'crane' });
 
 resetPathBtn.addEventListener('click', () => {
   const fresh = JSON.parse(JSON.stringify(DEFAULT_WP));
@@ -685,9 +752,22 @@ function renderStage() {
   stageMeta.innerHTML =
     `<strong>Stage ${currentStageIdx + 1} of ${STAGE_COUNT}</strong> · ${kindLabel}` +
     `<br>Question: <code>${s.q.replace(/</g, '&lt;')}</code>` +
-    (s.unlocks ? ` · Unlocks letter <strong>${s.unlocks}</strong>` : '');
+    (s.unlocks ? ` · Unlocks letter <strong>${s.unlocks}</strong> 🕊` : '');
   refreshLogPreview();
   applyWaypointsToDots(getStageWaypoints(currentStageIdx));
+  /* Crane dot: only relevant when this stage's answer unlocks a
+     letter-bearing paper crane. Otherwise hide it entirely. */
+  const stageCfg = config.stages[currentStageIdx] || {};
+  if (s.unlocks) {
+    craneDot.classList.remove('hidden');
+    const cp = (stageCfg.cranePos && typeof stageCfg.cranePos.x === 'number')
+      ? stageCfg.cranePos
+      : DEFAULT_CRANE;
+    craneDot.style.left = (cp.x * 100) + '%';
+    craneDot.style.top  = (cp.y * 100) + '%';
+  } else {
+    craneDot.classList.add('hidden');
+  }
   refreshCanvasBg();
 }
 
@@ -707,16 +787,18 @@ async function loadAll() {
     const j = await r.json();
     if (j && j.ok && j.config && typeof j.config === 'object') {
       config = {
-        background: j.config.background || null,
-        stages: j.config.stages || {},
+        background:        j.config.background || null,
+        stagesPerBackdrop: j.config.stagesPerBackdrop || 1,
+        stages:            j.config.stages || {},
       };
     } else {
-      config = { background: null, stages: {} };
+      config = { background: null, stagesPerBackdrop: 1, stages: {} };
     }
   } catch (_) {
-    config = { background: null, stages: {} };
+    config = { background: null, stagesPerBackdrop: 1, stages: {} };
   }
   originalConfigJSON = JSON.stringify(config);
+  tileSelect.value = String(config.stagesPerBackdrop || 1);
   refreshBgPreview();
   goToStage(0);
   markDirty();

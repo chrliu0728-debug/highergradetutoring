@@ -351,7 +351,7 @@
       /* Dirt path — uniform-width vertical strip down the centre. */
       content: ''; position: absolute;
       left: 50%; top: 0; bottom: 0;
-      width: 200px;
+      width: var(--trail-path-width);
       transform: translateX(-50%);
       background:
         /* dappled-light specks on the path */
@@ -384,17 +384,27 @@
       pointer-events: none;
       z-index: 0;
     }
-    /* Admin uploaded a custom backdrop. Hide the procedural grass + path
-       and the scattered foliage decorations so the admin's image owns
-       the whole scene. */
+    /* Admin uploaded a custom backdrop. Switch to the cozy narrow
+       layout: shorter stages (less walking between logs), 1/7-width
+       path, and tile the backdrop image vertically every
+       `--trail-bg-tile` stages so admins can fit multiple logs into
+       a single image. Procedural grass + scattered foliage are
+       hidden so the admin's image owns the scene. */
     .trail-bg.has-custom-bg {
-      background-size: 100% auto;
+      --trail-stage-h:    52vh;
+      --trail-path-width: 14vw;
+      background-size: 100% calc(var(--trail-stage-h) * var(--trail-bg-tile));
       background-repeat: repeat-y;
       background-position: top center;
     }
     .trail-bg.has-custom-bg::before,
     .trail-bg.has-custom-bg::after { display: none; }
     .trail-bg.has-custom-bg .stage-deco { display: none; }
+    /* Custom logs follow the path width so they hug the trail. */
+    .trail-bg.has-custom-bg .obstacle.custom-log {
+      width: var(--trail-path-width);
+      max-height: calc(var(--trail-stage-h) * 0.35);
+    }
 
     /* ─────────────────────────────────────────────────────────────
        CHARACTER — a small chibi sprite, 3/4 front view, that stands
@@ -578,9 +588,19 @@
        STAGES — vertical sections, one per obstacle.
        Hidden initially; appended to DOM as user progresses.
        ───────────────────────────────────────────────────────────── */
+    /* Trail dimensions are driven by CSS variables so the experience
+       can switch between a wide procedural trail (the default look)
+       and a narrow, cozy admin-customised trail (when a backdrop is
+       uploaded). See the .trail-bg.has-custom-bg block below for the
+       overrides. */
+    :root {
+      --trail-stage-h:    80vh;
+      --trail-path-width: 200px;
+      --trail-bg-tile:    1;          /* stages per backdrop tile */
+    }
     .stage {
       position: relative;
-      min-height: 80vh;
+      min-height: var(--trail-stage-h);
       padding: 0 20px 0;
       z-index: 1;
       /* Account for the fixed top-strip + crane-dock so the player
@@ -1348,7 +1368,7 @@ const DEFAULT_WP= window.TRAIL_DEFAULT_WAYPOINTS;
    images, and per-stage 5-dot waypoints). Loaded once from the
    server before the bootstrap; falls back to safe defaults if the
    fetch fails. ─────────────────────────────────────────────── */
-const STEP_MS = 600; /* per-waypoint walk time */
+const STEP_MS = 380; /* per-waypoint walk time — short, cozy trail */
 let trailConfig = { background: null, stages: {} };
 
 function getStageCfg(idx) {
@@ -1374,6 +1394,11 @@ function applyTrailBackground() {
     region.classList.remove('has-custom-bg');
     region.style.backgroundImage = '';
   }
+  /* Number of stages that share a single backdrop tile. Admins use
+     this to draw, say, two log scenes in one backdrop image — the
+     image then repeats every two stages instead of every one. */
+  const tile = Math.max(1, Math.min(6, parseInt(trailConfig.stagesPerBackdrop || 1, 10) || 1));
+  region.style.setProperty('--trail-bg-tile', String(tile));
 }
 async function loadTrailConfig() {
   try {
@@ -1381,8 +1406,9 @@ async function loadTrailConfig() {
     const j = await r.json();
     if (j && j.ok && j.config && typeof j.config === 'object') {
       trailConfig = {
-        background: j.config.background || null,
-        stages: j.config.stages || {},
+        background:        j.config.background || null,
+        stagesPerBackdrop: j.config.stagesPerBackdrop || 1,
+        stages:            j.config.stages || {},
       };
     }
   } catch (_) { /* keep defaults */ }
@@ -1660,6 +1686,20 @@ function walkCharacterPastObstacle() {
 function pickHidingSpot(stageIdx) {
   const section = document.getElementById('stage-' + stageIdx);
   if (!section) return null;
+  // Admin-defined position wins if set — they drag a crane dot on the
+  // path canvas in /admin-trail.html. Tilt stays randomised so a
+  // cluster of stages still looks lived-in.
+  const cfg = getStageCfg(stageIdx);
+  if (cfg.cranePos
+      && typeof cfg.cranePos.x === 'number'
+      && typeof cfg.cranePos.y === 'number') {
+    return {
+      sectionId: section.id,
+      x:    cfg.cranePos.x * 100,
+      y:    cfg.cranePos.y * 100,
+      tilt: (Math.random() - 0.5) * 30,
+    };
+  }
   // Edge-biased x: 4-26% from left or 74-96% from left
   const leftSide = Math.random() < 0.5;
   const x = leftSide
