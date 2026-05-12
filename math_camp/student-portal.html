@@ -845,8 +845,12 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const email = loginEmail.value;
     const pwd = loginPwd.value;
     if (!email || !pwd) { loginError.textContent = 'Please enter your email and password.'; return; }
-    // Hidden easter-egg account → cozy bedroom.
-    if (email.trim().toLowerCase() === 'burntout@gmail.com' && pwd === 'p3ac3') {
+    // Hidden easter-egg account → cozy bedroom. Both fields are
+    // normalised (trim + lowercase) so the door opens whether the
+    // camper types "p3ac3" or "P3ac3" — the trail end-note's password
+    // reads as the word "peace" so capital P is a very natural typo.
+    if (email.trim().toLowerCase() === 'burntout@gmail.com'
+        && pwd.trim().toLowerCase() === 'p3ac3') {
       window.location.href = 'bedroom.html';
       return;
     }
