@@ -384,6 +384,17 @@
       pointer-events: none;
       z-index: 0;
     }
+    /* Admin uploaded a custom backdrop. Hide the procedural grass + path
+       and the scattered foliage decorations so the admin's image owns
+       the whole scene. */
+    .trail-bg.has-custom-bg {
+      background-size: 100% auto;
+      background-repeat: repeat-y;
+      background-position: top center;
+    }
+    .trail-bg.has-custom-bg::before,
+    .trail-bg.has-custom-bg::after { display: none; }
+    .trail-bg.has-custom-bg .stage-deco { display: none; }
 
     /* ─────────────────────────────────────────────────────────────
        CHARACTER — a small chibi sprite, 3/4 front view, that stands
@@ -392,11 +403,11 @@
        ───────────────────────────────────────────────────────────── */
     .character {
       position: absolute;
-      top: 48px;
+      top: 8%;
       left: 50%;
       width: 44px;
       height: 56px;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
       z-index: 3;
       pointer-events: none;
       animation: char-idle 1.7s ease-in-out infinite;
@@ -503,8 +514,8 @@
     .character .foot.r { right: 11px; }
 
     @keyframes char-idle {
-      0%, 100% { transform: translate(-50%, 0); }
-      50%      { transform: translate(-50%, -3px); }
+      0%, 100% { transform: translate(-50%, -50%); }
+      50%      { transform: translate(-50%, calc(-50% - 3px)); }
     }
 
     /* Walking — bob + tiny step. Triggered when transitioning between
@@ -516,8 +527,8 @@
     .character.walking .foot.l { animation: foot-l-step 0.36s linear infinite; }
     .character.walking .foot.r { animation: foot-r-step 0.36s linear infinite; }
     @keyframes char-walk {
-      0%, 100% { transform: translate(-50%, 0); }
-      50%      { transform: translate(-50%, -2px); }
+      0%, 100% { transform: translate(-50%, -50%); }
+      50%      { transform: translate(-50%, calc(-50% - 2px)); }
     }
     @keyframes arm-l-swing {
       0%, 100% { transform: rotate(8deg); }
@@ -570,20 +581,35 @@
     .stage {
       position: relative;
       min-height: 80vh;
-      display: flex; flex-direction: column; align-items: center;
-      justify-content: center;
-      padding: 40px 20px 60px;
-      gap: 22px;
+      padding: 0 20px 0;
       z-index: 1;
       /* Account for the fixed top-strip + crane-dock so the player
          character (rendered near the top of the active stage) doesn't
          get hidden behind the header when a stage scrolls into view. */
       scroll-margin-top: 110px;
     }
+    /* The obstacle (log image / CSS log art) is positioned absolutely
+       on the path — at the final waypoint of this stage. The wrap
+       auto-sizes to its contents and uses translate(-50%, -50%) to
+       land its centre exactly on the waypoint coordinates. */
     .obstacle-wrap {
-      position: relative;
-      height: 130px;
-      display: flex; align-items: center; justify-content: center;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+    /* Admin-uploaded log images sit on top of the path. */
+    .obstacle.custom-log {
+      width: 320px; height: auto;
+      max-height: 220px;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,0.5));
+    }
+    .obstacle.custom-log img {
+      display: block;
+      width: 100%; height: 100%;
+      object-fit: contain;
+    }
+    @media (max-width: 720px) {
+      .obstacle.custom-log { width: 240px; max-height: 170px; }
     }
     .obstacle {
       position: relative;
@@ -705,18 +731,31 @@
       text-shadow: 0 1px 0 rgba(0,0,0,0.5);
     }
 
-    /* Question card */
+    /* Question card — Undertale-style dialog box pinned to the bottom
+       of the current stage. Hidden until the character finishes
+       walking to the log; revealed with a quick slide-up + fade. */
     .question-card {
-      position: relative;
-      width: min(620px, 96vw);
+      position: absolute;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%);
+      width: min(620px, 92vw);
       background: var(--paper);
       color: var(--ink);
       border-radius: 14px;
       padding: 22px 22px 16px;
+      z-index: 4;
+      opacity: 1;
+      transition: opacity 0.45s ease, transform 0.45s ease;
       box-shadow:
         0 18px 36px rgba(0,0,0,0.45),
         inset 0 0 0 4px var(--paper-edge),
         inset 0 0 0 6px var(--paper);
+    }
+    .question-card.hidden {
+      opacity: 0;
+      transform: translateX(-50%) translateY(28px);
+      pointer-events: none;
     }
     .question-card .meta {
       font-size: .68rem; text-transform: uppercase;
@@ -1201,7 +1240,7 @@
       .form-card { padding: 26px 22px; }
       .form-card .field-row { grid-template-columns: 1fr; }
       .trail-bg::before { width: 150px; }
-      .character { width: 38px; height: 50px; top: 36px; }
+      .character { width: 38px; height: 50px; }
       .character .head { width: 24px; height: 22px; }
       .character .hair { width: 26px; height: 14px; }
       .character .eye { top: 10px; }
@@ -1297,73 +1336,58 @@
 </div>
 
 
+<script src="trail-stages.js"></script>
 <script>
-/* ── Variable values — chosen so the final equation
-   evaluates to 27.125 (three decimal places, non-repeating). ── */
-const V = {
-  A: 12, B: 2, C: 2, D: 8, E: 4, F: 2, G: 3, H: 6, I: 2, J: 5,
-  K: 6, L: 2, M: 10, N: 4, O: 2, P: 4, Q: 2, R: 10, S: 5, T: 3,
-  U: 10, V: 4, W: 2, X: 5, Y: 4, Z: 10,
-};
+/* Shared definitions live in trail-stages.js. We alias them locally so
+   the rest of this file reads as it did before the split. */
+const V         = window.TRAIL_VARS;
+const STAGES    = window.TRAIL_STAGES;
+const DEFAULT_WP= window.TRAIL_DEFAULT_WAYPOINTS;
 
-/* ── 53 stages: 26 letter-pairs × 2 obstacles + 1 final boss. ── */
-const STAGES = [
-  { kind:'root',   q:'30 − 12',                 a: 18 },
-  { kind:'branch', q:'47 + 25',                 a: 72,  unlocks:'A' },
-  { kind:'root',   q:'A + 7',                   a: 19 },
-  { kind:'branch', q:'A − 4',                   a: 8,   unlocks:'B' },
-  { kind:'root',   q:'B + 18',                  a: 20 },
-  { kind:'branch', q:'B + 23',                  a: 25,  unlocks:'C' },
-  { kind:'root',   q:'C + 14',                  a: 16 },
-  { kind:'branch', q:'40 − C',                  a: 38,  unlocks:'D' },
-  { kind:'root',   q:'D × 5',                   a: 40 },
-  { kind:'branch', q:'D ÷ 2',                   a: 4,   unlocks:'E' },
-  { kind:'root',   q:'E × 6',                   a: 24 },
-  { kind:'branch', q:'E × 9',                   a: 36,  unlocks:'F' },
-  { kind:'root',   q:'F × 11',                  a: 22 },
-  { kind:'branch', q:'F × 18',                  a: 36,  unlocks:'G' },
-  { kind:'root',   q:'G × 8',                   a: 24 },
-  { kind:'branch', q:'G × 7',                   a: 21,  unlocks:'H' },
-  { kind:'root',   q:'H + G',                   a: 9 },
-  { kind:'branch', q:'H + A',                   a: 18,  unlocks:'I' },
-  { kind:'root',   q:'I + B',                   a: 4 },
-  { kind:'branch', q:'I + D',                   a: 10,  unlocks:'J' },
-  { kind:'root',   q:'J + C',                   a: 7 },
-  { kind:'branch', q:'J − F',                   a: 3,   unlocks:'K' },
-  { kind:'root',   q:'K + E',                   a: 10 },
-  { kind:'branch', q:'K − G',                   a: 3,   unlocks:'L' },
-  { kind:'root',   q:'L × H',                   a: 12 },
-  { kind:'branch', q:'L × E',                   a: 8,   unlocks:'M' },
-  { kind:'root',   q:'M × F',                   a: 20 },
-  { kind:'branch', q:'M × I',                   a: 20,  unlocks:'N' },
-  { kind:'root',   q:'N × D',                   a: 32 },
-  { kind:'branch', q:'N × G',                   a: 12,  unlocks:'O' },
-  { kind:'root',   q:'O × J',                   a: 10 },
-  { kind:'branch', q:'O × K',                   a: 12,  unlocks:'P' },
-  { kind:'root',   q:'P + L × J',               a: 14 },
-  { kind:'branch', q:'P + I × H',               a: 16,  unlocks:'Q' },
-  { kind:'root',   q:'Q + B + D',               a: 12 },
-  { kind:'branch', q:'Q × I + J',               a: 9,   unlocks:'R' },
-  { kind:'root',   q:'R + N − K',               a: 8 },
-  { kind:'branch', q:'R − L × F',               a: 6,   unlocks:'S' },
-  { kind:'root',   q:'S + B − C',               a: 5 },
-  { kind:'branch', q:'S × I − K',               a: 4,   unlocks:'T' },
-  { kind:'root',   q:'T + ___ = 12',            a: 9 },
-  { kind:'branch', q:'___ − T = 7',             a: 10,  unlocks:'U' },
-  { kind:'root',   q:'U − ___ = 6',             a: 4 },
-  { kind:'branch', q:'___ × 2 = U',             a: 5,   unlocks:'V' },
-  { kind:'root',   q:'V + ___ = 10',            a: 6 },
-  { kind:'branch', q:'___ × V = 8',             a: 2,   unlocks:'W' },
-  { kind:'root',   q:'W + ___ = 9',             a: 7 },
-  { kind:'branch', q:'___ − W = J',             a: 7,   unlocks:'X' },
-  { kind:'root',   q:'3T + 6Q',                 a: 21 },
-  { kind:'branch', q:'(3X + 6Q ÷ G) − B',       a: 17,  unlocks:'Y' },
-  { kind:'root',   q:'5L + 3K ÷ J',             a: 13.6 },
-  { kind:'branch', q:'(2H + N) ÷ D',            a: 2,   unlocks:'Z' },
-  { kind:'final',
-    q:'A + M·X / Q − (T·E / Y − G) · L · B − F + (H/K) ÷ (R − W·S/Z + N − J) − Y + U − I·C^O − V = ___ + D/P',
-    a: 27.125 },
-];
+/* ── Admin-managed trail config (background image, per-stage log
+   images, and per-stage 5-dot waypoints). Loaded once from the
+   server before the bootstrap; falls back to safe defaults if the
+   fetch fails. ─────────────────────────────────────────────── */
+const STEP_MS = 600; /* per-waypoint walk time */
+let trailConfig = { background: null, stages: {} };
+
+function getStageCfg(idx) {
+  const stages = (trailConfig && trailConfig.stages) || {};
+  return stages[idx] || stages[String(idx)] || {};
+}
+function getWaypoints(idx) {
+  const cfg = getStageCfg(idx);
+  if (Array.isArray(cfg.waypoints) && cfg.waypoints.length === 5
+      && cfg.waypoints.every(p => p && typeof p.x === 'number' && typeof p.y === 'number')) {
+    return cfg.waypoints;
+  }
+  return DEFAULT_WP;
+}
+function applyTrailBackground() {
+  const bg = trailConfig && trailConfig.background;
+  const region = document.getElementById('trail-region');
+  if (!region) return;
+  if (bg) {
+    region.classList.add('has-custom-bg');
+    region.style.backgroundImage = `url("${bg}")`;
+  } else {
+    region.classList.remove('has-custom-bg');
+    region.style.backgroundImage = '';
+  }
+}
+async function loadTrailConfig() {
+  try {
+    const r = await fetch('/api/trail-config', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (j && j.ok && j.config && typeof j.config === 'object') {
+      trailConfig = {
+        background: j.config.background || null,
+        stages: j.config.stages || {},
+      };
+    }
+  } catch (_) { /* keep defaults */ }
+  applyTrailBackground();
+}
 
 const LABEL_FOR_KIND = {
   root:   'A gnarled root crosses the path',
@@ -1436,6 +1460,9 @@ function obstacleHTML(kind) {
 function buildStage(idx) {
   const stage = STAGES[idx];
   if (!stage) return null;
+  const cfg = getStageCfg(idx);
+  const wps = getWaypoints(idx);
+  const logPos = wps[wps.length - 1];  /* WP5 is where the log sits */
 
   const section = document.createElement('section');
   section.className = 'stage';
@@ -1443,10 +1470,18 @@ function buildStage(idx) {
 
   const wrap = document.createElement('div');
   wrap.className = 'obstacle-wrap';
-  wrap.innerHTML = obstacleHTML(stage.kind);
+  wrap.style.left = (logPos.x * 100) + '%';
+  wrap.style.top  = (logPos.y * 100) + '%';
+  if (cfg.logImage) {
+    wrap.innerHTML = `<div class="obstacle custom-log"><img src="${cfg.logImage}" alt="" /></div>`;
+  } else {
+    wrap.innerHTML = obstacleHTML(stage.kind);
+  }
 
+  /* Question card starts hidden — the character walks the path first
+     and only then does the dialog box slide up into view. */
   const card = document.createElement('div');
-  card.className = 'question-card' + (stage.kind === 'final' ? ' final' : '');
+  card.className = 'question-card hidden' + (stage.kind === 'final' ? ' final' : '');
   card.innerHTML = `
     <div class="meta">${LABEL_FOR_KIND[stage.kind]} · ${idx + 1} of ${STAGES.length}</div>
     <div class="qtext">${stage.q}</div>
@@ -1547,26 +1582,73 @@ function ensureCharacter() {
   `;
   return characterEl;
 }
+/* Place the character at WP1 of the given stage, then animate the
+   walk WP1 → WP2 → WP3 → WP4 → WP5. When the character arrives at
+   WP5 (the log), reveal the question card. */
 function placeCharacterInStage(idx) {
   const section = document.getElementById('stage-' + idx);
   if (!section) return;
   if (getComputedStyle(section).position === 'static') {
     section.style.position = 'relative';
   }
-  const ch = ensureCharacter();
-  // Reset any leftover walk transforms from a previous transition.
+  const ch  = ensureCharacter();
+  const wps = getWaypoints(idx);
   ch.classList.remove('walking');
-  ch.style.transition = '';
-  ch.style.top = '';
+  // Snap to WP1 with no transition.
+  ch.style.transition = 'none';
+  ch.style.left = (wps[0].x * 100) + '%';
+  ch.style.top  = (wps[0].y * 100) + '%';
   if (ch.parentNode !== section) section.appendChild(ch);
+  // Force a reflow so the next transition starts from the snapped
+  // position rather than animating in from wherever we were before.
+  void ch.offsetWidth;
+  walkAlongWaypoints(section, wps);
 }
+
+function walkAlongWaypoints(section, wps) {
+  const ch   = characterEl;
+  const card = section && section.querySelector('.question-card');
+  if (!ch) return;
+  /* Hide the card while we walk so only one dialog is on-screen at a
+     time and the user's focus stays on the character. */
+  if (card) card.classList.add('hidden');
+  ch.classList.add('walking');
+  ch.style.transition = `top ${STEP_MS}ms ease-in-out, left ${STEP_MS}ms ease-in-out`;
+  let i = 1;
+  function step() {
+    if (i >= wps.length) {
+      ch.classList.remove('walking');
+      ch.style.transition = '';
+      if (card) {
+        card.classList.remove('hidden');
+        const input = card.querySelector('input');
+        if (input && !input.disabled) {
+          setTimeout(() => {
+            try { input.focus({ preventScroll: true }); } catch (_) {}
+          }, 380);
+        }
+      }
+      return;
+    }
+    ch.style.left = (wps[i].x * 100) + '%';
+    ch.style.top  = (wps[i].y * 100) + '%';
+    i += 1;
+    setTimeout(step, STEP_MS);
+  }
+  /* Brief pause so the player can register where the character is
+     before it starts moving. */
+  setTimeout(step, 220);
+}
+
+/* After a correct answer, animate the character walking south off
+   the bottom of the current stage so the transition to the next
+   stage feels like continuous motion. */
 function walkCharacterPastObstacle() {
   const ch = characterEl;
   if (!ch || !ch.parentNode) return;
   ch.classList.add('walking');
-  ch.style.transition = 'top 0.82s cubic-bezier(.42,0,.58,1)';
-  ch.style.top = '78%';
-  // The transition is cleared when the character is placed in the next stage.
+  ch.style.transition = 'top 0.82s cubic-bezier(.42,0,.58,1), left 0.82s ease-in-out';
+  ch.style.top = '96%';
 }
 
 /* ── Hidden crane spawn ────────────────────────────────────────
@@ -1820,19 +1902,23 @@ promptEl.addEventListener('click', (e) => {
   if (e.target === promptEl) promptEl.classList.remove('show');
 });
 
-/* ── Initial render: replay any in-progress stages, restore pending cranes,
-   then append the next-up stage so the user can scroll to it. ── */
-(function bootstrap() {
+/* ── Initial render: pull the admin-managed trail config (background,
+   per-stage log images, per-stage waypoints), then replay any
+   in-progress stages, restore pending cranes, and append the
+   next-up stage so the user can scroll to it. ── */
+(async function bootstrap() {
+  await loadTrailConfig();
   // Re-render every cleared stage and the current one.
   for (let i = 0; i <= state.idx && i < STAGES.length; i++) {
     const node = buildStage(i);
     if (!node) break;
     if (i < state.idx) {
-      // Mark cleared visuals — input disabled, obstacle gone.
+      // Mark cleared visuals — input disabled, obstacle gone, card
+      // visible so the player sees their past progress.
       const card = node.querySelector('.question-card');
       const input = node.querySelector('input');
       const button = node.querySelector('button');
-      if (card) card.classList.add('solved');
+      if (card) { card.classList.add('solved'); card.classList.remove('hidden'); }
       if (input) input.disabled = true;
       if (button) { button.disabled = true; button.textContent = 'Cleared ✓'; }
       const obs = node.querySelector('.obstacle');
@@ -1841,9 +1927,15 @@ promptEl.addEventListener('click', (e) => {
     decorateStage(node, i);
     stagesContainer.appendChild(node);
   }
-  // Drop the character into the currently-active stage so the user
-  // can see who they're playing as on the trail.
-  if (state.idx < STAGES.length) placeCharacterInStage(state.idx);
+  // Drop the character into the currently-active stage and start the
+  // walk along that stage's waypoints. The question card stays
+  // hidden until the character arrives at the log. Scroll to the
+  // active stage so a reload mid-trail lands on the action.
+  if (state.idx < STAGES.length) {
+    placeCharacterInStage(state.idx);
+    const activeStage = document.getElementById('stage-' + state.idx);
+    if (activeStage && state.idx > 0) scrollToElement(activeStage);
+  }
   // Re-place any cranes that the user spawned but hasn't claimed yet.
   state.pending.forEach((spot) => {
     if (state.unlocked.includes(spot.letter)) return;

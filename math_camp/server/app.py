@@ -1827,6 +1827,40 @@ def register_routes(app):
         _meta_set("registrations_frozen_reason", reason if frozen else "")
         return jsonify(ok=True, frozen=frozen, reason=reason if frozen else "")
 
+    # ── Trail mini-game config ──────────────────────────────────────
+    # JSON blob in meta["trail_config"]:
+    #   { "background": "data:image/...|null",
+    #     "stages":      { "<idx>": { "logImage": "data:...|null",
+    #                                 "waypoints": [ {x,y}, ... 5 ] },
+    #                       ... } }
+    # All fields are optional — the trail page falls back to its
+    # built-in CSS background, CSS log art, and a straight-line path.
+    @app.route("/api/trail-config", methods=["GET"])
+    def trail_config_get():
+        raw = _meta_get("trail_config", "{}") or "{}"
+        try:
+            cfg = json.loads(raw)
+            if not isinstance(cfg, dict):
+                cfg = {}
+        except (TypeError, ValueError):
+            cfg = {}
+        return jsonify(ok=True, config=cfg)
+
+    @app.route("/api/admin/trail-config", methods=["PUT"])
+    @require_admin
+    def trail_config_set():
+        d = request.get_json(silent=True) or {}
+        cfg = d.get("config")
+        if not isinstance(cfg, dict):
+            return jsonify(ok=False, error="config must be a JSON object"), 400
+        # Clamp the size — refuse blobs > 8 MB so a runaway admin
+        # upload can't fill the SQLite file with one row.
+        blob = json.dumps(cfg)
+        if len(blob) > 8 * 1024 * 1024:
+            return jsonify(ok=False, error="Trail config exceeds 8 MB. Try smaller images."), 413
+        _meta_set("trail_config", blob)
+        return jsonify(ok=True)
+
     @app.route("/api/admin/settings/student-cap", methods=["POST"])
     @require_admin
     def settings_student_cap_set():
