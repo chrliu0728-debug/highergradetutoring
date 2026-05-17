@@ -82,7 +82,7 @@
   <div class="page-hero-content">
     <div class="hero-badge" style="margin-bottom:18px;">Make an Impact</div>
     <h1>Support the Camp</h1>
-    <p>Help us keep this camp free and accessible for every Grade 9 student who wants to be here.</p>
+    <p>Help us keep this camp affordable and accessible for every Grade 9 student who wants to be here.</p>
   </div>
 </section>
 
@@ -99,12 +99,12 @@
     <div class="section-head section-head-center">
       <div class="section-label">Why It Matters</div>
       <h2 class="section-title">Your support makes this possible</h2>
-      <p class="section-desc">The camp is entirely free to attend — but running it costs money. Every dollar goes directly toward making this experience happen.</p>
+      <p class="section-desc">Registration fees cover only part of what it takes to run this camp — donations make up the rest. Every dollar goes directly toward making this experience happen.</p>
     </div>
     <div class="impact-row">
-      <div class="impact-cell"><div class="impact-number">40</div><p>students attend, all at no cost to them</p></div>
+      <div class="impact-cell"><div class="impact-number">100</div><p>students get an accelerated two-week math camp</p></div>
       <div class="impact-cell"><div class="impact-number">10</div><p>days of programming, materials, and facilitation</p></div>
-      <div class="impact-cell"><div class="impact-number">$0</div><p>registration fee — access shouldn't be a barrier</p></div>
+      <div class="impact-cell"><div class="impact-number">$75</div><p>early-bird fee — kept low so cost isn't a barrier</p></div>
     </div>
     <div class="grid-3 donation-impact-grid" style="margin-top:28px;">
       <div class="card reveal donation-card" data-icon="📦" data-title="Materials &amp; Supplies" data-full-desc="Every camper walks in on Day 1 to a fresh kit — bound problem booklets for all 5 units, pencils, erasers, lined paper, graph paper, and a scientific calculator they get to take home.
@@ -341,7 +341,7 @@ Your donation to this category covers the printed certificates, the medals and s
     <div class="footer-grid">
       <div class="footer-brand">
         <div class="logo-text">🏕 HigherGrade Tutoring</div>
-        <p>A student-led math summer camp for Grade 9 students. July 20–31, 2026.</p>
+        <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
         <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
       </div>
       <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
@@ -360,7 +360,7 @@ Your donation to this category covers the printed certificates, the medals and s
 <script>
   const impacts = { 10:'$10 covers problem sets & stationery for one camper.', 25:'$25 covers snacks and refreshments for a full camp day.', 50:'$50 funds award medals for our closing ceremony.', 100:'$100 fully funds one camper\'s entire 10-day experience!', 250:'$250 — you\'re a legend. This covers materials for 5 campers.' };
   function selectAmount(btn, amount) { document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.getElementById('custom-amount').value = ''; document.getElementById('donation-impact').textContent = impacts[amount] || ''; }
-  function clearActive() { document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active')); const val = parseInt(document.getElementById('custom-amount').value); const el = document.getElementById('donation-impact'); if (val >= 1000) el.textContent = 'Wow — you\'re incredible. This changes everything for our campers!'; else if (val >= 100) el.textContent = `$${val} fully funds ${Math.floor(val/100)} camper(s)' entire experience!`; else el.textContent = 'Every dollar helps keep this camp free for everyone.'; }
+  function clearActive() { document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active')); const val = parseInt(document.getElementById('custom-amount').value); const el = document.getElementById('donation-impact'); if (val >= 1000) el.textContent = 'Wow — you\'re incredible. This changes everything for our campers!'; else if (val >= 100) el.textContent = `$${val} fully funds ${Math.floor(val/100)} camper(s)' entire experience!`; else el.textContent = 'Every dollar helps keep this camp affordable for everyone.'; }
   // ── Donation detail modal ──
   (function () {
     const modal = document.getElementById('donation-modal');

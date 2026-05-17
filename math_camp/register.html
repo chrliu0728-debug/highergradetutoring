@@ -4,9 +4,45 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Register — HigherGrade Tutoring Summer Camp 2026</title>
-  <meta name="description" content="Register for HigherGrade Tutoring's Summer Camp 2026 — a free, accelerated MTH1W math summer camp at Abbey Park High School, led by Grade 11 & 12 HDSB students. HDSB and other boards welcome. July 20–31, 2026." />
+  <meta name="description" content="Register for HigherGrade Tutoring's Summer Camp 2026 — an accelerated MTH1W math summer camp at Abbey Park High School, led by Grade 11 & 12 HDSB students. HDSB and other boards welcome. August 4–15, 2026." />
   <link rel="icon" type="image/webp" href="logo.webp" />
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ── Math Check (BEDMAS practice test) ── */
+    .mc-question {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 14px 16px; margin-bottom: 12px; background: var(--surface);
+    }
+    .mc-question .mc-q-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: .78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted); margin-bottom: 6px;
+    }
+    .mc-question .mc-expr {
+      font-family: 'JetBrains Mono', monospace; font-size: 1.15rem;
+      font-weight: 700; color: var(--text-dark, var(--navy)); margin-bottom: 10px;
+    }
+    .mc-options { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mc-opt {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1.5px solid var(--border); border-radius: 999px;
+      padding: 6px 14px; cursor: pointer; font-size: .92rem; font-weight: 600;
+      user-select: none; transition: border-color .12s, background .12s;
+    }
+    .mc-opt:hover { border-color: var(--blush); }
+    .mc-opt input { accent-color: var(--blush); margin: 0; }
+    .mc-opt:has(input:checked) {
+      border-color: var(--blush); background: var(--blush-bg);
+      color: var(--blush-dark);
+    }
+    .mc-banner {
+      border-radius: var(--radius-sm); padding: 14px 18px;
+      font-size: .9rem; line-height: 1.55; margin-bottom: 14px;
+    }
+    .mc-banner.pass { background:#E7F6EC; border:1px solid #9AD4AE; color:#1E5631; }
+    .mc-banner.fail { background:#FDECEC; border:1px solid #F0A8A8; color:#8A2A2A; }
+    .mc-banner.warn { background:#FEF3C7; border:1px solid #FDE68A; color:#92400E; }
+  </style>
   <!-- Hide the page synchronously while we check whether the visitor
        is a signed-in student. If they are, redirect to the trail
        mini-game; otherwise reveal the form. Avoids the flash. -->
@@ -280,7 +316,7 @@
 <!-- ─────────────────── PAGE HERO ─────────────────── -->
 <section class="page-hero" style="padding-bottom:52px;">
   <div class="page-hero-content">
-    <div class="hero-badge" style="margin-bottom:18px;">Free Registration</div>
+    <div class="hero-badge" id="reg-badge" style="margin-bottom:18px;">Summer Camp 2026</div>
     <h1>Register for HigherGrade Tutoring Summer Camp 2026</h1>
     <p>Secure your spot in the two-week student-led math experience of the summer.</p>
   </div>
@@ -293,6 +329,23 @@
 
       <!-- ── Main form ── -->
       <div>
+
+        <!-- ── Registration-not-open notice (shown by JS before May 20) ── -->
+        <div class="form-card" id="reg-closed-notice" style="display:none;text-align:center;">
+          <div style="font-size:2.6rem;margin-bottom:8px;">📅</div>
+          <h2 style="margin:0 0 10px;">Registration opens May 20, 2026</h2>
+          <p style="color:var(--text-mid);max-width:480px;margin:0 auto 18px;line-height:1.6;">
+            We're not taking sign-ups just yet. Come back on <strong>May&nbsp;20</strong> to
+            secure your spot for HigherGrade Tutoring Summer Camp 2026.
+          </p>
+          <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:18px;max-width:420px;margin:0 auto;text-align:left;font-size:.9rem;color:var(--text-mid);line-height:1.7;">
+            <strong>💰 Registration fee — pick your window:</strong>
+            <div>• <strong>Early-bird</strong> · May 20–31 · <strong>$75</strong></div>
+            <div>• <strong>Normal</strong> · June 1–20 · <strong>$120</strong></div>
+            <div>• <strong>Late</strong> · after June 20 · <strong>$150</strong></div>
+          </div>
+        </div>
+
         <form id="reg-form" novalidate>
 
           <!-- Progress bar -->
@@ -314,6 +367,11 @@
             <div class="step-line" id="line-3"></div>
             <div class="step" id="step-4">
               <div class="step-circle">4</div>
+              <div class="step-label">Math Check</div>
+            </div>
+            <div class="step-line" id="line-4"></div>
+            <div class="step" id="step-5">
+              <div class="step-circle">5</div>
               <div class="step-label">Review</div>
             </div>
           </div>
@@ -385,7 +443,7 @@
 
             <div class="form-nav">
               <div class="form-nav-left">
-                <span style="font-size:.82rem;color:var(--muted);">Step 1 of 4</span>
+                <span style="font-size:.82rem;color:var(--muted);">Step 1 of 5</span>
               </div>
               <button type="button" class="btn btn-blue" onclick="goToPanel(2)">Next: Parent Info →</button>
             </div>
@@ -477,7 +535,7 @@
             <div class="form-nav">
               <div class="form-nav-left">
                 <button type="button" class="btn btn-ghost" onclick="goToPanel(1)">← Back</button>
-                <span style="font-size:.82rem;color:var(--muted);">Step 2 of 4</span>
+                <span style="font-size:.82rem;color:var(--muted);">Step 2 of 5</span>
               </div>
               <button type="button" class="btn btn-blue" onclick="goToPanel(3)">Next: About You →</button>
             </div>
@@ -503,7 +561,7 @@
             </div>
 
             <div style="background: var(--blush-bg); border: 1px solid var(--blush-light); border-radius: var(--radius-sm); padding: 12px 16px; margin-top: 8px; font-size: .85rem; color: var(--text-mid); line-height: 1.5;">
-              <strong>📅 Attendance:</strong> We assume all registered campers attend the full two weeks (July 20–31). If you can only attend part of the camp, please email <a href="mailto:lucas.liu.ca2009@gmail.com" style="color:var(--blush-dark);">lucas.liu.ca2009@gmail.com</a> after registering so we can plan accordingly.
+              <strong>📅 Attendance:</strong> We assume all registered campers attend the full two weeks (August 4–15). If you can only attend part of the camp, please email <a href="mailto:lucas.liu.ca2009@gmail.com" style="color:var(--blush-dark);">lucas.liu.ca2009@gmail.com</a> after registering so we can plan accordingly.
             </div>
 
             <!-- Authorized pickup people -->
@@ -519,14 +577,45 @@
             <div class="form-nav">
               <div class="form-nav-left">
                 <button type="button" class="btn btn-ghost" onclick="goToPanel(2)">← Back</button>
-                <span style="font-size:.82rem;color:var(--muted);">Step 3 of 4</span>
+                <span style="font-size:.82rem;color:var(--muted);">Step 3 of 5</span>
               </div>
-              <button type="button" class="btn btn-blue" onclick="goToPanel(4)">Review Application →</button>
+              <button type="button" class="btn btn-blue" onclick="goToPanel(4)">Next: Math Check →</button>
             </div>
           </div>
 
-          <!-- ── Panel 4: Review & Submit ── -->
+          <!-- ── Panel 4: Math Check (BEDMAS practice test) ── -->
           <div class="form-card form-panel" id="panel-4">
+            <div class="form-section-title">🧮 Quick Math Check</div>
+            <p style="font-size:.9rem;color:var(--text-mid);margin-bottom:18px;line-height:1.6;">
+              This camp moves fast, so every camper takes a short order-of-operations
+              (<strong>BEDMAS</strong>) check before registering. Answer <strong>10 questions</strong> —
+              you need <strong>60% (6 out of 10)</strong> to continue. You can retake it as many
+              times as you like, with a fresh set of questions each attempt.
+            </p>
+
+            <div id="mc-intro" style="background:var(--blush-bg);border:1px solid var(--blush-light);border-radius:var(--radius-sm);padding:22px;text-align:center;">
+              <div style="font-size:2rem;margin-bottom:6px;">✏️</div>
+              <div style="font-weight:700;margin-bottom:4px;">Ready when you are</div>
+              <p style="font-size:.86rem;color:var(--text-mid);margin:0 auto 14px;max-width:380px;line-height:1.55;">
+                10 multiple-choice questions on order of operations. Take your time — there's no timer.
+              </p>
+              <button type="button" class="btn btn-blue" id="mc-start-btn">Start the math check →</button>
+            </div>
+
+            <div id="mc-quiz" style="display:none;"></div>
+            <div id="mc-result" class="mc-banner" style="display:none;"></div>
+
+            <div class="form-nav">
+              <div class="form-nav-left">
+                <button type="button" class="btn btn-ghost" onclick="goToPanel(3)">← Back</button>
+                <span style="font-size:.82rem;color:var(--muted);">Step 4 of 5</span>
+              </div>
+              <button type="button" class="btn btn-blue" id="mc-next-btn" onclick="goToPanel(5)" disabled>Next: Review →</button>
+            </div>
+          </div>
+
+          <!-- ── Panel 5: Review & Submit ── -->
+          <div class="form-card form-panel" id="panel-5">
             <div class="form-section-title">✅ Review Your Application</div>
 
             <div id="review-summary" style="margin-bottom:28px; background:var(--surface2); border-radius:var(--radius-sm); padding:20px; font-size:.9rem; line-height:1.8; color:var(--text-mid);">
@@ -595,8 +684,8 @@
 
             <div class="form-nav">
               <div class="form-nav-left">
-                <button type="button" class="btn btn-ghost" onclick="goToPanel(3)">← Back</button>
-                <span style="font-size:.82rem;color:var(--muted);">Step 4 of 4</span>
+                <button type="button" class="btn btn-ghost" onclick="goToPanel(4)">← Back</button>
+                <span style="font-size:.82rem;color:var(--muted);">Step 5 of 5</span>
               </div>
               <button type="submit" class="btn btn-primary" id="submit-btn">
                 Submit Registration 🎉
@@ -612,14 +701,14 @@
           <div class="check-circle">✓</div>
           <h2>You're registered!</h2>
           <p>
-            Thanks for registering for HigherGrade Tutoring's Summer Camp 2026. We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before July 20.
+            Thanks for registering for HigherGrade Tutoring's Summer Camp 2026. We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before August 4.
           </p>
 
-          <!-- ── $75 e-Transfer payment step ── -->
+          <!-- ── e-Transfer payment step ── -->
           <div style="background:#FEF6D6;border:2px solid #F2C94C;border-radius:var(--radius-sm);padding:20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#5A4500;line-height:1.55;">
-            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;">💸 Final step — send $75 CAD by e-Transfer</div>
+            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;">💸 Final step — send <span class="pay-amount">$75</span> CAD by e-Transfer</div>
             <p style="margin:0 0 8px;font-size:.9rem;">
-              To complete your registration, please send a <strong>$75 CAD</strong> Interac e-Transfer to:
+              To complete your registration, please send a <strong><span class="pay-amount">$75</span> CAD</strong> Interac e-Transfer to:
             </p>
             <div style="background:#fff;border:1px solid #E2C97A;border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono', monospace;font-size:.95rem;font-weight:700;text-align:center;letter-spacing:.02em;color:#3A2E00;margin-bottom:10px;">
               h.ghergradetutor.ng@gmail.com
@@ -633,7 +722,7 @@
           </div>
 
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:520px;text-align:left;font-size:.88rem;color:var(--text-mid);">
-            <div style="margin-bottom:8px;">📅 <strong>Camp Dates:</strong> July 20–31, 2026</div>
+            <div style="margin-bottom:8px;">📅 <strong>Camp Dates:</strong> August 4–15, 2026</div>
             <div style="margin-bottom:8px;">📧 <strong>Confirmation:</strong> Check your email (and spam)</div>
             <div>📍 <strong>Location:</strong> Abbey Park High School, Oakville</div>
           </div>
@@ -649,17 +738,17 @@
 
         <div class="sidebar-card">
           <h4>Camp Details</h4>
-          <div class="sidebar-item"><span class="si-icon">📅</span><span><strong>July 20–31, 2026</strong><br>Week 1: Mon–Sat · Week 2: Mon–Thu</span></div>
+          <div class="sidebar-item"><span class="si-icon">📅</span><span><strong>August 4–15, 2026</strong><br>Week 1: Tue–Fri · Week 2: Mon–Sat</span></div>
           <div class="sidebar-item"><span class="si-icon">⏰</span><span><strong>9:00 AM – 3:30 PM</strong> daily</span></div>
           <div class="sidebar-item"><span class="si-icon">🎓</span><span>For <strong>Grade 9 students</strong> — HDSB &amp; all boards welcome</span></div>
           <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>Abbey Park High School</strong>, 1455 Glen Abbey Gate, Oakville</span></div>
-          <div class="sidebar-item"><span class="si-icon">💰</span><span><strong>100% free</strong> to attend</span></div>
-          <div class="sidebar-item"><span class="si-icon">👥</span><span>Limited to <strong>40 participants</strong></span></div>
+          <div class="sidebar-item"><span class="si-icon">💰</span><span><strong>Registration fee</strong><br>Early $75 · Normal $120 · Late $150</span></div>
+          <div class="sidebar-item"><span class="si-icon">👥</span><span>Limited to <strong>100 participants</strong></span></div>
         </div>
 
         <div class="sidebar-card">
           <h4>What to Bring</h4>
-          <div class="sidebar-item"><span class="si-icon">📓</span><span>Notebook &amp; pencils (extras provided)</span></div>
+          <div class="sidebar-item"><span class="si-icon">💻</span><span>A device (laptop, tablet, or Chromebook)</span></div>
           <div class="sidebar-item"><span class="si-icon">🍱</span><span>Your own lunch</span></div>
           <div class="sidebar-item"><span class="si-icon">💧</span><span>Water bottle</span></div>
           <div class="sidebar-item"><span class="si-icon">😊</span><span>A curious mind!</span></div>
@@ -684,7 +773,7 @@
     <div class="footer-grid">
       <div class="footer-brand">
         <div class="logo-text">🏕 HigherGrade Tutoring</div>
-        <p>A student-led math summer camp for Grade 9 students. July 20–31, 2026.</p>
+        <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
         <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
       </div>
       <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
@@ -724,6 +813,7 @@
     ],
     3: [],
     4: [],
+    5: [],
   };
 
   function validatePanel(panel) {
@@ -750,18 +840,29 @@
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    if (next === 4) buildReview();
+    // Math Check gate — can't advance past Step 4 without passing the check.
+    if (next > 4 && !mathCheckPassed) {
+      const r = document.getElementById('mc-result');
+      if (r) {
+        r.style.display = 'block';
+        r.className = 'mc-banner warn';
+        r.textContent = 'Please complete the math check (6 out of 10 or better) before continuing.';
+        r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+    if (next === 5) buildReview();
 
     document.getElementById('panel-' + currentPanel).classList.remove('active');
     document.getElementById('panel-' + next).classList.add('active');
 
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 5; i++) {
       const step = document.getElementById('step-' + i);
       step.classList.remove('active', 'complete');
       if (i < next)  step.classList.add('complete');
       if (i === next) step.classList.add('active');
     }
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 4; i++) {
       document.getElementById('line-' + i).classList.toggle('done', i < next);
     }
 
@@ -769,6 +870,143 @@
     document.querySelector('.form-card.active')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  /* ─────────── Registration pricing & open/close window ─────────── */
+  function regWindow(now) {
+    now = now || new Date();
+    const open      = new Date(2026, 4, 20);  // May 20, 2026
+    const earlyEnd  = new Date(2026, 5,  1);  // June 1  → early-bird is May 20–31
+    const normalEnd = new Date(2026, 5, 21);  // June 21 → normal is June 1–20
+    if (now < open)      return { open: false };
+    if (now < earlyEnd)  return { open: true, tier: 'Early-bird', price: 75  };
+    if (now < normalEnd) return { open: true, tier: 'Normal',     price: 120 };
+    return { open: true, tier: 'Late', price: 150 };
+  }
+
+  const REG = regWindow();
+
+  (function applyRegWindow() {
+    const badge  = document.getElementById('reg-badge');
+    const form   = document.getElementById('reg-form');
+    const notice = document.getElementById('reg-closed-notice');
+    if (!REG.open) {
+      if (badge)  badge.textContent = 'Registration opens May 20';
+      if (form)   form.style.display = 'none';
+      if (notice) notice.style.display = 'block';
+      return;
+    }
+    if (badge) badge.textContent = REG.tier + ' registration · $' + REG.price + ' CAD';
+    document.querySelectorAll('.pay-amount').forEach(el => { el.textContent = '$' + REG.price; });
+  })();
+
+  /* ─────────────────── Math Check (BEDMAS practice test) ─────────────────── */
+  const BEDMAS_POOL = [
+    { q: '6 + 4 × 3',         a: 18, w: [30, 22, 14]  },
+    { q: '(8 − 3) × 4',       a: 20, w: [8, 17, 32]   },
+    { q: '12 ÷ 4 + 5',       a: 8,  w: [17, 2, 12]   },
+    { q: '2³ + 5',           a: 13, w: [11, 16, 30]  },
+    { q: '20 − 6 ÷ 2',       a: 17, w: [7, 14, 11]   },
+    { q: '3 × (2 + 5)',       a: 21, w: [11, 17, 30]  },
+    { q: '5² − 4 × 3',       a: 13, w: [21, 63, 1]   },
+    { q: '10 + 2 × 3²',      a: 28, w: [108, 46, 96] },
+    { q: '(15 − 3) ÷ 4',      a: 3,  w: [14, 12, 6]   },
+    { q: '4 + 18 ÷ 3 − 2',   a: 8,  w: [22, 6, 16]   },
+    { q: '7 × 2 − 9',        a: 5,  w: [49, 23, 7]   },
+    { q: '30 ÷ (2 + 3)',      a: 6,  w: [18, 15, 9]   },
+    { q: '9 + 3 × 2 − 4',    a: 11, w: [20, 8, 16]   },
+    { q: '2 × 3² − 4',       a: 14, w: [32, 8, 50]   },
+    { q: '(6 + 2)² ÷ 4',     a: 16, w: [7, 64, 10]   },
+    { q: '50 − 4 × 5 + 2',   a: 32, w: [252, 28, 36] },
+    { q: '100 ÷ 10 ÷ 2',     a: 5,  w: [20, 200, 1]  },
+    { q: '8 + (12 − 4) × 2',  a: 24, w: [12, 32, 40]  },
+    { q: '3² × 2 + 1',       a: 19, w: [37, 13, 21]  },
+    { q: '14 − 2 × (3 + 1)',  a: 6,  w: [9, 48, 12]   },
+  ];
+  const MC_COUNT = 10, MC_PASS = 6;
+  let mathCheckPassed = false;
+  let mcQuestions = [];
+
+  function mcShuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function renderMathCheck() {
+    mcQuestions = mcShuffle(BEDMAS_POOL).slice(0, MC_COUNT).map(item => ({
+      expr: item.q,
+      correct: item.a,
+      options: mcShuffle([item.a].concat(item.w)),
+    }));
+    const quiz = document.getElementById('mc-quiz');
+    quiz.innerHTML = mcQuestions.map((item, i) => `
+      <div class="mc-question" data-q="${i}">
+        <div class="mc-q-head"><span>Question ${i + 1}</span><span>${i + 1} / ${MC_COUNT}</span></div>
+        <div class="mc-expr">${item.expr} =</div>
+        <div class="mc-options">
+          ${item.options.map(opt => `
+            <label class="mc-opt">
+              <input type="radio" name="mc-q${i}" value="${opt}" />
+              <span>${opt}</span>
+            </label>`).join('')}
+        </div>
+      </div>`).join('') +
+      '<button type="button" class="btn btn-blue" id="mc-submit-btn" style="margin-top:6px;">Submit answers</button>';
+    document.getElementById('mc-submit-btn').addEventListener('click', gradeMathCheck);
+    quiz.style.display = 'block';
+  }
+
+  function gradeMathCheck() {
+    let answered = 0, correct = 0;
+    mcQuestions.forEach((item, i) => {
+      const sel = document.querySelector('input[name="mc-q' + i + '"]:checked');
+      if (sel) {
+        answered++;
+        if (Number(sel.value) === item.correct) correct++;
+      }
+    });
+    const result = document.getElementById('mc-result');
+    result.style.display = 'block';
+    if (answered < MC_COUNT) {
+      result.className = 'mc-banner warn';
+      result.innerHTML = 'Please answer all ' + MC_COUNT + ' questions before submitting — you\'ve answered ' +
+        answered + ' of ' + MC_COUNT + '.';
+      result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const pct = Math.round(correct / MC_COUNT * 100);
+    if (correct >= MC_PASS) {
+      mathCheckPassed = true;
+      result.className = 'mc-banner pass';
+      result.innerHTML = '<strong>✓ You passed — ' + correct + ' / ' + MC_COUNT + ' (' + pct +
+        '%).</strong> You\'re ready for the final step.';
+      document.getElementById('mc-next-btn').disabled = false;
+      document.querySelectorAll('#mc-quiz input').forEach(el => { el.disabled = true; });
+      const submitBtn = document.getElementById('mc-submit-btn');
+      if (submitBtn) submitBtn.style.display = 'none';
+    } else {
+      mathCheckPassed = false;
+      document.getElementById('mc-next-btn').disabled = true;
+      result.className = 'mc-banner fail';
+      result.innerHTML = '<strong>✗ You scored ' + correct + ' / ' + MC_COUNT + ' (' + pct +
+        '%).</strong> You need ' + MC_PASS + ' out of ' + MC_COUNT + ' to continue.' +
+        '<div style="margin-top:10px;"><button type="button" class="btn btn-blue" id="mc-retry-btn">Try again with new questions</button></div>';
+      document.getElementById('mc-retry-btn').addEventListener('click', function () {
+        result.style.display = 'none';
+        renderMathCheck();
+        document.getElementById('panel-4').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+    result.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  document.getElementById('mc-start-btn').addEventListener('click', function () {
+    document.getElementById('mc-intro').style.display = 'none';
+    renderMathCheck();
+  });
 
   function get(id) { return document.getElementById(id)?.value?.trim() || '—'; }
 

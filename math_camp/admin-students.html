@@ -999,7 +999,7 @@ function render() {
         const verb = nextFrozen ? 'freeze' : 'unfreeze';
         const noun = nextFrozen
           ? "This will lock the camper out of the student portal until you unfreeze them. Freeze this account?"
-          : "Only unfreeze once you've confirmed the $75 CAD e-Transfer has arrived. Unfreeze this account?";
+          : "Only unfreeze once you've confirmed the registration-fee e-Transfer has arrived. Unfreeze this account?";
         if (!confirm(noun)) return;
         freezeBtn.disabled = true;
         try {

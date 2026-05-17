@@ -924,7 +924,10 @@ body:has(#sponsor-modal.open) {
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
 }
+.week-body { display: flex; flex-direction: column; flex: 1; }
 .week-header {
   padding: 18px 24px;
   font-weight: 700;
@@ -936,6 +939,7 @@ body:has(#sponsor-modal.open) {
 .week-header.teal-bg  { background: linear-gradient(135deg, var(--mint), var(--teal)); }
 .day-row {
   display: flex; border-bottom: 1px solid var(--border); align-items: stretch;
+  flex: 1;
 }
 .day-row:last-child { border-bottom: none; }
 .day-label {

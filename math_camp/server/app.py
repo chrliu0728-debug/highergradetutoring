@@ -1682,7 +1682,7 @@ def register_routes(app):
         return jsonify(ok=True, data={"awarded": balance, "newBalance": 0})
 
     # ── Camp registration intake ────────────────────────────────────
-    DEFAULT_STUDENT_CAP = 40
+    DEFAULT_STUDENT_CAP = 100
 
     def _student_cap():
         try:
