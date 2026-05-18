@@ -1690,6 +1690,18 @@ def register_routes(app):
         except (TypeError, ValueError):
             return DEFAULT_STUDENT_CAP
 
+    # Registration pricing window — set manually from the admin panel.
+    REG_TIERS = {
+        "closed": {"open": False, "price": 0,   "label": "Closed"},
+        "early":  {"open": True,  "price": 75,  "label": "Early-bird"},
+        "normal": {"open": True,  "price": 120, "label": "Normal"},
+        "late":   {"open": True,  "price": 150, "label": "Late"},
+    }
+
+    def _reg_tier():
+        t = _meta_get("reg_tier", "closed") or "closed"
+        return t if t in REG_TIERS else "closed"
+
     @app.route("/api/camp/register", methods=["POST"])
     def camp_register():
         # Hard freeze — admins can pause new registrations entirely.
@@ -1699,6 +1711,12 @@ def register_routes(app):
                 frozen=True,
                 reason=(_meta_get("registrations_frozen_reason", "") or ""),
                 error="Registrations are temporarily closed by the camp admins. Please check back soon.",
+            ), 423
+        # Registration tier — admins close intake by setting the tier to "closed".
+        if not REG_TIERS[_reg_tier()]["open"]:
+            return jsonify(
+                ok=False,
+                error="Registration is closed right now. Please check back soon.",
             ), 423
         d = request.get_json(silent=True) or {}
         first = (d.get("first_name") or "").strip()
@@ -1826,6 +1844,25 @@ def register_routes(app):
         _meta_set("registrations_frozen", "1" if frozen else "0")
         _meta_set("registrations_frozen_reason", reason if frozen else "")
         return jsonify(ok=True, frozen=frozen, reason=reason if frozen else "")
+
+    @app.route("/api/settings/reg-tier", methods=["GET"])
+    def settings_reg_tier():
+        t = _reg_tier()
+        info = REG_TIERS[t]
+        return jsonify(ok=True, tier=t, open=info["open"],
+                       price=info["price"], label=info["label"])
+
+    @app.route("/api/admin/settings/reg-tier", methods=["POST"])
+    @require_admin
+    def settings_reg_tier_set():
+        d = request.get_json(silent=True) or {}
+        t = (d.get("tier") or "").strip()
+        if t not in REG_TIERS:
+            return jsonify(ok=False, error="tier must be: closed, early, normal, or late"), 400
+        _meta_set("reg_tier", t)
+        info = REG_TIERS[t]
+        return jsonify(ok=True, tier=t, open=info["open"],
+                       price=info["price"], label=info["label"])
 
     # ── Trail mini-game config ──────────────────────────────────────
     # JSON blob in meta["trail_config"]:

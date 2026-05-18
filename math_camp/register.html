@@ -63,6 +63,7 @@
       // "registrations are closed" pop-up paints.
       const authP   = fetch('/api/auth/me', { credentials: 'same-origin' }).then(r => r.json()).catch(() => null);
       const frozenP = fetch('/api/settings/registrations-frozen', { credentials: 'same-origin' }).then(r => r.json()).catch(() => null);
+      const tierP   = fetch('/api/settings/reg-tier', { credentials: 'same-origin' }).then(r => r.json()).catch(() => null);
 
       authP.then(j => {
         if (j && j.kind === 'student') {
@@ -71,11 +72,16 @@
           return; // navigating away — leave cloak in place
         }
         sessionStorage.removeItem('hg_signed_in_student');
-        // Wait for the freeze flag too so the modal can render before reveal.
-        frozenP.then(f => {
+        // Wait for the freeze flag + pricing tier so the form, closed
+        // notice, and modal are all painted before reveal — no flash.
+        Promise.all([frozenP, tierP]).then(([f, t]) => {
           if (f && f.frozen) {
             window.__hgFrozen = true;
             window.__hgFrozenReason = (f.reason || '').trim();
+          }
+          window.__hgRegTier = (t && t.ok) ? t : { open: false };
+          if (typeof window.__hgApplyRegTier === 'function') {
+            window.__hgApplyRegTier(window.__hgRegTier);
           }
           reveal();
           if (window.__hgFrozen && typeof window.__hgShowFrozenModal === 'function') {
@@ -333,16 +339,16 @@
         <!-- ── Registration-not-open notice (shown by JS before May 20) ── -->
         <div class="form-card" id="reg-closed-notice" style="display:none;text-align:center;">
           <div style="font-size:2.6rem;margin-bottom:8px;">📅</div>
-          <h2 style="margin:0 0 10px;">Registration opens May 20, 2026</h2>
+          <h2 style="margin:0 0 10px;">Registration is currently closed</h2>
           <p style="color:var(--text-mid);max-width:480px;margin:0 auto 18px;line-height:1.6;">
-            We're not taking sign-ups just yet. Come back on <strong>May&nbsp;20</strong> to
-            secure your spot for HigherGrade Tutoring Summer Camp 2026.
+            We're not taking sign-ups right now. Check back soon to secure your
+            spot for HigherGrade Tutoring Summer Camp 2026.
           </p>
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:18px;max-width:420px;margin:0 auto;text-align:left;font-size:.9rem;color:var(--text-mid);line-height:1.7;">
-            <strong>💰 Registration fee — pick your window:</strong>
-            <div>• <strong>Early-bird</strong> · May 20–31 · <strong>$75</strong></div>
-            <div>• <strong>Normal</strong> · June 1–20 · <strong>$120</strong></div>
-            <div>• <strong>Late</strong> · after June 20 · <strong>$150</strong></div>
+            <strong>💰 Registration fee when we open:</strong>
+            <div>• <strong>Early-bird</strong> · <strong>$75</strong></div>
+            <div>• <strong>Normal</strong> · <strong>$120</strong></div>
+            <div>• <strong>Late</strong> · <strong>$150</strong></div>
           </div>
         </div>
 
@@ -871,33 +877,27 @@
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  /* ─────────── Registration pricing & open/close window ─────────── */
-  function regWindow(now) {
-    now = now || new Date();
-    const open      = new Date(2026, 4, 20);  // May 20, 2026
-    const earlyEnd  = new Date(2026, 5,  1);  // June 1  → early-bird is May 20–31
-    const normalEnd = new Date(2026, 5, 21);  // June 21 → normal is June 1–20
-    if (now < open)      return { open: false };
-    if (now < earlyEnd)  return { open: true, tier: 'Early-bird', price: 75  };
-    if (now < normalEnd) return { open: true, tier: 'Normal',     price: 120 };
-    return { open: true, tier: 'Late', price: 150 };
-  }
-
-  const REG = regWindow();
-
-  (function applyRegWindow() {
+  /* ─────────── Registration pricing — set from the admin panel ─────────── */
+  // The tier (closed / early / normal / late) is controlled by camp
+  // admins via /api/admin/settings/reg-tier. The <head> script fetches
+  // it early and calls __hgApplyRegTier once it knows.
+  function applyRegTier(reg) {
     const badge  = document.getElementById('reg-badge');
     const form   = document.getElementById('reg-form');
     const notice = document.getElementById('reg-closed-notice');
-    if (!REG.open) {
-      if (badge)  badge.textContent = 'Registration opens May 20';
+    if (!reg || !reg.open) {
+      if (badge)  badge.textContent = 'Registration closed';
       if (form)   form.style.display = 'none';
       if (notice) notice.style.display = 'block';
       return;
     }
-    if (badge) badge.textContent = REG.tier + ' registration · $' + REG.price + ' CAD';
-    document.querySelectorAll('.pay-amount').forEach(el => { el.textContent = '$' + REG.price; });
-  })();
+    if (badge) badge.textContent = (reg.label || 'Open') + ' registration · $' + reg.price + ' CAD';
+    if (form)   form.style.display = '';
+    if (notice) notice.style.display = 'none';
+    document.querySelectorAll('.pay-amount').forEach(el => { el.textContent = '$' + reg.price; });
+  }
+  window.__hgApplyRegTier = applyRegTier;
+  if (window.__hgRegTier) applyRegTier(window.__hgRegTier);
 
   /* ─────────────────── Math Check (BEDMAS practice test) ─────────────────── */
   const BEDMAS_POOL = [

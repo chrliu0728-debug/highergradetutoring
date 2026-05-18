@@ -201,6 +201,22 @@
     </div>
   </div>
 
+  <!-- ── Registration tier / pricing ── -->
+  <div class="panel" id="tier-panel">
+    <div style="flex:1; min-width:240px;">
+      <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Pricing window</div>
+      <h2 style="margin:0 0 4px;">💰 Registration tier <span id="tier-status" style="font-size:.85rem; font-weight:600; color:var(--muted);">— loading…</span></h2>
+      <p style="font-size:.85rem; color:var(--muted); margin:0; line-height:1.5;">Controls the registration page directly. <strong>Closed</strong> hides the form behind a "registration closed" notice; the three open tiers reveal the form and set the e-Transfer fee. Pick one to switch instantly.</p>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
+      <button type="button" class="btn-tidy tier-opt" data-tier="closed">🔒 Closed</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="early">Early-bird · $75</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="normal">Normal · $120</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="late">Late · $150</button>
+    </div>
+    <div id="tier-msg" style="font-size:.82rem; margin-top:8px; min-height:1.1em; color:var(--muted);"></div>
+  </div>
+
   <!-- ── Student cap control ── -->
   <div class="panel" id="cap-panel">
     <div class="panel-head">
@@ -575,6 +591,55 @@ loadCap();
     } finally { btnEl.disabled = false; }
   });
   loadFreeze();
+})();
+
+/* ── Registration tier control ── */
+(function () {
+  const statusEl = document.getElementById('tier-status');
+  const msgEl    = document.getElementById('tier-msg');
+  const btns     = Array.from(document.querySelectorAll('.tier-opt'));
+  if (!btns.length) return;
+  const LABEL = { closed: 'CLOSED', early: 'Early-bird · $75', normal: 'Normal · $120', late: 'Late · $150' };
+  function paint(tier) {
+    statusEl.textContent = '— ' + (LABEL[tier] || tier);
+    statusEl.style.color = tier === 'closed' ? '#B91C1C' : '#0F8A56';
+    btns.forEach(b => {
+      const on = b.dataset.tier === tier;
+      const c  = tier === 'closed' ? '#DC2626' : '#16A34A';
+      b.style.background  = on ? c : '';
+      b.style.color       = on ? 'white' : '';
+      b.style.borderColor = on ? c : '';
+    });
+  }
+  async function loadTier() {
+    try {
+      const r = await fetch('/api/settings/reg-tier', { credentials: 'same-origin' });
+      const j = await r.json();
+      if (j && j.ok) paint(j.tier);
+      else statusEl.textContent = '— unavailable';
+    } catch (_) { statusEl.textContent = '— unavailable'; }
+  }
+  btns.forEach(b => b.addEventListener('click', async () => {
+    const tier = b.dataset.tier;
+    btns.forEach(x => { x.disabled = true; });
+    msgEl.textContent = '';
+    try {
+      const r = await fetch('/api/admin/settings/reg-tier', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'failed');
+      paint(j.tier);
+      msgEl.textContent = 'Saved · registration page is now ' + (LABEL[j.tier] || j.tier) + '.';
+      msgEl.style.color = '#0F8A56';
+    } catch (e) {
+      msgEl.textContent = 'Failed: ' + (e.message || 'error');
+      msgEl.style.color = '#B91C1C';
+    } finally { btns.forEach(x => { x.disabled = false; }); }
+  }));
+  loadTier();
 })();
 
 exportBtn.addEventListener('click', () => {
