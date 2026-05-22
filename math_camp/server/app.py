@@ -39,7 +39,7 @@ SMTP_PORT       = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER       = os.environ.get("SMTP_USER", "")
 SMTP_PASS       = os.environ.get("SMTP_PASS", "")
 SMTP_FROM       = os.environ.get("SMTP_FROM",
-                                 "HigherGrade Tutoring <lucas.liu.ca2009@gmail.com>")
+                                 "HigherGrade Tutoring <h.ghergradetutor.ng@gmail.com>")
 ORGANIZER_EMAIL = os.environ.get("ORGANIZER_EMAIL", "lucas.liu.ca2009@gmail.com")
 SITE_URL        = os.environ.get("SITE_URL", "https://highergradetutoring.ca")
 COOKIE_NAME    = "hg_session"
@@ -217,31 +217,34 @@ def send_email(to, subject, body, reply_to=None):
         return False
 
 
-def _send_registration_confirm(student_email, name, parent_email=None):
+def _send_registration_confirm(student_email, name, parent_email=None, amount=None):
+    amount_str = f"${int(amount)} CAD" if amount else "your registration fee"
     subject = "You're registered for HigherGrade Tutoring Summer Camp 2026 🎉"
     body = (
         f"Hi {name or 'there'},\n\n"
         f"Thanks for registering for HigherGrade Tutoring's Summer Camp 2026!\n\n"
-        f"📅 Camp dates: July 20 – July 31, 2026 (Mon–Fri, both weeks)\n"
+        f"📅 Camp dates: August 4 – August 15, 2026\n"
+        f"   Week 1 (Tue–Fri): Aug 4, 5, 6, 7\n"
+        f"   Week 2 (Mon–Sat): Aug 10, 11, 12, 13, 14, 15\n"
         f"⏰ Hours: 9:00 AM – 3:30 PM daily\n"
         f"📍 Location: Abbey Park High School, 1455 Glen Abbey Gate, Oakville, ON\n"
-        f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Abbey+Park+High+School%2C+1455+Glen+Abbey+Gate%2C+Oakville%2C+ON\n"
-        f"💰 Cost: Free — fully funded\n\n"
-        f"💸 Final step — please send $75 CAD by e-Transfer\n"
-        f"To complete your registration, please send a $75 CAD Interac e-Transfer to:\n\n"
-        f"      h.ghergradetutor.ng@gmail.com\n\n"
+        f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Abbey+Park+High+School%2C+1455+Glen+Abbey+Gate%2C+Oakville%2C+ON\n\n"
+        f"💸 Final step — please send {amount_str} by e-Transfer\n"
+        f"To complete your registration, please send a {amount_str} Interac e-Transfer to:\n\n"
+        f"      lucas.liu.ca2009@gmail.com\n\n"
         f"In the message field, please include the camper's full name so we can match\n"
         f"the payment to your registration. Heads up: the camper's account will stay\n"
-        f"FROZEN (no sign-in to the student portal) until our staff confirms the\n"
+        f"FROZEN (limited access to the student portal) until our staff confirms the\n"
         f"e-Transfer. Once we see it, we'll unfreeze the account within 24 hours.\n\n"
-        f"📺 Parent / camper info session — Google Meet\n"
-        f"We're hosting a kickoff Google Meet at 10:00 AM on Saturday, June 27, 2026.\n"
+        f"📺 Parent / camper info session — video meeting\n"
+        f"We're hosting a kickoff video meeting at 10:00 AM EST on Saturday, July 18, 2026.\n"
         f"We'll walk through the daily schedule, drop-off / pick-up logistics, what to\n"
-        f"bring, and answer any questions you have. The Google Meet link will be\n"
-        f"emailed to this address closer to the date — please mark your calendar.\n\n"
+        f"bring, and answer any questions you have. The meeting link will be emailed to\n"
+        f"this address closer to the date — please mark your calendar.\n\n"
         f"A few things to know:\n"
-        f"• Please bring your own lunch each day. A water bottle, notebook, and\n"
-        f"  pencil are also a good idea. All math materials are provided.\n"
+        f"• Please bring a device (laptop, tablet, or Chromebook) and your own lunch\n"
+        f"  each day. A water bottle is also a good idea. All math materials are\n"
+        f"  provided.\n"
         f"• 🍱 Food partners (in progress): our team is currently in talks with\n"
         f"  local restaurants and food spots about partnering with the camp. If\n"
         f"  any food places confirm, we'll send a separate email with a link\n"
@@ -251,7 +254,7 @@ def _send_registration_confirm(student_email, name, parent_email=None):
         f"• Sign in to your dashboard at {SITE_URL}/student-portal.html\n"
         f"  to track points, see your class, and find the hidden mini-game.\n"
         f"• Questions? Reply to this email — it goes straight to the organizers.\n\n"
-        f"See you July 20!\n"
+        f"See you August 4!\n"
         f"— The HigherGrade Tutoring team\n"
     )
     if student_email:
@@ -307,6 +310,21 @@ def require_student(fn):
         s = _current_session()
         if not s or s["kind"] != "student" or not s["studentId"]:
             return jsonify(ok=False, error="Student authentication required"), 401
+        # Frozen accounts can READ (GET) but every mutating request is
+        # rejected until staff confirms the e-Transfer and unfreezes the
+        # account. The UI also paints a blocking overlay; this is the
+        # defense-in-depth check for direct-API attempts.
+        if request.method != "GET":
+            row = g.db.execute(
+                "SELECT frozen FROM students WHERE id = ?",
+                (s["studentId"],),
+            ).fetchone()
+            if row and row["frozen"]:
+                return jsonify(
+                    ok=False,
+                    frozen=True,
+                    error="Your camp account is pending payment confirmation — actions are disabled until our staff confirms the e-Transfer.",
+                ), 423
         g.session = s
         return fn(*a, **kw)
     return wrapper
@@ -482,19 +500,9 @@ def register_routes(app):
         ).fetchone()
         if not row:
             return jsonify(ok=False, error="No matching account"), 401
-        # Account is frozen until staff confirms the $75 e-Transfer.
-        if row["frozen"]:
-            return jsonify(
-                ok=False,
-                frozen=True,
-                error=(
-                    "Your camp account is frozen until our staff confirms your "
-                    "$75 CAD registration payment. Please send the e-Transfer to "
-                    "h.ghergradetutor.ng@gmail.com if you haven't already — your "
-                    "account will be unlocked within 24 hours of the payment "
-                    "being received."
-                ),
-            ), 423
+        # Frozen accounts CAN sign in — the portal renders a blocking
+        # overlay that locks out all actions until staff unfreezes them,
+        # and require_student rejects mutating requests on the server.
         token = _new_token()
         g.db.execute(
             "INSERT INTO sessions (token, kind, studentId, createdAt) VALUES (?, 'student', ?, ?)",
@@ -570,7 +578,8 @@ def register_routes(app):
         parent_email  = (data.get("parentEmail")  or data.get("parent_email")  or "").strip()
         full_name = ((data.get("firstName") or "") + " " + (data.get("lastName") or "")).strip()
         try:
-            _send_registration_confirm(student_email, full_name, parent_email or None)
+            _send_registration_confirm(student_email, full_name, parent_email or None,
+                                       amount=REG_TIERS[_reg_tier()]["price"] or None)
         except Exception:  # noqa: BLE001
             pass
         return jsonify(ok=True, data=s)
@@ -1693,9 +1702,9 @@ def register_routes(app):
     # Registration pricing window — set manually from the admin panel.
     REG_TIERS = {
         "closed": {"open": False, "price": 0,   "label": "Closed"},
-        "early":  {"open": True,  "price": 75,  "label": "Early-bird"},
-        "normal": {"open": True,  "price": 120, "label": "Normal"},
-        "late":   {"open": True,  "price": 150, "label": "Late"},
+        "early":  {"open": True,  "price": 135, "label": "Early-bird"},
+        "normal": {"open": True,  "price": 150, "label": "Normal"},
+        "late":   {"open": True,  "price": 200, "label": "Late"},
     }
 
     def _reg_tier():
@@ -1808,6 +1817,7 @@ def register_routes(app):
                 (d.get("student_email") or "").strip(),
                 f"{first} {last}".strip(),
                 (d.get("parent_email") or "").strip() or None,
+                amount=REG_TIERS[_reg_tier()]["price"] or None,
             )
         except Exception:  # noqa: BLE001
             pass

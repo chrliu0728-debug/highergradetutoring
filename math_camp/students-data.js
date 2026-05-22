@@ -95,6 +95,70 @@ async function _refresh(key, path, payloadKey) {
   }
 }
 
+/* ── Frozen-account overlay ──────────────────────────────────────
+   Frozen students CAN log in (the server allows it for read-only
+   access). When a frozen student is the current user, this overlay
+   covers the page, blocks every interaction below it, and points
+   them at the e-Transfer needed to unlock the account. */
+function showFrozenOverlay(student) {
+  const existing = document.getElementById('hg-frozen-overlay');
+  if (!student || !student.frozen) {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'hg-frozen-overlay';
+  wrap.innerHTML = [
+    '<style>',
+    '#hg-frozen-overlay{position:fixed;inset:0;z-index:2147483646;',
+    'background:rgba(15,12,8,.82);backdrop-filter:blur(6px);',
+    'display:flex;align-items:center;justify-content:center;padding:24px;',
+    "font-family:'Inter',system-ui,-apple-system,sans-serif;color:#111;",
+    'user-select:text;}',
+    '#hg-frozen-overlay .hg-fo-card{background:#fff;max-width:480px;width:100%;',
+    'border-radius:18px;padding:32px 28px;box-shadow:0 30px 80px rgba(0,0,0,.45);',
+    'text-align:center;line-height:1.6;}',
+    '#hg-frozen-overlay .hg-fo-icon{font-size:3rem;line-height:1;}',
+    '#hg-frozen-overlay h2{margin:8px 0 12px;font-size:1.35rem;font-weight:800;color:#111;}',
+    '#hg-frozen-overlay p{margin:0 0 14px;font-size:.95rem;color:#4a4a4a;}',
+    '#hg-frozen-overlay .hg-fo-mail{display:inline-block;background:#FEF6D6;',
+    'border:1px solid #E2C97A;border-radius:8px;padding:8px 14px;',
+    "font-family:'JetBrains Mono',monospace;font-weight:700;color:#5A4500;",
+    'margin:0 0 18px;letter-spacing:.02em;}',
+    '#hg-frozen-overlay .hg-fo-btn{appearance:none;border:0;border-radius:999px;',
+    'padding:10px 22px;cursor:pointer;font-size:.9rem;font-weight:700;',
+    'font-family:inherit;background:#DC2626;color:white;}',
+    '</style>',
+    '<div class="hg-fo-card" role="dialog" aria-modal="true">',
+    '<div class="hg-fo-icon">🔒</div>',
+    '<h2>Account pending confirmation</h2>',
+    '<p>Your camp account is on hold until our staff confirms your registration-fee e-Transfer to:</p>',
+    '<div class="hg-fo-mail">lucas.liu.ca2009@gmail.com</div>',
+    "<p>Once we confirm the payment (usually within 24&nbsp;hours), this notice will lift and you'll have full access to the camp portal. Until then, the portal is read-only.</p>",
+    '<button type="button" class="hg-fo-btn" id="hg-fo-logout">Log out</button>',
+    '</div>',
+  ].join('');
+  document.body.appendChild(wrap);
+  const logoutBtn = document.getElementById('hg-fo-logout');
+  if (logoutBtn) logoutBtn.addEventListener('click', async () => {
+    try {
+      await fetch('/api/auth/student/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (_) { /* logout is best-effort */ }
+    try { sessionStorage.removeItem('hg_signed_in_student'); } catch (_) {}
+    location.href = '/student-portal.html';
+  });
+}
+
+function _hgAutoFrozenCheck() {
+  // body may not exist yet if students-data.js runs from the head;
+  // the bootstrap is async and resolves after parse, so by the time
+  // we call this from _bootstrap the body is ready.
+  if (!document.body) return;
+  const me = HG.cache.me && HG.cache.me.student;
+  showFrozenOverlay(me);
+}
+
 async function _bootstrap() {
   // Fire all reads in parallel.
   const [me, students, classes, roles, baseStats, txs, staff] = await Promise.all([
@@ -107,6 +171,7 @@ async function _bootstrap() {
     _api('/staff').catch(() => ({ data: [] })),
   ]);
   HG.cache.me            = { kind: me.kind || null, student: me.student || null };
+  _hgAutoFrozenCheck();
   HG.cache.students      = students.data || [];
   HG.cache.classes       = classes.data || [];
   HG.cache.roles         = roles.data || [];
@@ -256,6 +321,7 @@ async function findStudentByLogin(email, password) {
     });
     if (r && r.ok && r.student) {
       HG.cache.me = { kind: 'student', student: r.student };
+      _hgAutoFrozenCheck();
       const idx = HG.cache.students.findIndex(s => s.id === r.student.id);
       if (idx >= 0) HG.cache.students[idx] = r.student;
       else HG.cache.students.push(r.student);
@@ -283,12 +349,14 @@ async function setLoggedInStudent(id) {
   if (!id) {
     await _api('/auth/student/logout', { method: 'POST' });
     HG.cache.me = { kind: null, student: null };
+    _hgAutoFrozenCheck();
     return;
   }
   // We can't impersonate a student without their password, so
   // this branch only refreshes /auth/me.
   const me = await _api('/auth/me');
   HG.cache.me = { kind: me.kind || null, student: me.student || null };
+  _hgAutoFrozenCheck();
 }
 
 /* ──────────────────────────────────────────────────────────────

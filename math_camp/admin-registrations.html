@@ -210,9 +210,9 @@
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
       <button type="button" class="btn-tidy tier-opt" data-tier="closed">🔒 Closed</button>
-      <button type="button" class="btn-tidy tier-opt" data-tier="early">Early-bird · $75</button>
-      <button type="button" class="btn-tidy tier-opt" data-tier="normal">Normal · $120</button>
-      <button type="button" class="btn-tidy tier-opt" data-tier="late">Late · $150</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="early">Early-bird · $135</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="normal">Normal · $150</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="late">Late · $200</button>
     </div>
     <div id="tier-msg" style="font-size:.82rem; margin-top:8px; min-height:1.1em; color:var(--muted);"></div>
   </div>
@@ -599,7 +599,7 @@ loadCap();
   const msgEl    = document.getElementById('tier-msg');
   const btns     = Array.from(document.querySelectorAll('.tier-opt'));
   if (!btns.length) return;
-  const LABEL = { closed: 'CLOSED', early: 'Early-bird · $75', normal: 'Normal · $120', late: 'Late · $150' };
+  const LABEL = { closed: 'CLOSED', early: 'Early-bird · $135', normal: 'Normal · $150', late: 'Late · $200' };
   function paint(tier) {
     statusEl.textContent = '— ' + (LABEL[tier] || tier);
     statusEl.style.color = tier === 'closed' ? '#B91C1C' : '#0F8A56';
