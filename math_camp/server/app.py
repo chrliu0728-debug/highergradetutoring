@@ -1757,14 +1757,19 @@ def register_routes(app):
                     continue
                 clean_pickup.append({"name": nm, "phone": ph, "relationship": rel})
         pickup_json = json.dumps(clean_pickup)
+        # Free-movement-on-campus-during-breaks choice. Only two valid values;
+        # anything else is stored as NULL.
+        roaming = (d.get("campus_roaming") or "").strip().lower()
+        if roaming not in ("allow", "no"):
+            roaming = None
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
                 parentFirst, parentLast, relationship, parentPhone, parentEmail,
                 emerg1Name, emerg1Phone, emerg1Relationship,
-                hobbies, whyJoin, consentPhoto, password, waitlisted, pickupPeople)
+                hobbies, whyJoin, consentPhoto, campusRoaming, password, waitlisted, pickupPeople)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
                 first, last,
@@ -1782,6 +1787,7 @@ def register_routes(app):
                 (d.get("hobbies") or None),
                 (d.get("why_join") or None),
                 1 if d.get("consent_photo") else 0,
+                roaming,
                 password,
                 waitlisted,
                 pickup_json,

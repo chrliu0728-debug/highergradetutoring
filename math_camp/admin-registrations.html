@@ -271,6 +271,7 @@
             <th>Em. phone</th>
             <th class="wrap">Authorized pickup</th>
             <th>Photo consent</th>
+            <th>Campus breaks</th>
             <th class="wrap">Hobbies</th>
             <th class="wrap">Why join</th>
             <th></th>
@@ -423,7 +424,7 @@ function render() {
     : DATA;
   countEl.textContent = `${rows.length} registration${rows.length === 1 ? '' : 's'}`;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="19" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="20" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, i) => {
@@ -449,6 +450,7 @@ function render() {
       <td>${esc(r.emerg1Phone || '')}</td>
       <td class="wrap">${renderPickup(r.pickupPeople)}</td>
       <td>${r.consentPhoto ? '✅ yes' : '—'}</td>
+      <td>${r.campusRoaming === 'allow' ? '🚶 free roam' : r.campusRoaming === 'no' ? '🔒 supervised' : '—'}</td>
       <td class="wrap">${esc(r.hobbies || '')}</td>
       <td class="wrap">${esc(r.whyJoin || '')}</td>
       <td><button class="delete-btn" data-id="${esc(r.id)}" title="Delete">🗑</button></td>
@@ -662,6 +664,7 @@ exportBtn.addEventListener('click', () => {
     ['emerg1Phone',        'Emergency phone'],
     ['pickupPeople',       'Authorized pickup'],
     ['consentPhoto',       'Photo consent'],
+    ['campusRoaming',      'Campus breaks'],
     ['hobbies',     'Hobbies'],
     ['whyJoin',     'Why join'],
   ];
@@ -676,6 +679,7 @@ exportBtn.addEventListener('click', () => {
       let v = r[k];
       if (k === 'createdAt')    v = v ? new Date(v * 1000).toISOString() : '';
       if (k === 'consentPhoto') v = v ? 'yes' : 'no';
+      if (k === 'campusRoaming') v = v === 'allow' ? 'free roam' : v === 'no' ? 'supervised' : '';
       if (k === 'waitlisted')   v = v ? 'waitlist' : 'active';
       if (k === 'pickupPeople') v = pickupCsv(v);
       return escCsv(v);

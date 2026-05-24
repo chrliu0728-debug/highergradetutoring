@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS registrations (
   hobbies             TEXT,
   whyJoin             TEXT,
   consentPhoto        INTEGER NOT NULL DEFAULT 0,
+  campusRoaming       TEXT,                          -- 'allow' | 'no' — free movement on campus during breaks
   password            TEXT,
   waitlisted          INTEGER NOT NULL DEFAULT 0,
   pickupPeople        TEXT NOT NULL DEFAULT '[]'   -- JSON: [{name, phone, relationship}]

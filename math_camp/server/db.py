@@ -72,6 +72,13 @@ def _migrate(conn):
             )
     except sqlite3.OperationalError:
         pass
+    # Campus free-movement-during-breaks choice ('allow' | 'no'). Added after
+    # launch; pre-existing rows stay NULL and render as "—" in the admin view.
+    try:
+        if _has_column("registrations", "id") and not _has_column("registrations", "campusRoaming"):
+            conn.execute("ALTER TABLE registrations ADD COLUMN campusRoaming TEXT")
+    except sqlite3.OperationalError:
+        pass
     # Chests gained imageUrl + channelId + messageId for the public-message
     # button flow. Add them to existing tables that pre-date the change.
     for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT")):
