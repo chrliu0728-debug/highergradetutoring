@@ -192,6 +192,15 @@ def send_email(to, subject, body, reply_to=None):
     """Best-effort SMTP send. If credentials aren't configured we log
     and return False — never raise — so the caller's HTTP path is safe."""
     if not SMTP_USER or not SMTP_PASS:
+        try:
+            from flask import current_app
+            current_app.logger.warning(
+                "SMTP send to %s skipped: SMTP_USER/SMTP_PASS not configured "
+                "(set them in /etc/highergrade.env and restart highergrade-api).",
+                to,
+            )
+        except Exception:
+            pass
         return False
     msg = EmailMessage()
     msg["From"]    = SMTP_FROM
@@ -227,8 +236,8 @@ def _send_registration_confirm(student_email, name, parent_email=None, amount=No
         f"   Week 1 (Tue–Fri): Aug 4, 5, 6, 7\n"
         f"   Week 2 (Mon–Sat): Aug 10, 11, 12, 13, 14, 15\n"
         f"⏰ Hours: 9:00 AM – 3:30 PM daily\n"
-        f"📍 Location: Abbey Park High School, 1455 Glen Abbey Gate, Oakville, ON\n"
-        f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Abbey+Park+High+School%2C+1455+Glen+Abbey+Gate%2C+Oakville%2C+ON\n\n"
+        f"📍 Location: Sheridan College — Trafalgar Campus, 1430 Trafalgar Road, Oakville, ON\n"
+        f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON\n\n"
         f"💸 Final step — please send {amount_str} by e-Transfer\n"
         f"To complete your registration, please send a {amount_str} Interac e-Transfer to:\n\n"
         f"      lucas.liu.ca2009@gmail.com\n\n"
