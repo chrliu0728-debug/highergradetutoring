@@ -1801,6 +1801,44 @@ def register_routes(app):
         except (TypeError, ValueError):
             return DEFAULT_STUDENT_CAP
 
+    def _reconcile_camper_email(email):
+        """Keep the campers (students) consistent with registrations for a
+        SINGLE email. Scoped on purpose: it only ever touches the email
+        passed in, so existing campers are never swept unless this exact
+        email is part of the change being made right now.
+
+        Enforces two rules the way the camp wants for future problems:
+          • a camper with NO matching registration is removed (orphan)
+          • if several campers share the email, the OLDEST account is kept
+            and the newer duplicate(s) are removed ("delete the new one")
+
+        Returns the number of student accounts removed."""
+        email = (email or "").strip().lower()
+        if not email:
+            return 0
+        reg_count = g.db.execute(
+            "SELECT COUNT(*) AS n FROM registrations WHERE LOWER(TRIM(studentEmail)) = ?",
+            (email,),
+        ).fetchone()["n"]
+        # Oldest first, so students[0] is the established account to keep.
+        students = g.db.execute(
+            "SELECT id FROM students WHERE LOWER(TRIM(studentEmail)) = ? "
+            "ORDER BY CAST(COALESCE(registeredAt, '0') AS INTEGER) ASC, id ASC",
+            (email,),
+        ).fetchall()
+        # No registration backs this email → every matching camper is an
+        # orphan. Otherwise keep the oldest and drop the duplicates.
+        doomed = students if reg_count == 0 else students[1:]
+        removed = 0
+        for s in doomed:
+            g.db.execute(
+                "DELETE FROM sessions WHERE kind = 'student' AND studentId = ?",
+                (s["id"],),
+            )
+            g.db.execute("DELETE FROM students WHERE id = ?", (s["id"],))
+            removed += 1
+        return removed
+
     # Registration pricing window — set manually from the admin panel.
     REG_TIERS = {
         "closed": {"open": False, "price": 0,   "label": "Closed"},
@@ -1949,6 +1987,13 @@ def register_routes(app):
                         "registeredAt": str(int(time.time())),
                         "frozen":       1,
                     }))
+        except Exception:  # noqa: BLE001
+            pass
+        # Keep campers in sync with registrations for this email: drop any
+        # stale duplicate student accounts so there's exactly one camper per
+        # registered email. Scoped to this email only — never touches others.
+        try:
+            _reconcile_camper_email(student_email)
         except Exception:  # noqa: BLE001
             pass
         # NOTE: the confirmation / payment-request email was already sent
@@ -2172,20 +2217,12 @@ def register_routes(app):
         promoted = 0
         with g.db:
             g.db.execute("DELETE FROM registrations WHERE id = ?", (rid,))
-            # Remove the matching auto-provisioned student account so a
-            # withdrawn camper can no longer sign in to the portal.
+            # Remove the matching auto-provisioned student account(s) so a
+            # withdrawn camper can no longer sign in. _reconcile_camper_email
+            # deletes every camper for this email once no registration backs
+            # it (orphan rule), or trims duplicates if another reg remains.
             if email and not keep_account:
-                srows = g.db.execute(
-                    "SELECT id FROM students WHERE LOWER(TRIM(studentEmail)) = ?",
-                    (email,),
-                ).fetchall()
-                for s in srows:
-                    g.db.execute(
-                        "DELETE FROM sessions WHERE kind = 'student' AND studentId = ?",
-                        (s["id"],),
-                    )
-                    g.db.execute("DELETE FROM students WHERE id = ?", (s["id"],))
-                    removed_account = True
+                removed_account = _reconcile_camper_email(email) > 0
             # Re-balance the waitlist: first <cap> registrations by createdAt
             # are active, the rest waitlisted. Deleting an active camper thus
             # promotes the oldest waitlisted registration into the open spot.

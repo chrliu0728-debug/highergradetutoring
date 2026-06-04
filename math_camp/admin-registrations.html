@@ -100,7 +100,20 @@
     }
     .search-row input:focus { border-color: var(--blush); background: white; }
 
-    .reg-table-wrap { overflow-x: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px; }
+    .reg-table-wrap {
+      overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px;
+      /* Force always-visible scrollbars (macOS hides overlay ones), so the
+         bottom horizontal bar is there to drag left↔right. */
+      scrollbar-width: auto;
+      scrollbar-color: #c9a9ae var(--surface2);
+    }
+    .reg-table-wrap::-webkit-scrollbar { height: 14px; width: 14px; }
+    .reg-table-wrap::-webkit-scrollbar-track { background: var(--surface2); border-radius: 8px; }
+    .reg-table-wrap::-webkit-scrollbar-thumb {
+      background: #c9a9ae; border-radius: 8px; border: 3px solid var(--surface2);
+    }
+    .reg-table-wrap::-webkit-scrollbar-thumb:hover { background: #b48b91; }
+    .reg-table-wrap::-webkit-scrollbar-corner { background: var(--surface2); }
     table.reg-table {
       width: 100%; border-collapse: collapse; font-size: .82rem; min-width: 1700px;
     }
