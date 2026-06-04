@@ -938,6 +938,9 @@
     </div>
     <div class="sponsor-carousel-dots" id="sm-dots"></div>
 
+    <!-- Location under the pictures (links to the store on Google Maps) -->
+    <div class="sponsor-location" id="sm-location"></div>
+
     <!-- Company description -->
     <div class="sponsor-modal-desc" id="sm-desc"></div>
 
@@ -958,18 +961,34 @@
    ───────────────────────────────────────────────────────────────────── */
 const SPONSORS = [
   {
-    id: 'sponsor-1',
-    name: 'Sponsor Company Name',                 // TODO: real company name
-    tagline: 'A short one-line tagline.',         // TODO
-    logo: '',                                     // TODO: 'sponsor1-logo.webp' (empty = placeholder)
+    id: 'staples',
+    name: 'Staples',
+    tagline: 'Work. Learn. Grow.',
+    brandColor: '#CC0000',                        // Staples red — themes the modal accents
+    logo: '',                                     // no logo file yet → shows red "Staples" wordmark.
+                                                  // Drop a logo in this folder and put the filename here.
     description:
-      'TODO — a paragraph describing the company: what they do, why they '
-      + 'support the camp, and anything families should know. Replace this '
-      + 'placeholder text once you have the copy from the sponsor.',
-    images: ['', '', '', ''],                     // TODO: up to 4 image filenames
-    people: [                                      // the two who agreed to the sponsorship
-      { name: 'First Last', role: 'Role / Title', photo: '' },  // TODO
-      { name: 'First Last', role: 'Role / Title', photo: '' },  // TODO
+      'Staples Canada is one of the country’s largest retailers for office, '
+      + 'technology, and school essentials, with locations from coast to coast. '
+      + 'Reimagined as “The Working and Learning Company,” Staples has grown '
+      + 'beyond supplies into a community hub — its stores feature coworking '
+      + 'spaces, classrooms, and event areas built to help people work, learn, and '
+      + 'grow. Staples Canada is proud to invest in students, educators, and local '
+      + 'communities, championing programs that make learning more accessible for the '
+      + 'next generation.',
+    location: {
+      label: 'Oakville, Ontario',
+      url: 'https://www.google.com/maps/dir//Staples,+320+North+Service+Rd+W,+Oakville,+ON+L6M+0H4/data=!4m6!4m5!1m1!4e2!1m2!1m1!1s0x882b5d067a689397:0x1c9e4d6912c2bda7?sa=X&ved=1t:57443&ictx=111',
+    },
+    images: [
+      'Staples_Oakville_storefront.jpg',
+      '3.jpg',
+      '1.jpg',
+      'download.webp',
+    ],
+    people: [
+      { name: 'Terry Carson',   role: 'Staples Canada', photo: '' },
+      { name: 'Elsa Abikhalil', role: 'Staples Canada', photo: '' },
     ],
   },
   // Add up to 3 more sponsor objects here when you have them.
@@ -980,11 +999,13 @@ const SPONSORS = [
   const modal     = document.getElementById('sponsor-modal');
   if (!slotsWrap || !modal) return;
 
+  const elCard  = modal.querySelector('.sponsor-modal-card');
   const elLogo  = document.getElementById('sm-logo');
   const elName  = document.getElementById('sm-name');
   const elTag   = document.getElementById('sm-tagline');
   const elTrack = document.getElementById('sm-track');
   const elDots  = document.getElementById('sm-dots');
+  const elLoc   = document.getElementById('sm-location');
   const elDesc  = document.getElementById('sm-desc');
   const elPeople= document.getElementById('sm-people');
   const elPrev  = document.getElementById('sm-prev');
@@ -1002,7 +1023,7 @@ const SPONSORS = [
     <button class="sponsor-slot" data-id="${esc(s.id)}" title="${esc(s.name)} — click for details">
       ${s.logo
         ? `<img src="${esc(s.logo)}" alt="${esc(s.name)}" class="sponsor-slot-img" />`
-        : `<span class="sponsor-slot-placeholder">${esc(s.name)}</span>`}
+        : `<span class="sponsor-slot-wordmark" style="color:${esc(s.brandColor || 'var(--text)')}">${esc(s.name)}</span>`}
     </button>
   `).join('');
 
@@ -1039,11 +1060,25 @@ const SPONSORS = [
   /* ── Open / close ── */
   function open(s) {
     current = s;
-    if (s.logo) { elLogo.src = s.logo; elLogo.style.display = ''; }
-    else elLogo.style.display = 'none';
+    // Brand accent (Staples red, etc.) drives the modal's themed bits.
+    elCard.style.setProperty('--sponsor-accent', s.brandColor || 'var(--blush)');
+    if (s.logo) {
+      elLogo.src = s.logo; elLogo.style.display = '';
+      elName.style.color = '';
+    } else {
+      // No logo file → show the name as a branded wordmark.
+      elLogo.style.display = 'none';
+      elName.style.color = s.brandColor || '';
+    }
     elName.textContent = s.name || '';
     elTag.textContent  = s.tagline || '';
     elDesc.textContent = s.description || '';
+    if (s.location && s.location.label) {
+      elLoc.innerHTML = `<a href="${esc(s.location.url)}" target="_blank" rel="noopener">📍 ${esc(s.location.label)}</a>`;
+      elLoc.style.display = '';
+    } else {
+      elLoc.style.display = 'none';
+    }
     elPeople.innerHTML = (s.people || []).slice(0, 2).map(p => `
       <div class="sponsor-person">
         ${p.photo
