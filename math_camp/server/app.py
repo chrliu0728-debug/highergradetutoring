@@ -2150,8 +2150,58 @@ def register_routes(app):
     @app.route("/api/admin/registrations/<rid>", methods=["DELETE"])
     @require_admin
     def admin_delete_registration(rid):
-        g.db.execute("DELETE FROM registrations WHERE id = ?", (rid,))
-        return jsonify(ok=True)
+        """Drop a camper from the registration list (e.g. they withdrew).
+
+        This fully removes them: the registration row, the auto-provisioned
+        student-portal account tied to the same email (plus any live
+        sessions), and then re-balances the waitlist so a freed-up spot
+        promotes the next person in line.
+
+        Pass ?keepAccount=1 to delete only the registration row and leave
+        the student-portal account intact.
+        """
+        reg = g.db.execute(
+            "SELECT id, studentEmail FROM registrations WHERE id = ?", (rid,)
+        ).fetchone()
+        if not reg:
+            return jsonify(ok=False, error="Registration not found"), 404
+
+        keep_account = request.args.get("keepAccount") in ("1", "true", "yes")
+        email = (reg["studentEmail"] or "").strip().lower()
+        removed_account = False
+        promoted = 0
+        with g.db:
+            g.db.execute("DELETE FROM registrations WHERE id = ?", (rid,))
+            # Remove the matching auto-provisioned student account so a
+            # withdrawn camper can no longer sign in to the portal.
+            if email and not keep_account:
+                srows = g.db.execute(
+                    "SELECT id FROM students WHERE LOWER(TRIM(studentEmail)) = ?",
+                    (email,),
+                ).fetchall()
+                for s in srows:
+                    g.db.execute(
+                        "DELETE FROM sessions WHERE kind = 'student' AND studentId = ?",
+                        (s["id"],),
+                    )
+                    g.db.execute("DELETE FROM students WHERE id = ?", (s["id"],))
+                    removed_account = True
+            # Re-balance the waitlist: first <cap> registrations by createdAt
+            # are active, the rest waitlisted. Deleting an active camper thus
+            # promotes the oldest waitlisted registration into the open spot.
+            cap = _student_cap()
+            rows = g.db.execute(
+                "SELECT id, waitlisted FROM registrations ORDER BY createdAt ASC"
+            ).fetchall()
+            for i, r in enumerate(rows):
+                wl = 0 if i < cap else 1
+                if int(r["waitlisted"] or 0) == 1 and wl == 0:
+                    promoted += 1
+                g.db.execute(
+                    "UPDATE registrations SET waitlisted = ? WHERE id = ?",
+                    (wl, r["id"]),
+                )
+        return jsonify(ok=True, removedAccount=removed_account, promoted=promoted)
 
     # ── Discord-bot integration ────────────────────────────────────
     # All /api/bot/* endpoints expect Authorization: Bearer <BOT_TOKEN>.

@@ -462,15 +462,19 @@ tbody.addEventListener('click', async (e) => {
   const btn = e.target.closest('.delete-btn');
   if (!btn) return;
   const id = btn.dataset.id;
-  if (!confirm('Delete this registration permanently?')) return;
+  if (!confirm('Remove this camper from the registration list?\n\nThis permanently deletes their registration AND their student-portal account, and promotes the next person off the waitlist if a spot opens up.')) return;
   try {
     const r = await fetch('/api/admin/registrations/' + encodeURIComponent(id), {
       method: 'DELETE', credentials: 'same-origin',
     });
     if (!r.ok) throw new Error('Failed');
+    const data = await r.json().catch(() => ({}));
     DATA = DATA.filter(x => x.id !== id);
     render();
-    showToast('Registration deleted.');
+    loadCap();
+    let msg = 'Camper removed' + (data.removedAccount ? ' (portal account deleted)' : '') + '.';
+    if (data.promoted > 0) msg += ` ${data.promoted} promoted off waitlist.`;
+    showToast(msg);
   } catch (err) {
     showToast('Delete failed.');
   }
