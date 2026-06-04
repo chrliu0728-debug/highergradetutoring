@@ -393,18 +393,31 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   const el = document.getElementById('countdown');
   if (!el) return;
 
-  const target = new Date('2026-07-20T09:00:00');
+  // Camp runs Aug 4 → Aug 15, 2026. Count down to the 9:00 AM Day 1 start,
+  // switch to an "in session" badge during camp, then disappear after.
+  const start = new Date('2026-08-04T09:00:00');
+  const end   = new Date('2026-08-15T15:30:00');
 
   function tick() {
-    const now  = new Date();
-    const diff = target - now;
-    if (diff <= 0) { el.style.display = 'none'; return; }
+    const now = new Date();
+    if (now >= end) { el.style.display = 'none'; return; }
+    if (now >= start) {
+      el.innerHTML = `<div class="cd-live">🎉 Camp is in session!</div>`;
+      return;
+    }
+    const diff = start - now;
     const d = Math.floor(diff / 86400000);
     const h = Math.floor((diff % 86400000) / 3600000);
     const m = Math.floor((diff % 3600000)  / 60000);
     const s = Math.floor((diff % 60000)    / 1000);
     el.innerHTML =
-      `<span>${d}<small>d</small></span><span>${h}<small>h</small></span><span>${m}<small>m</small></span><span>${s}<small>s</small></span>`;
+      `<div class="cd-label">Camp starts in</div>` +
+      `<div class="cd-boxes">` +
+        `<span>${d}<small>Days</small></span>` +
+        `<span>${h}<small>Hours</small></span>` +
+        `<span>${m}<small>Mins</small></span>` +
+        `<span>${s}<small>Secs</small></span>` +
+      `</div>`;
   }
   tick();
   setInterval(tick, 1000);

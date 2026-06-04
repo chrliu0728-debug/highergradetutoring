@@ -9,7 +9,19 @@
   <link rel="stylesheet" href="style.css" />
   <style>
     #countdown {
-      display: flex; gap: clamp(8px, 1.4vw, 14px); margin-top: clamp(14px, 2.4vh, 24px); flex-wrap: wrap;
+      display: flex; flex-direction: column; gap: 8px;
+      margin-top: clamp(14px, 2.4vh, 24px); align-items: flex-start;
+    }
+    .cd-label {
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: rgba(255,255,255,.6);
+    }
+    .cd-boxes { display: flex; gap: clamp(8px, 1.4vw, 14px); flex-wrap: wrap; }
+    .cd-live {
+      display: inline-block;
+      background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28);
+      border-radius: 12px; padding: 12px 20px;
+      color: #fff; font-weight: 800; font-size: clamp(1rem, 2.2vw, 1.25rem);
     }
     #countdown span {
       background: rgba(255,255,255,.12);
@@ -201,8 +213,8 @@
         <div class="stat-label">MTH1W Units</div>
       </div>
       <div class="card stat-card" style="background:transparent;border:none;border-radius:0;">
-        <div class="stat-number">100</div>
-        <div class="stat-label">Spots Open</div>
+        <div class="stat-number" id="enrolled-count">– / 100</div>
+        <div class="stat-label">Campers Enrolled</div>
       </div>
     </div>
   </div>
@@ -472,6 +484,18 @@
 <script src="students-data.js"></script>
 <script src="script.js"></script>
 <script>
+/* ─── Live "campers enrolled" counter (unfrozen students / cap) ─── */
+(function () {
+  const el = document.getElementById('enrolled-count');
+  if (!el) return;
+  fetch('/api/stats/enrolled', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.ok) el.textContent = `${d.enrolled} / ${d.cap}`;
+    })
+    .catch(() => { /* leave the dash placeholder if the API is unreachable */ });
+})();
+
 /* ─── Curriculum unit modal ─── */
 (function () {
   const modal = document.getElementById('unit-modal');

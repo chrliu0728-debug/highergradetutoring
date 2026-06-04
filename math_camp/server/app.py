@@ -2012,6 +2012,14 @@ def register_routes(app):
         ).fetchone()["n"]
         return jsonify(ok=True, cap=cap, active=active, waitlisted=waitlisted)
 
+    @app.route("/api/stats/enrolled", methods=["GET"])
+    def stats_enrolled():
+        # Public: how many campers are confirmed (account unfrozen) out of cap.
+        enrolled = g.db.execute(
+            "SELECT COUNT(*) AS n FROM students WHERE COALESCE(frozen, 1) = 0"
+        ).fetchone()["n"]
+        return jsonify(ok=True, enrolled=enrolled, cap=_student_cap())
+
     @app.route("/api/settings/registrations-frozen", methods=["GET"])
     def settings_registrations_frozen():
         return jsonify(
