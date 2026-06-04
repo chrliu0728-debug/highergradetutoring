@@ -1266,3 +1266,135 @@ footer {
      layout out of shape on small screens. */
   .about-photo { display: none !important; }
 }
+
+/* ═══════════════════ TITLE SPONSORS ═══════════════════
+   Sponsor slots beside the logo + the pop-out detail modal.
+   Built as an outline; placeholders style themselves until real
+   logos/images are added. */
+
+/* Group the logo and sponsor slots together on the left of the navbar */
+.nav-left { display: flex; align-items: center; gap: clamp(10px, 1.6vw, 20px); }
+
+.title-sponsors {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: clamp(10px, 1.6vw, 20px);
+  border-left: 1px solid var(--border);   /* subtle divider from the logo */
+}
+.title-sponsors:empty { display: none; }   /* no divider when there are no sponsors */
+
+.sponsor-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
+  min-width: 90px;
+  max-width: 150px;
+  padding: 6px 12px;
+  background: var(--surface2);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+.sponsor-slot:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  border-color: var(--blush);
+}
+.sponsor-slot-img { max-height: 100%; max-width: 100%; object-fit: contain; display: block; }
+.sponsor-slot-placeholder {
+  font-size: .72rem; font-weight: 700; line-height: 1.15;
+  color: var(--text-mid); text-align: center;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+
+/* hide sponsor slots on small screens — the navbar is too tight there */
+@media (max-width: 900px) { .title-sponsors { display: none; } }
+
+/* ── Modal ── */
+.sponsor-modal {
+  position: fixed; inset: 0; z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+  padding: clamp(12px, 3vw, 32px);
+}
+.sponsor-modal.open { display: flex; }
+.sponsor-modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(15, 23, 42, .6);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.sponsor-modal-card {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: 90vh; overflow-y: auto;
+  background: var(--surface, #fff);
+  border-radius: 18px;
+  padding: clamp(20px, 3vw, 32px);
+  box-shadow: 0 30px 80px rgba(0,0,0,.4);
+}
+.sponsor-modal-close {
+  position: absolute; top: 12px; right: 14px;
+  width: 36px; height: 36px; border: none; border-radius: 50%;
+  background: var(--surface2); color: var(--text-mid);
+  font-size: 1.4rem; line-height: 1; cursor: pointer;
+}
+.sponsor-modal-close:hover { background: var(--border); color: var(--text); }
+
+.sponsor-modal-head { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-right: 36px; }
+.sponsor-modal-logo { height: 56px; width: auto; object-fit: contain; }
+.sponsor-modal-eyebrow {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--blush);
+}
+.sponsor-modal-name { margin: 2px 0 0; font-size: 1.4rem; }
+.sponsor-modal-tagline { margin: 2px 0 0; color: var(--text-mid); font-size: .92rem; }
+
+/* ── Carousel ── */
+.sponsor-carousel { display: flex; align-items: center; gap: 8px; }
+.sponsor-carousel-viewport { flex: 1; overflow: hidden; border-radius: 12px; }
+.sponsor-carousel-track { display: flex; transition: transform .3s ease; }
+.sponsor-slide { flex: 0 0 100%; }
+.sponsor-slide img {
+  width: 100%; height: clamp(220px, 38vh, 360px);
+  object-fit: cover; display: block;
+}
+.sponsor-slide-placeholder {
+  height: clamp(220px, 38vh, 360px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--surface2); color: var(--muted);
+  font-weight: 700; text-align: center;
+}
+.sponsor-slide-placeholder small { font-weight: 500; opacity: .8; }
+.sponsor-carousel-arrow {
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface2);
+  font-size: 1.4rem; line-height: 1; cursor: pointer; color: var(--text-mid);
+}
+.sponsor-carousel-arrow:hover { background: var(--border); color: var(--text); }
+.sponsor-carousel-dots { display: flex; justify-content: center; gap: 7px; margin: 12px 0 4px; }
+.sponsor-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  border: none; background: var(--border); cursor: pointer; padding: 0;
+}
+.sponsor-dot.active { background: var(--blush); }
+
+/* ── Description + people ── */
+.sponsor-modal-desc { margin: 8px 0 22px; color: var(--text-mid); line-height: 1.6; font-size: .95rem; }
+.sponsor-people-label {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted); margin-bottom: 12px;
+}
+.sponsor-people { display: flex; gap: 16px; flex-wrap: wrap; }
+.sponsor-person {
+  flex: 1 1 200px; display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 16px; background: var(--surface2); border-radius: 12px;
+}
+.sponsor-person-photo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; }
+.sponsor-person-photo.placeholder {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--blush); color: #fff; font-weight: 700; font-size: 1.2rem;
+}
+.sponsor-person-name { font-weight: 700; font-size: .95rem; }
+.sponsor-person-role { color: var(--text-mid); font-size: .82rem; margin-top: 2px; }

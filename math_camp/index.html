@@ -123,9 +123,16 @@
 <!-- ─────────────────── NAVBAR ─────────────────── -->
 <nav class="navbar">
   <div class="nav-inner">
-    <a href="index.html" class="nav-logo">
-      <img src="logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
-    </a>
+    <div class="nav-left">
+      <a href="index.html" class="nav-logo">
+        <img src="logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+      </a>
+      <!-- ── TITLE SPONSORS ──────────────────────────────────────────
+           Up to 4 sponsor slots fit here, beside the logo. Slots are
+           rendered from the SPONSORS array near the bottom of this file.
+           Click a slot → pops out the sponsor modal below. -->
+      <div class="title-sponsors" id="title-sponsors" aria-label="Title sponsors"></div>
+    </div>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="about.html">About Us</a></li>
@@ -900,6 +907,174 @@
   closeBtn.addEventListener('click', closeUnit);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && modal.classList.contains('open')) closeUnit();
+  });
+})();
+</script>
+
+<!-- ─────────────────── TITLE SPONSOR MODAL ───────────────────
+     Pops out when a sponsor slot in the navbar is clicked. All content
+     is filled in from the SPONSORS array in the script just below. -->
+<div class="sponsor-modal" id="sponsor-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Sponsor details">
+  <div class="sponsor-modal-backdrop" data-sponsor-close></div>
+  <div class="sponsor-modal-card" role="document">
+    <button class="sponsor-modal-close" data-sponsor-close aria-label="Close">×</button>
+
+    <div class="sponsor-modal-head">
+      <img class="sponsor-modal-logo" id="sm-logo" alt="" />
+      <div>
+        <div class="sponsor-modal-eyebrow">Title Sponsor</div>
+        <h2 class="sponsor-modal-name" id="sm-name"></h2>
+        <p class="sponsor-modal-tagline" id="sm-tagline"></p>
+      </div>
+    </div>
+
+    <!-- Image carousel (scroll through up to 4) -->
+    <div class="sponsor-carousel">
+      <button class="sponsor-carousel-arrow prev" id="sm-prev" aria-label="Previous image">‹</button>
+      <div class="sponsor-carousel-viewport">
+        <div class="sponsor-carousel-track" id="sm-track"></div>
+      </div>
+      <button class="sponsor-carousel-arrow next" id="sm-next" aria-label="Next image">›</button>
+    </div>
+    <div class="sponsor-carousel-dots" id="sm-dots"></div>
+
+    <!-- Company description -->
+    <div class="sponsor-modal-desc" id="sm-desc"></div>
+
+    <!-- Two people who agreed to the sponsorship -->
+    <div class="sponsor-people-label">In partnership with</div>
+    <div class="sponsor-people" id="sm-people"></div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────
+   TITLE SPONSORS — outline / scaffolding.
+   Fill in real values later. Add up to 4 objects to the array; each one
+   renders a clickable slot beside the logo and a pop-out modal.
+   For images/logos/photos: drop the files in this folder and use the
+   filename (e.g. 'acme-logo.webp'). Leave a string empty to show a
+   labelled placeholder box instead.
+   ───────────────────────────────────────────────────────────────────── */
+const SPONSORS = [
+  {
+    id: 'sponsor-1',
+    name: 'Sponsor Company Name',                 // TODO: real company name
+    tagline: 'A short one-line tagline.',         // TODO
+    logo: '',                                     // TODO: 'sponsor1-logo.webp' (empty = placeholder)
+    description:
+      'TODO — a paragraph describing the company: what they do, why they '
+      + 'support the camp, and anything families should know. Replace this '
+      + 'placeholder text once you have the copy from the sponsor.',
+    images: ['', '', '', ''],                     // TODO: up to 4 image filenames
+    people: [                                      // the two who agreed to the sponsorship
+      { name: 'First Last', role: 'Role / Title', photo: '' },  // TODO
+      { name: 'First Last', role: 'Role / Title', photo: '' },  // TODO
+    ],
+  },
+  // Add up to 3 more sponsor objects here when you have them.
+];
+
+(function () {
+  const slotsWrap = document.getElementById('title-sponsors');
+  const modal     = document.getElementById('sponsor-modal');
+  if (!slotsWrap || !modal) return;
+
+  const elLogo  = document.getElementById('sm-logo');
+  const elName  = document.getElementById('sm-name');
+  const elTag   = document.getElementById('sm-tagline');
+  const elTrack = document.getElementById('sm-track');
+  const elDots  = document.getElementById('sm-dots');
+  const elDesc  = document.getElementById('sm-desc');
+  const elPeople= document.getElementById('sm-people');
+  const elPrev  = document.getElementById('sm-prev');
+  const elNext  = document.getElementById('sm-next');
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0,2).join('').toUpperCase();
+
+  let current = null;   // current sponsor
+  let slide = 0;        // current carousel index
+
+  /* ── Render the navbar slots ── */
+  slotsWrap.innerHTML = SPONSORS.map(s => `
+    <button class="sponsor-slot" data-id="${esc(s.id)}" title="${esc(s.name)} — click for details">
+      ${s.logo
+        ? `<img src="${esc(s.logo)}" alt="${esc(s.name)}" class="sponsor-slot-img" />`
+        : `<span class="sponsor-slot-placeholder">${esc(s.name)}</span>`}
+    </button>
+  `).join('');
+
+  /* ── Carousel ── */
+  function renderCarousel(s) {
+    const imgs = (s.images || []).slice(0, 4);
+    if (!imgs.length) imgs.push('');
+    elTrack.innerHTML = imgs.map((src, i) => `
+      <div class="sponsor-slide">
+        ${src
+          ? `<img src="${esc(src)}" alt="${esc(s.name)} photo ${i+1}" />`
+          : `<div class="sponsor-slide-placeholder">Image ${i+1}<br><small>add a photo</small></div>`}
+      </div>`).join('');
+    elDots.innerHTML = imgs.map((_, i) =>
+      `<button class="sponsor-dot" data-i="${i}" aria-label="Go to image ${i+1}"></button>`).join('');
+    slide = 0;
+    update();
+  }
+  function update() {
+    elTrack.style.transform = `translateX(-${slide * 100}%)`;
+    [...elDots.children].forEach((d, i) => d.classList.toggle('active', i === slide));
+  }
+  function go(n) {
+    const count = elTrack.children.length;
+    slide = (n + count) % count;
+    update();
+  }
+  elPrev.addEventListener('click', () => go(slide - 1));
+  elNext.addEventListener('click', () => go(slide + 1));
+  elDots.addEventListener('click', e => {
+    const d = e.target.closest('.sponsor-dot'); if (d) go(+d.dataset.i);
+  });
+
+  /* ── Open / close ── */
+  function open(s) {
+    current = s;
+    if (s.logo) { elLogo.src = s.logo; elLogo.style.display = ''; }
+    else elLogo.style.display = 'none';
+    elName.textContent = s.name || '';
+    elTag.textContent  = s.tagline || '';
+    elDesc.textContent = s.description || '';
+    elPeople.innerHTML = (s.people || []).slice(0, 2).map(p => `
+      <div class="sponsor-person">
+        ${p.photo
+          ? `<img class="sponsor-person-photo" src="${esc(p.photo)}" alt="${esc(p.name)}" />`
+          : `<div class="sponsor-person-photo placeholder">${esc(initials(p.name))}</div>`}
+        <div class="sponsor-person-name">${esc(p.name)}</div>
+        <div class="sponsor-person-role">${esc(p.role)}</div>
+      </div>`).join('');
+    renderCarousel(s);
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  slotsWrap.addEventListener('click', e => {
+    const btn = e.target.closest('.sponsor-slot'); if (!btn) return;
+    const s = SPONSORS.find(x => x.id === btn.dataset.id);
+    if (s) open(s);
+  });
+  modal.querySelectorAll('[data-sponsor-close]').forEach(el =>
+    el.addEventListener('click', close));
+  document.addEventListener('keydown', e => {
+    if (!modal.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowLeft') go(slide - 1);
+    if (e.key === 'ArrowRight') go(slide + 1);
   });
 })();
 </script>
