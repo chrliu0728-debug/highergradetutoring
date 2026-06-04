@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import smtplib
 import time
@@ -188,9 +189,25 @@ def create_app():
 
 # ── Email helper ──────────────────────────────────────────────────────
 
+# Pragmatic address shape check — not RFC-exhaustive, but rejects the
+# typos we actually see (missing @, missing domain, missing TLD, spaces).
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _looks_like_email(addr):
+    return bool(_EMAIL_RE.match((addr or "").strip()))
+
+
 def send_email(to, subject, body, reply_to=None):
-    """Best-effort SMTP send. If credentials aren't configured we log
-    and return False — never raise — so the caller's HTTP path is safe."""
+    """Best-effort SMTP send. Never raises — the caller's HTTP path is
+    always safe. Returns a status string the caller can branch on:
+        "sent"      – the server accepted the message
+        "no_config" – SMTP creds aren't configured (our side)
+        "refused"   – the recipient address was rejected by the server,
+                      i.e. it doesn't exist / can't receive mail (their side)
+        "error"     – any other SMTP / network failure (our side)
+    Only "refused" should ever block a user flow; the rest are our problem
+    and must stay non-blocking so an outage can't break registration."""
     if not SMTP_USER or not SMTP_PASS:
         try:
             from flask import current_app
@@ -201,7 +218,7 @@ def send_email(to, subject, body, reply_to=None):
             )
         except Exception:
             pass
-        return False
+        return "no_config"
     msg = EmailMessage()
     msg["From"]    = SMTP_FROM
     msg["To"]      = to
@@ -213,38 +230,100 @@ def send_email(to, subject, body, reply_to=None):
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
             s.ehlo()
             s.starttls()
+            s.ehlo()
             s.login(SMTP_USER, SMTP_PASS)
             s.send_message(msg)
-        return True
-    except Exception as e:  # noqa: BLE001 — we want to swallow everything
-        # Log and continue — registration / contact responses still succeed
+        return "sent"
+    except (smtplib.SMTPRecipientsRefused, smtplib.SMTPNotSupportedError) as e:
+        # The server rejected the recipient outright — treat as a bad address.
+        try:
+            from flask import current_app
+            current_app.logger.warning("SMTP recipient %s refused: %s", to, e)
+        except Exception:
+            pass
+        return "refused"
+    except smtplib.SMTPResponseException as e:
+        # 5xx aimed at the recipient (e.g. 550 no such user) → bad address.
+        # Anything else (auth, rate, connection) is our side → non-blocking.
+        if 500 <= getattr(e, "smtp_code", 0) < 600:
+            try:
+                from flask import current_app
+                current_app.logger.warning("SMTP send to %s refused: %s", to, e)
+            except Exception:
+                pass
+            return "refused"
         try:
             from flask import current_app
             current_app.logger.warning("SMTP send to %s failed: %s", to, e)
         except Exception:
             pass
-        return False
+        return "error"
+    except Exception as e:  # noqa: BLE001 — swallow everything else (our side)
+        try:
+            from flask import current_app
+            current_app.logger.warning("SMTP send to %s failed: %s", to, e)
+        except Exception:
+            pass
+        return "error"
 
 
 def _send_registration_confirm(student_email, name, parent_email=None, amount=None):
+    """Sent right after registration. Thanks the family and asks for the
+    e-Transfer — the account stays frozen until payment is confirmed, at
+    which point _send_camp_welcome() goes out with the full camp details.
+    Returns the send status for the registrant's address ("sent",
+    "refused", "no_config", "error") so the caller can detect a bad email."""
     amount_str = f"${int(amount)} CAD" if amount else "your registration fee"
-    subject = "You're registered for HigherGrade Tutoring Summer Camp 2026 🎉"
+    subject = "Thanks for registering — one step left to hold your spot"
     body = (
         f"Hi {name or 'there'},\n\n"
-        f"Thanks for registering for HigherGrade Tutoring's Summer Camp 2026!\n\n"
+        f"Thank you for registering for HigherGrade Tutoring's Summer Camp 2026!\n"
+        f"We've received your registration — but your camper's spot is NOT secured\n"
+        f"yet. There's one quick step left.\n\n"
+        f"💸 Please send {amount_str} by e-Transfer\n"
+        f"To hold the spot, send a {amount_str} Interac e-Transfer to:\n\n"
+        f"      {ORGANIZER_EMAIL}\n\n"
+        f"⚠️ IMPORTANT — in the e-Transfer message / comment field, please include:\n"
+        f"   1. Your child's FULL NAME\n"
+        f"   2. The HIGH SCHOOL they will be attending\n\n"
+        f"That's how we match your payment to your registration, so please don't\n"
+        f"skip it.\n\n"
+        f"Until we receive and confirm your e-Transfer, your camper's account stays\n"
+        f"FROZEN — they won't be able to sign in to the student portal yet. As soon\n"
+        f"as our staff confirms the payment (usually within 24 hours), we'll unfreeze\n"
+        f"the account and send you a second email with everything you need to know:\n"
+        f"camp dates, location, what to bring, the parent info session, and how to\n"
+        f"log in.\n\n"
+        f"Questions? Just reply to this email — it goes straight to the organizers.\n\n"
+        f"Thanks again, and talk soon!\n"
+        f"— The HigherGrade Tutoring team\n"
+    )
+    status = "no_config"
+    if student_email:
+        status = send_email(student_email, subject, body, reply_to=ORGANIZER_EMAIL)
+    if parent_email and parent_email.lower() != (student_email or "").lower():
+        parent_status = send_email(parent_email, subject, body, reply_to=ORGANIZER_EMAIL)
+        if not student_email:
+            status = parent_status
+    return status
+
+
+def _send_camp_welcome(student_email, name, parent_email=None):
+    """Sent when an admin unfreezes a camper's account (i.e. payment has
+    been confirmed). Carries all of the camp logistics that used to live
+    in the registration email."""
+    subject = "You're all set for HigherGrade Tutoring Summer Camp 2026 🎉"
+    body = (
+        f"Hi {name or 'there'},\n\n"
+        f"Great news — we've confirmed your payment and your camper's spot is\n"
+        f"officially secured! Their student-portal account is now unlocked. Here's\n"
+        f"everything you need to know.\n\n"
         f"📅 Camp dates: August 4 – August 15, 2026\n"
         f"   Week 1 (Tue–Fri): Aug 4, 5, 6, 7\n"
         f"   Week 2 (Mon–Sat): Aug 10, 11, 12, 13, 14, 15\n"
         f"⏰ Hours: 9:00 AM – 3:30 PM daily\n"
         f"📍 Location: Sheridan College — Trafalgar Campus, 1430 Trafalgar Road, Oakville, ON\n"
         f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON\n\n"
-        f"💸 Final step — please send {amount_str} by e-Transfer\n"
-        f"To complete your registration, please send a {amount_str} Interac e-Transfer to:\n\n"
-        f"      lucas.liu.ca2009@gmail.com\n\n"
-        f"In the message field, please include the camper's full name so we can match\n"
-        f"the payment to your registration. Heads up: the camper's account will stay\n"
-        f"FROZEN (limited access to the student portal) until our staff confirms the\n"
-        f"e-Transfer. Once we see it, we'll unfreeze the account within 24 hours.\n\n"
         f"📺 Parent / camper info session — video meeting\n"
         f"We're hosting a kickoff video meeting at 10:00 AM EST on Saturday, July 18, 2026.\n"
         f"We'll walk through the daily schedule, drop-off / pick-up logistics, what to\n"
@@ -1626,9 +1705,14 @@ def register_routes(app):
     def admin_student_freeze(sid):
         d = request.get_json(silent=True) or {}
         frozen = 1 if d.get("frozen", 1) else 0
-        row = g.db.execute("SELECT id FROM students WHERE id = ?", (sid,)).fetchone()
+        row = g.db.execute(
+            "SELECT id, frozen, firstName, lastName, studentEmail, parentEmail "
+            "FROM students WHERE id = ?",
+            (sid,),
+        ).fetchone()
         if not row:
             return jsonify(ok=False, error="Student not found"), 404
+        was_frozen = bool(row["frozen"])
         g.db.execute("UPDATE students SET frozen = ? WHERE id = ?", (frozen, sid))
         # If we're freezing, drop any active student sessions so the next
         # request from that camper bounces them back to the login screen.
@@ -1637,6 +1721,15 @@ def register_routes(app):
                 "DELETE FROM sessions WHERE kind = 'student' AND studentId = ?",
                 (sid,),
             )
+        # Unfreezing a previously-frozen camper means payment was confirmed —
+        # send the welcome email with all the camp details. Best-effort: a
+        # mail hiccup must never block the unfreeze itself.
+        elif was_frozen:
+            try:
+                name = ((row["firstName"] or "") + " " + (row["lastName"] or "")).strip()
+                _send_camp_welcome(row["studentEmail"], name, row["parentEmail"] or None)
+            except Exception:  # noqa: BLE001
+                pass
         return jsonify(ok=True, frozen=bool(frozen))
 
     def _vault_state(include_code):
@@ -1741,10 +1834,41 @@ def register_routes(app):
         last  = (d.get("last_name")  or "").strip()
         password = (d.get("password") or "").strip() or None
         student_email = (d.get("student_email") or "").strip()
+        parent_email  = (d.get("parent_email")  or "").strip()
         if not first or not last:
             return jsonify(ok=False, error="First and last name are required."), 400
         if _is_reserved_email(student_email):
             return jsonify(ok=False, error="That email isn't available — please use a different one."), 400
+        # The student email is the camper's login AND where the confirmation
+        # goes, so it must be present and well-formed before we do anything.
+        if not _looks_like_email(student_email):
+            return jsonify(
+                ok=False,
+                emailInvalid=True,
+                error="We were unable to locate that email address. Please re-register with a valid email address so we can send your confirmation.",
+            ), 400
+
+        # Send the confirmation / payment-request email up front. If the mail
+        # server rejects the recipient outright, the address doesn't exist —
+        # stop here and ask them to re-register BEFORE we persist anything, so
+        # no orphan registration is left behind. Any other send failure is our
+        # side (SMTP down, etc.) and must NOT block the registration.
+        try:
+            confirm_status = _send_registration_confirm(
+                student_email,
+                f"{first} {last}".strip(),
+                parent_email or None,
+                amount=REG_TIERS[_reg_tier()]["price"] or None,
+            )
+        except Exception:  # noqa: BLE001
+            confirm_status = "error"
+        if confirm_status == "refused":
+            return jsonify(
+                ok=False,
+                emailInvalid=True,
+                error="We were unable to send a confirmation to that email address, so we couldn't verify it. Please re-register with a valid email address.",
+            ), 400
+
         # Cap check — count active (non-waitlisted) registrations.
         cap = _student_cap()
         active_count = g.db.execute(
@@ -1803,7 +1927,7 @@ def register_routes(app):
             ),
         )
         # Auto-provision a frozen student account so the camper can attempt
-        # to sign in once staff confirms the $75 e-Transfer. Skip silently
+        # to sign in once staff confirms the e-Transfer. Skip silently
         # if email is blank or a student record already exists for this
         # email.
         try:
@@ -1827,15 +1951,9 @@ def register_routes(app):
                     }))
         except Exception:  # noqa: BLE001
             pass
-        try:
-            _send_registration_confirm(
-                (d.get("student_email") or "").strip(),
-                f"{first} {last}".strip(),
-                (d.get("parent_email") or "").strip() or None,
-                amount=REG_TIERS[_reg_tier()]["price"] or None,
-            )
-        except Exception:  # noqa: BLE001
-            pass
+        # NOTE: the confirmation / payment-request email was already sent
+        # near the top of this handler (before any DB writes) so we could
+        # reject undeliverable addresses up front.
         return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted))
 
     @app.route("/api/settings/student-cap", methods=["GET"])
