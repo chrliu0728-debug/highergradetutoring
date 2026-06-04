@@ -965,8 +965,7 @@ const SPONSORS = [
     name: 'Staples',
     tagline: 'Work. Learn. Grow.',
     brandColor: '#CC0000',                        // Staples red — themes the modal accents
-    logo: '',                                     // no logo file yet → shows red "Staples" wordmark.
-                                                  // Drop a logo in this folder and put the filename here.
+    logo: 'Staples_Canada_logo_2018.png',         // official Staples logo (has the tagline built in)
     description:
       'Staples Canada is one of the country’s largest retailers for office, '
       + 'technology, and school essentials, with locations from coast to coast. '
@@ -987,8 +986,8 @@ const SPONSORS = [
       'download.webp',
     ],
     people: [
-      { name: 'Terry Carson',   role: 'Staples Canada', photo: '' },
-      { name: 'Elsa Abikhalil', role: 'Staples Canada', photo: '' },
+      { name: 'Terry Carson',   role: 'Vice Chair, Staples Canada — Oakville', photo: '' },
+      { name: 'Elsa Abikhalil', role: 'Vice Chair, Staples Canada — Oakville', photo: '' },
     ],
   },
   // Add up to 3 more sponsor objects here when you have them.
@@ -1063,11 +1062,15 @@ const SPONSORS = [
     // Brand accent (Staples red, etc.) drives the modal's themed bits.
     elCard.style.setProperty('--sponsor-accent', s.brandColor || 'var(--blush)');
     if (s.logo) {
+      // Logo image conveys the name/tagline, so hide the text versions.
       elLogo.src = s.logo; elLogo.style.display = '';
-      elName.style.color = '';
+      elName.style.display = 'none';
+      elTag.style.display  = 'none';
     } else {
-      // No logo file → show the name as a branded wordmark.
+      // No logo file → show the name as a branded wordmark + tagline.
       elLogo.style.display = 'none';
+      elName.style.display = '';
+      elTag.style.display  = '';
       elName.style.color = s.brandColor || '';
     }
     elName.textContent = s.name || '';
