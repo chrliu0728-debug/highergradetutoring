@@ -280,6 +280,9 @@ a  { color: inherit; text-decoration: none; }
   gap: clamp(28px, 4vw, 64px);
   align-items: center;
 }
+/* Hero image removed — keep the text left-aligned with a readable width
+   instead of stretching it across the full hero. */
+.hero-text { max-width: 720px; }
 .hero-image {
   border-radius: 20px;
   overflow: hidden;
