@@ -37,6 +37,8 @@ log = logging.getLogger("hg-bot.campaign")
 
 REVIEW_CHANNEL_ID = int(os.environ.get("REVIEW_CHANNEL_ID") or 0)
 REPLY_POLL_SECONDS = int(os.environ.get("REPLY_POLL_SECONDS") or 120)
+# Anyone with this Discord role (or Manage Server) may control the queue.
+CONTROL_ROLE_ID = int(os.environ.get("CONTROL_ROLE_ID") or 0)
 
 # Message-ids we've already posted this session (so the poll doesn't repost).
 _posted_ids: set[str] = set()
@@ -45,8 +47,15 @@ _posted_ids: set[str] = set()
 # ── helpers ───────────────────────────────────────────────────────────
 
 def _is_admin(interaction: discord.Interaction) -> bool:
+    """True if the user may control the queue: Manage Server/Administrator, or
+    holds the configured CONTROL_ROLE_ID."""
     p = getattr(interaction.user, "guild_permissions", None)
-    return bool(p and (p.manage_guild or p.administrator))
+    if p and (p.manage_guild or p.administrator):
+        return True
+    if CONTROL_ROLE_ID:
+        roles = getattr(interaction.user, "roles", []) or []
+        return any(getattr(r, "id", None) == CONTROL_ROLE_ID for r in roles)
+    return False
 
 
 def _fmt_status(s: dict) -> str:
@@ -297,8 +306,8 @@ def setup(bot: discord.Client) -> None:
         if _is_admin(interaction):
             return True
         await interaction.response.send_message(
-            "You need **Manage Server** to control the email queue.",
-            ephemeral=True)
+            "You need **Manage Server** or the outreach role to control the "
+            "email queue.", ephemeral=True)
         return False
 
     @tree.command(name="queue-start",
