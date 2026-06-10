@@ -245,9 +245,21 @@ class HGBot(discord.Client):
         else:
             await self.tree.sync()
         sync_loop.start()
+        # Sponsor-campaign mailbox poll (queue commands were registered at import).
+        try:
+            campaign.start_review_loop()
+        except Exception:
+            log.exception("could not start campaign review loop")
 
 
 bot = HGBot()
+
+# Register the sponsor-campaign slash commands on the tree BEFORE it syncs.
+try:
+    import campaign
+    campaign.setup(bot)
+except Exception:
+    log.exception("campaign setup failed — queue commands unavailable")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
