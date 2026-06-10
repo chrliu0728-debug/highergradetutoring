@@ -235,6 +235,7 @@ COL_STATUS         = "G"
 COLOR_GREEN  = {"red": 0.71, "green": 0.88, "blue": 0.66}  # email sent
 COLOR_ORANGE = {"red": 0.99, "green": 0.60, "blue": 0.24}  # invalid email (no @/.)
 COLOR_PURPLE = {"red": 0.76, "green": 0.61, "blue": 0.96}  # Government (skipped)
+COLOR_PINK   = {"red": 1.0,  "green": 0.60, "blue": 0.80}  # duplicate (team review)
 COLOR_CLEAR  = {"red": 1.0,  "green": 1.0,  "blue": 1.0}   # cleared / white
 
 # ─────────────────────────────────────────────
@@ -854,19 +855,9 @@ def update_types(sheet, sponsors):
 
 
 def highlight_duplicates(sheet, rows):
-    """Batch-paint the Email cell (col D) yellow for ALL duplicate rows in ONE
-    API call. (Doing it one row at a time tripped the Sheets write-rate limit.)"""
-    rows = sorted({r for r in rows if r})
-    if not rows:
-        return
-    col = ord(COL_EMAIL) - ord("A")   # 0-based column D
-    reqs = [{"repeatCell": {
-        "range": {"sheetId": sheet.id, "startRowIndex": r - 1, "endRowIndex": r,
-                  "startColumnIndex": col, "endColumnIndex": col + 1},
-        "cell": {"userEnteredFormat": {"backgroundColor":
-                                       {"red": 1, "green": 1, "blue": 0}}},
-        "fields": "userEnteredFormat.backgroundColor"}} for r in rows]
-    _retry(sheet.spreadsheet.batch_update, {"requests": reqs})
+    """Paint duplicate rows PINK (whole row, B..L) so the team can review/merge
+    them. Batched + 429-retried via set_rows_color (one API call)."""
+    set_rows_color(sheet, rows, COLOR_PINK)
 
 
 def run():
