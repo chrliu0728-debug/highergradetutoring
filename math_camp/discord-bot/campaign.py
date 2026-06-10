@@ -75,6 +75,24 @@ def _is_admin(interaction: discord.Interaction) -> bool:
     return False
 
 
+AUDIT_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "interactions.log")
+
+
+def track(interaction, action, detail=""):
+    """Audit who did what: append the Discord id + name + action to a log file
+    (and the journal). One tab-separated line per interaction."""
+    user = getattr(interaction, "user", None)
+    uid = getattr(user, "id", "?")
+    line = f"{int(time.time())}\t{uid}\t{user}\t{action}\t{detail}"
+    log.info("AUDIT %s", line)
+    try:
+        with open(AUDIT_LOG, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        log.exception("audit log write failed")
+
+
 def _fmt_status(s: dict) -> str:
     if not s["running"] and s["state"] in ("idle",):
         return "**Queue:** idle (not started). Use `/queue-start`."
@@ -86,6 +104,8 @@ def _fmt_status(s: dict) -> str:
     ]
     if s.get("current"):
         lines.append(f"**Current:** {s['current']}")
+    if s.get("replies_pending"):
+        lines.append(f"**Replies queued:** {s['replies_pending']} (sent first)")
     if s.get("state") == "resting" and s.get("resting_until"):
         mins = max(0, int((s["resting_until"] - time.time()) / 60))
         lines.append(f"**Resting:** ~{mins} min left (batch of "
@@ -167,36 +187,27 @@ class ReviewView(discord.ui.View):
         e.set_footer(text="Pause the queue to send · attach files in the thread")
         return e
 
-    async def _guard_paused(self, interaction: discord.Interaction) -> bool:
-        if self.handled:
-            await interaction.response.send_message("Already handled.",
-                                                    ephemeral=True)
-            return False
-        if not emailer.is_paused():
-            await interaction.response.send_message(
-                "⏸ **Pause the queue first** with `/queue-pause`, then edit or "
-                "send. Resume with `/queue-resume` when you're done.",
-                ephemeral=True)
-            return False
-        return True
-
-    async def _finalize(self, interaction, title, colour):
+    async def _finalize(self, interaction, title, colour, note=""):
         self.handled = True
         for child in self.children:
             child.disabled = True
         e = self._embed()
         e.title = title
         e.colour = colour
-        e.description = (f"Handled by {interaction.user.mention}. "
-                         f"▶️ **Done? Resume the queue with `/queue-resume`.**")
+        e.description = f"Handled by {interaction.user.mention}." + \
+            (f"\n{note}" if note else "")
         if self.message:
             await self.message.edit(embed=e, view=self)
 
     @discord.ui.button(label="🔴 Rejected", style=discord.ButtonStyle.danger)
     async def rejected(self, interaction: discord.Interaction, _b: discord.ui.Button):
-        # Opens the editable text box (pre-loaded with a varied draft).
-        if not await self._guard_paused(interaction):
+        # Opens the editable text box (pre-loaded with a varied draft). No pause
+        # needed — sending just queues it.
+        if self.handled:
+            await interaction.response.send_message("Already handled.",
+                                                    ephemeral=True)
             return
+        track(interaction, "reply.rejected", self.reply.get("from_email", ""))
         await interaction.response.send_modal(RejectDraftModal(self))
 
     @discord.ui.button(label="🟢 Accepted", style=discord.ButtonStyle.success)
@@ -208,6 +219,7 @@ class ReviewView(discord.ui.View):
             return
         self.verdict = "accepted"
         self.draft = ""
+        track(interaction, "reply.accepted", self.reply.get("from_email", ""))
         await interaction.response.edit_message(embed=self._embed(), view=self)
 
     @discord.ui.button(label="📨 Send", style=discord.ButtonStyle.primary)
@@ -221,23 +233,17 @@ class ReviewView(discord.ui.View):
                 "Pick **🔴 Rejected** or **🟢 Accepted** first.", ephemeral=True)
             return
         r = self.reply
+        await interaction.response.defer(ephemeral=True)
         if self.verdict == "accepted":
-            # Nothing to send — close it out.
-            await interaction.response.defer(ephemeral=True)
             await asyncio.to_thread(replies.mark_handled, r["message_id"])
+            track(interaction, "reply.send.accepted", r.get("from_email", ""))
             await self._finalize(interaction, "🟢 Accepted — no reply sent",
                                  discord.Colour.green())
             await interaction.followup.send(
                 "Marked accepted (no email sent) — follow up by hand.",
                 ephemeral=True)
             return
-        # Rejected: real outbound email -> require the queue to be paused.
-        if not emailer.is_paused():
-            await interaction.response.send_message(
-                "⏸ **Pause the queue first** (`/queue-pause`) before sending a "
-                "reply.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=True)
+        # Rejected: QUEUE the reply (sent first at the next slot — no pause).
         attachments = []
         if self.thread:
             try:
@@ -246,19 +252,21 @@ class ReviewView(discord.ui.View):
                         attachments.append((a.filename, await a.read()))
             except Exception:
                 log.exception("reading thread attachments")
-        try:
-            await asyncio.to_thread(
-                replies.send_reply, r["from_email"], r["subject"], self.draft,
-                r["message_id"], r["references"], attachments)
-            await asyncio.to_thread(replies.mark_handled, r["message_id"])
-        except Exception as exc:  # noqa: BLE001
-            await interaction.followup.send(f"❌ Send failed: {exc}",
-                                            ephemeral=True)
-            return
+        emailer.enqueue_reply({
+            "to_email": r["from_email"], "subject": r["subject"],
+            "body": self.draft, "in_reply_to": r["message_id"],
+            "references": r["references"], "attachments": attachments,
+            "by": str(interaction.user),
+        })
+        await asyncio.to_thread(replies.mark_handled, r["message_id"])
+        track(interaction, "reply.send.queued", r.get("from_email", ""))
         extra = f" with {len(attachments)} attachment(s)" if attachments else ""
-        await self._finalize(interaction, f"✅ Rejection reply sent{extra}",
-                             discord.Colour.green())
-        await interaction.followup.send("Sent. ✅", ephemeral=True)
+        await self._finalize(
+            interaction, f"📨 Reply queued{extra}", discord.Colour.blurple(),
+            note="Goes out at the **next send slot** (replies are prioritized) — "
+                 "no need to pause.")
+        await interaction.followup.send(
+            "Queued — it'll send at the next slot. ✅", ephemeral=True)
 
 
 # ── background mailbox poll (module-level so it can start in setup_hook) ──
@@ -336,28 +344,31 @@ def setup(bot: discord.Client) -> None:
         if not await _admin_only(interaction):
             return
         ok, msg = await asyncio.to_thread(emailer.start_queue)
+        track(interaction, "queue.start", "ok" if ok else msg)
         await interaction.response.send_message(
             ("🚀 " if ok else "⚠️ ") + msg
             + (f"\n— started by {interaction.user.mention}" if ok else ""),
             ephemeral=not ok)   # public when it actually starts; private on error
 
-    @tree.command(name="queue-pause",
-                  description="Pause sending (so you can reply to emails).")
+    @tree.command(name="queue-pause", description="Pause all sending.")
     async def queue_pause(interaction: discord.Interaction):
         if not await _admin_only(interaction):
             return
         emailer.pause()
+        track(interaction, "queue.pause")
         await interaction.response.send_message(
-            "⏸ **Queue paused.** You can now edit & send replies. "
-            "Resume with `/queue-resume` when you're done.", ephemeral=False)
+            f"⏸ **Queue paused** by {interaction.user.mention} — sending halted. "
+            f"Resume with `/queue-resume`.", ephemeral=False)
 
     @tree.command(name="queue-resume", description="Resume sending.")
     async def queue_resume(interaction: discord.Interaction):
         if not await _admin_only(interaction):
             return
         emailer.resume()
-        await interaction.response.send_message("▶️ **Queue resumed.**",
-                                                ephemeral=False)
+        track(interaction, "queue.resume")
+        await interaction.response.send_message(
+            f"▶️ **Queue resumed** by {interaction.user.mention}.",
+            ephemeral=False)
 
     @tree.command(name="queue-stop",
                   description="Stop the queue for this run.")
@@ -365,11 +376,13 @@ def setup(bot: discord.Client) -> None:
         if not await _admin_only(interaction):
             return
         emailer.request_stop()
+        track(interaction, "queue.stop")
         await interaction.response.send_message(
             f"⏹ Queue stop requested by {interaction.user.mention}.",
             ephemeral=False)
 
     @tree.command(name="queue-status", description="Show the email queue status.")
     async def queue_status(interaction: discord.Interaction):
+        track(interaction, "queue.status")
         await interaction.response.send_message(
             _fmt_status(emailer.status()), ephemeral=True)

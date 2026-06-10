@@ -5,3 +5,6 @@ __pycache__/
 
 # Secrets — never commit
 service_account.json
+
+# Runtime audit log (who clicked what)
+interactions.log

@@ -22,6 +22,7 @@ Sheet layout (header is on ROW 4):
     E: Type   (Business / Nonprofit / Institution)    I: Notes
 """
 
+import collections
 import os
 import random
 import smtplib
@@ -35,6 +36,8 @@ from email.mime.multipart import MIMEMultipart
 
 import gspread
 from google.oauth2.service_account import Credentials
+
+import replies   # reply sender (same folder); used to flush queued replies
 
 # Folder this script lives in — used to locate service_account.json no matter
 # which directory you run the script from.
@@ -150,7 +153,31 @@ def status():
     s = dict(STATUS)
     s["paused"] = is_paused()
     s["running"] = is_running()
+    s["replies_pending"] = replies_pending()
     return s
+
+
+# ── Priority reply queue (filled by the Discord 'Send' button) ──
+_REPLY_QUEUE = collections.deque()
+_REPLY_LOCK = threading.Lock()
+
+
+def enqueue_reply(payload):
+    """Queue a human-approved reply. payload = dict(to_email, subject, body,
+    in_reply_to, references, attachments, by). Queued replies are sent FIRST at
+    the next send slot — no need to pause the queue."""
+    with _REPLY_LOCK:
+        _REPLY_QUEUE.append(payload)
+    return len(_REPLY_QUEUE)
+
+
+def _next_reply():
+    with _REPLY_LOCK:
+        return _REPLY_QUEUE.popleft() if _REPLY_QUEUE else None
+
+
+def replies_pending():
+    return len(_REPLY_QUEUE)
 
 # ─────────────────────────────────────────────
 # CONFIG — fill these in before running
@@ -192,6 +219,11 @@ BATCH_STEP_SIZE  = 10    # +this many emails each subsequent batch
 REST_START_MIN   = 240   # rest after the first batch (minutes) = 4 hours
 REST_STEP_MIN    = 15    # rest shrinks by this each batch (4h00, 3h45, 3h30 ...)
                          # No floor — keeps shrinking down to 0 (then no rest).
+
+# Once the ramp rests hit ~0, we still force a break: at least this long, this
+# often, measured over active sending time. (Default: 1 hour every 12 hours.)
+MANDATORY_BREAK_EVERY_HOURS = 12
+MANDATORY_BREAK_MINUTES     = 60
 
 # Column letters used when writing results back to the sheet
 COL_EMAIL          = "D"  # used to highlight duplicate emails yellow
@@ -882,77 +914,107 @@ def run():
 
     sent = 0
     failed = 0
+    replies_sent = 0
     sent_in_batch = 0
     batch_size = BATCH_START_SIZE
     rest_min = REST_START_MIN
+    last_break = time.time()        # clock for the mandatory 12h break
+    idx = 0                         # next outreach sponsor index
     STATUS.update(state="running", total=total, sent=0, failed=0,
                   sent_in_batch=0, batch_size=batch_size, resting_until=0.0)
 
-    for index, sponsor in enumerate(sponsors):
-        # Honour Pause before each send; bail out if Stop was pressed.
+    # Keep running until Stop. Queued replies are sent FIRST at each slot; once
+    # the outreach list is exhausted the loop idles, still flushing replies.
+    while True:
         if not wait_while_paused():
             print("\n⏹ Stopped by user.")
             break
 
-        STATUS["current"] = sponsor["name"]
-        template = EMAIL_TEMPLATES[sponsor["type"]]
-        greeting = f"Dear {sponsor['contact']}," if sponsor["contact"] else f"Dear {sponsor['name']} Team,"
-        subject  = template["subject"].format(name=sponsor["name"])
-        body     = template["body"].format(name=sponsor["name"], greeting=greeting)
+        reply = _next_reply()
+        if reply is not None:
+            # 1) Priority: a human-approved reply.
+            to = ZOHO_EMAIL if TEST_MODE else reply["to_email"]
+            STATUS["current"] = f"reply → {reply.get('to_email', '')}"
+            try:
+                replies.send_reply(to, reply.get("subject", ""),
+                                   reply.get("body", ""),
+                                   reply.get("in_reply_to", ""),
+                                   reply.get("references", ""),
+                                   reply.get("attachments"))
+                replies_sent += 1
+                by = f" (by {reply['by']})" if reply.get("by") else ""
+                print(f"  ↩️  Sent reply → {to}{by}")
+            except Exception as e:
+                failed += 1
+                print(f"  ❌ Reply to {reply.get('to_email')} FAILED — {e}")
 
-        # Whatever you typed in this sponsor's Notes cell gets added as a P.S.
-        if sponsor["note"]:
-            body += f"\nP.S. {sponsor['note']}\n"
+        elif idx < total:
+            # 2) Next outreach email.
+            sponsor = sponsors[idx]
+            idx += 1
+            STATUS["current"] = sponsor["name"]
+            template = EMAIL_TEMPLATES[sponsor["type"]]
+            greeting = f"Dear {sponsor['contact']}," if sponsor["contact"] else f"Dear {sponsor['name']} Team,"
+            subject = template["subject"].format(name=sponsor["name"])
+            body = template["body"].format(name=sponsor["name"], greeting=greeting)
+            if sponsor["note"]:
+                body += f"\nP.S. {sponsor['note']}\n"
+            to_email = ZOHO_EMAIL if TEST_MODE else sponsor["email"]
+            try:
+                send_email(to_email, subject, body)
+                loc = sponsor["location"] or "—"
+                print(f"  ✅ [{idx}/{total}] Sent [{loc}/{sponsor['type']}] → {sponsor['name']} <{to_email}>")
+                sent += 1
+                if not TEST_MODE:
+                    mark_contacted(sheet, sponsor["row"], today_str)  # row → green
+            except Exception as e:
+                failed += 1
+                print(f"  ❌ [{idx}/{total}] FAILED → {sponsor['name']} <{sponsor['email']}> — {e}")
 
-        # In test mode, redirect to yourself so no sponsor receives anything.
-        to_email = ZOHO_EMAIL if TEST_MODE else sponsor["email"]
+        else:
+            # 3) Outreach done — idle, still watching for replies to flush.
+            STATUS.update(state="idle", current="",
+                          message=f"{sent} sent, {replies_sent} replies — "
+                                  f"standing by for replies (/queue-stop to end).")
+            last_break = time.time()       # idle time doesn't count toward 12h
+            interruptible_sleep(20)
+            continue
 
-        try:
-            send_email(to_email, subject, body)
-            loc = sponsor["location"] or "—"
-            print(f"  ✅ [{index + 1}/{total}] Sent [{loc}/{sponsor['type']}] → {sponsor['name']} <{to_email}>")
-            sent += 1
-            sent_in_batch += 1
+        sent_in_batch += 1
+        STATUS.update(state="running", sent=sent, failed=failed,
+                      sent_in_batch=sent_in_batch, batch_size=batch_size)
 
-            # Only write back to the sheet on a real (non-test) send.
-            if not TEST_MODE:
-                mark_contacted(sheet, sponsor["row"], today_str)   # turns row green
+        # ── Pacing before the next send ──
+        now = time.time()
+        if sent_in_batch >= batch_size:
+            wait_min = max(0, rest_min)            # the (shrinking) batch rest
+            sent_in_batch = 0
+            batch_size += BATCH_STEP_SIZE
+            rest_min -= REST_STEP_MIN               # no floor — can reach 0
+            label = f"batch done → resting {wait_min:.0f} min"
+        else:
+            wait_min = random.uniform(MIN_GAP_MIN, MAX_GAP_MIN)
+            label = f"{sent_in_batch}/{batch_size} this batch"
 
-        except Exception as e:
-            print(f"  ❌ [{index + 1}/{total}] FAILED → {sponsor['name']} <{sponsor['email']}> — {e}")
-            failed += 1
+        # Mandatory 1h break every 12h of active sending.
+        if now - last_break >= MANDATORY_BREAK_EVERY_HOURS * 3600:
+            wait_min = max(wait_min, MANDATORY_BREAK_MINUTES)
+            print(f"\n🌙 {MANDATORY_BREAK_EVERY_HOURS}h of sending — taking a "
+                  f"{MANDATORY_BREAK_MINUTES}-min break.\n")
 
-        STATUS.update(sent=sent, failed=failed, sent_in_batch=sent_in_batch,
-                      batch_size=batch_size)
-
-        # Pause before the NEXT email — but not after the final one.
-        if index < total - 1:
-            if sent_in_batch >= batch_size:
-                # Batch full — take the (shrinking) rest, then ramp the next batch.
-                rest_min = max(0, rest_min)
-                print(f"\n🛑 Batch of {batch_size} done. Resting {rest_min} min "
-                      f"(~{rest_min/60:.2f} h) before the next batch of "
-                      f"{batch_size + BATCH_STEP_SIZE}...\n")
-                STATUS.update(state="resting",
-                              resting_until=time.time() + rest_min * 60)
-                interruptible_sleep(rest_min * 60)
-                STATUS.update(state="running", resting_until=0.0)
-                sent_in_batch = 0
-                batch_size += BATCH_STEP_SIZE
-                rest_min = rest_min - REST_STEP_MIN   # no floor — can reach 0
-            else:
-                gap = random.uniform(MIN_GAP_MIN, MAX_GAP_MIN) * 60
-                now = datetime.now().strftime("%H:%M:%S")
-                print(f"     …waiting {gap/60:.1f} min before the next "
-                      f"({sent_in_batch}/{batch_size} this batch; sent at {now}).")
-                interruptible_sleep(gap)
+        wait_secs = wait_min * 60
+        if wait_secs >= 60:
+            STATUS.update(state="resting", resting_until=now + wait_secs)
+        print(f"     …waiting {wait_min:.1f} min ({label}).")
+        interruptible_sleep(wait_secs)
+        STATUS.update(state="running", resting_until=0.0)
+        if wait_secs >= (MANDATORY_BREAK_MINUTES - 5) * 60:
+            last_break = time.time()                # a long rest resets the 12h clock
 
     STATUS.update(state=("stopped" if STOP_EVENT.is_set() else "done"),
                   sent=sent, failed=failed, current="", resting_until=0.0,
-                  message=f"{sent} sent, {failed} failed.")
-    print(f"\n🎉 Done! {sent} sent, {failed} failed.")
-    if TEST_MODE:
-        print("   (Test run — set TEST_MODE = False when you're ready to email sponsors for real.)")
+                  message=f"{sent} sent, {replies_sent} replies, {failed} failed.")
+    print(f"\n🎉 Done! {sent} sent, {replies_sent} replies, {failed} failed.")
 
 
 def _run_guarded():
