@@ -46,15 +46,32 @@ _posted_ids: set[str] = set()
 
 # ── helpers ───────────────────────────────────────────────────────────
 
+def _role_ids(member) -> set:
+    """All of the member's role IDs, robust to guild-cache misses. Combines the
+    resolved Role objects with the RAW role-id list from the interaction payload
+    (the latter never depends on the guild cache being populated)."""
+    ids = set()
+    for r in getattr(member, "roles", []) or []:
+        rid = getattr(r, "id", None)
+        if rid is not None:
+            ids.add(int(rid))
+    raw = getattr(member, "_roles", None)   # discord.py SnowflakeList of ids
+    if raw is not None:
+        try:
+            ids.update(int(x) for x in raw)
+        except Exception:
+            pass
+    return ids
+
+
 def _is_admin(interaction: discord.Interaction) -> bool:
     """True if the user may control the queue: Manage Server/Administrator, or
     holds the configured CONTROL_ROLE_ID."""
     p = getattr(interaction.user, "guild_permissions", None)
     if p and (p.manage_guild or p.administrator):
         return True
-    if CONTROL_ROLE_ID:
-        roles = getattr(interaction.user, "roles", []) or []
-        return any(getattr(r, "id", None) == CONTROL_ROLE_ID for r in roles)
+    if CONTROL_ROLE_ID and CONTROL_ROLE_ID in _role_ids(interaction.user):
+        return True
     return False
 
 
@@ -305,6 +322,9 @@ def setup(bot: discord.Client) -> None:
     async def _admin_only(interaction: discord.Interaction) -> bool:
         if _is_admin(interaction):
             return True
+        log.warning("queue control DENIED: user=%s role_ids=%s control_role=%s",
+                    getattr(interaction.user, "id", "?"),
+                    sorted(_role_ids(interaction.user)), CONTROL_ROLE_ID)
         await interaction.response.send_message(
             "You need **Manage Server** or the outreach role to control the "
             "email queue.", ephemeral=True)
