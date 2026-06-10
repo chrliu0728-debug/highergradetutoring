@@ -740,6 +740,26 @@ def email_is_valid(addr):
     return "@" in addr and "." in addr
 
 
+def _retry(fn, *args, **kwargs):
+    """Run a Sheets API call, backing off on 429 rate-limit / quota errors so a
+    burst of writes doesn't crash the run."""
+    delay = 10
+    for attempt in range(6):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:   # noqa: BLE001
+            msg = str(e)
+            limited = ("429" in msg or "Quota exceeded" in msg
+                       or "RATE_LIMIT" in msg)
+            if limited and attempt < 5:
+                print(f"   ⏳ Sheets rate-limited — waiting {delay}s "
+                      f"(retry {attempt + 1}/5)...")
+                time.sleep(delay)
+                delay = min(delay * 2, 120)
+                continue
+            raise
+
+
 def set_rows_color(sheet, rows, color):
     """Paint the B..L background of each given row, in one batched call."""
     rows = sorted({r for r in rows if r})
@@ -750,7 +770,7 @@ def set_rows_color(sheet, rows, color):
                   "startColumnIndex": _HL_FIRST_COL, "endColumnIndex": _HL_LAST_COL},
         "cell": {"userEnteredFormat": {"backgroundColor": color}},
         "fields": "userEnteredFormat.backgroundColor"}} for r in rows]
-    sheet.spreadsheet.batch_update({"requests": reqs})
+    _retry(sheet.spreadsheet.batch_update, {"requests": reqs})
 
 
 def _is_attention_bg(bg):
@@ -812,7 +832,7 @@ def mark_contacted(sheet, row_number, date_str):
     # Updates Date Contacted and Status for one sponsor row, then paints the row
     # green to show at a glance that it's been sent.
     # NOTE: we deliberately do NOT touch the Notes column — that's your P.S. input.
-    sheet.batch_update([
+    _retry(sheet.batch_update, [
         {"range": f"{COL_DATE_CONTACTED}{row_number}", "values": [[date_str]]},
         {"range": f"{COL_STATUS}{row_number}",         "values": [["Contacted"]]},
     ])
@@ -826,20 +846,27 @@ def update_types(sheet, sponsors):
     changes = [s for s in sponsors if s.get("type") and s["type"] != s.get("orig_type")]
     if not changes:
         return 0
-    sheet.batch_update(
-        [{"range": f"{COL_TYPE}{s['row']}", "values": [[s["type"]]]}
-         for s in changes],
-        value_input_option="USER_ENTERED")
+    _retry(sheet.batch_update,
+           [{"range": f"{COL_TYPE}{s['row']}", "values": [[s["type"]]]}
+            for s in changes],
+           value_input_option="USER_ENTERED")
     return len(changes)
 
 
-def highlight_duplicate(sheet, row_number):
-    # Paints the Email cell of a duplicate "Not Contacted" row yellow so you can
-    # spot it at a glance. We leave its Status alone so you can decide what to do.
-    sheet.format(
-        f"{COL_EMAIL}{row_number}",
-        {"backgroundColor": {"red": 1, "green": 1, "blue": 0}},
-    )
+def highlight_duplicates(sheet, rows):
+    """Batch-paint the Email cell (col D) yellow for ALL duplicate rows in ONE
+    API call. (Doing it one row at a time tripped the Sheets write-rate limit.)"""
+    rows = sorted({r for r in rows if r})
+    if not rows:
+        return
+    col = ord(COL_EMAIL) - ord("A")   # 0-based column D
+    reqs = [{"repeatCell": {
+        "range": {"sheetId": sheet.id, "startRowIndex": r - 1, "endRowIndex": r,
+                  "startColumnIndex": col, "endColumnIndex": col + 1},
+        "cell": {"userEnteredFormat": {"backgroundColor":
+                                       {"red": 1, "green": 1, "blue": 0}}},
+        "fields": "userEnteredFormat.backgroundColor"}} for r in rows]
+    _retry(sheet.spreadsheet.batch_update, {"requests": reqs})
 
 
 def run():
@@ -871,19 +898,17 @@ def run():
     print("🔎 Checking for duplicate emails...")
     seen     = set(contacted_emails)  # everything already contacted
     to_send  = []
-    dup_count = 0
+    dup_rows = []
     for s in pending:
         key = s["email"].lower()
         if key in seen:
-            print(f"  🟡 [DUP] Row {s['row']}: {s['name']} <{s['email']}> "
-                  f"already emailed — highlighting yellow, skipping.")
-            if not TEST_MODE:
-                highlight_duplicate(sheet, s["row"])
-            dup_count += 1
+            dup_rows.append(s["row"])
             continue
         seen.add(key)
         to_send.append(s)
-    print(f"   {dup_count} duplicate(s) skipped, {len(to_send)} to send.\n")
+    if not TEST_MODE and dup_rows:
+        highlight_duplicates(sheet, dup_rows)   # ONE batched write, not N
+    print(f"   {len(dup_rows)} duplicate(s) skipped, {len(to_send)} to send.\n")
 
     # ── Auto-correct the Type from each name, before queueing ─────────
     # The scraper stamps everything "Commercial"; here we fix the sheet's Type
