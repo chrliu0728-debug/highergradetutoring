@@ -337,7 +337,9 @@ def setup(bot: discord.Client) -> None:
             return
         ok, msg = await asyncio.to_thread(emailer.start_queue)
         await interaction.response.send_message(
-            ("🚀 " if ok else "⚠️ ") + msg, ephemeral=True)
+            ("🚀 " if ok else "⚠️ ") + msg
+            + (f"\n— started by {interaction.user.mention}" if ok else ""),
+            ephemeral=not ok)   # public when it actually starts; private on error
 
     @tree.command(name="queue-pause",
                   description="Pause sending (so you can reply to emails).")
@@ -363,8 +365,9 @@ def setup(bot: discord.Client) -> None:
         if not await _admin_only(interaction):
             return
         emailer.request_stop()
-        await interaction.response.send_message("⏹ Stopping the queue.",
-                                                ephemeral=True)
+        await interaction.response.send_message(
+            f"⏹ Queue stop requested by {interaction.user.mention}.",
+            ephemeral=False)
 
     @tree.command(name="queue-status", description="Show the email queue status.")
     async def queue_status(interaction: discord.Interaction):
