@@ -47,6 +47,12 @@ BOT_API_TOKEN = os.environ.get("BOT_API_TOKEN") or ""
 GUILD_ID = os.environ.get("GUILD_ID") or ""
 POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS") or 120)
 
+# New-registration announcer: which channel to post in, and how often to check
+# the live enrolled count (/api/stats/enrolled). If REGISTER_CHANNEL_ID is unset
+# we fall back to a channel named "registrations"/"general" or the system channel.
+REGISTER_CHANNEL_ID = os.environ.get("REGISTER_CHANNEL_ID") or ""
+REGISTER_POLL_SECONDS = int(os.environ.get("REGISTER_POLL_SECONDS") or 60)
+
 # Names the bot manages on Discord. The bot creates these if missing
 # and only ever adds/removes these specific roles — it never touches
 # user-defined roles outside this set.
@@ -245,6 +251,7 @@ class HGBot(discord.Client):
         else:
             await self.tree.sync()
         sync_loop.start()
+        enrolled_announce_loop.start()   # @everyone ping on each new registration
         # Sponsor-campaign mailbox poll (queue commands were registered at import).
         try:
             campaign.start_review_loop()
@@ -416,6 +423,90 @@ async def _fetch_blocklist_normalized(guild_id: int) -> set:
 
 @sync_loop.before_loop
 async def _before_sync() -> None:
+    await bot.wait_until_ready()
+
+
+# ── New-registration announcer ───────────────────────────────────────
+# Polls the same public counter the homepage uses (/api/stats/enrolled →
+# {ok, enrolled, cap}). When the count goes UP, it @everyone-pings a channel.
+# On the first poll we only record a baseline — we do NOT announce the campers
+# who were already enrolled when the bot started.
+_last_enrolled: Optional[int] = None
+
+
+def _register_channel() -> Optional[discord.abc.Messageable]:
+    """Resolve where to post registration announcements: REGISTER_CHANNEL_ID
+    first, otherwise a channel named 'registrations'/'general' or the guild's
+    system channel. None if nothing usable is found."""
+    if REGISTER_CHANNEL_ID:
+        ch = bot.get_channel(int(REGISTER_CHANNEL_ID))
+        if ch is not None:
+            return ch
+        log.warning("REGISTER_CHANNEL_ID=%s not found — falling back", REGISTER_CHANNEL_ID)
+    for guild in bot.guilds:
+        ch = (discord.utils.get(guild.text_channels, name="registrations")
+              or discord.utils.get(guild.text_channels, name="general")
+              or guild.system_channel)
+        if ch is not None:
+            return ch
+    return None
+
+
+@tasks.loop(seconds=REGISTER_POLL_SECONDS)
+async def enrolled_announce_loop() -> None:
+    global _last_enrolled
+    if not bot.is_ready():
+        return
+    try:
+        data = await api._get("/api/stats/enrolled")
+    except Exception:  # noqa: BLE001
+        log.exception("enrolled-count poll failed")
+        return
+    if not data.get("ok"):
+        return
+    try:
+        enrolled = int(data.get("enrolled"))
+    except (TypeError, ValueError):
+        return
+    cap = data.get("cap")
+
+    # First successful poll → set the baseline silently (don't ping for the
+    # campers already enrolled when the bot booted).
+    if _last_enrolled is None:
+        _last_enrolled = enrolled
+        log.info("registration baseline set at %s enrolled", enrolled)
+        return
+
+    if enrolled > _last_enrolled:
+        gained = enrolled - _last_enrolled
+        _last_enrolled = enrolled
+        channel = _register_channel()
+        if channel is None:
+            log.warning("%s new registration(s) but no channel to announce in "
+                        "— set REGISTER_CHANNEL_ID", gained)
+            return
+        noun = "camper" if gained == 1 else "campers"
+        cap_str = f" / {cap}" if cap else ""
+        msg = (f"@everyone 🎉 **{gained} new {noun} just registered!** "
+               f"We're now at **{enrolled}{cap_str}** campers enrolled — "
+               f"let's keep the momentum going! 🚀")
+        try:
+            await channel.send(
+                msg, allowed_mentions=discord.AllowedMentions(everyone=True))
+            log.info("announced %s new registration(s); now at %s", gained, enrolled)
+        except discord.Forbidden:
+            log.warning("can't post/@everyone in channel %s — check the bot's "
+                        "permissions (needs Send Messages + Mention Everyone)",
+                        getattr(channel, "id", "?"))
+        except Exception:  # noqa: BLE001
+            log.exception("failed to send registration announcement")
+    elif enrolled < _last_enrolled:
+        # Count dropped (un-enroll / frozen) — quietly re-baseline.
+        _last_enrolled = enrolled
+
+
+@enrolled_announce_loop.before_loop
+async def _before_enrolled() -> None:
     await bot.wait_until_ready()
 
 
