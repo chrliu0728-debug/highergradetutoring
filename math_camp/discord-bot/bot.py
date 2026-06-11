@@ -510,6 +510,38 @@ async def _before_enrolled() -> None:
     await bot.wait_until_ready()
 
 
+@bot.tree.command(name="enrolled",
+                  description="How many campers are currently enrolled.")
+async def enrolled_cmd(interaction: discord.Interaction) -> None:
+    """Anyone can check the live enrolled count (it's public on the homepage
+    anyway). Replies privately so it doesn't clutter the channel."""
+    await interaction.response.defer(ephemeral=True)
+    try:
+        data = await api._get("/api/stats/enrolled")
+    except Exception:  # noqa: BLE001
+        log.exception("/enrolled fetch failed")
+        await interaction.followup.send(
+            "Couldn't reach the enrollment stats right now — try again shortly.",
+            ephemeral=True)
+        return
+    if not data.get("ok"):
+        await interaction.followup.send(
+            "Enrollment stats are unavailable right now.", ephemeral=True)
+        return
+    enrolled = data.get("enrolled")
+    cap = data.get("cap")
+    cap_str = f" / {cap}" if cap else ""
+    spots = ""
+    try:
+        if cap is not None:
+            left = int(cap) - int(enrolled)
+            spots = f"  ·  **{left}** spot(s) left" if left > 0 else "  ·  🎉 **full!**"
+    except (TypeError, ValueError):
+        pass
+    await interaction.followup.send(
+        f"🧮 **{enrolled}{cap_str}** campers enrolled.{spots}", ephemeral=True)
+
+
 # ── Locked-chest interactive UI ──────────────────────────────────────
 # Each chest gets posted as a public embed with a button. Clicking the
 # button opens a modal asking for the passcode. Submitting the right
