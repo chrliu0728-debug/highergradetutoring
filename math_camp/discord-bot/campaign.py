@@ -107,9 +107,11 @@ def _fmt_status(s: dict) -> str:
     if s.get("replies_pending"):
         lines.append(f"**Replies queued:** {s['replies_pending']} (sent first)")
     if s.get("state") == "resting" and s.get("resting_until"):
-        mins = max(0, int((s["resting_until"] - time.time()) / 60))
-        lines.append(f"**Resting:** ~{mins} min left (batch of "
-                     f"{s['batch_size']})")
+        secs = max(0, int(s["resting_until"] - time.time()))
+        h, m = secs // 3600, (secs % 3600) // 60
+        left = f"{h}h {m}m" if h else f"{m} min"
+        reason = s.get("rest_reason") or f"between emails (batch of {s['batch_size']})"
+        lines.append(f"**Resting:** ~{left} left — {reason}")
     if s.get("message"):
         lines.append(f"*{s['message']}*")
     return "\n".join(lines)
@@ -310,14 +312,66 @@ async def _before_poll():
         await _bot.wait_until_ready()
 
 
+# ── Long-break announcer ─────────────────────────────────────────────
+# Watches the queue and posts to the channel whenever it enters (or leaves) a
+# LONG break — the shrinking batch cooldowns and the mandatory 12h break, which
+# the emailer tags with a `rest_reason`. The ordinary 3-6 min gaps between
+# emails carry no reason, so they're ignored and don't spam the channel.
+_break_until = 0.0      # resting_until of the break we've already announced
+_break_active = False   # are we currently in an announced long break?
+
+
+@tasks.loop(seconds=30)
+async def queue_break_announcer():
+    global _break_until, _break_active
+    if _bot is None or not REVIEW_CHANNEL_ID:
+        return
+    s = emailer.status()
+    is_long = (s.get("state") == "resting" and bool(s.get("rest_reason"))
+               and s.get("resting_until", 0) > time.time())
+    channel = _bot.get_channel(REVIEW_CHANNEL_ID)
+    if channel is None:
+        return
+    if is_long:
+        if s["resting_until"] != _break_until:      # a new break we haven't posted
+            _break_until, _break_active = s["resting_until"], True
+            secs = max(0, int(s["resting_until"] - time.time()))
+            h, m = secs // 3600, (secs % 3600) // 60
+            left = f"{h}h {m}m" if h else f"{m} min"
+            try:
+                await channel.send(
+                    f"⏸️ **Outreach queue is taking a break** — {s['rest_reason']}.\n"
+                    f"Resuming in ~**{left}** · {s['sent']} sent so far "
+                    f"({s['sent']}/{s['total']}).")
+            except Exception:  # noqa: BLE001
+                log.exception("break announce failed")
+    elif _break_active:
+        _break_active = False                       # the long break just ended
+        try:
+            await channel.send(
+                f"▶️ **Outreach queue is back to sending.** "
+                f"({s.get('sent', 0)}/{s.get('total', 0)} done.)")
+        except Exception:  # noqa: BLE001
+            log.exception("resume announce failed")
+
+
+@queue_break_announcer.before_loop
+async def _before_break_announcer():
+    if _bot is not None:
+        await _bot.wait_until_ready()
+
+
 def start_review_loop() -> None:
-    """Start the mailbox poll. Call from the bot's setup_hook (loop running)."""
+    """Start the mailbox poll + break announcer. Call from setup_hook."""
     if REVIEW_CHANNEL_ID and not poll_replies.is_running():
         poll_replies.start()
         log.info("Reply review loop started (channel=%s, every %ss)",
                  REVIEW_CHANNEL_ID, REPLY_POLL_SECONDS)
-    elif not REVIEW_CHANNEL_ID:
-        log.info("REVIEW_CHANNEL_ID not set — reply review disabled.")
+    if REVIEW_CHANNEL_ID and not queue_break_announcer.is_running():
+        queue_break_announcer.start()
+        log.info("Queue break announcer started (channel=%s)", REVIEW_CHANNEL_ID)
+    if not REVIEW_CHANNEL_ID:
+        log.info("REVIEW_CHANNEL_ID not set — reply review + break alerts disabled.")
 
 
 # ── setup ────────────────────────────────────────────────────────────

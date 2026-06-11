@@ -83,6 +83,7 @@ STATUS = {
     "sent": 0, "failed": 0, "total": 0,
     "current": "", "sent_in_batch": 0, "batch_size": 0,
     "resting_until": 0.0,    # epoch seconds the current rest ends (0 if not resting)
+    "rest_reason": "",       # why it's resting — set only for LONG breaks, not 3-6m gaps
     "message": "",
 }
 _worker_thread = None
@@ -1002,28 +1003,37 @@ def run():
 
         # ── Pacing before the next send ──
         now = time.time()
+        rest_reason = ""   # set ONLY for the long, notable breaks (not 3-6m gaps)
         if sent_in_batch >= batch_size:
+            finished = batch_size
             wait_min = max(0, rest_min)            # the (shrinking) batch rest
             sent_in_batch = 0
             batch_size += BATCH_STEP_SIZE
             rest_min -= REST_STEP_MIN               # no floor — can reach 0
             label = f"batch done → resting {wait_min:.0f} min"
+            if wait_min >= 15:                      # a real cooldown, not a stub
+                rest_reason = (f"batch of {finished} done — cooling down before "
+                               f"the next {batch_size}")
         else:
             wait_min = random.uniform(MIN_GAP_MIN, MAX_GAP_MIN)
             label = f"{sent_in_batch}/{batch_size} this batch"
 
         # Mandatory 1h break every 12h of active sending.
         if now - last_break >= MANDATORY_BREAK_EVERY_HOURS * 3600:
+            if MANDATORY_BREAK_MINUTES >= wait_min:
+                rest_reason = (f"🌙 mandatory {MANDATORY_BREAK_MINUTES}-min break "
+                               f"after {MANDATORY_BREAK_EVERY_HOURS}h of sending")
             wait_min = max(wait_min, MANDATORY_BREAK_MINUTES)
             print(f"\n🌙 {MANDATORY_BREAK_EVERY_HOURS}h of sending — taking a "
                   f"{MANDATORY_BREAK_MINUTES}-min break.\n")
 
         wait_secs = wait_min * 60
         if wait_secs >= 60:
-            STATUS.update(state="resting", resting_until=now + wait_secs)
+            STATUS.update(state="resting", resting_until=now + wait_secs,
+                          rest_reason=rest_reason)
         print(f"     …waiting {wait_min:.1f} min ({label}).")
         interruptible_sleep(wait_secs)
-        STATUS.update(state="running", resting_until=0.0)
+        STATUS.update(state="running", resting_until=0.0, rest_reason="")
         if wait_secs >= (MANDATORY_BREAK_MINUTES - 5) * 60:
             last_break = time.time()                # a long rest resets the 12h clock
 
