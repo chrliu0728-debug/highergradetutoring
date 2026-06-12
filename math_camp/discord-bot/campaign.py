@@ -186,7 +186,8 @@ class ReviewView(discord.ui.View):
         elif self.verdict == "accepted":
             e.add_field(name="Reply", value="*None — accepted, no auto-reply.*",
                         inline=False)
-        e.set_footer(text="Pause the queue to send · attach files in the thread")
+        e.set_footer(text="🔴 decline+reply · 🟢 accept (flags important) · "
+                          "🚫 no reply · 🗑️ irrelevant (archive) · files → thread")
         return e
 
     async def _finalize(self, interaction, title, colour, note=""):
@@ -238,12 +239,16 @@ class ReviewView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         if self.verdict == "accepted":
             await asyncio.to_thread(replies.mark_handled, r["message_id"])
+            await asyncio.to_thread(replies.flag_important, r["message_id"])
             track(interaction, "reply.send.accepted", r.get("from_email", ""))
-            await self._finalize(interaction, "🟢 Accepted — no reply sent",
-                                 discord.Colour.green())
+            await self._finalize(
+                interaction, "🟢 Accepted — flagged important",
+                discord.Colour.green(),
+                note="No reply sent; the original email is flagged ⭐ **important** "
+                     "in the inbox for manual follow-up.")
             await interaction.followup.send(
-                "Marked accepted (no email sent) — follow up by hand.",
-                ephemeral=True)
+                "Marked accepted and flagged the email as important — "
+                "follow up by hand.", ephemeral=True)
             return
         # Rejected: QUEUE the reply (sent first at the next slot — no pause).
         attachments = []
@@ -259,6 +264,8 @@ class ReviewView(discord.ui.View):
             "body": self.draft, "in_reply_to": r["message_id"],
             "references": r["references"], "attachments": attachments,
             "by": str(interaction.user),
+            # Archive the original automatically once this reply actually sends.
+            "archive_message_id": r["message_id"],
         })
         await asyncio.to_thread(replies.mark_handled, r["message_id"])
         track(interaction, "reply.send.queued", r.get("from_email", ""))
@@ -266,9 +273,41 @@ class ReviewView(discord.ui.View):
         await self._finalize(
             interaction, f"📨 Reply queued{extra}", discord.Colour.blurple(),
             note="Goes out at the **next send slot** (replies are prioritized) — "
-                 "no need to pause.")
+                 "no need to pause. The original email is **archived** once it sends.")
         await interaction.followup.send(
             "Queued — it'll send at the next slot. ✅", ephemeral=True)
+
+    @discord.ui.button(label="🚫 No reply", style=discord.ButtonStyle.secondary)
+    async def no_reply(self, interaction: discord.Interaction, _b: discord.ui.Button):
+        # Dismiss the message without sending anything — just mark it handled.
+        if self.handled:
+            await interaction.response.send_message("Already handled.",
+                                                    ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        await asyncio.to_thread(replies.mark_handled, self.reply["message_id"])
+        track(interaction, "reply.no_reply", self.reply.get("from_email", ""))
+        await self._finalize(interaction, "🚫 No reply", discord.Colour.greyple(),
+                             note="Marked handled — nothing was sent.")
+        await interaction.followup.send("Done — no reply sent.", ephemeral=True)
+
+    @discord.ui.button(label="🗑️ Irrelevant", style=discord.ButtonStyle.secondary)
+    async def irrelevant(self, interaction: discord.Interaction, _b: discord.ui.Button):
+        # Irrelevant info (auto-reply, spam, out-of-office) — archive it, no reply.
+        if self.handled:
+            await interaction.response.send_message("Already handled.",
+                                                    ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        moved = await asyncio.to_thread(replies.archive_message,
+                                        self.reply["message_id"])
+        track(interaction, "reply.irrelevant.archived",
+              self.reply.get("from_email", ""))
+        note = ("Archived to the **Archive** folder — no reply sent." if moved
+                else "Marked handled (couldn't move it) — no reply sent.")
+        await self._finalize(interaction, "🗑️ Irrelevant — archived",
+                             discord.Colour.greyple(), note=note)
+        await interaction.followup.send("Archived. 🗑️", ephemeral=True)
 
 
 # ── background mailbox poll (module-level so it can start in setup_hook) ──

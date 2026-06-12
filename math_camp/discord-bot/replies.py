@@ -31,6 +31,7 @@ FROM_EMAIL = os.environ.get("FROM_EMAIL") or ZOHO_EMAIL
 IMAP_HOST = os.environ.get("IMAP_HOST", "imap.zohocloud.ca")
 IMAP_PORT = int(os.environ.get("IMAP_PORT", "993"))
 IMAP_FOLDER = os.environ.get("IMAP_FOLDER", "INBOX")
+IMAP_ARCHIVE_FOLDER = os.environ.get("IMAP_ARCHIVE_FOLDER", "Archive")
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zohocloud.ca")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
 
@@ -214,6 +215,60 @@ def mark_handled(message_id):
         imap.logout()
     except Exception:
         pass
+
+
+def archive_message(message_id, folder=None):
+    """Mark the original message handled (\\Seen) and move it out of the inbox
+    into the archive folder (created if missing). Used by the 'Irrelevant'
+    button and after a rejection reply is sent. Best-effort; returns True if the
+    message was actually moved."""
+    if not message_id:
+        return False
+    folder = folder or IMAP_ARCHIVE_FOLDER
+    moved = False
+    try:
+        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        imap.login(ZOHO_EMAIL, ZOHO_PASSWORD)
+        try:
+            imap.create(folder)        # no-op (NO) if it already exists
+        except Exception:
+            pass
+        imap.select(IMAP_FOLDER)
+        typ, data = imap.search(None, "HEADER", "Message-ID", message_id)
+        if typ == "OK":
+            for num in data[0].split():
+                imap.store(num, "+FLAGS", "\\Seen")   # handled regardless
+                res = imap.copy(num, folder)
+                if res and res[0] == "OK":
+                    imap.store(num, "+FLAGS", "\\Deleted")
+                    moved = True
+            if moved:
+                imap.expunge()
+        imap.logout()
+    except Exception:
+        pass
+    return moved
+
+
+def flag_important(message_id):
+    """Flag the original message as important (\\Flagged) in the inbox so the
+    team can spot an accepted reply for manual follow-up. Best-effort."""
+    if not message_id:
+        return False
+    ok = False
+    try:
+        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        imap.login(ZOHO_EMAIL, ZOHO_PASSWORD)
+        imap.select(IMAP_FOLDER)
+        typ, data = imap.search(None, "HEADER", "Message-ID", message_id)
+        if typ == "OK":
+            for num in data[0].split():
+                imap.store(num, "+FLAGS", "\\Flagged")
+                ok = True
+        imap.logout()
+    except Exception:
+        pass
+    return ok
 
 
 def send_reply(to_email, subject, body, in_reply_to="", references="",

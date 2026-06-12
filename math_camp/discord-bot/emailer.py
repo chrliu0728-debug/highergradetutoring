@@ -848,6 +848,14 @@ def run():
                 replies_sent += 1
                 by = f" (by {reply['by']})" if reply.get("by") else ""
                 print(f"  ↩️  Sent reply → {to}{by}")
+                # Once the reply is actually out, archive the original email it
+                # was answering (set by the 'Rejected → Send' flow).
+                if not TEST_MODE and reply.get("archive_message_id"):
+                    try:
+                        if replies.archive_message(reply["archive_message_id"]):
+                            print("     📥 archived the original message")
+                    except Exception as e:
+                        print(f"     (archive failed: {e})")
             except Exception as e:
                 failed += 1
                 print(f"  ❌ Reply to {reply.get('to_email')} FAILED — {e}")
