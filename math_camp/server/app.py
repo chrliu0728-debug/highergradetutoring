@@ -488,7 +488,8 @@ def _call_schedule_days(n=10):
         e = sched.get(ds) or {}
         out.append({"date": ds, "label": day.strftime("%a, %b %d"),
                     "number": (e.get("number") or ""),
-                    "name": (e.get("name") or "")})
+                    "name": (e.get("name") or ""),
+                    "discord_id": (e.get("discord_id") or "")})
     return out
 
 
@@ -505,8 +506,14 @@ def _call_schedule_upsert(entries):
             continue
         number = str(item.get("number") or "").strip()[:40]
         name = str(item.get("name") or "").strip()[:60]
+        did = str(item.get("discord_id") or "").strip()[:32]
         if number or name:
-            sched[ds] = {"number": number, "name": name}
+            if not did:  # preserve an existing Discord id (e.g. on an admin edit)
+                did = (sched.get(ds) or {}).get("discord_id", "")
+            entry = {"number": number, "name": name}
+            if did:
+                entry["discord_id"] = did
+            sched[ds] = entry
         else:
             sched.pop(ds, None)
     today = _eastern_today_str()
@@ -2143,6 +2150,7 @@ def register_routes(app):
             "date": date_str,
             "number": d.get("number") or "",
             "name": d.get("name") or "",
+            "discord_id": d.get("discord_id") or "",
         }])
         return jsonify(ok=True)
 

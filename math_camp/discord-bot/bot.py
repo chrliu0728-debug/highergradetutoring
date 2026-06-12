@@ -160,9 +160,11 @@ class CampAPI:
     async def call_schedule(self) -> Dict[str, Any]:
         return await self._get("/api/bot/call-schedule")
 
-    async def call_claim(self, date: str, name: str, number: str) -> Dict[str, Any]:
+    async def call_claim(self, date: str, name: str, number: str,
+                         discord_id: str = "") -> Dict[str, Any]:
         return await self._post("/api/bot/call-schedule/claim",
-                                {"date": date, "name": name, "number": number})
+                                {"date": date, "name": name, "number": number,
+                                 "discord_id": discord_id})
 
     # — Chests —
     async def chest_create(self, guild_id: str, code: str, role_id: str, role_name: str,
@@ -260,6 +262,7 @@ class HGBot(discord.Client):
             await self.tree.sync()
         sync_loop.start()
         enrolled_announce_loop.start()   # @everyone ping on each new registration
+        oncall_reminder_loop.start()     # DM the on-call person ~1h before shift
         # Sponsor-campaign mailbox poll (queue commands were registered at import).
         try:
             campaign.start_review_loop()
@@ -627,8 +630,10 @@ class OnCallModal(discord.ui.Modal, title="Sign up for call duty"):
                     "you signed up for yourself.)", ephemeral=True)
                 return
         else:
-            await api.call_claim(self.date, name, number)
-            msg = f"✅ You're on call for **{label}** — number **{number}**."
+            await api.call_claim(self.date, name, number,
+                                 discord_id=str(interaction.user.id))
+            msg = (f"✅ You're on call for **{label}** — number **{number}**.\n"
+                   f"I'll DM you a reminder **1 hour before** (around 4 PM that day).")
         # Refresh the board in place.
         try:
             data = await api.call_schedule()
@@ -685,6 +690,56 @@ async def oncall_cmd(interaction: discord.Interaction) -> None:
     view = OnCallView(data["days"])
     view.message = await interaction.followup.send(
         embed=_oncall_embed(data["days"]), view=view, ephemeral=True)
+
+
+# Remind whoever's on call ~1 hour before their 5-8 PM shift (i.e. the 4 PM ET
+# hour). Only works for people who signed up via Discord (we have their id).
+_last_oncall_reminder = None
+
+
+@tasks.loop(minutes=10)
+async def oncall_reminder_loop() -> None:
+    global _last_oncall_reminder
+    if not bot.is_ready():
+        return
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        now_e = datetime.now(ZoneInfo("America/Toronto"))
+    except Exception:
+        return
+    if now_e.hour != 16:               # the 4 PM hour — 1 hour before the shift
+        return
+    today = now_e.strftime("%Y-%m-%d")
+    if _last_oncall_reminder == today:
+        return
+    _last_oncall_reminder = today      # fire at most once per day
+    try:
+        data = await api.call_schedule()
+    except Exception:  # noqa: BLE001
+        log.exception("on-call reminder fetch failed")
+        return
+    if not data.get("ok"):
+        return
+    entry = next((d for d in data.get("days", []) if d["date"] == today), None)
+    if not entry or not entry.get("discord_id"):
+        return
+    try:
+        uid = int(entry["discord_id"])
+        user = bot.get_user(uid) or await bot.fetch_user(uid)
+        num = entry.get("number") or "your number"
+        await user.send(
+            "📞 **Call-window reminder** — you're on call today from "
+            f"**5:00–8:00 PM**.\nCallers may reach **{num}** during that window. "
+            "Thanks for covering it! 🙌")
+        log.info("sent on-call reminder to %s for %s", uid, today)
+    except Exception:  # noqa: BLE001
+        log.exception("failed to DM on-call reminder")
+
+
+@oncall_reminder_loop.before_loop
+async def _before_oncall_reminder() -> None:
+    await bot.wait_until_ready()
 
 
 # ── Locked-chest interactive UI ──────────────────────────────────────
@@ -1276,9 +1331,25 @@ async def cmd_role_mirror_list(interaction: discord.Interaction) -> None:
 
 
 # ── Lifecycle ────────────────────────────────────────────────────────
+_did_cmd_dedup = False
+
+
 @bot.event
 async def on_ready() -> None:
     log.info("Logged in as %s (id=%s) — in %d guild(s)", bot.user, bot.user.id, len(bot.guilds))
+    global _did_cmd_dedup
+    if not _did_cmd_dedup:
+        _did_cmd_dedup = True
+        # De-dupe: wipe any leftover GUILD-scoped command copies so only the
+        # global set remains. They linger from a past run when GUILD_ID was set,
+        # and Discord shows them *alongside* the globals (every command twice).
+        for guild in bot.guilds:
+            try:
+                bot.tree.clear_commands(guild=guild)
+                await bot.tree.sync(guild=guild)
+                log.info("cleared stale guild commands for guild %s", guild.id)
+            except Exception:  # noqa: BLE001
+                log.exception("guild command cleanup failed for %s", guild.id)
 
 
 def main() -> None:
