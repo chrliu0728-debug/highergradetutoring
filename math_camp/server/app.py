@@ -2020,6 +2020,19 @@ def register_routes(app):
         ).fetchone()["n"]
         return jsonify(ok=True, enrolled=enrolled, cap=_student_cap())
 
+    @app.route("/api/stats/campers", methods=["GET"])
+    def stats_campers():
+        # Public camper breakdown: total registered, paid (unfrozen) and
+        # registered-but-not-yet-paid (frozen). paid + unpaid == total.
+        total = g.db.execute(
+            "SELECT COUNT(*) AS n FROM students"
+        ).fetchone()["n"]
+        paid = g.db.execute(
+            "SELECT COUNT(*) AS n FROM students WHERE COALESCE(frozen, 1) = 0"
+        ).fetchone()["n"]
+        return jsonify(ok=True, total=total, paid=paid, unpaid=total - paid,
+                       cap=_student_cap())
+
     @app.route("/api/settings/registrations-frozen", methods=["GET"])
     def settings_registrations_frozen():
         return jsonify(

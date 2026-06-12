@@ -209,8 +209,8 @@ TEST_MODE = os.environ.get("EMAILER_TEST_MODE", "") not in ("", "0", "false", "F
 # ── Anti-spam pacing ──────────────────────────────────────────────────────
 # Between two emails we wait a RANDOM number of minutes in [MIN, MAX] so there's
 # no fixed, detectable pattern.
-MIN_GAP_MIN = 3.0   # shortest gap between two emails (minutes)
-MAX_GAP_MIN = 6.0   # longest gap between two emails (minutes)
+MIN_GAP_MIN = 7.0    # shortest gap between two emails (minutes)
+MAX_GAP_MIN = 11.0   # longest gap between two emails (minutes)
 
 # Warm-up ramp: send a batch, then take a long rest, then a BIGGER batch after a
 # SHORTER rest, and so on — the classic "don't look like a spam cannon" pattern.
@@ -284,242 +284,129 @@ LOCATION_ALIASES = {
 # {name} = organization name, {greeting} = personalized opening line.
 # ─────────────────────────────────────────────
 
-EMAIL_TEMPLATES = {
-    "Business": {
-        "subject": "Sponsorship & Partnership Opportunity — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year.
-
-Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-We would be grateful for your organization's support, which we welcome in either of two forms. The first is a financial sponsorship. The second, and equally valuable to us, is helping us extend our reach: should you be willing to promote the camp to your employees and share it across your social media channels, we will recognize that support as equivalent to a $500 contribution.
-
-In appreciation of those who support us, we offer the following:
-
-- Contributions of $500 or more (or an equivalent in-kind or promotional contribution): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your organization's details, a profile of the representative who championed the partnership, accompanying photographs, and your branch location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-Should your organization wish to explore this opportunity, I would be glad to provide further details at your convenience. Thank you for your time and consideration.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Churches": {
-        "subject": "Partnership Invitation — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year, offering local families both confidence and meaningful academic support.
-
-Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-We would be sincerely grateful for your congregation's support. Beyond any financial contribution, one of the most meaningful ways you can assist is by permitting us to display our materials within your church and by sharing the camp across your social media channels. Should you be able to help us reach families in this way, we will recognize it as equivalent to a $500 contribution.
-
-In appreciation of those who support us, we offer the following:
-
-- Contributions of $500 or more (or an equivalent in-kind or promotional contribution): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your details, a profile of the individual who championed the partnership, accompanying photographs, and your location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-Should your community wish to learn more, I would be honored to provide further information. Thank you for your time and for your service to our neighborhood.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Government": {
-        "subject": "Partnership Proposal — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics within two weeks, ensuring they begin the school year academically prepared.
-
-We hold rigor and safety as central priorities. Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-I am writing to ask whether {name} would consider entering into a partnership with us. As a trusted public institution, your endorsement would be invaluable; we would be honored to have you vouch for the camp as a reputable program and assist in promoting our materials to families throughout the community. We would also welcome any financial support or local advertising that enables us to reach a greater number of students and families.
-
-Beyond promotion, we would be grateful for your guidance in two respects: any assistance in expediting our formal non-profit incorporation, and your advice on structuring the daily operations of the camp to ensure the safest and most effective experience for our students. Any individual who provides such guidance will be recognized as a Partner within the Partners section of our staff team on our About Us page.
-
-For any supporter or sponsor, we offer the following in appreciation:
-
-- Contributions of $500 or more (or an equivalent contribution in advertising support): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your details, a profile of the representative who championed the partnership, accompanying photographs, and your location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-I would be pleased to provide any documentation you may require and to answer any questions. Thank you for considering a partnership with Higher Grade Tutoring.
-
-Respectfully,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Insurance": {
-        "subject": "Insurance Partnership Inquiry — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year.
-
-Given that we will be serving more than 100 young students, third-party liability coverage and student safety are foremost among our priorities. Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-I am writing to ask whether {name} would consider supporting us through local advertising of the camp and, where possible, a discount on our third-party liability insurance coverage.
-
-We would also greatly value your professional expertise. Any guidance on the precautions we should adopt to both reduce our insurance costs and enhance student safety would be invaluable to an organization at our stage. Any individual who provides such guidance will be recognized as a Partner within the Partners section of our staff team on our About Us page.
-
-In appreciation of those who support us, we offer the following:
-
-- Contributions of $500 or more (or an equivalent contribution in advertising support): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your company's details, a profile of the representative who championed the partnership, accompanying photographs, and your branch location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-I would be glad to share further details regarding our operations and safety planning, and to answer any questions you may have. Thank you for your time and consideration.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Non Profit": {
-        "subject": "Partnership & Guidance Request — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year, with any surplus revenue donated directly to local school boards.
-
-Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-As a fellow organization dedicated to community impact, we would be honored to have your support. We hope you might assist us in promoting the camp through local advertising and, where you are able, in navigating and expediting our formal incorporation as a non-profit.
-
-We would also be most grateful for your guidance. As an aspiring student-run non-profit, any advice you can offer on the effective operation of an organization such as ours would be of tremendous value. Any individual who provides such guidance will be recognized as a Partner within the Partners section of our staff team on our About Us page.
-
-In appreciation of those who support us, we offer the following:
-
-- Contributions of $500 or more (or an equivalent contribution in advertising support): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your details, a profile of the individual who championed the partnership, accompanying photographs, and your location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-I would welcome the opportunity to connect and to learn from your experience. Thank you for considering your support of a developing organization.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Food": {
-        "subject": "Sponsorship Opportunity — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year.
-
-Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-Our camp is sustained by the dedication of 30 unpaid student staff and volunteers, and we would welcome your support in keeping them well-nourished throughout the program. Should you be able to sponsor our team with food and beverages — providing a single day's meal for all 30 members — we will recognize your generosity as equivalent to a $500 contribution.
-
-We would also be grateful for your assistance in raising awareness: should you be willing to display one of our posters within your establishment, we will acknowledge you at our closing ceremony and feature you as a sponsor on our website.
-
-For full transparency, here is how we recognize those who support us:
-
-- Contributions of $500 or more (or an equivalent in-kind contribution, such as a day of meals): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your business details, a profile of the individual who championed the partnership, accompanying photographs, and your location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-Should you wish to participate, I would be glad to coordinate dates and logistics at your convenience. Thank you for your time and consideration.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Education": {
-        "subject": "Partnership Inquiry — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year.
-
-Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-As an institution devoted to education, you are exceptionally well-positioned to support our students. I am writing to ask whether you would be able to provide school supplies for the camp — in particular, whether we might borrow your instructional drawing pads or iPads for the two-week duration of the program. Should you be able to lend us this equipment, we will recognize your support as equivalent to a $500 contribution. We would, of course, return all borrowed equipment in its original condition.
-
-We would also greatly value your expertise regarding our curriculum. Should you be able to offer guidance on its structure, the educator who provides it will be recognized as a Partner within the Partners section of our staff team on our About Us page.
-
-In appreciation of those who support us, we offer the following:
-
-- Contributions of $500 or more (or an equivalent in-kind contribution, such as lent equipment): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your details, a profile of the individual who championed the partnership, accompanying photographs, and your location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-I would be glad to discuss logistics, scheduling, and insurance at your convenience. Thank you for considering your support of our students.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
-    "Commercial": {
-        "subject": "Partnership Opportunity — Higher Grade Tutoring Summer Math Camp",
-        "body": """\
-{greeting}
-
-On behalf of Higher Grade Tutoring — an aspiring student-run non-profit currently operating as an NGO — I am writing to introduce our 2-Week Intensive Math Summer Camp, taking place from August 4th to August 15th at Sheridan College. The program is designed to prepare 100 incoming high school freshmen, along with a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics in advance of the coming school year.
-
-Our instructional team comprises high school juniors and seniors who maintain a minimum 95% average in a Grade 12 university-level mathematics course, working under the supervision of first-aid-certified staff aged 18 and over. We uphold a strict 1:5 staff-to-student ratio at all times, frequently improving to 1:3 or 1:4 with standby staff on hand.
-
-We would welcome the opportunity to partner with you in reaching a greater number of local families. Should you be able to promote our camp on your website and permit us to display our advertisements within your venue, we will recognize that support as equivalent to a $500 contribution.
-
-In appreciation of those who support us, we offer the following:
-
-- Contributions of $500 or more (or an equivalent promotional contribution): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.
-- Contributions of $1,000 or more: all of the above, in addition to a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your company's details, a profile of the representative who championed the partnership, accompanying photographs, and your location.
-
-As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community. This includes our formal incorporation fees and campers' school supplies, the prizes for our student incentive program and final examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards recognizing outstanding students and staff. Any surplus is donated directly to local school boards.
-
-Should this opportunity be of interest, I would be glad to provide further details and our promotional materials. Thank you for your time and consideration.
-
-Sincerely,
-Lucas Liu
-Higher Grade Tutoring
-lucas.liu.ca2009@gmail.com
-+1 343-368-2005
-highergradetutoring.ca
-""",
-    },
+# ─────────────────────────────────────────────
+# EMAIL TEMPLATES — randomized assembler
+# Every send picks one paraphrase of each paragraph, so no two outgoing emails
+# are identical (far harder to fingerprint than a handful of fixed drafts) while
+# the facts and the ask never change. The greeting is simply "Hi <company>,".
+# Combinations per category ≈ 4×4×3×3×3×4×5×5 ≈ 43,000.
+# ─────────────────────────────────────────────
+
+GREETING = "Hi {name},"
+
+INTRO_VARIANTS = [
+    "On behalf of Higher Grade Tutoring — a student-run non-profit currently operating as an NGO — I'm reaching out to introduce our 2-Week Intensive Math Summer Camp, running from August 4th to August 15th at Sheridan College. The program prepares 100 incoming high school freshmen, plus a secondary remedial track for Grade 8 students, to master the full body of tested freshman mathematics before the school year begins.",
+    "I'm writing on behalf of Higher Grade Tutoring, an aspiring student-run non-profit (currently an NGO), to share our 2-Week Intensive Math Summer Camp. From August 4th to August 15th at Sheridan College, we prepare 100 incoming freshmen — along with a Grade 8 remedial track — to walk into high school having mastered the full freshman math curriculum.",
+    "Higher Grade Tutoring is a student-run non-profit, presently operating as an NGO, and I'd like to introduce our 2-Week Intensive Math Summer Camp. Held from August 4th through the 15th at Sheridan College, it's designed to help 100 incoming high school freshmen, and a Grade 8 remedial group, master the full body of tested freshman mathematics ahead of September.",
+    "My name is Lucas, and I help run Higher Grade Tutoring, a student-led non-profit currently operating as an NGO. I wanted to tell you about our 2-Week Intensive Math Summer Camp, taking place August 4th to 15th at Sheridan College, where we prepare 100 incoming freshmen — plus a secondary remedial track for Grade 8 students — to start the school year fully ready for high school math.",
+]
+
+TEAM_VARIANTS = [
+    "Our instructors are high school juniors and seniors who hold at least a 95% average in a Grade 12 university-level math course, all working under first-aid-certified staff aged 18 and over. We keep a strict 1:5 staff-to-student ratio at all times, and often better — 1:3 or 1:4 — with standby staff on hand.",
+    "The teaching team is made up of juniors and seniors maintaining a minimum 95% average in Grade 12 university-level mathematics, supervised throughout by first-aid-certified staff who are 18 or older. A 1:5 staff-to-student ratio is enforced at all times, frequently tightening to 1:3 or 1:4 thanks to standby staff.",
+    "Every instructor is a high school junior or senior carrying a 95% or higher average in a Grade 12 university-level math course, overseen by first-aid-certified staff aged 18 and up. We never exceed a 1:5 staff-to-student ratio, and with standby staff we routinely run at 1:3 or 1:4.",
+    "Our staff are juniors and seniors with a 95%+ average in Grade 12 university-level math, all working under the supervision of first-aid-certified adults aged 18 and over. We hold a firm 1:5 staff-to-student ratio at minimum, often improving to 1:3 or 1:4 with backup staff present.",
+]
+
+# The one category-specific paragraph — the actual ask. {name} is the org name.
+CATEGORY_ASKS = {
+    "Business": [
+        "We would be grateful for your organization's support, in either of two forms. The first is a financial sponsorship. The second, equally valuable to us, is helping us reach further: if you're willing to promote the camp to your employees and share it across your social media channels, we'll recognize that support as equivalent to a $500 contribution.",
+        "There are two ways your organization could help, and we'd welcome either. One is a financial sponsorship; the other — just as meaningful to us — is amplifying our reach. Should you be willing to share the camp with your employees and across your social channels, we will treat that as the equivalent of a $500 contribution.",
+        "We'd be thankful for your organization's backing in whichever form suits you best: a direct financial sponsorship, or simply helping us spread the word. If you can promote the camp to your staff and on your social media, we'll count it as equivalent to a $500 contribution.",
+    ],
+    "Churches": [
+        "We would be sincerely grateful for your congregation's support. Beyond any financial gift, one of the most meaningful ways you can help is by letting us display our materials within your church and sharing the camp on your social media channels. Should you help us reach families this way, we'll recognize it as equivalent to a $500 contribution.",
+        "Your congregation's support would mean a great deal to us. Aside from any financial contribution, a wonderful way to help is to allow our materials to be displayed in your church and to share the camp with your community online. If you're able to help us reach families like this, we'll treat it as equivalent to a $500 contribution.",
+        "We'd be honored to have your church's support. More than any donation, you could help enormously by permitting us to post our materials in your church and sharing the camp across your social channels — and we'll recognize that as equivalent to a $500 contribution.",
+    ],
+    "Government": [
+        "I'm writing to ask whether {name} would consider partnering with us. As a trusted public institution, your endorsement would be invaluable — we'd be honored to have you vouch for the camp as a reputable program and help promote our materials to families across the community. We would also welcome any financial support or local advertising that helps us reach more students. Beyond that, we'd be grateful for guidance in two areas: help expediting our formal non-profit incorporation, and advice on structuring daily operations for the safest, most effective experience. Anyone who provides such guidance will be recognized as a Partner in the Partners section of our About Us page.",
+        "Would {name} consider entering a partnership with us? Coming from a trusted public institution, your endorsement would carry real weight, and we'd be honored to have you vouch for the camp and help share our materials with local families. Any financial support or local advertising would also be deeply appreciated. We'd likewise value your guidance — both in expediting our non-profit incorporation and in shaping safe, effective daily operations — and anyone who offers it will be named a Partner in the Partners section of our About Us page.",
+        "I'd like to ask whether {name} might partner with us. As a respected public body, your endorsement would be invaluable: we'd be grateful to have you confirm the camp as a reputable program and help promote it to families in the community, alongside any financial support or local advertising you can offer. We'd also welcome your guidance on expediting our formal incorporation and on running the camp's daily operations as safely and effectively as possible — and we recognize anyone who advises us as a Partner on our About Us page.",
+    ],
+    "Insurance": [
+        "Because we'll be serving more than 100 young students, third-party liability coverage and student safety are among our highest priorities. I'm writing to ask whether {name} would support us through local advertising of the camp and, where possible, a discount on our third-party liability insurance. We'd also greatly value your professional expertise: any guidance on the precautions we should adopt to both lower our insurance costs and improve student safety would be invaluable at our stage. Anyone who provides such guidance will be recognized as a Partner in the Partners section of our About Us page.",
+        "With over 100 young students in our care, third-party liability and safety sit at the top of our list. Might {name} support us by advertising the camp locally and, if possible, offering a discount on our third-party liability coverage? Your professional insight would mean a great deal too — any advice on precautions that reduce our insurance costs while strengthening student safety would be invaluable to us — and we'll recognize anyone who advises us as a Partner on our About Us page.",
+        "Serving 100+ young students means third-party liability coverage and safety are foremost for us. We'd be grateful if {name} could help through local advertising and, where feasible, a discount on our third-party liability insurance. We'd also deeply appreciate your expertise on the precautions worth adopting to lower our premiums and keep students safer — and anyone who shares that guidance will be named a Partner in the Partners section of our About Us page.",
+    ],
+    "Non Profit": [
+        "As a fellow organization devoted to community impact, we'd be honored to have your support. We're hoping you might help promote the camp through local advertising and, where you're able, help us navigate and expedite our formal incorporation as a non-profit. We'd also be grateful for your guidance — any advice on running an organization like ours would be of tremendous value, and anyone who provides it will be recognized as a Partner in the Partners section of our About Us page.",
+        "Since you share our commitment to community impact, your support would mean a great deal. We'd love your help spreading the word locally and, if you're able, guidance through the process of formally incorporating as a non-profit. Any wisdom you can share about operating an organization like ours would be invaluable — and we'll recognize anyone who offers it as a Partner on our About Us page.",
+        "As another organization dedicated to giving back, we'd be honored by your support. We hope you might help advertise the camp locally and, where possible, help us navigate and speed up our non-profit incorporation. We'd also treasure your guidance on running an organization such as ours, and we recognize anyone who advises us as a Partner in the Partners section of our About Us page.",
+    ],
+    "Food": [
+        "Our camp runs on the dedication of 30 unpaid student staff and volunteers, and we'd welcome your help keeping them well-fed throughout the program. If you're able to sponsor our team with food and beverages — covering a single day's meal for all 30 members — we'll recognize your generosity as equivalent to a $500 contribution. We'd also be grateful if you'd display one of our posters in your establishment; in return we'll acknowledge you at our closing ceremony and feature you as a sponsor on our website.",
+        "Thirty unpaid student staff and volunteers make this camp possible, and keeping them nourished is no small task. Should you be able to sponsor a single day's meal for all 30 with food and drink, we'll recognize that generosity as equivalent to a $500 contribution. And if you're willing to put up one of our posters in your shop, we'll thank you at our closing ceremony and feature you as a sponsor on our website.",
+        "The camp is powered by 30 unpaid student staff and volunteers, and we'd love your help keeping them fed during the two weeks. Sponsoring one day's meal for all 30 with food and beverages would be recognized as equivalent to a $500 contribution. We'd also be grateful if you'd display a poster in your establishment — we'll acknowledge you at our closing ceremony and list you as a sponsor on our website.",
+    ],
+    "Education": [
+        "As an institution devoted to education, you're exceptionally well-placed to support our students. I'm writing to ask whether you could provide school supplies for the camp — in particular, whether we might borrow your instructional drawing pads or iPads for the program's two weeks. If you can lend us this equipment, we'll recognize your support as equivalent to a $500 contribution, and of course return everything in its original condition. We'd also greatly value your expertise on our curriculum; should you offer guidance on its structure, the educator who provides it will be recognized as a Partner in the Partners section of our About Us page.",
+        "Few are better positioned than an education-focused institution to help our students. Might you be able to provide school supplies — specifically, to lend us your instructional drawing pads or iPads for the two-week program? We'd recognize such a loan as equivalent to a $500 contribution and return everything exactly as we received it. Your insight on our curriculum would also be invaluable, and any educator who offers guidance will be named a Partner on our About Us page.",
+        "Given your dedication to education, you could make a real difference for our students. We'd like to ask whether you might supply school materials for the camp, or lend us your instructional drawing pads or iPads for its two-week duration — support we'd recognize as equivalent to a $500 contribution, with all equipment returned in its original condition. We'd also be grateful for your expertise on our curriculum, and we'll recognize any educator who advises us as a Partner in the Partners section of our About Us page.",
+    ],
+    "Commercial": [
+        "We'd welcome the chance to partner with you in reaching more local families. If you're able to promote the camp on your website and let us display our materials within your venue, we'll recognize that support as equivalent to a $500 contribution.",
+        "We'd love to work with you to reach more families in the community. Should you be willing to feature the camp on your website and allow our materials to be displayed in your venue, we'll treat that support as equivalent to a $500 contribution.",
+        "Partnering with you to reach more local families would be wonderful. If you can promote the camp on your website and permit us to display our advertisements in your space, we'll recognize it as equivalent to a $500 contribution.",
+    ],
 }
+
+TIERS_VARIANTS = [
+    "In appreciation of those who support us, we offer the following:\n\n- Contributions of $500 or more (or an equivalent in-kind or promotional contribution): a dedicated acknowledgement, a featured placement on the sponsorship page of our website, and a logo displayed at three times the size of our $100-tier supporters.\n- Contributions of $1,000 or more: all of the above, plus a speaking opportunity at our closing ceremony before all campers and their families, and an interactive logo in our website header presenting your details, a profile of the representative who championed the partnership, accompanying photographs, and your location.",
+    "Here is how we recognize the partners who support us:\n\n- $500 or more (or an equivalent in-kind or promotional contribution): a dedicated acknowledgement, a featured spot on our website's sponsorship page, and your logo shown at three times the size of our $100-tier supporters'.\n- $1,000 or more: everything above, and additionally a speaking opportunity at our closing ceremony before all campers and their families, plus an interactive logo in our website header featuring your details, a profile of the representative who championed the partnership, photographs, and your location.",
+    "For full transparency, here is what supporters receive in return:\n\n- A contribution of $500 or more (or its equivalent in kind or in promotion): a dedicated acknowledgement, a featured placement on our sponsorship page, and a logo three times the size of our $100-tier supporters'.\n- A contribution of $1,000 or more: all of the $500 benefits, a speaking opportunity at our closing ceremony before every camper and family, and an interactive logo in our website header presenting your details, a profile of the representative who championed the partnership, accompanying photographs, and your location.",
+]
+
+NONPROFIT_VARIANTS = [
+    "As a non-profit, we direct 100% of all funds and donated resources toward our operating costs and reinvestment in the community — our formal incorporation fees, campers' school supplies, the prizes for our student incentive program and final-examination awards, daily meals for our volunteer student staff, and our end-of-program excellence awards for outstanding students and staff. Any surplus is donated directly to local school boards.",
+    "Being a non-profit, we put 100% of every dollar and donated resource straight into running the camp and giving back: incorporation fees, school supplies for campers, prizes for our incentive program and final exams, daily meals for our volunteer student staff, and excellence awards at the program's end. Whatever remains is donated directly to local school boards.",
+    "Every contribution goes a long way — as a non-profit, 100% of our funds and donated resources support our operating costs and the community: formal incorporation fees, campers' supplies, prizes for our student incentive program and final-exam awards, daily meals for our volunteer student staff, and end-of-program excellence awards. Any surplus is donated directly to local school boards.",
+]
+
+CLOSING_VARIANTS = [
+    "I'd be glad to share more details at your convenience. Thank you very much for your time and consideration.",
+    "I'd be happy to answer any questions or provide further information whenever it suits you. Thank you for taking the time to consider this.",
+    "Please let me know if you'd like to learn more — I'd welcome the chance to tell you about it. Thank you sincerely for your time.",
+    "I would be delighted to provide anything further you might need. Thank you kindly for your time and consideration.",
+]
+
+SIGNOFFS = ["Sincerely,", "Warm regards,", "Best regards,", "Kind regards,", "With appreciation,"]
+
+SIGNATURE = ("Lucas Liu\n"
+             "Higher Grade Tutoring\n"
+             "lucas.liu.ca2009@gmail.com\n"
+             "+1 343-368-2005\n"
+             "highergradetutoring.ca")
+
+SUBJECT_VARIANTS = [
+    "Sponsorship & Partnership Opportunity — Higher Grade Tutoring Summer Math Camp",
+    "Partnership Invitation — Higher Grade Tutoring Summer Math Camp",
+    "Supporting 100 Local Students — Higher Grade Tutoring Summer Math Camp",
+    "A Partnership Opportunity — Higher Grade Tutoring Summer Math Camp",
+    "Higher Grade Tutoring Summer Math Camp — Partnership & Sponsorship",
+]
+
+# The 8 valid template categories (used by the name-based classifier).
+EMAIL_CATEGORIES = set(CATEGORY_ASKS)
+
+
+def build_email(org_type, name):
+    """Assemble a unique outreach email from interchangeable, equivalent
+    paraphrases — a different combination every send, so no two come out
+    identical while the facts and the ask stay constant. Returns (subject, body)."""
+    asks = CATEGORY_ASKS.get(org_type) or CATEGORY_ASKS["Commercial"]
+    blocks = [
+        GREETING.format(name=name),
+        random.choice(INTRO_VARIANTS),
+        random.choice(TEAM_VARIANTS),
+        random.choice(asks).format(name=name),
+        random.choice(TIERS_VARIANTS),
+        random.choice(NONPROFIT_VARIANTS),
+        random.choice(CLOSING_VARIANTS),
+        random.choice(SIGNOFFS) + "\n" + SIGNATURE,
+    ]
+    return random.choice(SUBJECT_VARIANTS), "\n\n".join(blocks)
 
 # ─────────────────────────────────────────────
 # LOAD SPONSORS FROM GOOGLE SHEETS
@@ -639,7 +526,7 @@ def load_sponsors(sheet):
         # Decide the industry from the NAME first (needed to skip Government).
         # Honour an explicit, specific label the team set; otherwise (blank,
         # "Commercial", or unrecognised) derive it from the title.
-        if org_type in EMAIL_TEMPLATES and org_type != "Commercial":
+        if org_type in EMAIL_CATEGORIES and org_type != "Commercial":
             chosen_type = org_type            # trust the team's manual label
         else:
             chosen_type = classify_type_from_name(name)
@@ -970,12 +857,11 @@ def run():
             sponsor = sponsors[idx]
             idx += 1
             STATUS["current"] = sponsor["name"]
-            template = EMAIL_TEMPLATES[sponsor["type"]]
-            greeting = f"Dear {sponsor['contact']}," if sponsor["contact"] else f"Dear {sponsor['name']} Team,"
-            subject = template["subject"].format(name=sponsor["name"])
-            body = template["body"].format(name=sponsor["name"], greeting=greeting)
+            # Assemble a one-of-a-kind email: "Hi <company>," + randomized,
+            # equivalent paraphrases of each paragraph (see build_email).
+            subject, body = build_email(sponsor["type"], sponsor["name"])
             if sponsor["note"]:
-                body += f"\nP.S. {sponsor['note']}\n"
+                body += f"\n\nP.S. {sponsor['note']}\n"
             to_email = ZOHO_EMAIL if TEST_MODE else sponsor["email"]
             try:
                 send_email(to_email, subject, body)
@@ -1015,7 +901,11 @@ def run():
                 rest_reason = (f"batch of {finished} done — cooling down before "
                                f"the next {batch_size}")
         else:
-            wait_min = random.uniform(MIN_GAP_MIN, MAX_GAP_MIN)
+            # Human-like gap: a whole-second value in 7-11 min, PLUS a random
+            # sub-second (millisecond) jitter so the send never lands on a clean
+            # boundary — e.g. 8m 32.473s rather than exactly 8m 30s.
+            base_secs = random.randint(int(MIN_GAP_MIN * 60), int(MAX_GAP_MIN * 60))
+            wait_min = (base_secs + random.random()) / 60.0
             label = f"{sent_in_batch}/{batch_size} this batch"
 
         # Mandatory 1h break every 12h of active sending.
@@ -1031,7 +921,8 @@ def run():
         if wait_secs >= 60:
             STATUS.update(state="resting", resting_until=now + wait_secs,
                           rest_reason=rest_reason)
-        print(f"     …waiting {wait_min:.1f} min ({label}).")
+        _m, _s = divmod(wait_secs, 60)
+        print(f"     …waiting {int(_m)}m {_s:06.3f}s ({label}).")
         interruptible_sleep(wait_secs)
         STATUS.update(state="running", resting_until=0.0, rest_reason="")
         if wait_secs >= (MANDATORY_BREAK_MINUTES - 5) * 60:

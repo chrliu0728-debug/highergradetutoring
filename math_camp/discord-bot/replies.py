@@ -28,7 +28,7 @@ from email.utils import parseaddr
 ZOHO_EMAIL = os.environ.get("ZOHO_EMAIL", "")
 ZOHO_PASSWORD = os.environ.get("ZOHO_PASSWORD", "")
 FROM_EMAIL = os.environ.get("FROM_EMAIL") or ZOHO_EMAIL
-IMAP_HOST = os.environ.get("IMAP_HOST", "imap.zoho.com")
+IMAP_HOST = os.environ.get("IMAP_HOST", "imap.zohocloud.ca")
 IMAP_PORT = int(os.environ.get("IMAP_PORT", "993"))
 IMAP_FOLDER = os.environ.get("IMAP_FOLDER", "INBOX")
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zohocloud.ca")

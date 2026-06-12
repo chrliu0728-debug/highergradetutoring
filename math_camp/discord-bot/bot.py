@@ -542,6 +542,37 @@ async def enrolled_cmd(interaction: discord.Interaction) -> None:
         f"🧮 **{enrolled}{cap_str}** campers enrolled.{spots}", ephemeral=True)
 
 
+@bot.tree.command(name="campers",
+                  description="Camper breakdown: total, paid, and registered-not-paid.")
+async def campers_cmd(interaction: discord.Interaction) -> None:
+    """Full camper picture in one command: total registered, how many have paid
+    (account unfrozen), and how many registered but haven't paid yet."""
+    await interaction.response.defer(ephemeral=True)
+    try:
+        data = await api._get("/api/stats/campers")
+    except Exception:  # noqa: BLE001
+        log.exception("/campers fetch failed")
+        await interaction.followup.send(
+            "Couldn't reach the camper stats right now — try again shortly.",
+            ephemeral=True)
+        return
+    if not data.get("ok"):
+        await interaction.followup.send(
+            "Camper stats are unavailable right now.", ephemeral=True)
+        return
+    total = data.get("total", 0)
+    paid = data.get("paid", 0)
+    unpaid = data.get("unpaid", 0)
+    cap = data.get("cap")
+    cap_line = f" (cap {cap})" if cap else ""
+    await interaction.followup.send(
+        f"🏕️ **Camper breakdown**{cap_line}\n"
+        f"• **Total registered:** {total}\n"
+        f"• ✅ **Paid:** {paid}\n"
+        f"• ⏳ **Registered, not yet paid:** {unpaid}",
+        ephemeral=True)
+
+
 # ── Locked-chest interactive UI ──────────────────────────────────────
 # Each chest gets posted as a public embed with a button. Clicking the
 # button opens a modal asking for the passcode. Submitting the right
