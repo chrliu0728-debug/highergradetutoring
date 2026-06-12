@@ -430,6 +430,65 @@
     <button id="freeze-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:170px;">Loading…</button>
   </div>
 
+  <!-- ── Daily call schedule ── -->
+  <div id="callsched-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm);">
+    <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Camp-wide controls</div>
+    <h2 style="font-size:1.1rem; margin:0 0 4px;">📞 Daily call schedule <span id="callsched-status" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);">— loading…</span></h2>
+    <p style="font-size:.88rem; color:var(--muted); margin:0 0 14px; line-height:1.5;">Set who's on call (and the number to show) for each day, up to 10 days ahead. The Contact page automatically shows <strong>today's</strong> number during the 5–8 PM window; days left blank show the "leave a voicemail" message instead. Staff can also sign up from Discord with <strong>/oncall</strong> — it all syncs here.</p>
+    <div id="callsched-rows" style="display:flex; flex-direction:column; gap:8px;"></div>
+    <div style="margin-top:14px; display:flex; gap:12px; align-items:center;">
+      <button id="callsched-save" type="button" class="btn-tidy" style="font-size:.9rem; min-width:150px;">Save schedule</button>
+      <span id="callsched-saved" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);"></span>
+    </div>
+  </div>
+  <script>
+  (function () {
+    const rowsEl = document.getElementById('callsched-rows');
+    const statusEl = document.getElementById('callsched-status');
+    const saveBtn = document.getElementById('callsched-save');
+    const savedEl = document.getElementById('callsched-saved');
+    if (!rowsEl) return;
+    const esc = s => String(s || '').replace(/"/g, '&quot;');
+    function rowHtml(d) {
+      return `<div class="cs-row" data-date="${d.date}" style="display:grid; grid-template-columns:130px 1fr 1fr; gap:8px; align-items:center;">
+        <div style="font-size:.85rem; font-weight:600; color:var(--text-mid);">${d.label}</div>
+        <input type="text" class="cs-name" placeholder="Caller name (optional)" value="${esc(d.name)}" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:.88rem;" />
+        <input type="tel" class="cs-number" placeholder="Phone number" value="${esc(d.number)}" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:.88rem;" />
+      </div>`;
+    }
+    async function load() {
+      try {
+        const r = await fetch('/api/admin/call-schedule', { credentials: 'same-origin' });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'failed');
+        rowsEl.innerHTML = j.days.map(rowHtml).join('');
+        statusEl.textContent = '';
+      } catch (_) { statusEl.textContent = '— unavailable'; }
+    }
+    saveBtn.addEventListener('click', async () => {
+      const days = [...rowsEl.querySelectorAll('.cs-row')].map(row => ({
+        date: row.dataset.date,
+        name: row.querySelector('.cs-name').value.trim(),
+        number: row.querySelector('.cs-number').value.trim(),
+      }));
+      saveBtn.disabled = true; savedEl.textContent = 'Saving…';
+      try {
+        const r = await fetch('/api/admin/call-schedule', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days }),
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'failed');
+        savedEl.textContent = '✓ Saved';
+        setTimeout(() => { savedEl.textContent = ''; }, 2500);
+      } catch (e) { savedEl.textContent = ''; alert('Failed to save: ' + e.message); }
+      finally { saveBtn.disabled = false; }
+    });
+    load();
+  })();
+  </script>
+
   <div class="admin-header">
     <div>
       <h2>📋 Staff Profiles</h2>

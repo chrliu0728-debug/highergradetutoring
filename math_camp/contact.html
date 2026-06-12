@@ -49,8 +49,10 @@
     <div style="background:var(--blush-bg); border:1px solid var(--blush); border-radius:var(--radius); box-shadow:var(--shadow); padding:32px 28px; max-width:480px; margin:0 auto;">
       <div style="font-size:2.6rem; line-height:1; margin-bottom:10px;">📞</div>
       <div style="font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">Open daily · 5:00–8:00&nbsp;PM</div>
-      <a href="tel:+13433682005" style="display:inline-block; font-size:2rem; font-weight:800; color:var(--text); text-decoration:none; letter-spacing:.01em; margin-bottom:20px;">343-368-2005</a>
-      <div><a href="tel:+13433682005" class="btn btn-primary">Call Now →</a></div>
+      <div id="today-caller" style="font-size:.92rem; font-weight:600; color:var(--text-mid); margin-bottom:6px; display:none;"></div>
+      <a id="today-number" href="#" style="display:none; font-size:2rem; font-weight:800; color:var(--text); text-decoration:none; letter-spacing:.01em; margin-bottom:20px;"></a>
+      <div id="today-fallback" style="color:var(--text-mid); font-size:1rem; line-height:1.6; margin:4px auto 18px; max-width:360px;">Today's call-in number will appear here during our 5–8&nbsp;PM window. Not up yet? Leave us a voicemail below — we'll get right back to you.</div>
+      <div id="today-callbtn-wrap" style="display:none;"><a id="today-callbtn" href="#" class="btn btn-primary">Call Now →</a></div>
     </div>
 
     <div style="margin-top:26px; max-width:560px; margin-left:auto; margin-right:auto; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px; text-align:left;">
@@ -121,6 +123,31 @@
   </div>
 </footer>
 
+<!-- Pull today's open-call number (set by staff or via Discord /oncall) -->
+<script>
+(function () {
+  function telHref(num) {
+    var digits = String(num).replace(/[^0-9]/g, '');
+    if (digits.length === 11 && digits[0] === '1') return 'tel:+' + digits;
+    if (digits.length === 10) return 'tel:+1' + digits;
+    return 'tel:' + digits;
+  }
+  fetch('/api/stats/call-number', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok || !d.number) return;            // keep the fallback message
+      var href = telHref(d.number);
+      var link = document.getElementById('today-number');
+      var btn = document.getElementById('today-callbtn');
+      var caller = document.getElementById('today-caller');
+      link.textContent = d.number; link.href = href; link.style.display = 'inline-block';
+      btn.href = href; document.getElementById('today-callbtn-wrap').style.display = '';
+      if (d.name) { caller.textContent = '📅 On call today: ' + d.name; caller.style.display = 'block'; }
+      document.getElementById('today-fallback').style.display = 'none';
+    })
+    .catch(function () { /* leave the fallback message in place */ });
+})();
+</script>
 <script src="script.js"></script>
 </body>
 </html>

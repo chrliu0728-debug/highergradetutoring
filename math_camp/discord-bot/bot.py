@@ -156,6 +156,14 @@ class CampAPI:
     async def students(self, guild_id: str) -> Dict[str, Any]:
         return await self._get("/api/bot/students", {"guildId": guild_id})
 
+    # — Open-call schedule (the /oncall sign-up board) —
+    async def call_schedule(self) -> Dict[str, Any]:
+        return await self._get("/api/bot/call-schedule")
+
+    async def call_claim(self, date: str, name: str, number: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/call-schedule/claim",
+                                {"date": date, "name": name, "number": number})
+
     # — Chests —
     async def chest_create(self, guild_id: str, code: str, role_id: str, role_name: str,
                            description: str, created_by: str,
@@ -571,6 +579,112 @@ async def campers_cmd(interaction: discord.Interaction) -> None:
         f"• ✅ **Paid:** {paid}\n"
         f"• ⏳ **Registered, not yet paid:** {unpaid}",
         ephemeral=True)
+
+
+# ── Open-call sign-up board (/oncall) ────────────────────────────────
+def _oncall_embed(days: List[Dict[str, Any]]) -> discord.Embed:
+    e = discord.Embed(
+        title="📞 Open-call schedule — next 10 days",
+        description="Pick a day from the menu to sign up. The number you enter "
+                    "shows on the website's Contact page during that day's "
+                    "5–8 PM call window.",
+        colour=discord.Colour.blurple())
+    for d in days:
+        if d.get("name") or d.get("number"):
+            val = f"✅ {d.get('name') or '—'}"
+            if d.get("number"):
+                val += f" · {d['number']}"
+        else:
+            val = "— open —"
+        e.add_field(name=d["label"], value=val, inline=True)
+    return e
+
+
+class OnCallModal(discord.ui.Modal, title="Sign up for call duty"):
+    def __init__(self, view: "OnCallView", date: str, cur: Dict[str, Any]):
+        super().__init__()
+        self.view_ref = view
+        self.date = date
+        self.cur = cur
+        self.number = discord.ui.TextInput(
+            label="Your phone number for this day",
+            placeholder="e.g. 343-368-2005 — leave blank to remove yourself",
+            default=cur.get("number", ""), required=False, max_length=40)
+        self.add_item(self.number)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        name = interaction.user.display_name
+        number = str(self.number.value).strip()
+        label = self.cur.get("label", self.date)
+        if not number:
+            cur_name = (self.cur.get("name") or "").strip().lower()
+            if cur_name and cur_name == name.strip().lower():
+                await api.call_claim(self.date, "", "")
+                msg = f"🗑️ Removed you from **{label}**."
+            else:
+                await interaction.response.send_message(
+                    "Enter a phone number to sign up. (You can only clear a day "
+                    "you signed up for yourself.)", ephemeral=True)
+                return
+        else:
+            await api.call_claim(self.date, name, number)
+            msg = f"✅ You're on call for **{label}** — number **{number}**."
+        # Refresh the board in place.
+        try:
+            data = await api.call_schedule()
+            if data.get("ok") and self.view_ref.message:
+                fresh = OnCallView(data["days"])
+                fresh.message = self.view_ref.message
+                await self.view_ref.message.edit(
+                    embed=_oncall_embed(data["days"]), view=fresh)
+        except Exception:  # noqa: BLE001
+            log.exception("oncall board refresh failed")
+        await interaction.response.send_message(msg, ephemeral=True)
+
+
+class OnCallView(discord.ui.View):
+    def __init__(self, days: List[Dict[str, Any]]):
+        super().__init__(timeout=600)
+        self.days = days
+        self.message: Optional[discord.Message] = None
+        opts = []
+        for d in days:
+            taken = d.get("name") or d.get("number")
+            desc = (f"{d.get('name','')} · {d['number']}" if d.get("number")
+                    else (d.get("name") or "open"))
+            opts.append(discord.SelectOption(
+                label=d["label"], value=d["date"], description=desc[:100],
+                emoji="✅" if taken else "⬜"))
+        self.picker = discord.ui.Select(
+            placeholder="Pick a day to sign up for…", options=opts)
+        self.picker.callback = self._on_pick
+        self.add_item(self.picker)
+
+    async def _on_pick(self, interaction: discord.Interaction):
+        date = self.picker.values[0]
+        cur = next((d for d in self.days if d["date"] == date), {"label": date})
+        await interaction.response.send_modal(OnCallModal(self, date, cur))
+
+
+@bot.tree.command(name="oncall",
+                  description="See the call-window schedule and sign yourself up.")
+async def oncall_cmd(interaction: discord.Interaction) -> None:
+    await interaction.response.defer(ephemeral=True)
+    try:
+        data = await api.call_schedule()
+    except Exception:  # noqa: BLE001
+        log.exception("/oncall fetch failed")
+        await interaction.followup.send(
+            "Couldn't load the call schedule right now — try again shortly.",
+            ephemeral=True)
+        return
+    if not data.get("ok"):
+        await interaction.followup.send(
+            "Call schedule is unavailable right now.", ephemeral=True)
+        return
+    view = OnCallView(data["days"])
+    view.message = await interaction.followup.send(
+        embed=_oncall_embed(data["days"]), view=view, ephemeral=True)
 
 
 # ── Locked-chest interactive UI ──────────────────────────────────────

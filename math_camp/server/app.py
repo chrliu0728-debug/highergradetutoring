@@ -451,6 +451,71 @@ def _meta_set(key, value):
     )
 
 
+def _eastern_today_str():
+    """Today's date (YYYY-MM-DD) in America/Toronto, so the open-call day
+    boundary follows our local 5-8 PM window rather than UTC."""
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Toronto")).strftime("%Y-%m-%d")
+    except Exception:
+        return datetime.utcnow().strftime("%Y-%m-%d")
+
+
+def _call_schedule():
+    """The open-call schedule as {date: {number, name}} from the meta store."""
+    try:
+        d = json.loads(_meta_get("open_call_schedule", "{}") or "{}")
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _call_schedule_days(n=10):
+    """The next `n` days (from today, Eastern) as a list of
+    {date, label, number, name} — blank where nobody's signed up yet."""
+    from datetime import datetime, timedelta
+    try:
+        from zoneinfo import ZoneInfo
+        base = datetime.now(ZoneInfo("America/Toronto")).date()
+    except Exception:
+        base = datetime.utcnow().date()
+    sched = _call_schedule()
+    out = []
+    for i in range(n):
+        day = base + timedelta(days=i)
+        ds = day.strftime("%Y-%m-%d")
+        e = sched.get(ds) or {}
+        out.append({"date": ds, "label": day.strftime("%a, %b %d"),
+                    "number": (e.get("number") or ""),
+                    "name": (e.get("name") or "")})
+    return out
+
+
+def _call_schedule_upsert(entries):
+    """Upsert/clear schedule entries ({date, number, name}); a blank number AND
+    name clears that day. Prunes past days, then saves. Returns the new dict."""
+    import re
+    sched = _call_schedule()
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        ds = str(item.get("date") or "").strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", ds):
+            continue
+        number = str(item.get("number") or "").strip()[:40]
+        name = str(item.get("name") or "").strip()[:60]
+        if number or name:
+            sched[ds] = {"number": number, "name": name}
+        else:
+            sched.pop(ds, None)
+    today = _eastern_today_str()
+    sched = {k: v for k, v in sched.items() if k >= today}  # drop past days
+    with g.db:
+        _meta_set("open_call_schedule", json.dumps(sched))
+    return sched
+
+
 def _points_frozen():
     return _meta_get("points_frozen", "0") == "1"
 
@@ -2032,6 +2097,54 @@ def register_routes(app):
         ).fetchone()["n"]
         return jsonify(ok=True, total=total, paid=paid, unpaid=total - paid,
                        cap=_student_cap())
+
+    @app.route("/api/stats/call-number", methods=["GET"])
+    def stats_call_number():
+        # Public: today's open-call number (set by staff or via Discord, up to
+        # 10 days ahead). Blank number => the contact page shows the fallback.
+        today = _eastern_today_str()
+        e = _call_schedule().get(today) or {}
+        return jsonify(ok=True, date=today,
+                       number=(e.get("number") or "").strip(),
+                       name=(e.get("name") or "").strip())
+
+    @app.route("/api/admin/call-schedule", methods=["GET"])
+    @require_admin
+    def admin_call_schedule_get():
+        return jsonify(ok=True, days=_call_schedule_days())
+
+    @app.route("/api/admin/call-schedule", methods=["POST"])
+    @require_admin
+    def admin_call_schedule_set():
+        d = request.get_json(silent=True) or {}
+        days = d.get("days")
+        if not isinstance(days, list):
+            return jsonify(ok=False, error="days must be a list"), 400
+        sched = _call_schedule_upsert(days)
+        return jsonify(ok=True, count=len(sched))
+
+    @app.route("/api/bot/call-schedule", methods=["GET"])
+    @require_bot
+    def bot_call_schedule_get():
+        # Discord bot: same 10-day view, used by /oncall.
+        return jsonify(ok=True, days=_call_schedule_days())
+
+    @app.route("/api/bot/call-schedule/claim", methods=["POST"])
+    @require_bot
+    def bot_call_schedule_claim():
+        # Discord bot: one person signs up (or clears) a day. A blank number
+        # clears that day's assignment.
+        import re
+        d = request.get_json(silent=True) or {}
+        date_str = str(d.get("date") or "").strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+            return jsonify(ok=False, error="bad or missing date"), 400
+        _call_schedule_upsert([{
+            "date": date_str,
+            "number": d.get("number") or "",
+            "name": d.get("name") or "",
+        }])
+        return jsonify(ok=True)
 
     @app.route("/api/settings/registrations-frozen", methods=["GET"])
     def settings_registrations_frozen():
