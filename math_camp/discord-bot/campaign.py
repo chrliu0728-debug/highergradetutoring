@@ -115,7 +115,7 @@ def _fmt_status(s: dict) -> str:
         secs = max(0, int(s["resting_until"] - time.time()))
         h, m = secs // 3600, (secs % 3600) // 60
         left = f"{h}h {m}m" if h else f"{m} min"
-        reason = s.get("rest_reason") or f"between emails (batch of {s['batch_size']})"
+        reason = s.get("rest_reason") or "between emails"
         lines.append(f"**Resting:** ~{left} left — {reason}")
     if s.get("message"):
         lines.append(f"*{s['message']}*")

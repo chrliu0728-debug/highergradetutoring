@@ -41,3 +41,15 @@ dist/
 !.env.example
 *.pem
 *.key
+
+# secret service-account key — never commit
+service_account.json
+
+# Google Places API key — never commit
+places_key.txt
+
+# Gemini API key — never commit
+gemini_key.txt
+
+# Local-only scraper/classifier tooling (keys, service account, state, logs)
+email_automater/
