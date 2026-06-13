@@ -160,6 +160,8 @@ class ReviewView(discord.ui.View):
         self.message: discord.Message | None = None
         self.thread: discord.Thread | None = None
         self.handled = False
+        self.message_ids: set = set()   # every message id this review has had
+                                        # (it changes each time we re-post/bump)
 
     def _embed(self) -> discord.Embed:
         r = self.reply
@@ -272,7 +274,7 @@ class ReviewView(discord.ui.View):
             try:
                 async for m in self.message.channel.history(limit=100):
                     ref = getattr(m, "reference", None)
-                    if ref is not None and ref.message_id == self.message.id:
+                    if ref is not None and ref.message_id in self.message_ids:
                         for a in m.attachments:
                             attachments.append((a.filename, await a.read()))
             except Exception:
@@ -350,6 +352,7 @@ async def poll_replies():
         try:
             msg = await channel.send(embed=view._embed(), view=view)
             view.message = msg
+            view.message_ids.add(msg.id)
             _active_reviews.append(view)          # track for auto-bump
             _posted_ids.add(r["message_id"])
             # Persistently mark it relayed so it never reposts (even across a
@@ -386,9 +389,11 @@ async def bump_unresolved_loop():
     channel = _bot.get_channel(REVIEW_CHANNEL_ID)
     if channel is None:
         return
-    # Keep only still-untouched reviews (drop handled / acted-on ones).
+    # Keep bumping until the review is RESOLVED — i.e. handled by 📨 Send,
+    # 🚫 No reply, or 🗑️ Irrelevant (all set handled=True). Picking 🔴 Rejected
+    # or 🟢 Accepted only chooses the verdict, so it keeps bumping until Send.
     pending = [v for v in _active_reviews
-               if v.message is not None and not v.handled and v.verdict is None]
+               if v.message is not None and not v.handled]
     _active_reviews[:] = pending
     if not pending:
         return
@@ -406,6 +411,7 @@ async def bump_unresolved_loop():
         try:
             old = v.message
             v.message = await channel.send(embed=v._embed(), view=v)
+            v.message_ids.add(v.message.id)
             try:
                 await old.delete()
             except Exception:
