@@ -49,6 +49,15 @@ def _is_bounce(from_email, subject):
         "undelivered mail", "mail delivery", "returned to sender",
         "delivery status notification", "delivery failure", "failure notice",
         "undeliverable", "delivery has failed"))
+
+
+def _is_own_send(from_email):
+    """True if the message was sent BY us (test-mode self-sends, or our own
+    outreach echoed back) — those aren't replies and shouldn't be relayed."""
+    fe = (from_email or "").lower().strip()
+    own = {(FROM_EMAIL or "").lower().strip(), (ZOHO_EMAIL or "").lower().strip()}
+    own.discard("")
+    return fe in own
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zohocloud.ca")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
 
@@ -196,7 +205,8 @@ def fetch_new_replies(seen_ids):
             subject = _decode(msg.get("Subject"))
             # Already posted this session, or an automated bounce → mark relayed
             # so it won't be reconsidered, and don't post it.
-            if mid in seen_ids or _is_bounce(from_email, subject):
+            if (mid in seen_ids or _is_bounce(from_email, subject)
+                    or _is_own_send(from_email)):
                 try:
                     imap.store(num, "+FLAGS", RELAY_KEYWORD)
                 except Exception:
