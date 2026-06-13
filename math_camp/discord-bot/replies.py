@@ -217,11 +217,12 @@ def mark_handled(message_id):
         pass
 
 
-def archive_message(message_id, folder=None):
-    """Mark the original message handled (\\Seen) and move it out of the inbox
-    into the archive folder (created if missing). Used by the 'Irrelevant'
-    button and after a rejection reply is sent. Best-effort; returns True if the
-    message was actually moved."""
+def archive_message(message_id, folder=None, extra_flag=None):
+    """Mark the original message handled (\\Seen), optionally stamp a custom
+    IMAP keyword (`extra_flag`, e.g. "Info" for sent rejections), then move it
+    out of the inbox into the archive folder (created if missing). The keyword
+    is set before the move so the copy carries it. Best-effort; returns True if
+    the message was actually moved."""
     if not message_id:
         return False
     folder = folder or IMAP_ARCHIVE_FOLDER
@@ -238,6 +239,11 @@ def archive_message(message_id, folder=None):
         if typ == "OK":
             for num in data[0].split():
                 imap.store(num, "+FLAGS", "\\Seen")   # handled regardless
+                if extra_flag:
+                    try:
+                        imap.store(num, "+FLAGS", extra_flag)  # custom keyword
+                    except Exception:
+                        pass
                 res = imap.copy(num, folder)
                 if res and res[0] == "OK":
                     imap.store(num, "+FLAGS", "\\Deleted")

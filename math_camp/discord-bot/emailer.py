@@ -212,6 +212,11 @@ TEST_MODE = os.environ.get("EMAILER_TEST_MODE", "") not in ("", "0", "false", "F
 MIN_GAP_MIN = 7.0    # shortest gap between two emails (minutes)
 MAX_GAP_MIN = 11.0   # longest gap between two emails (minutes)
 
+# 'Whatever'-location sponsors are held out of the queue by default (the team
+# sends those by hand, after everything else). Flip this to 1 in the env when
+# you're ready to send them — they'll be the only 'Not Contacted' rows left.
+INCLUDE_WHATEVER = os.environ.get("INCLUDE_WHATEVER", "0") == "1"
+
 # Warm-up ramp: send a batch, then take a long rest, then a BIGGER batch after a
 # SHORTER rest, and so on — the classic "don't look like a spam cannon" pattern.
 #   batch 1: 20 emails -> rest 4h00 ; batch 2: 30 -> 3h45 ; batch 3: 40 -> 3h30 ...
@@ -583,38 +588,34 @@ def _pattern_tokens():
                 yield "hal"
 
 
-def order_by_location(sponsors):
-    """Reorder the pending sponsors into the location-interleaved queue.
+def order_shuffled_by_category(sponsors):
+    """Build the send queue: shuffle every pending sponsor, then group by
+    category (Type) so same-type emails go together. Shuffling first makes both
+    the category order AND the order within each category random, so no run looks
+    patterned. 'Whatever'-location rows are held back for manual sending (see
+    INCLUDE_WHATEVER)."""
+    if INCLUDE_WHATEVER:
+        queue = list(sponsors)
+    else:
+        queue = [s for s in sponsors
+                 if (s.get("location") or "").strip().lower() != "whatever"]
+        held = len(sponsors) - len(queue)
+        if held:
+            print(f"  ⏸️  Holding back {held} 'Whatever'-tagged sponsor(s) — "
+                  f"set INCLUDE_WHATEVER=1 when you want to send them.")
 
-    Locations are drawn in sheet order within each town. If a town has no one
-    left when its turn comes up, that slot is simply skipped. Any sponsor whose
-    Location isn't one of the five known towns is appended at the very end."""
-    keymap = {
-        LOC_OAKVILLE.lower():     "oak",
-        LOC_MISSISSAUGA.lower():  "miss",
-        LOC_BURLINGTON.lower():   "burl",
-        LOC_MILTON.lower():       "mil",
-        LOC_HALTON_HILLS.lower(): "hal",
-    }
-    keymap.update(LOCATION_ALIASES)  # fold in known misspellings
-    buckets = {"oak": [], "miss": [], "burl": [], "mil": [], "hal": [], "other": []}
-    for s in sponsors:
-        buckets[keymap.get(s["location"].lower(), "other")].append(s)
-
-    named = ("oak", "miss", "burl", "mil", "hal")
+    random.shuffle(queue)
+    # dict keeps first-seen order; the queue is shuffled, so category order is
+    # itself random and each category's members stay in random order.
+    groups = {}
+    for s in queue:
+        groups.setdefault(s["type"], []).append(s)
     ordered = []
-    gen = _pattern_tokens()
-    while any(buckets[k] for k in named):
-        tok = next(gen)
-        if buckets[tok]:
-            ordered.append(buckets[tok].pop(0))
-
-    # Unknown / blank locations didn't fit the pattern — send them last.
-    if buckets["other"]:
-        print(f"  ℹ️  {len(buckets['other'])} sponsor(s) have an unrecognized Location "
-              f"— they'll be sent last.")
-        ordered.extend(buckets["other"])
-
+    for cat in groups:
+        ordered.extend(groups[cat])
+    if groups:
+        print("  🔀 Shuffled, then grouped by category: "
+              + ", ".join(f"{c}={len(v)}" for c, v in groups.items()))
     return ordered
 
 # ─────────────────────────────────────────────
@@ -800,8 +801,8 @@ def run():
                   f"(e.g. Tim Hortons → Food).")
 
     # ── Order by location (Oakville/Mississauga alternate up front; empty
-    #    towns are skipped, not stalled; only unknown/'Whatever' go last) ──
-    sponsors = order_by_location(to_send)
+    #    shuffled, then grouped by category; 'Whatever' rows are held back) ──
+    sponsors = order_shuffled_by_category(to_send)
 
     if not sponsors:
         print("Nothing to send. (Everyone is already contacted, a duplicate, or has no email.)")
@@ -852,8 +853,9 @@ def run():
                 # was answering (set by the 'Rejected → Send' flow).
                 if not TEST_MODE and reply.get("archive_message_id"):
                     try:
-                        if replies.archive_message(reply["archive_message_id"]):
-                            print("     📥 archived the original message")
+                        if replies.archive_message(reply["archive_message_id"],
+                                                   extra_flag="Info"):
+                            print("     📥 archived the original (flagged Info)")
                     except Exception as e:
                         print(f"     (archive failed: {e})")
             except Exception as e:
