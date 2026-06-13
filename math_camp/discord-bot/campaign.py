@@ -327,12 +327,15 @@ async def poll_replies():
         log.exception("fetch_new_replies failed")
         return
     for r in new:
-        _posted_ids.add(r["message_id"])
         # EVERY reply is posted for a human to judge (the bot only suggests).
         view = ReviewView(r)
         try:
             msg = await channel.send(embed=view._embed(), view=view)
             view.message = msg
+            _posted_ids.add(r["message_id"])
+            # Persistently mark it relayed so it never reposts (even across a
+            # bot restart, and regardless of read-state).
+            await asyncio.to_thread(replies.mark_relayed, r["message_id"])
             try:
                 view.thread = await msg.create_thread(
                     name=f"Reply · {r['from_name'][:60]}")

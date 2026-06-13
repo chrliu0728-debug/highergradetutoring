@@ -32,6 +32,23 @@ IMAP_HOST = os.environ.get("IMAP_HOST", "imap.zohocloud.ca")
 IMAP_PORT = int(os.environ.get("IMAP_PORT", "993"))
 IMAP_FOLDER = os.environ.get("IMAP_FOLDER", "INBOX")
 IMAP_ARCHIVE_FOLDER = os.environ.get("IMAP_ARCHIVE_FOLDER", "Archive")
+# Persistent keyword stamped on every message we've already relayed to Discord,
+# so the relay tracks "handled" independent of the read/unread flag (mail read
+# in Zoho webmail is still SEEN, which is why a plain UNSEEN search misses it).
+RELAY_KEYWORD = os.environ.get("IMAP_RELAY_FLAG", "HGTRelayed")
+
+
+def _is_bounce(from_email, subject):
+    """True for automated delivery-failure / bounce notices, which we skip
+    relaying (they'd flood the channel) but still mark handled."""
+    fe = (from_email or "").lower()
+    if "mailer-daemon" in fe or "postmaster" in fe:
+        return True
+    subj = (subject or "").lower()
+    return any(s in subj for s in (
+        "undelivered mail", "mail delivery", "returned to sender",
+        "delivery status notification", "delivery failure", "failure notice",
+        "undeliverable", "delivery has failed"))
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.zohocloud.ca")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
 
@@ -161,8 +178,11 @@ def fetch_new_replies(seen_ids):
     imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
     try:
         imap.login(ZOHO_EMAIL, ZOHO_PASSWORD)
-        imap.select(IMAP_FOLDER)
-        typ, data = imap.search(None, "UNSEEN")
+        imap.select(IMAP_FOLDER)   # read-write: lets us mark messages relayed
+        # Find everything not yet relayed — by our persistent keyword, NOT the
+        # read/unread flag. (Mail read in Zoho webmail is still SEEN, so the old
+        # UNSEEN search relayed nothing — the root cause of replies not showing.)
+        typ, data = imap.search(None, "UNKEYWORD", RELAY_KEYWORD)
         if typ != "OK":
             return out
         for num in data[0].split():
@@ -172,10 +192,16 @@ def fetch_new_replies(seen_ids):
                 continue
             msg = email.message_from_bytes(msg_data[0][1])
             mid = (_decode(msg.get("Message-ID")) or "").strip() or num.decode()
-            if mid in seen_ids:
-                continue
             from_name, from_email = parseaddr(_decode(msg.get("From")))
             subject = _decode(msg.get("Subject"))
+            # Already posted this session, or an automated bounce → mark relayed
+            # so it won't be reconsidered, and don't post it.
+            if mid in seen_ids or _is_bounce(from_email, subject):
+                try:
+                    imap.store(num, "+FLAGS", RELAY_KEYWORD)
+                except Exception:
+                    pass
+                continue
             body = _plain_body(msg).strip()
             references = " ".join(filter(None, [
                 _decode(msg.get("References")), mid]))
@@ -212,6 +238,24 @@ def mark_handled(message_id):
         if typ == "OK":
             for num in data[0].split():
                 imap.store(num, "+FLAGS", "\\Seen")
+        imap.logout()
+    except Exception:
+        pass
+
+
+def mark_relayed(message_id):
+    """Stamp a message with the relay keyword so it's never relayed to Discord
+    again — survives bot restarts and is independent of read-state. Best-effort."""
+    if not message_id:
+        return
+    try:
+        imap = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        imap.login(ZOHO_EMAIL, ZOHO_PASSWORD)
+        imap.select(IMAP_FOLDER)
+        typ, data = imap.search(None, "HEADER", "Message-ID", message_id)
+        if typ == "OK":
+            for num in data[0].split():
+                imap.store(num, "+FLAGS", RELAY_KEYWORD)
         imap.logout()
     except Exception:
         pass
