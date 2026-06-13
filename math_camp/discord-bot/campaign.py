@@ -186,8 +186,9 @@ class ReviewView(discord.ui.View):
         elif self.verdict == "accepted":
             e.add_field(name="Reply", value="*None — accepted, no auto-reply.*",
                         inline=False)
-        e.set_footer(text="🔴 decline+reply · 🟢 accept (flags important) · "
-                          "🚫 no reply · 🗑️ irrelevant (archive) · files → thread")
+        e.set_footer(text="🔴 decline+reply · 🟢 accept · 🚫 no reply · 🗑️ archive"
+                          "\n📎 To attach files: reply to THIS message with them, "
+                          "then press 📨 Send")
         return e
 
     async def _finalize(self, interaction, title, colour, note=""):
@@ -252,13 +253,25 @@ class ReviewView(discord.ui.View):
             return
         # Rejected: QUEUE the reply (sent first at the next slot — no pause).
         attachments = []
-        if self.thread:
+        # From the thread, if the bot was able to make one...
+        if self.thread is not None:
             try:
                 async for m in self.thread.history(limit=50):
                     for a in m.attachments:
                         attachments.append((a.filename, await a.read()))
             except Exception:
                 log.exception("reading thread attachments")
+        # ...and from any channel message that REPLIES to this review post — the
+        # fallback your team uses when the bot can't create threads.
+        if self.message is not None:
+            try:
+                async for m in self.message.channel.history(limit=100):
+                    ref = getattr(m, "reference", None)
+                    if ref is not None and ref.message_id == self.message.id:
+                        for a in m.attachments:
+                            attachments.append((a.filename, await a.read()))
+            except Exception:
+                log.exception("reading reply attachments")
         emailer.enqueue_reply({
             "to_email": r["from_email"], "subject": r["subject"],
             "body": self.draft, "in_reply_to": r["message_id"],
@@ -340,8 +353,10 @@ async def poll_replies():
                 view.thread = await msg.create_thread(
                     name=f"Reply · {r['from_name'][:60]}")
                 await view.thread.send(
-                    "Drop any files here to attach them, then press "
-                    "**📨 Send** above. (Pause the queue first.)")
+                    "Optional: drop files here (or reply to the message above) "
+                    "to attach them, then press **📨 Send**.")
+            except discord.Forbidden:
+                pass   # no thread perms — team attaches by replying to the post
             except Exception:
                 log.exception("creating attachment thread")
         except Exception:
