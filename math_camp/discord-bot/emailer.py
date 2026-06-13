@@ -231,6 +231,21 @@ REST_STEP_MIN    = 15    # rest shrinks by this each batch (4h00, 3h45, 3h30 ...
 MANDATORY_BREAK_EVERY_HOURS = 12
 MANDATORY_BREAK_MINUTES     = 60
 
+
+def _resume_ramp(already_sent):
+    """Fast-forward the escalating batch ramp to where `already_sent` emails
+    would put it, so a restart resumes mid-ramp instead of warming up from batch
+    #1. e.g. 56 sent (20+30, then 6 into the next) -> batch of 40, 6 in.
+    Returns (batch_size, rest_min, sent_in_batch)."""
+    batch_size = BATCH_START_SIZE
+    rest_min = REST_START_MIN
+    remaining = max(0, int(already_sent or 0))
+    while remaining >= batch_size:
+        remaining -= batch_size
+        batch_size += BATCH_STEP_SIZE
+        rest_min -= REST_STEP_MIN
+    return batch_size, rest_min, remaining
+
 # Column letters used when writing results back to the sheet
 COL_EMAIL          = "D"  # used to highlight duplicate emails yellow
 COL_TYPE           = "E"  # industry/template type (auto-corrected from the name)
@@ -820,13 +835,20 @@ def run():
     sent = 0
     failed = 0
     replies_sent = 0
-    sent_in_batch = 0
-    batch_size = BATCH_START_SIZE
-    rest_min = REST_START_MIN
+    # Resume the batch ramp from however many we've already sent, so a restart
+    # picks up mid-ramp (e.g. 56 already sent -> 3rd batch) instead of restarting
+    # the warm-up from batch #1.
+    already_sent = len(contacted_emails)
+    batch_size, rest_min, sent_in_batch = _resume_ramp(already_sent)
+    if already_sent:
+        print(f"   ▶️  Resuming ramp from {already_sent} already sent → batch of "
+              f"{batch_size} ({sent_in_batch} in), next rest "
+              f"{max(0, rest_min):.0f} min.")
     last_break = time.time()        # clock for the mandatory 12h break
     idx = 0                         # next outreach sponsor index
     STATUS.update(state="running", total=total, sent=0, failed=0,
-                  sent_in_batch=0, batch_size=batch_size, resting_until=0.0)
+                  sent_in_batch=sent_in_batch, batch_size=batch_size,
+                  resting_until=0.0)
 
     # Keep running until Stop. Queued replies are sent FIRST at each slot; once
     # the outreach list is exhausted the loop idles, still flushing replies.
