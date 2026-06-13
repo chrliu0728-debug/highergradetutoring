@@ -52,6 +52,9 @@ POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS") or 120)
 # we fall back to a channel named "registrations"/"general" or the system channel.
 REGISTER_CHANNEL_ID = os.environ.get("REGISTER_CHANNEL_ID") or ""
 REGISTER_POLL_SECONDS = int(os.environ.get("REGISTER_POLL_SECONDS") or 60)
+# Staff channel (the email-review channel) where "new registration — watch for
+# the e-Transfer" pings go. Same channel the reply review uses.
+REVIEW_CHANNEL_ID = os.environ.get("REVIEW_CHANNEL_ID") or ""
 
 # Names the bot manages on Discord. The bot creates these if missing
 # and only ever adds/removes these specific roles — it never touches
@@ -261,8 +264,9 @@ class HGBot(discord.Client):
         else:
             await self.tree.sync()
         sync_loop.start()
-        enrolled_announce_loop.start()   # @everyone ping on each new registration
-        oncall_reminder_loop.start()     # DM the on-call person ~1h before shift
+        enrolled_announce_loop.start()      # @everyone when a camper is confirmed/paid
+        registration_announce_loop.start()  # staff ping on each new registration
+        oncall_reminder_loop.start()        # DM the on-call person ~1h before shift
         # Sponsor-campaign mailbox poll (queue commands were registered at import).
         try:
             campaign.start_review_loop()
@@ -518,6 +522,67 @@ async def enrolled_announce_loop() -> None:
 
 @enrolled_announce_loop.before_loop
 async def _before_enrolled() -> None:
+    await bot.wait_until_ready()
+
+
+# ── New-registration ping — watch for the e-Transfer ─────────────────
+# When the total registered count rises, ping the STAFF work channel so the team
+# watches for that camper's payment. Distinct from the enrolled/paid milestone
+# ping above (which celebrates confirmed campers).
+_last_total_registered: Optional[int] = None
+
+
+@tasks.loop(seconds=REGISTER_POLL_SECONDS)
+async def registration_announce_loop() -> None:
+    global _last_total_registered
+    if not bot.is_ready():
+        return
+    try:
+        data = await api._get("/api/stats/campers")
+    except Exception:  # noqa: BLE001
+        log.exception("registration poll failed")
+        return
+    if not data.get("ok"):
+        return
+    try:
+        total = int(data.get("total"))
+    except (TypeError, ValueError):
+        return
+    paid = data.get("paid", 0)
+    unpaid = data.get("unpaid", 0)
+    if _last_total_registered is None:          # baseline silently on first poll
+        _last_total_registered = total
+        log.info("registration baseline set at %s total", total)
+        return
+    if total > _last_total_registered:
+        gained = total - _last_total_registered
+        _last_total_registered = total
+        if not REVIEW_CHANNEL_ID:
+            log.warning("new registration(s) but REVIEW_CHANNEL_ID is unset")
+            return
+        channel = bot.get_channel(int(REVIEW_CHANNEL_ID))
+        if channel is None:
+            log.warning("registration ping: staff channel %s not found",
+                        REVIEW_CHANNEL_ID)
+            return
+        noun = "registration" if gained == 1 else "registrations"
+        try:
+            await channel.send(
+                f"@everyone 📝 **{gained} new {noun}!** Now **{total}** registered "
+                f"({paid} paid · **{unpaid} awaiting payment**). 👀 Watch for the "
+                f"e-Transfer so we can confirm and unfreeze them.",
+                allowed_mentions=discord.AllowedMentions(everyone=True))
+            log.info("registration ping: +%s (total %s)", gained, total)
+        except discord.Forbidden:
+            log.warning("registration ping: missing perms in %s", REVIEW_CHANNEL_ID)
+        except Exception:  # noqa: BLE001
+            log.exception("registration ping failed")
+    elif total < _last_total_registered:
+        _last_total_registered = total
+
+
+@registration_announce_loop.before_loop
+async def _before_registration() -> None:
     await bot.wait_until_ready()
 
 

@@ -43,6 +43,11 @@ CONTROL_ROLE_ID = int(os.environ.get("CONTROL_ROLE_ID") or 0)
 # Message-ids we've already posted this session (so the poll doesn't repost).
 _posted_ids: set[str] = set()
 
+# Reviews still awaiting a human (oldest-first) — used to auto-bump them so they
+# don't get buried. How often we check is configurable.
+_active_reviews: list = []
+BUMP_INTERVAL_SECONDS = int(os.environ.get("REVIEW_BUMP_SECONDS") or 90)
+
 
 # ── helpers ───────────────────────────────────────────────────────────
 
@@ -345,6 +350,7 @@ async def poll_replies():
         try:
             msg = await channel.send(embed=view._embed(), view=view)
             view.message = msg
+            _active_reviews.append(view)          # track for auto-bump
             _posted_ids.add(r["message_id"])
             # Persistently mark it relayed so it never reposts (even across a
             # bot restart, and regardless of read-state).
@@ -365,6 +371,51 @@ async def poll_replies():
 
 @poll_replies.before_loop
 async def _before_poll():
+    if _bot is not None:
+        await _bot.wait_until_ready()
+
+
+# ── Keep unresolved reviews fresh (auto-bump) ────────────────────────
+@tasks.loop(seconds=BUMP_INTERVAL_SECONDS)
+async def bump_unresolved_loop():
+    """If an untouched reply review gets buried by newer messages, re-post it at
+    the bottom (oldest first) so it stays visible. Once someone clicks a button
+    on it (verdict set / handled), it stops bumping and scrolls away."""
+    if _bot is None or not REVIEW_CHANNEL_ID:
+        return
+    channel = _bot.get_channel(REVIEW_CHANNEL_ID)
+    if channel is None:
+        return
+    # Keep only still-untouched reviews (drop handled / acted-on ones).
+    pending = [v for v in _active_reviews
+               if v.message is not None and not v.handled and v.verdict is None]
+    _active_reviews[:] = pending
+    if not pending:
+        return
+    try:
+        recent_ids = set()
+        async for m in channel.history(limit=8):
+            recent_ids.add(m.id)
+    except Exception:
+        return
+    buried = [v for v in pending if v.message.id not in recent_ids]
+    if not buried:
+        return
+    # Re-post oldest-first so the earliest ends up above the newer ones.
+    for v in buried:
+        try:
+            old = v.message
+            v.message = await channel.send(embed=v._embed(), view=v)
+            try:
+                await old.delete()
+            except Exception:
+                pass
+        except Exception:
+            log.exception("bumping review")
+
+
+@bump_unresolved_loop.before_loop
+async def _before_bump():
     if _bot is not None:
         await _bot.wait_until_ready()
 
@@ -427,6 +478,9 @@ def start_review_loop() -> None:
     if REVIEW_CHANNEL_ID and not queue_break_announcer.is_running():
         queue_break_announcer.start()
         log.info("Queue break announcer started (channel=%s)", REVIEW_CHANNEL_ID)
+    if REVIEW_CHANNEL_ID and not bump_unresolved_loop.is_running():
+        bump_unresolved_loop.start()
+        log.info("Unresolved-review auto-bump started (channel=%s)", REVIEW_CHANNEL_ID)
     if not REVIEW_CHANNEL_ID:
         log.info("REVIEW_CHANNEL_ID not set — reply review + break alerts disabled.")
 
