@@ -162,6 +162,48 @@ class ReviewView(discord.ui.View):
         self.handled = False
         self.message_ids: set = set()   # every message id this review has had
                                         # (it changes each time we re-post/bump)
+        # Whatever the human types / drops in the thread, accumulated so a bump
+        # (which deletes the old message AND its thread) never loses it.
+        self.collected_text: list[str] = []
+        self.collected_files: list[tuple[str, bytes]] = []
+        self._seen_msg_ids: set = set()   # thread/reply messages already absorbed
+
+    async def _absorb(self, m, require_ref):
+        """Fold one thread/reply message's text + files into collected_* once."""
+        if m.id in self._seen_msg_ids:
+            return
+        if _bot is not None and _bot.user is not None and m.author.id == _bot.user.id:
+            self._seen_msg_ids.add(m.id)     # skip the bot's own thread prompts
+            return
+        if require_ref:
+            ref = getattr(m, "reference", None)
+            if ref is None or ref.message_id not in self.message_ids:
+                return                       # not a reply to THIS review
+        self._seen_msg_ids.add(m.id)
+        txt = (m.content or "").strip()
+        if txt:
+            self.collected_text.append(txt)
+        for a in m.attachments:
+            try:
+                self.collected_files.append((a.filename, await a.read()))
+            except Exception:
+                log.exception("reading attachment")
+
+    async def _harvest(self):
+        """Pull any new text + files the human added — from the thread if there is
+        one, otherwise from messages that reply to this review post."""
+        if self.thread is not None:
+            try:
+                async for m in self.thread.history(limit=100, oldest_first=True):
+                    await self._absorb(m, require_ref=False)
+            except Exception:
+                log.exception("harvesting thread")
+        elif self.message is not None:
+            try:
+                async for m in self.message.channel.history(limit=100):
+                    await self._absorb(m, require_ref=True)
+            except Exception:
+                log.exception("harvesting replies")
 
     def _embed(self) -> discord.Embed:
         r = self.reply
@@ -194,8 +236,8 @@ class ReviewView(discord.ui.View):
             e.add_field(name="Reply", value="*None — accepted, no auto-reply.*",
                         inline=False)
         e.set_footer(text="🔴 decline+reply · 🟢 accept · 🚫 no reply · 🗑️ archive"
-                          "\n📎 To attach files: reply to THIS message with them, "
-                          "then press 📨 Send")
+                          "\n💬 Type your reply (and drop any files) in the thread "
+                          "below, then press 📨 Send")
         return e
 
     async def _finalize(self, interaction, title, colour, note=""):
@@ -259,29 +301,15 @@ class ReviewView(discord.ui.View):
                 "follow up by hand.", ephemeral=True)
             return
         # Rejected: QUEUE the reply (sent first at the next slot — no pause).
-        attachments = []
-        # From the thread, if the bot was able to make one...
-        if self.thread is not None:
-            try:
-                async for m in self.thread.history(limit=50):
-                    for a in m.attachments:
-                        attachments.append((a.filename, await a.read()))
-            except Exception:
-                log.exception("reading thread attachments")
-        # ...and from any channel message that REPLIES to this review post — the
-        # fallback your team uses when the bot can't create threads.
-        if self.message is not None:
-            try:
-                async for m in self.message.channel.history(limit=100):
-                    ref = getattr(m, "reference", None)
-                    if ref is not None and ref.message_id in self.message_ids:
-                        for a in m.attachments:
-                            attachments.append((a.filename, await a.read()))
-            except Exception:
-                log.exception("reading reply attachments")
+        # Everything the human typed/dropped in the thread (carried across any
+        # bumps) becomes the reply: the text is the body, the files are attached.
+        # The pre-loaded draft is only a fallback if they typed nothing.
+        await self._harvest()
+        body = "\n\n".join(t for t in self.collected_text if t).strip() or self.draft
+        attachments = list(self.collected_files)
         emailer.enqueue_reply({
             "to_email": r["from_email"], "subject": r["subject"],
-            "body": self.draft, "in_reply_to": r["message_id"],
+            "body": body, "in_reply_to": r["message_id"],
             "references": r["references"], "attachments": attachments,
             "by": str(interaction.user),
             # Archive the original automatically once this reply actually sends.
@@ -362,8 +390,9 @@ async def poll_replies():
                 view.thread = await msg.create_thread(
                     name=f"Reply · {r['from_name'][:60]}")
                 await view.thread.send(
-                    "Optional: drop files here (or reply to the message above) "
-                    "to attach them, then press **📨 Send**.")
+                    "✍️ Type your reply here and drop any files, then press "
+                    "**📨 Send** on the message above. Everything in this thread "
+                    "becomes the reply.")
             except discord.Forbidden:
                 pass   # no thread perms — team attaches by replying to the post
             except Exception:
@@ -410,8 +439,30 @@ async def bump_unresolved_loop():
     for v in buried:
         try:
             old = v.message
+            # Save anything already in the (about-to-be-deleted) thread/replies so
+            # a bump never loses the human's in-progress reply or files.
+            await v._harvest()
             v.message = await channel.send(embed=v._embed(), view=v)
             v.message_ids.add(v.message.id)
+            # The old message's thread dies with it, so make a fresh one on the
+            # new message and recap whatever we carried over.
+            v.thread = None
+            try:
+                v.thread = await v.message.create_thread(
+                    name=f"Reply · {v.reply['from_name'][:60]}")
+                lines = []
+                if v.collected_text:
+                    so_far = "\n".join(v.collected_text)
+                    lines.append("**Reply so far:**\n" + so_far[:1500])
+                if v.collected_files:
+                    lines.append(f"📎 {len(v.collected_files)} file(s) carried over.")
+                lines.append("✍️ Keep typing/adding files here, then press "
+                             "**📨 Send** above.")
+                await v.thread.send("\n\n".join(lines))
+            except discord.Forbidden:
+                pass   # no thread perms — team replies to the post instead
+            except Exception:
+                log.exception("recreating thread on bump")
             try:
                 await old.delete()
             except Exception:
