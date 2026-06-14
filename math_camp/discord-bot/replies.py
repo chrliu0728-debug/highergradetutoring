@@ -133,9 +133,28 @@ def _decode(value):
         return str(value)
 
 
+def _html_to_text(html_src):
+    """Turn an HTML email body into readable plain text: drop <script>/<style>,
+    turn block tags into line breaks, strip the rest of the tags, decode HTML
+    entities (&quot; &nbsp; …) and collapse the whitespace."""
+    import re
+    import html as _htmlmod
+    s = html_src
+    s = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", s)   # kill CSS/JS
+    s = re.sub(r"(?i)<\s*br\s*/?>", "\n", s)                    # <br> → newline
+    s = re.sub(r"(?i)</\s*(p|div|tr|li|h[1-6]|table)\s*>", "\n", s)  # block ends
+    s = re.sub(r"<[^>]+>", " ", s)                              # strip all tags
+    s = _htmlmod.unescape(s)                                    # &quot; → " etc.
+    s = re.sub(r"[ \t\f\v]+", " ", s)                           # collapse spaces
+    s = re.sub(r" *\n *", "\n", s)                              # tidy line edges
+    s = re.sub(r"\n{3,}", "\n\n", s)                            # cap blank runs
+    return s.strip()
+
+
 def _plain_body(msg):
     """Best-effort plain-text body of an email.message.Message."""
     if msg.is_multipart():
+        # Prefer a real text/plain alternative.
         for part in msg.walk():
             if part.get_content_type() == "text/plain" and \
                     "attachment" not in str(part.get("Content-Disposition", "")):
@@ -144,22 +163,25 @@ def _plain_body(msg):
                         part.get_content_charset() or "utf-8", "replace")
                 except Exception:
                     continue
-        # fall back to any text/html stripped crudely
+        # Otherwise convert the HTML part to readable text.
         for part in msg.walk():
             if part.get_content_type() == "text/html":
                 try:
-                    import re
-                    html = part.get_payload(decode=True).decode(
+                    html_src = part.get_payload(decode=True).decode(
                         part.get_content_charset() or "utf-8", "replace")
-                    return re.sub(r"<[^>]+>", " ", html)
+                    return _html_to_text(html_src)
                 except Exception:
                     continue
         return ""
+    # Single-part message — strip it too if it's actually HTML.
     try:
-        return msg.get_payload(decode=True).decode(
+        raw = msg.get_payload(decode=True).decode(
             msg.get_content_charset() or "utf-8", "replace")
     except Exception:
         return str(msg.get_payload())
+    if msg.get_content_type() == "text/html":
+        return _html_to_text(raw)
+    return raw
 
 
 def classify_rejection(text):
