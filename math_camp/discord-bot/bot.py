@@ -698,7 +698,8 @@ class OnCallModal(discord.ui.Modal, title="Sign up for call duty"):
             await api.call_claim(self.date, name, number,
                                  discord_id=str(interaction.user.id))
             msg = (f"✅ You're on call for **{label}** — number **{number}**.\n"
-                   f"I'll DM you a reminder **1 hour before** (around 4 PM that day).")
+                   f"I'll **ping you ~1 hour before** your shift (around 4 PM "
+                   f"that day).")
         # Refresh the board in place.
         try:
             data = await api.call_schedule()
@@ -758,8 +759,21 @@ async def oncall_cmd(interaction: discord.Interaction) -> None:
 
 
 # Remind whoever's on call ~1 hour before their 5-8 PM shift (i.e. the 4 PM ET
-# hour). Only works for people who signed up via Discord (we have their id).
+# hour). We PING them with an @mention in a channel — a DM alone silently fails
+# if the person has DMs off — and also try a DM as a bonus.
+ONCALL_CHANNEL_ID = os.environ.get("ONCALL_CHANNEL_ID") or ""
 _last_oncall_reminder = None
+
+
+def _oncall_channel() -> Optional[discord.abc.Messageable]:
+    """Where to post the on-call @mention: ONCALL_CHANNEL_ID, then the staff
+    review channel, then the registration channel fallback."""
+    for cid in (ONCALL_CHANNEL_ID, REVIEW_CHANNEL_ID):
+        if cid:
+            ch = bot.get_channel(int(cid))
+            if ch is not None:
+                return ch
+    return _register_channel()
 
 
 @tasks.loop(minutes=10)
@@ -778,7 +792,6 @@ async def oncall_reminder_loop() -> None:
     today = now_e.strftime("%Y-%m-%d")
     if _last_oncall_reminder == today:
         return
-    _last_oncall_reminder = today      # fire at most once per day
     try:
         data = await api.call_schedule()
     except Exception:  # noqa: BLE001
@@ -786,20 +799,44 @@ async def oncall_reminder_loop() -> None:
         return
     if not data.get("ok"):
         return
-    entry = next((d for d in data.get("days", []) if d["date"] == today), None)
-    if not entry or not entry.get("discord_id"):
+    _last_oncall_reminder = today      # mark today's 4 PM hour handled (once/day)
+    entry = next((d for d in data.get("days", []) if d.get("date") == today), None)
+    if not entry:
         return
-    try:
-        uid = int(entry["discord_id"])
-        user = bot.get_user(uid) or await bot.fetch_user(uid)
-        num = entry.get("number") or "your number"
-        await user.send(
-            "📞 **Call-window reminder** — you're on call today from "
-            f"**5:00–8:00 PM**.\nCallers may reach **{num}** during that window. "
-            "Thanks for covering it! 🙌")
-        log.info("sent on-call reminder to %s for %s", uid, today)
-    except Exception:  # noqa: BLE001
-        log.exception("failed to DM on-call reminder")
+    name = entry.get("name") or "the volunteer on call"
+    num = entry.get("number") or "your number"
+    did = entry.get("discord_id")
+
+    # 1) Reliable: @mention them in a channel so it actually pings.
+    channel = _oncall_channel()
+    if channel is not None:
+        who = f"<@{did}>" if did else f"**{name}**"
+        msg = (f"📞 {who} — **call-window reminder!** You're on call today from "
+               f"**5:00–8:00 PM**. Callers may reach **{num}** during that "
+               f"window. Thanks for covering it! 🙌")
+        try:
+            await channel.send(msg, allowed_mentions=discord.AllowedMentions(
+                users=True, everyone=False, roles=False))
+            log.info("on-call ping posted for %s (%s)", name, today)
+        except discord.Forbidden:
+            log.warning("on-call ping: missing perms in the on-call channel")
+        except Exception:  # noqa: BLE001
+            log.exception("on-call channel ping failed")
+    else:
+        log.warning("on-call reminder: no channel to ping in "
+                    "(set ONCALL_CHANNEL_ID or REVIEW_CHANNEL_ID)")
+
+    # 2) Bonus: also DM them (best-effort; silently skipped if DMs are off).
+    if did:
+        try:
+            uid = int(did)
+            user = bot.get_user(uid) or await bot.fetch_user(uid)
+            await user.send(
+                "📞 **Call-window reminder** — you're on call today from "
+                f"**5:00–8:00 PM**.\nCallers may reach **{num}** during that "
+                "window. Thanks for covering it! 🙌")
+        except Exception:  # noqa: BLE001
+            log.info("on-call DM not delivered (DMs off?) — channel ping covers it")
 
 
 @oncall_reminder_loop.before_loop
