@@ -56,31 +56,40 @@
     }
   </style>
   <style>
-    /* ════════ Sponsor bubbles — flow BEHIND the frosted-glass page ════════ */
+    /* ════════ Sponsor bubbles — full-page field BEHIND the frosted glass ════════ */
     body.sp-glass {
+      position: relative;
       background:
-        radial-gradient(1200px 820px at 50% 122%, #cfe6ff 0%, transparent 60%),
-        radial-gradient(900px 600px at 85% -10%, #ffd9de 0%, transparent 55%),
-        linear-gradient(180deg, #e8f1ff, #eef6ff) !important;
+        radial-gradient(1200px 820px at 50% 120%, #cfe6ff 0%, transparent 60%),
+        radial-gradient(900px 600px at 85% -8%, #ffd9de 0%, transparent 55%),
+        linear-gradient(180deg, #eaf2ff, #f2f8ff) !important;
     }
+    /* navbar + page content sit ABOVE the bubbles (bubbles use auto z-index) */
     body.sp-glass .navbar { z-index: 200; }
+    body.sp-glass .page-hero,
+    body.sp-glass .section,
+    body.sp-glass footer { position: relative; z-index: 1; }
 
-    /* The bubble field sits BEHIND all page content (negative z-index) */
-    .sp-field { position: fixed; inset: 0; overflow: hidden; z-index: -1; pointer-events: none; }
+    /* the bubble field spans the FULL document height and scrolls with the page */
+    .sp-field { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
     .sp-bubble {
-      position: absolute; bottom: -200px; left: var(--x);
+      position: absolute; top: var(--baseY, 0); left: var(--x);
       width: var(--size); height: var(--size);
       pointer-events: auto; cursor: pointer;
       background: none; border: 0; padding: 0; margin: 0;
       -webkit-appearance: none; appearance: none; outline: none;
-      animation: sp-rise var(--dur) linear var(--delay) infinite; will-change: transform;
+      animation: sp-rise var(--dur) linear var(--delay) infinite; will-change: transform, opacity;
     }
     @keyframes sp-rise {
-      0%   { transform: translate(0,0); opacity: 0; }
-      6%   { opacity: 1; }
-      90%  { opacity: 1; }
-      100% { transform: translate(var(--drift), calc(-100vh - 460px)); opacity: 0; }
+      0%   { transform: translate(0, 0); opacity: 0; }
+      8%   { opacity: 1; }
+      86%  { opacity: 1; }
+      100% { transform: translate(var(--drift), -112vh); opacity: 0; }
     }
+    /* warp to the FRONT (above the glass) while inside the top box */
+    .sp-bubble.front { z-index: 2; }
+    .sp-bubble.front .sp-inner { transform: scale(1.07); box-shadow: 0 18px 44px rgba(40,80,140,.34); }
+
     .sp-rot { position: absolute; inset: 0; animation: sp-spin var(--spindur) var(--spinease) var(--spincount) forwards; }
     @keyframes sp-spin { from { transform: rotate(0); } to { transform: rotate(var(--spin-to)); } }
     .sp-inner {
@@ -89,6 +98,7 @@
       border: 2px solid rgba(255,255,255,.72);
       box-shadow: 0 10px 28px rgba(40,80,140,.22), inset 0 0 22px rgba(255,255,255,.55), inset -7px -9px 20px rgba(120,160,210,.22);
       display: flex; align-items: center; justify-content: center; overflow: hidden;
+      transition: transform .25s ease, box-shadow .25s ease;
     }
     .sp-inner img { max-width: 62%; max-height: 62%; object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0,0,0,.18)); }
     .sp-inner .wm { font-weight: 800; font-size: calc(var(--size) * .16); line-height: 1.05; text-align: center; padding: 0 6px; color: var(--wm, #15324f); }
@@ -96,50 +106,46 @@
     .sp-bubble.popped .sp-inner { animation: sp-pop .34s ease-out forwards; }
     @keyframes sp-pop { 0%{transform:scale(1);opacity:1} 40%{transform:scale(1.25);opacity:.9} 100%{transform:scale(.1);opacity:0} }
 
-    /* ── Whole page = frosted glass, so the bubbles show through ── */
+    /* ── Whole page = frosted glass; CLEARLY see-through buttons + fields ── */
     body.sp-glass .section,
     body.sp-glass .support-tier,
     body.sp-glass .donation-card,
     body.sp-glass .impact-cell,
     body.sp-glass .contact-form {
-      background: rgba(255,255,255,.26) !important;
-      -webkit-backdrop-filter: blur(7px) saturate(1.2); backdrop-filter: blur(7px) saturate(1.2);
+      background: rgba(255,255,255,.20) !important;
+      -webkit-backdrop-filter: blur(6px) saturate(1.2); backdrop-filter: blur(6px) saturate(1.2);
       border-color: rgba(255,255,255,.5) !important;
     }
     body.sp-glass .page-hero { background: transparent !important; }
     body.sp-glass .btn, body.sp-glass .amount-btn,
     body.sp-glass .contact-form input, body.sp-glass .contact-form textarea, body.sp-glass .contact-form select {
-      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      background: rgba(255,255,255,.16) !important;
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+      border-color: rgba(255,255,255,.55) !important;
     }
-    body.sp-glass .btn-ghost { background: rgba(255,255,255,.3) !important; }
-    /* clicks fall THROUGH the glass to the bubbles behind; real controls stay clickable */
-    body.sp-glass .section, body.sp-glass .page-hero { pointer-events: none; }
+    body.sp-glass .btn-blue, body.sp-glass .btn-navy { color: #fff !important; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+    body.sp-glass .contact-form input::placeholder, body.sp-glass .contact-form textarea::placeholder { color: rgba(40,60,90,.55); }
+    /* clicks fall THROUGH the glass to the bubbles; real controls stay clickable */
+    body.sp-glass .section, body.sp-glass .page-hero, body.sp-glass .sp-box { pointer-events: none; }
     body.sp-glass :is(a, button, input, textarea, select, label, .donation-card, [data-sponsor-tier]) { pointer-events: auto; }
 
-    /* ── The ONE non-glass area: big header with a circle in the centre ── */
-    .sp-hero {
-      position: relative; z-index: 1; min-height: 52vh;
-      display: flex; align-items: center; justify-content: center; padding: 44px 20px 32px;
-      background: linear-gradient(160deg, #0f2a4a, #1d4ed8 145%); overflow: hidden;
-    }
-    .sp-hero-deco { position:absolute; inset:0; opacity:.55;
-      background: radial-gradient(440px 440px at 18% 120%, rgba(255,255,255,.16), transparent 60%),
-                  radial-gradient(380px 380px at 86% -12%, rgba(255,255,255,.12), transparent 60%); }
-    .sp-hero-circle {
-      position: relative; z-index: 1;
+    /* ── The box: a transparent area at the top; circle centred ON TOP ── */
+    .sp-box { position: relative; z-index: 1; min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+    .sp-circle {
+      position: relative; z-index: 5; pointer-events: none;
       width: clamp(244px, 46vw, 380px); height: clamp(244px, 46vw, 380px); border-radius: 50%;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 30px; color: #fff;
-      background: radial-gradient(circle at 50% 36%, rgba(255,255,255,.20), rgba(255,255,255,.05));
-      border: 1.5px solid rgba(255,255,255,.38);
-      box-shadow: 0 30px 80px rgba(0,0,0,.35), inset 0 2px 36px rgba(255,255,255,.2);
-      -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+      text-align: center; padding: 30px; color: var(--text);
+      background: rgba(255,255,255,.42);
+      border: 1.5px solid rgba(255,255,255,.75);
+      box-shadow: 0 30px 80px rgba(40,80,140,.20), inset 0 2px 30px rgba(255,255,255,.45);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     }
-    .sp-hero-circle h2 { margin: 0; font-size: clamp(1.4rem, 3.6vw, 2rem); font-weight: 900; letter-spacing: -.02em; }
-    .sp-hero-circle p { margin: 12px 0 0; font-size: clamp(.82rem, 1.9vw, .96rem); color: rgba(255,255,255,.88); line-height: 1.5; }
-    .sp-hero-circle .sp-empty { margin-top: 12px; font-size: .8rem; color: rgba(255,255,255,.75); }
+    .sp-circle h2 { margin: 0; font-size: clamp(1.4rem, 3.6vw, 2rem); font-weight: 900; letter-spacing: -.02em; }
+    .sp-circle p { margin: 12px 0 0; font-size: clamp(.82rem, 1.9vw, .96rem); color: var(--text-mid); line-height: 1.5; }
+    .sp-circle .sp-empty { margin-top: 12px; font-size: .8rem; color: var(--muted); }
 
-    /* ── Splat: rendered in a top overlay so it is never occluded ── */
+    /* ── Splat overlay ── */
     .sp-splat { position: fixed; z-index: 1500; pointer-events: none; }
     .sp-splat .sp-ring { position: absolute; left: 0; top: 0; width: var(--w); height: var(--w);
       border: 4px solid var(--c); border-radius: 50%; animation: sp-ring .55s ease-out forwards; }
@@ -152,7 +158,7 @@
       100% { transform: translate(-50%,-50%) translate(var(--dx), var(--dy)) scale(.25); opacity: 0; }
     }
 
-    /* ── Colour-fade + themed modal with formation animation ── */
+    /* ── Colour fade + themed modal with formation animation ── */
     .sp-fade { position: fixed; inset: 0; z-index: 1100; opacity: 0; pointer-events: none; transition: opacity .45s ease; }
     .sp-fade.show { opacity: 1; pointer-events: auto; }
     #sp-modal { z-index: 1200; }
@@ -196,14 +202,13 @@
   </div>
 </nav>
 
-<!-- ─────────────────── SPONSOR BUBBLES (behind the glass) ─────────────────── -->
+<!-- ─────────────────── SPONSOR BUBBLES (full-page, behind glass) ─────────────────── -->
 <div class="sp-field" id="sp-field" aria-hidden="true"></div>
 
-<section class="sp-hero" id="sp-top">
-  <div class="sp-hero-deco"></div>
-  <div class="sp-hero-circle">
+<section class="sp-box" id="sp-box">
+  <div class="sp-circle">
     <h2>Check out our sponsors</h2>
-    <p>Tap a bubble drifting up behind the glass below.</p>
+    <p>Tap a bubble as it warps to the front up here.</p>
     <div class="sp-empty" id="sp-empty" style="display:none;">Sponsors will appear here soon.</div>
   </div>
 </section>
@@ -288,7 +293,6 @@ Your donation to this category covers the printed certificates, the medals and s
       <div class="section-label">Sponsorship</div>
       <h2 class="section-title">Sponsor the camp</h2>
       <p class="section-desc">Partner with us as an organization or business. All sponsors are recognized in our materials and at the event.</p>
-      <p style="margin-top:14px;"><a class="btn btn-blue" href="#sp-top">🫧 Meet our sponsors ↑</a></p>
     </div>
     <div class="grid-3">
       <div class="support-tier reveal">
@@ -687,9 +691,10 @@ Your donation to this category covers the printed certificates, the medals and s
 </script>
 
 <script>
-/* ════════ Sponsor bubble showcase — bubbles flow behind the glass ════════ */
+/* ════════ Sponsor bubble showcase — full-page field, warp-to-front in the box ════════ */
 (function () {
   const field   = document.getElementById('sp-field');
+  const box     = document.getElementById('sp-box');
   const emptyEl = document.getElementById('sp-empty');
   const fade    = document.getElementById('sp-fade');
   const modal   = document.getElementById('sp-modal');
@@ -801,7 +806,7 @@ Your donation to this category covers the printed certificates, the medals and s
     if (e.key === 'ArrowRight') go(slide + 1);
   });
 
-  /* soap-bubble splat, drawn in a top overlay at the bubble's screen position */
+  /* soap-bubble splat in a top overlay (never occluded) */
   function splatAt(cx, cy, color, size) {
     const sp = document.createElement('div');
     sp.className = 'sp-splat';
@@ -827,7 +832,6 @@ Your donation to this category covers the printed certificates, the medals and s
     setTimeout(() => sp.remove(), 750);
   }
 
-  /* pop → splat → (delay) → colour wash → (delay) → modal forms open */
   function popAndOpen(bubble, rot, s) {
     if (bubble.dataset.popped === '1') return;
     bubble.dataset.popped = '1';
@@ -845,11 +849,19 @@ Your donation to this category covers the printed certificates, the medals and s
     }, 600);
   }
 
+  function docHeight() {
+    return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight,
+                    document.body.offsetHeight, document.documentElement.offsetHeight);
+  }
+  function sizeField() { field.style.height = docHeight() + 'px'; }
+
   function build() {
     field.innerHTML = '';
-    if (!SPONSORS.length) { emptyEl.style.display = ''; return; }
+    if (!SPONSORS.length) { emptyEl.style.display = ''; sizeField(); return; }
     emptyEl.style.display = 'none';
-    const TOTAL = Math.min(20, Math.max(10, SPONSORS.length * 4));
+    sizeField();
+    const H = docHeight();
+    const TOTAL = Math.min(48, Math.max(16, Math.round(H / 120)));
     for (let i = 0; i < TOTAL; i++) {
       const s = SPONSORS[i % SPONSORS.length];
       const size = Math.round(rnd(74, 138));
@@ -857,10 +869,11 @@ Your donation to this category covers the printed certificates, the medals and s
       const bubble = document.createElement('button');
       bubble.className = 'sp-bubble';
       bubble.style.setProperty('--x', rnd(1, 92).toFixed(1) + 'vw');
+      bubble.style.setProperty('--baseY', (rnd(0.04, 1) * H).toFixed(0) + 'px');
       bubble.style.setProperty('--size', size + 'px');
-      bubble.style.setProperty('--drift', rnd(-55, 55).toFixed(0) + 'px');
-      bubble.style.setProperty('--dur', rnd(15, 27).toFixed(1) + 's');
-      bubble.style.setProperty('--delay', (-rnd(0, 26)).toFixed(1) + 's');
+      bubble.style.setProperty('--drift', rnd(-45, 45).toFixed(0) + 'px');
+      bubble.style.setProperty('--dur', rnd(16, 30).toFixed(1) + 's');
+      bubble.style.setProperty('--delay', (-rnd(0, 30)).toFixed(1) + 's');
       bubble.setAttribute('aria-label', s.name + ' — view sponsor');
       const dir = Math.random() < 0.5 ? 1 : -1;
       const rot = document.createElement('span');
@@ -879,7 +892,7 @@ Your donation to this category covers the printed certificates, the medals and s
       const inner = document.createElement('span');
       inner.className = 'sp-inner';
       inner.style.setProperty('--wm', contrast(isHex(accent) ? accent : '#ffffff'));
-      if (isHex(accent)) {                       // tint the ring with the brand colour
+      if (isHex(accent)) {
         inner.style.borderColor = accent;
         inner.style.boxShadow = '0 10px 28px rgba(40,80,140,.24), 0 0 0 1px ' + accent + '22, inset 0 0 22px rgba(255,255,255,.5)';
       }
@@ -893,6 +906,26 @@ Your donation to this category covers the printed certificates, the medals and s
     }
   }
 
+  /* Warp bubbles to the FRONT while they're inside the top box's screen band. */
+  function startWarp() {
+    setInterval(() => {
+      if (!field.children.length) return;
+      const br = box.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const onScreen = br.bottom > 0 && br.top < vh;
+      const reads = [];
+      for (const b of field.children) reads.push([b, b.getBoundingClientRect()]);
+      for (const [b, r] of reads) {
+        const cy = r.top + r.height / 2;
+        b.classList.toggle('front', onScreen && r.width > 0 && cy > br.top && cy < br.bottom);
+      }
+    }, 90);
+  }
+
+  let resizeT;
+  window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(sizeField, 200); });
+  window.addEventListener('load', sizeField);
+
   (async function load() {
     try {
       const r = await fetch('/api/sponsors', { credentials: 'same-origin' });
@@ -900,6 +933,8 @@ Your donation to this category covers the printed certificates, the medals and s
       SPONSORS = (j && j.ok && j.config && Array.isArray(j.config.sponsors)) ? j.config.sponsors : [];
     } catch (_) { SPONSORS = []; }
     build();
+    setTimeout(sizeField, 400);   // re-measure once fonts/images settle
+    startWarp();
   })();
 })();
 </script>
