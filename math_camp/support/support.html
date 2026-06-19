@@ -55,8 +55,148 @@
       box-shadow: 0 8px 24px rgba(232, 128, 138, 0.18);
     }
   </style>
+  <style>
+    /* ════════ Sponsor bubbles (rise up the whole Support page) ════════ */
+    body.sp-glass {
+      background:
+        radial-gradient(1100px 720px at 50% 118%, rgba(186,230,253,.55), transparent 60%),
+        radial-gradient(820px 560px at 82% -8%,  rgba(232,128,138,.16), transparent 60%),
+        linear-gradient(180deg, #eef5ff, #f7fbff) !important;
+    }
+    body.sp-glass .navbar { z-index: 200; }
+    /* frosted-glass content so the page reads translucent */
+    body.sp-glass .section,
+    body.sp-glass .support-tier,
+    body.sp-glass .donation-card,
+    body.sp-glass .impact-cell,
+    body.sp-glass .contact-form {
+      background: rgba(255,255,255,.66) !important;
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+    body.sp-glass .btn-ghost,
+    body.sp-glass .amount-btn { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+
+    /* ── Bubble field over the whole viewport ── */
+    .sp-field { position: fixed; inset: 0; overflow: hidden; z-index: 40; pointer-events: none; }
+    .sp-bubble {
+      position: absolute; bottom: -200px; left: var(--x);
+      width: var(--size); height: var(--size);
+      pointer-events: auto; cursor: pointer;
+      background: none; border: 0; padding: 0; margin: 0;
+      -webkit-appearance: none; appearance: none; outline: none;   /* ← the square fix */
+      animation: sp-rise var(--dur) linear var(--delay) infinite;
+      will-change: transform;
+    }
+    @keyframes sp-rise {
+      0%   { transform: translate(0, 0); opacity: 0; }
+      6%   { opacity: 1; }
+      92%  { opacity: 1; }
+      100% { transform: translate(var(--drift), calc(-100vh - 420px)); opacity: 0; }
+    }
+    /* rotation wrapper — randomised per bubble in JS */
+    .sp-rot {
+      position: absolute; inset: 0;
+      animation: sp-spin var(--spindur) var(--spinease) var(--spincount) forwards;
+    }
+    @keyframes sp-spin { from { transform: rotate(0); } to { transform: rotate(var(--spin-to)); } }
+
+    .sp-inner {
+      position: absolute; inset: 0; border-radius: 50%;
+      background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.6), rgba(255,255,255,.14) 58%, rgba(210,228,255,.10));
+      border: 2px solid rgba(255,255,255,.62);
+      box-shadow: 0 10px 30px rgba(40,80,140,.22), inset 0 0 22px rgba(255,255,255,.5), inset -7px -9px 20px rgba(120,160,210,.22);
+      -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .sp-bubble:hover .sp-inner { transform: scale(1.08); box-shadow: 0 16px 40px rgba(40,80,140,.3), inset 0 0 22px rgba(255,255,255,.6); }
+    .sp-inner img { max-width: 62%; max-height: 62%; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,.18)); }
+    .sp-inner .wm { font-weight: 800; font-size: calc(var(--size) * .16); line-height: 1.05; text-align: center; padding: 0 6px; color: var(--wm, #15324f); }
+    .sp-inner::before { content: ''; position: absolute; top: 11%; left: 17%; width: 27%; height: 18%; background: rgba(255,255,255,.85); border-radius: 50%; filter: blur(1px); }
+
+    /* ── Pop: soap-bubble burst ── */
+    .sp-bubble.pop { pointer-events: none; }
+    .sp-bubble.pop .sp-inner { animation: sp-pop .42s ease-out forwards; }
+    @keyframes sp-pop {
+      0%   { transform: scale(1);    opacity: 1; }
+      22%  { transform: scale(1.22); opacity: 1; }
+      45%  { transform: scale(1.3);  opacity: .9; }
+      100% { transform: scale(.15);  opacity: 0; }
+    }
+    .sp-droplet {
+      position: absolute; top: 50%; left: 50%;
+      width: var(--d, 9px); height: var(--d, 9px); border-radius: 50%;
+      background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.97), rgba(175,212,255,.65));
+      box-shadow: 0 0 7px rgba(255,255,255,.75);
+      animation: sp-drop .5s cubic-bezier(.2,.7,.3,1) forwards;
+    }
+    @keyframes sp-drop {
+      0%   { transform: translate(-50%, -50%) scale(1);  opacity: 1; }
+      100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.2); opacity: 0; }
+    }
+
+    /* ── Large box at the top ── */
+    .sp-topbox {
+      position: relative; z-index: 2;
+      max-width: 1080px; margin: 22px auto 0; padding: 0 20px;
+    }
+    .sp-topbox-inner {
+      background: rgba(255,255,255,.5);
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.7);
+      border-radius: 22px; padding: 26px 30px; text-align: center;
+      box-shadow: 0 18px 50px rgba(40,80,140,.14);
+    }
+    .sp-topbox-inner h2 { font-size: clamp(1.3rem, 3vw, 1.8rem); font-weight: 900; letter-spacing: -.02em; margin: 0; }
+    .sp-topbox-inner p  { margin: 8px 0 0; color: var(--text-mid); font-size: .95rem; }
+    .sp-topbox-inner .sp-empty { margin-top: 8px; font-size: .85rem; color: var(--muted); }
+
+    /* ── Colour-fade overlay ── */
+    .sp-fade { position: fixed; inset: 0; z-index: 1100; opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+    .sp-fade.show { opacity: 1; pointer-events: auto; }
+
+    /* ── Showcase modal (reuses .sponsor-* classes, themed) ── */
+    #sp-modal { z-index: 1200; }
+    #sp-modal .sponsor-modal-backdrop { background: rgba(8,18,34,.32); }
+    #sp-modal .sponsor-modal-card {
+      background: var(--card-bg, var(--surface));
+      color: var(--card-text, var(--text));
+      border: 3px solid var(--card-border, transparent);
+    }
+    #sp-modal .sponsor-modal-eyebrow,
+    #sp-modal .sponsor-modal-name,
+    #sp-modal .sponsor-modal-tagline,
+    #sp-modal .sponsor-modal-desc,
+    #sp-modal .sponsor-people-label,
+    #sp-modal .sponsor-person-name { color: var(--card-text, var(--text)); }
+    #sp-modal .sponsor-modal-desc,
+    #sp-modal .sponsor-person-role { opacity: .85; }
+    #sp-modal .sponsor-location a { color: var(--card-text, var(--text)); border-bottom-color: var(--sponsor-accent); }
+    #sp-modal .sponsor-person-photo.placeholder { color: var(--card-text, var(--text)); }
+
+    /* formation: the card grows out of a bubble, content forms in */
+    #sp-modal.open .sponsor-modal-card { animation: sp-form .5s cubic-bezier(.2,.85,.25,1); }
+    @keyframes sp-form {
+      0%   { transform: scale(.25); border-radius: 50%; opacity: 0; }
+      55%  { opacity: 1; }
+      100% { transform: scale(1);   border-radius: 18px; opacity: 1; }
+    }
+    #sp-modal.open .sp-stagger > * { animation: sp-stag .5s both; }
+    #sp-modal.open .sp-stagger > *:nth-child(1) { animation-delay: .20s; }
+    #sp-modal.open .sp-stagger > *:nth-child(2) { animation-delay: .28s; }
+    #sp-modal.open .sp-stagger > *:nth-child(3) { animation-delay: .34s; }
+    #sp-modal.open .sp-stagger > *:nth-child(4) { animation-delay: .40s; }
+    #sp-modal.open .sp-stagger > *:nth-child(5) { animation-delay: .46s; }
+    #sp-modal.open .sp-stagger > *:nth-child(6) { animation-delay: .52s; }
+    @keyframes sp-stag { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sp-bubble, .sp-rot { animation-duration: .001s !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
 </head>
-<body>
+<body class="sp-glass">
 
 <!-- ─────────────────── NAVBAR ─────────────────── -->
 <nav class="navbar">
@@ -77,6 +217,17 @@
     </button>
   </div>
 </nav>
+
+<!-- ─────────────────── SPONSOR BUBBLES ─────────────────── -->
+<div class="sp-field" id="sp-field" aria-hidden="true"></div>
+
+<div class="sp-topbox" id="sp-top">
+  <div class="sp-topbox-inner">
+    <h2>🫧 Our Sponsors</h2>
+    <p>Tap a bubble as it floats up to meet the partner behind it.</p>
+    <div class="sp-empty" id="sp-empty" style="display:none;">Sponsors will bubble up here soon.</div>
+  </div>
+</div>
 
 <!-- ─────────────────── PAGE HERO ─────────────────── -->
 <section class="page-hero">
@@ -158,7 +309,7 @@ Your donation to this category covers the printed certificates, the medals and s
       <div class="section-label">Sponsorship</div>
       <h2 class="section-title">Sponsor the camp</h2>
       <p class="section-desc">Partner with us as an organization or business. All sponsors are recognized in our materials and at the event.</p>
-      <p style="margin-top:14px;"><a class="btn btn-blue" href="/sponsors/sponsors.html">🫧 Meet our sponsors →</a></p>
+      <p style="margin-top:14px;"><a class="btn btn-blue" href="#sp-top">🫧 Meet our sponsors ↑</a></p>
     </div>
     <div class="grid-3">
       <div class="support-tier reveal">
@@ -301,6 +452,40 @@ Your donation to this category covers the printed certificates, the medals and s
     </div>
   </div>
 </section>
+
+<!-- ─────────────────── SPONSOR SHOWCASE (bubble → modal) ─────────────────── -->
+<div class="sp-fade" id="sp-fade"></div>
+
+<div class="sponsor-modal" id="sp-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Sponsor details">
+  <div class="sponsor-modal-backdrop" data-sp-close></div>
+  <div class="sponsor-modal-card" role="document">
+    <button class="sponsor-modal-close" data-sp-close aria-label="Close">×</button>
+    <div class="sp-stagger">
+      <div class="sponsor-modal-head" id="spm-head">
+        <img class="sponsor-modal-logo" id="spm-logo" alt="" />
+        <div>
+          <div class="sponsor-modal-eyebrow">Title Sponsor</div>
+          <h2 class="sponsor-modal-name" id="spm-name"></h2>
+          <p class="sponsor-modal-tagline" id="spm-tagline"></p>
+        </div>
+      </div>
+      <div>
+        <div class="sponsor-carousel">
+          <button class="sponsor-carousel-arrow prev" id="spm-prev" aria-label="Previous image">‹</button>
+          <div class="sponsor-carousel-viewport"><div class="sponsor-carousel-track" id="spm-track"></div></div>
+          <button class="sponsor-carousel-arrow next" id="spm-next" aria-label="Next image">›</button>
+        </div>
+        <div class="sponsor-carousel-dots" id="spm-dots"></div>
+      </div>
+      <div class="sponsor-location" id="spm-location"></div>
+      <div class="sponsor-modal-desc" id="spm-desc"></div>
+      <div>
+        <div class="sponsor-people-label">In partnership with</div>
+        <div class="sponsor-people" id="spm-people"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ─────────────────── SPONSOR-TIER QUICK MODAL ─────────────────── -->
 <style>
@@ -520,6 +705,224 @@ Your donation to this category covers the printed certificates, the medals and s
       }
     });
   })();
+</script>
+
+<script>
+/* ════════ Sponsor bubble showcase ════════ */
+(function () {
+  const field   = document.getElementById('sp-field');
+  const emptyEl = document.getElementById('sp-empty');
+  const fade    = document.getElementById('sp-fade');
+  const modal   = document.getElementById('sp-modal');
+  const elCard  = modal.querySelector('.sponsor-modal-card');
+  const elHead  = document.getElementById('spm-head');
+  const elLogo  = document.getElementById('spm-logo');
+  const elName  = document.getElementById('spm-name');
+  const elTag   = document.getElementById('spm-tagline');
+  const elTrack = document.getElementById('spm-track');
+  const elDots  = document.getElementById('spm-dots');
+  const elLoc   = document.getElementById('spm-location');
+  const elDesc  = document.getElementById('spm-desc');
+  const elPeople= document.getElementById('spm-people');
+  const elPrev  = document.getElementById('spm-prev');
+  const elNext  = document.getElementById('spm-next');
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0,2).join('').toUpperCase();
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  function grad(colors, fb) {
+    const c = (colors || []).filter(Boolean);
+    if (!c.length) return fb || '';
+    return c.length === 1 ? c[0] : `linear-gradient(135deg, ${c.join(', ')})`;
+  }
+  function contrast(hex) {
+    if (!hex || hex[0] !== '#') return '#ffffff';
+    let h = hex.slice(1); if (h.length === 3) h = h.split('').map(x => x + x).join('');
+    const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+    return (0.299*r + 0.587*g + 0.114*b)/255 > 0.6 ? '#15324f' : '#ffffff';
+  }
+  const accentOf = s => s.border || (s.board && s.board[0]) || (s.background && s.background[0]) || '#e8808a';
+
+  let SPONSORS = [], slide = 0, popped = null;
+
+  /* carousel */
+  function renderCarousel(s) {
+    const imgs = (s.images || []).filter(Boolean).slice(0, 4);
+    if (!imgs.length) imgs.push('');
+    elTrack.innerHTML = imgs.map((src, i) => `
+      <div class="sponsor-slide">${src
+        ? `<img src="${esc(src)}" alt="${esc(s.name)} photo ${i+1}" />`
+        : `<div class="sponsor-slide-placeholder">Image ${i+1}<br><small>add a photo</small></div>`}</div>`).join('');
+    elDots.innerHTML = imgs.map((_, i) => `<button class="sponsor-dot" data-i="${i}" aria-label="Image ${i+1}"></button>`).join('');
+    slide = 0; updateCarousel();
+  }
+  function updateCarousel() {
+    elTrack.style.transform = `translateX(-${slide * 100}%)`;
+    [...elDots.children].forEach((d, i) => d.classList.toggle('active', i === slide));
+  }
+  function go(n) { const c = elTrack.children.length || 1; slide = (n + c) % c; updateCarousel(); }
+  elPrev.addEventListener('click', () => go(slide - 1));
+  elNext.addEventListener('click', () => go(slide + 1));
+  elDots.addEventListener('click', e => { const d = e.target.closest('.sponsor-dot'); if (d) go(+d.dataset.i); });
+
+  /* theme + fill */
+  function fillModal(s) {
+    const accent = accentOf(s);
+    elCard.style.setProperty('--sponsor-accent', accent);
+    elCard.style.setProperty('--card-border', s.border || 'transparent');
+    // The card background ("board") drives the text colour so text is always
+    // the opposite of whatever's behind it.
+    const boardBg = grad(s.board, '');
+    if (boardBg) {
+      elCard.style.setProperty('--card-bg', boardBg);
+      elCard.style.setProperty('--card-text', contrast((s.board && s.board[0]) || ''));
+    } else {
+      elCard.style.setProperty('--card-bg', 'var(--surface)');
+      elCard.style.setProperty('--card-text', 'var(--text)');
+    }
+    if (s.logo) {
+      elLogo.src = s.logo; elLogo.style.display = '';
+      elName.style.display = 'none'; elTag.style.display = 'none';
+    } else {
+      elLogo.style.display = 'none'; elName.style.display = ''; elTag.style.display = '';
+    }
+    elName.textContent = s.name || '';
+    elTag.textContent  = s.tagline || '';
+    elDesc.textContent = s.description || '';
+    if (s.location && s.location.label) {
+      const url = s.location.url || '';
+      elLoc.innerHTML = url
+        ? `<a href="${esc(url)}" target="_blank" rel="noopener">📍 ${esc(s.location.label)}</a>`
+        : `<span>📍 ${esc(s.location.label)}</span>`;
+      elLoc.style.display = '';
+    } else { elLoc.style.display = 'none'; }
+    elPeople.innerHTML = (s.staff || []).filter(p => p && (p.name || p.photo)).slice(0, 2).map(p => `
+      <div class="sponsor-person">${p.photo
+        ? `<img class="sponsor-person-photo" src="${esc(p.photo)}" alt="${esc(p.name)}" />`
+        : `<div class="sponsor-person-photo placeholder">${esc(initials(p.name))}</div>`}
+        <div class="sponsor-person-name">${esc(p.name)}</div>
+        <div class="sponsor-person-role">${esc(p.position)}</div></div>`).join('');
+    renderCarousel(s);
+    fade.style.background = grad(s.background, 'linear-gradient(135deg, #0f2a4a, #173a63)');
+  }
+
+  function openModal(s) {
+    fillModal(s);
+    // restart the formation animation each open
+    modal.classList.remove('open'); void modal.offsetWidth;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    fade.classList.remove('show');
+    if (popped) {                          // un-pop and let the bubble rise again
+      popped.bubble.classList.remove('pop');
+      popped.bubble.style.animationPlayState = 'running';
+      popped.rot.style.animationPlayState = 'running';
+      popped.bubble.querySelectorAll('.sp-droplet').forEach(d => d.remove());
+      popped = null;
+    }
+  }
+  modal.querySelectorAll('[data-sp-close]').forEach(el => el.addEventListener('click', closeModal));
+  document.addEventListener('keydown', e => {
+    if (!modal.classList.contains('open')) return;
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowLeft') go(slide - 1);
+    if (e.key === 'ArrowRight') go(slide + 1);
+  });
+
+  /* pop → (delay) → colour-fade → (delay) → modal */
+  function popAndOpen(bubble, rot, s) {
+    if (bubble.classList.contains('pop')) return;
+    popped = { bubble, rot };
+    bubble.style.animationPlayState = 'paused';   // freeze rise
+    rot.style.animationPlayState = 'paused';       // freeze spin
+    // scatter droplets
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('span');
+      d.className = 'sp-droplet';
+      const ang = (i / n) * Math.PI * 2 + rnd(-0.3, 0.3);
+      const dist = rnd(40, 95);
+      d.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+      d.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
+      d.style.setProperty('--d', rnd(6, 13).toFixed(0) + 'px');
+      bubble.appendChild(d);
+    }
+    bubble.classList.add('pop');
+    // delay before the colour wash, then a further delay before the modal
+    setTimeout(() => {
+      fade.style.background = grad(s.background, 'linear-gradient(135deg, #0f2a4a, #173a63)');
+      fade.classList.add('show');
+      setTimeout(() => openModal(s), 480);   // ← delay before the pop-up shows
+    }, 430);
+  }
+
+  /* build bubbles with randomised rise + rotation */
+  function build() {
+    field.innerHTML = '';
+    if (!SPONSORS.length) { emptyEl.style.display = ''; return; }
+    emptyEl.style.display = 'none';
+    const TOTAL = Math.min(20, Math.max(9, SPONSORS.length * 4));
+    for (let i = 0; i < TOTAL; i++) {
+      const s = SPONSORS[i % SPONSORS.length];
+      const size = Math.round(rnd(74, 138));
+      const accent = accentOf(s);
+
+      const bubble = document.createElement('button');
+      bubble.className = 'sp-bubble';
+      bubble.style.setProperty('--x', rnd(1, 92).toFixed(1) + 'vw');
+      bubble.style.setProperty('--size', size + 'px');
+      bubble.style.setProperty('--drift', rnd(-55, 55).toFixed(0) + 'px');
+      bubble.style.setProperty('--dur', rnd(15, 27).toFixed(1) + 's');
+      bubble.style.setProperty('--delay', (-rnd(0, 26)).toFixed(1) + 's');
+      bubble.setAttribute('aria-label', s.name + ' — view sponsor');
+
+      // rotation: half spin forever, half slow to a stop; direction random
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const rot = document.createElement('span');
+      rot.className = 'sp-rot';
+      if (Math.random() < 0.5) {                          // continuous
+        rot.style.setProperty('--spin-to', (dir * 360) + 'deg');
+        rot.style.setProperty('--spindur', rnd(6, 16).toFixed(1) + 's');
+        rot.style.setProperty('--spinease', 'linear');
+        rot.style.setProperty('--spincount', 'infinite');
+      } else {                                            // spin then ease to a stop
+        rot.style.setProperty('--spin-to', (dir * rnd(160, 520)).toFixed(0) + 'deg');
+        rot.style.setProperty('--spindur', rnd(3.5, 7).toFixed(1) + 's');
+        rot.style.setProperty('--spinease', 'cubic-bezier(.12,.8,.2,1)');
+        rot.style.setProperty('--spincount', '1');
+      }
+
+      const inner = document.createElement('span');
+      inner.className = 'sp-inner';
+      inner.style.setProperty('--wm', contrast(typeof accent === 'string' && accent[0] === '#' ? accent : '#ffffff'));
+      inner.innerHTML = s.logo
+        ? `<img src="${esc(s.logo)}" alt="${esc(s.name)}" />`
+        : `<span class="wm">${esc(s.name)}</span>`;
+
+      rot.appendChild(inner);
+      bubble.appendChild(rot);
+      bubble.addEventListener('click', () => popAndOpen(bubble, rot, s));
+      field.appendChild(bubble);
+    }
+  }
+
+  (async function load() {
+    try {
+      const r = await fetch('/api/sponsors', { credentials: 'same-origin' });
+      const j = await r.json();
+      SPONSORS = (j && j.ok && j.config && Array.isArray(j.config.sponsors)) ? j.config.sponsors : [];
+    } catch (_) { SPONSORS = []; }
+    build();
+  })();
+})();
 </script>
 </body>
 </html>
