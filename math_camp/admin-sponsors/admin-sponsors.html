@@ -333,7 +333,7 @@ function newSponsor() {
     id: 'sp_' + Math.random().toString(36).slice(2, 9),
     name: 'New sponsor', tagline: '', logo: '', description: '',
     location: { label: '', url: '' },
-    staff: [], images: [], board: [], border: '', background: [],
+    staff: [], images: [], signature: '#3b82f6', board: [], border: '', background: [],
   };
 }
 function cur() { return config.sponsors[currentIdx]; }
@@ -389,7 +389,9 @@ function renderEditor() {
         <div class="field"><label>Location link (Google Maps URL)</label><input type="text" id="f-loc-url" value="${esc(s.location && s.location.url)}" placeholder="https://…" /></div>
 
         <div class="sub">Brand colours</div>
-        <div class="hint">Board colours theme the card's header band (2–3 = gradient, top-left → bottom-right). Border is a single outline colour. Background is the full-page colour the site fades into when the bubble pops (2 = gradient).</div>
+        <div class="hint">Signature colour is required — it's the colour that spreads across the page and travels up into the circle when a visitor pops this sponsor's bubble, and the page keeps it afterward. Board colours theme the card's header band (2–3 = gradient). Border is a single outline colour. Background is an optional fade gradient.</div>
+        <label style="font-size:.82rem;font-weight:800;color:var(--text);">Signature colour <span style="color:#c0392b;">*</span></label>
+        <div class="color-row" id="sig-row"></div>
         <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Board (up to 3)</label>
         <div class="color-row" id="board-row"></div>
         <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Border (1, optional)</label>
@@ -526,13 +528,21 @@ function renderStaff(s) {
   };
 }
 
-/* colours — board (≤3), border (1), background (≤2) */
+/* colours — signature (required), board (≤3), border (1), background (≤2) */
 function renderColors(s) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(s.signature || '')) s.signature = '#3b82f6';
   s.board = (s.board || []).filter(Boolean).slice(0, 3);
   s.background = (s.background || []).filter(Boolean).slice(0, 2);
+  signatureControl(s);
   colorList('board-row', s.board, 3, () => { renderPreview(); markDirty(); });
   colorList('bg-row', s.background, 2, () => { renderPreview(); markDirty(); });
   borderControl(s);
+}
+function signatureControl(s) {
+  const row = document.getElementById('sig-row');
+  row.innerHTML = `<span class="swatch"><input type="color" id="sig-color" value="${s.signature}" /></span>
+    <span class="hint" style="margin:0;">required — drives the pop colour, the circle logo fill, and the page tint</span>`;
+  row.querySelector('#sig-color').addEventListener('input', (e) => { s.signature = e.target.value; renderPreview(); markDirty(); });
 }
 function colorList(rowId, arr, max, onChange) {
   const row = document.getElementById(rowId);
@@ -575,10 +585,10 @@ function borderControl(s) {
 function renderPreview() {
   const box = document.getElementById('preview-box'); if (!box) return;
   const s = cur(); if (!s) return;
-  const accent = s.border || (s.board && s.board[0]) || (s.background && s.background[0]) || '#173a63';
+  const sig = /^#[0-9a-fA-F]{6}$/.test(s.signature || '') ? s.signature : '#3b82f6';
+  const accent = sig;
   const boardBg = grad(s.board, '#eef2f7');
   const boardText = s.board && s.board[0] ? contrast(s.board[0]) : '#1b2430';
-  const bgBg = grad(s.background, 'linear-gradient(135deg,#0f2a4a,#173a63)');
   box.innerHTML = `
     <div class="pv-bubble" style="border:3px solid ${esc(accent)}">
       ${s.logo ? `<img src="${esc(s.logo)}" alt="" />` : `<span class="wm" style="color:${esc(accent)}">${esc(s.name || 'Name')}</span>`}
@@ -587,7 +597,7 @@ function renderPreview() {
       <div class="pv-board" style="background:${esc(boardBg)};color:${esc(boardText)}">${esc(s.name || 'Sponsor')}</div>
       <div class="pv-body">Card header uses the board colours.</div>
     </div>
-    <div style="width:90px;height:90px;border-radius:14px;background:${esc(bgBg)};box-shadow:0 8px 22px rgba(0,0,0,.16);display:flex;align-items:flex-end;justify-content:center;color:#fff;font-size:.66rem;padding:6px;text-align:center;">page fade</div>`;
+    <div style="width:90px;height:90px;border-radius:14px;background:${esc(sig)};box-shadow:0 8px 22px rgba(0,0,0,.16);display:flex;align-items:flex-end;justify-content:center;color:${esc(contrast(sig))};font-size:.66rem;padding:6px;text-align:center;">signature</div>`;
 }
 
 /* ── Save / load ───────────────────────────────────────────────── */
