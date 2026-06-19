@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Paper Crane — HigherGrade Tutoring</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     html, body {
       min-height: 100vh;
@@ -144,7 +144,7 @@
       <div class="cr-meta">Signed in as <strong id="li-name">…</strong></div>
       <div class="cr-msg" id="li-msg"></div>
       <button class="cr-btn" id="li-claim-btn">Claim the Crane →</button>
-      <p class="cr-footer"><a href="student-portal.html">← Back to your dashboard</a></p>
+      <p class="cr-footer"><a href="/student-portal/student-portal.html">← Back to your dashboard</a></p>
     </div>
 
     <!-- Logged-out: sign-in form, then auto-claim -->
@@ -161,7 +161,7 @@
 
       <div class="cr-msg" id="lo-msg"></div>
       <button class="cr-btn" id="lo-claim-btn">Sign in &amp; claim →</button>
-      <p class="cr-footer">No account? <a href="register.html">Register first</a></p>
+      <p class="cr-footer">No account? <a href="/register/register.html">Register first</a></p>
     </div>
 
     <!-- Success -->
@@ -170,13 +170,13 @@
       <div class="cr-eyebrow">Claimed</div>
       <h1>The crane is yours</h1>
       <p class="sub" id="success-sub">Watch your dashboard for hints from camp instructors. Each one points you toward the next puzzle.</p>
-      <a class="cr-btn" href="student-portal.html" style="display:inline-block; text-decoration:none; padding-top:14px;">Go to my dashboard →</a>
+      <a class="cr-btn" href="/student-portal/student-portal.html" style="display:inline-block; text-decoration:none; padding-top:14px;">Go to my dashboard →</a>
     </div>
 
   </div>
 </div>
 
-<script src="students-data.js"></script>
+<script src="/students-data.js"></script>
 <script>
 const elLoading   = document.getElementById('view-loading');
 const elLoggedIn  = document.getElementById('view-loggedin');
@@ -204,7 +204,7 @@ function showSuccess(remaining) {
     successSub.innerHTML = `Watch your dashboard for hints from camp instructors. <strong>${remaining}</strong> ${remaining === 1 ? 'crane' : 'cranes'} left in the camp.`;
   }
   showOnly(elSuccess);
-  setTimeout(() => { location.href = 'student-portal.html'; }, 2600);
+  setTimeout(() => { location.href = '/student-portal/student-portal.html'; }, 2600);
 }
 
 function showError(target, msg) {
@@ -270,7 +270,7 @@ loEmail.addEventListener('keydown', e => { if (e.key === 'Enter') loPwd.focus();
     if (Array.isArray(student.roles) && student.roles.includes(CRANE_ROLE_ID)) {
       successSub.textContent = 'You already hold the Paper Crane. Hints will appear on your dashboard.';
       showOnly(elSuccess);
-      setTimeout(() => { location.href = 'student-portal.html'; }, 2200);
+      setTimeout(() => { location.href = '/student-portal/student-portal.html'; }, 2200);
       return;
     }
     showOnly(elLoggedIn);

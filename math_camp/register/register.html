@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Register — HigherGrade Tutoring Summer Camp 2026</title>
   <meta name="description" content="Register for HigherGrade Tutoring's Summer Camp 2026 — an accelerated MTH1W math summer camp at Sheridan College Trafalgar Campus, led by Grade 11 & 12 HDSB students. HDSB and other boards welcome. August 4–15, 2026." />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     /* ── Math Check (BEDMAS practice test) ── */
     .mc-question {
@@ -55,7 +55,7 @@
       }
       // Fast-path on repeat visits inside the same tab.
       if (sessionStorage.getItem('hg_signed_in_student') === '1') {
-        window.location.replace('trail.html');
+        window.location.replace('/trail/trail.html');
         return;
       }
       // Run the auth check and freeze check in parallel; reveal only
@@ -68,7 +68,7 @@
       authP.then(j => {
         if (j && j.kind === 'student') {
           sessionStorage.setItem('hg_signed_in_student', '1');
-          window.location.replace('trail.html');
+          window.location.replace('/trail/trail.html');
           return; // navigating away — leave cloak in place
         }
         sessionStorage.removeItem('hg_signed_in_student');
@@ -302,8 +302,8 @@
     <p style="color:var(--muted); font-size:.92rem; margin:0;">A note from the camp organizers:</p>
     <div class="frozen-reason" id="frozen-reason-text">Registrations are temporarily closed. Please check back soon.</div>
     <div class="frozen-actions">
-      <a href="index.html" class="btn btn-blue" style="justify-content:center;">← Back to home</a>
-      <a href="support.html#contact-sponsor" class="btn" style="justify-content:center; background:var(--surface2); color:var(--text); border:1px solid var(--border);">Contact us</a>
+      <a href="/index.html" class="btn btn-blue" style="justify-content:center;">← Back to home</a>
+      <a href="/support/support.html#contact-sponsor" class="btn" style="justify-content:center; background:var(--surface2); color:var(--text); border:1px solid var(--border);">Contact us</a>
     </div>
   </div>
 </div>
@@ -332,16 +332,16 @@
 <!-- ─────────────────── NAVBAR ─────────────────── -->
 <nav class="navbar">
   <div class="nav-inner">
-    <a href="index.html" class="nav-logo">
-      <img src="logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+    <a href="/index.html" class="nav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
     </a>
     <ul class="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="about.html">About Us</a></li>
-      <li><a href="support.html">Support Us</a></li>
-      <li><a href="contact.html">Contact</a></li>
-      <li><a href="student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="register.html" class="nav-cta">Register Now</a></li>
+      <li><a href="/index.html">Home</a></li>
+      <li><a href="/about/about.html">About Us</a></li>
+      <li><a href="/support/support.html">Support Us</a></li>
+      <li><a href="/contact/contact.html">Contact</a></li>
+      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
+      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
     </ul>
     <button class="hamburger" aria-label="Menu">
       <span></span><span></span><span></span>
@@ -828,8 +828,8 @@
             <div>📍 <strong>Location:</strong> Sheridan College — Trafalgar Campus, Oakville</div>
           </div>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-            <a href="student-portal.html" class="btn btn-primary">Go to your student portal →</a>
-            <a href="index.html" class="btn btn-ghost">Back to Home</a>
+            <a href="/student-portal/student-portal.html" class="btn btn-primary">Go to your student portal →</a>
+            <a href="/index.html" class="btn btn-ghost">Back to Home</a>
           </div>
         </div>
       </div>
@@ -877,9 +877,9 @@
         <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
         <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
       </div>
-      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
-      <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="about.html#schedule">Schedule</a></li><li><a href="about.html#team">Our Team</a></li><li><a href="index.html#faq">FAQ</a></li></ul></div>
-      <div class="footer-col"><h4>Contact</h4><ul><li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li><li><a href="support.html">Become a Sponsor</a></li></ul></div>
+      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="/index.html">Home</a></li><li><a href="/about/about.html">About Us</a></li><li><a href="/support/support.html">Support Us</a></li><li><a href="/register/register.html">Register</a></li></ul></div>
+      <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="/about/about.html#schedule">Schedule</a></li><li><a href="/about/about.html#team">Our Team</a></li><li><a href="/index.html#faq">FAQ</a></li></ul></div>
+      <div class="footer-col"><h4>Contact</h4><ul><li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li><li><a href="/support/support.html">Become a Sponsor</a></li></ul></div>
     </div>
     <div class="footer-bottom">
       <span>© 2026 HigherGrade Tutoring — All rights reserved.</span>
@@ -888,8 +888,8 @@
   </div>
 </footer>
 
-<script src="students-data.js"></script>
-<script src="script.js"></script>
+<script src="/students-data.js"></script>
+<script src="/script.js"></script>
 <script>
   const API_BASE = '/api';  // APSim backend (adjust if running standalone)
   let currentPanel = 1;

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Maze Wizard — HigherGrade Tutoring</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     :root {
       --purple-deep:  #2E1065;
@@ -680,7 +680,7 @@
 
       <button class="mw-claim-btn" id="mw-claim-btn">Claim my title →</button>
 
-      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+      <p class="mw-footer"><a href="/index.html">← Back to home</a></p>
     </div>
 
     <!-- Victory state -->
@@ -689,7 +689,7 @@
       <div class="mw-eyebrow">Claimed</div>
       <div class="vw-title">Welcome, Maze Wizard!</div>
       <p class="vw-sub" id="vw-sub">The title is yours. A new card is waiting on your student dashboard.</p>
-      <a class="vw-go" href="student-portal.html">Go to my dashboard →</a>
+      <a class="vw-go" href="/student-portal/student-portal.html">Go to my dashboard →</a>
     </div>
 
     <!-- Maze progress (lit while the student is clicking through doors) -->
@@ -719,7 +719,7 @@
       <div class="mw-msg" id="mw-mt-msg"></div>
 
       <button class="mw-claim-btn" id="mw-mt-btn">Claim the Money Tree →</button>
-      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+      <p class="mw-footer"><a href="/index.html">← Back to home</a></p>
     </div>
 
     <!-- Maze end (310 doors complete — coin pile reward) -->
@@ -737,7 +737,7 @@
       <div class="mw-hint-box" id="mw-end-hint" style="display:none;"></div>
 
       <button class="mw-claim-btn" id="mw-end-btn">Take the coins →</button>
-      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+      <p class="mw-footer"><a href="/index.html">← Back to home</a></p>
     </div>
 
     <!-- Caught — jumpscare aftermath card -->
@@ -747,7 +747,7 @@
       <h1>The dungeon resets</h1>
       <p class="sub">Whatever that was, it didn't want you here. Your run is wiped — start again from door 1 if you dare.</p>
       <button class="mw-claim-btn" id="mw-defeat-btn">Return to menu →</button>
-      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+      <p class="mw-footer"><a href="/index.html">← Back to home</a></p>
     </div>
 
     <!-- Sign-in gate before entering the dungeon -->
@@ -766,7 +766,7 @@
       <div class="mw-msg" id="mw-gate-msg"></div>
 
       <button class="mw-claim-btn" id="mw-gate-btn">Open the doors →</button>
-      <p class="mw-footer"><a href="index.html">← Back to home</a></p>
+      <p class="mw-footer"><a href="/index.html">← Back to home</a></p>
     </div>
   </div>
     </div><!-- /.mw-portal -->
@@ -828,7 +828,7 @@
   </div>
 </div>
 
-<script src="students-data.js"></script>
+<script src="/students-data.js"></script>
 <script>
 // Visiting this page ends any admin session — it's a student flow.
 fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
@@ -1529,7 +1529,7 @@ async function tryMazeClaim() {
       endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you seek is hidden in the <strong>first 9 doors</strong>. Try alternating <em>right answer</em>, then <em>wrong answer</em>, all the way through — starting with right. Get the criss-cross right and the chamber opens.`;
     }
     endBtn.textContent = 'Reward claimed';
-    setTimeout(() => { location.href = 'student-portal.html'; }, 2400);
+    setTimeout(() => { location.href = '/student-portal/student-portal.html'; }, 2400);
   } catch (e) {
     endMsg.className = 'mw-msg err';
     endMsg.textContent = e.message || 'Something went wrong. Please try again.';
@@ -1569,7 +1569,7 @@ async function tryMoneyTreeClaim() {
     mtMsg.className = 'mw-msg ok';
     mtMsg.textContent = '🌳 The Money Tree is yours. Head to your dashboard to use or gift it.';
     mtBtn.textContent = 'Claimed';
-    setTimeout(() => { location.href = 'student-portal.html'; }, 2200);
+    setTimeout(() => { location.href = '/student-portal/student-portal.html'; }, 2200);
   } catch (e) {
     mtMsg.className = 'mw-msg err';
     mtMsg.textContent = e.message || 'Something went wrong. Please try again.';

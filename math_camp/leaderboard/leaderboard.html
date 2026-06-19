@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Leaderboard — HigherGrade Tutoring</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     body { background: var(--surface2); }
 
@@ -211,8 +211,8 @@
 <body>
 
 <section class="lb-hero">
-  <a href="index.html" class="hero-back" id="back-home">← Home</a>
-  <a href="student-portal.html" class="hero-back-right" id="back-profile" style="display:none;">👤 My profile →</a>
+  <a href="/index.html" class="hero-back" id="back-home">← Home</a>
+  <a href="/student-portal/student-portal.html" class="hero-back-right" id="back-profile" style="display:none;">👤 My profile →</a>
   <h1>🏆 Summer Camp Leaderboard</h1>
   <p>Every registered student, ranked by total points earned.</p>
 </section>
@@ -252,7 +252,7 @@
   </div>
 </section>
 
-<script src="students-data.js"></script>
+<script src="/students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
 fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});

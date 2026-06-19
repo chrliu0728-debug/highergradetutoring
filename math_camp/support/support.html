@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Support Us — HigherGrade Tutoring</title>
   <meta name="description" content="Support HigherGrade Tutoring through donations or sponsorship." />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     .impact-number { font-size: 2.4rem; font-weight: 900; letter-spacing: -.04em; color: var(--mint); line-height: 1; }
     .impact-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
@@ -61,16 +61,16 @@
 <!-- ─────────────────── NAVBAR ─────────────────── -->
 <nav class="navbar">
   <div class="nav-inner">
-    <a href="index.html" class="nav-logo">
-      <img src="logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+    <a href="/index.html" class="nav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
     </a>
     <ul class="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="about.html">About Us</a></li>
-      <li><a href="support.html">Support Us</a></li>
-      <li><a href="contact.html">Contact</a></li>
-      <li><a href="student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="register.html" class="nav-cta">Register Now</a></li>
+      <li><a href="/index.html">Home</a></li>
+      <li><a href="/about/about.html">About Us</a></li>
+      <li><a href="/support/support.html">Support Us</a></li>
+      <li><a href="/contact/contact.html">Contact</a></li>
+      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
+      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
     </ul>
     <button class="hamburger" aria-label="Menu">
       <span></span><span></span><span></span>
@@ -345,7 +345,7 @@ Your donation to this category covers the printed certificates, the medals and s
         <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
         <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
       </div>
-      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="index.html">Home</a></li><li><a href="about.html">About Us</a></li><li><a href="support.html">Support Us</a></li><li><a href="register.html">Register</a></li></ul></div>
+      <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="/index.html">Home</a></li><li><a href="/about/about.html">About Us</a></li><li><a href="/support/support.html">Support Us</a></li><li><a href="/register/register.html">Register</a></li></ul></div>
       <div class="footer-col"><h4>Support</h4><ul><li><a href="#contact-sponsor">Sponsorship</a></li><li><a href="#contact-sponsor">Contact Us</a></li></ul></div>
       <div class="footer-col"><h4>Contact</h4><ul><li><a href="mailto:lucas.liu.ca2009@gmail.com">lucas.liu.ca2009@gmail.com</a></li></ul></div>
     </div>
@@ -356,8 +356,8 @@ Your donation to this category covers the printed certificates, the medals and s
   </div>
 </footer>
 
-<script src="students-data.js"></script>
-<script src="script.js"></script>
+<script src="/students-data.js"></script>
+<script src="/script.js"></script>
 <script>
   const impacts = { 10:'$10 covers problem sets & stationery for one camper.', 25:'$25 covers snacks and refreshments for a full camp day.', 50:'$50 funds award medals for our closing ceremony.', 100:'$100 fully funds one camper\'s entire 10-day experience!', 250:'$250 — you\'re a legend. This covers materials for 5 campers.' };
   function selectAmount(btn, amount) { document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.getElementById('custom-amount').value = ''; document.getElementById('donation-impact').textContent = impacts[amount] || ''; }

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — HigherGrade Tutoring</title>
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     body { background: var(--surface2); }
 
@@ -333,7 +333,7 @@
     <div class="gate-error" id="gate-error"></div>
     <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
     <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
-      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+      <a href="/index.html" style="color:var(--muted);">← Back to site</a>
     </p>
   </div>
 </div>
@@ -342,18 +342,18 @@
 <div class="admin-shell" id="admin-shell">
 
   <nav class="admin-nav">
-    <a href="admin.html" class="active">Staff</a>
-    <a href="admin-students.html">Students</a>
-    <a href="admin-classes.html">Classes</a>
-    <a href="admin-base-stats.html">Base Stats</a>
-    <a href="admin-transactions.html">Transactions</a>
-    <a href="admin-hints.html">Game</a>
-    <a href="admin-trail.html">Trail</a>
-    <a href="admin-registrations.html">Registrations</a>
-    <a href="admin-messages.html">Messages</a>
-    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <a href="/admin/admin.html" class="active">Staff</a>
+    <a href="/admin-students/admin-students.html">Students</a>
+    <a href="/admin-classes/admin-classes.html">Classes</a>
+    <a href="/admin-base-stats/admin-base-stats.html">Base Stats</a>
+    <a href="/admin-transactions/admin-transactions.html">Transactions</a>
+    <a href="/admin-hints/admin-hints.html">Game</a>
+    <a href="/admin-trail/admin-trail.html">Trail</a>
+    <a href="/admin-registrations/admin-registrations.html">Registrations</a>
+    <a href="/admin-messages/admin-messages.html">Messages</a>
+    <a href="/leaderboard/leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
-    <a href="index.html" data-admin-logout>Log out</a>
+    <a href="/index.html" data-admin-logout>Log out</a>
   </nav>
 
   <div class="admin-welcome">
@@ -495,7 +495,7 @@
       <p class="admin-subtitle">Add, edit, or remove the people shown on the About page. Changes appear instantly.</p>
     </div>
     <div class="admin-header-actions">
-      <a href="about.html#team" class="btn-tidy" target="_blank" rel="noopener">👀 Preview About page</a>
+      <a href="/about/about.html#team" class="btn-tidy" target="_blank" rel="noopener">👀 Preview About page</a>
       <button class="btn-tidy" id="export-btn">💾 Save backup (JSON)</button>
     </div>
   </div>
@@ -606,8 +606,8 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="students-data.js"></script>
-<script src="staff-data.js"></script>
+<script src="/students-data.js"></script>
+<script src="/staff-data.js"></script>
 <script>
 /* ────────────────── Passcode gate (server-validated) ────────────────── */
 const gate = document.getElementById('gate');
@@ -621,7 +621,7 @@ async function unlock() {
 
   // Student easter-egg: "MazeWiz" code redirects to the claim page.
   if (enteredRaw === 'MazeWiz') {
-    location.href = 'mazewiz.html';
+    location.href = '/mazewiz/mazewiz.html';
     return;
   }
 
@@ -959,7 +959,7 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
     e.preventDefault();
     sessionStorage.removeItem('hg_admin_unlocked');
     try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
-    location.href = a.getAttribute('href') || 'index.html';
+    location.href = a.getAttribute('href') || '/index.html';
   });
 });
 

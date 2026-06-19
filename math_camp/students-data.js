@@ -146,7 +146,7 @@ function showFrozenOverlay(student) {
       await fetch('/api/auth/student/logout', { method: 'POST', credentials: 'same-origin' });
     } catch (_) { /* logout is best-effort */ }
     try { sessionStorage.removeItem('hg_signed_in_student'); } catch (_) {}
-    location.href = '/student-portal.html';
+    location.href = '/student-portal/student-portal.html';
   });
 }
 

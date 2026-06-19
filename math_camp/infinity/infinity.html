@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Infinity Mode — HigherGrade Tutoring</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     body {
       background: linear-gradient(135deg, #0E1733 0%, #2A2447 50%, #4A1B6E 100%);
@@ -160,7 +160,7 @@
     <div class="feedback" id="feedback"></div>
     <div class="meta-row">
       <span id="counter">Q 0</span>
-      <a href="student-portal.html">← Back to dashboard</a>
+      <a href="/student-portal/student-portal.html">← Back to dashboard</a>
     </div>
   </div>
 </div>
@@ -184,12 +184,12 @@ async function ensureSignedIn() {
     const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
     const j = await r.json();
     if (!j || j.kind !== 'student') {
-      window.location.replace('student-portal.html');
+      window.location.replace('/student-portal/student-portal.html');
       return false;
     }
     return true;
   } catch (_) {
-    window.location.replace('student-portal.html');
+    window.location.replace('/student-portal/student-portal.html');
     return false;
   }
 }

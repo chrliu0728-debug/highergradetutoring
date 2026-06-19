@@ -31,6 +31,12 @@ highergradetutoring.ca, www.highergradetutoring.ca {
 	# ── Static site (everything else) ────────────────────────────────
 	handle {
 		root * /var/www/highergrade/math_camp
+
+		# Legacy flat URLs → per-page folders (index.html stays at root).
+		# Keeps old bookmarks, email links, and search results working.
+		@oldpages path_regexp old ^/(about|admin|admin-base-stats|admin-classes|admin-hints|admin-messages|admin-registrations|admin-students|admin-trail|admin-transactions|bedroom|contact|crane|infinity|leaderboard|mazewiz|register|student-portal|support|trail)\.html$
+		redir @oldpages /{re.old.1}/{re.old.1}.html 301
+
 		try_files {path} {path}/index.html /index.html
 		file_server
 

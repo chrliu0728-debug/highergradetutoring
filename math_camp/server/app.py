@@ -339,7 +339,7 @@ def _send_camp_welcome(student_email, name, parent_email=None):
         f"  where parents can pre-purchase lunches for their camper on specific\n"
         f"  days — completely optional. If you'd rather just pack lunch, that's\n"
         f"  perfectly fine and is what we expect by default.\n"
-        f"• Sign in to your dashboard at {SITE_URL}/student-portal.html\n"
+        f"• Sign in to your dashboard at {SITE_URL}/student-portal/student-portal.html\n"
         f"  to track points, see your class, and find the hidden mini-game.\n"
         f"• Questions? Reply to this email — it goes straight to the organizers.\n\n"
         f"See you August 4!\n"

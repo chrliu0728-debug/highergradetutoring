@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Student Admin — HigherGrade Tutoring</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     body { background: var(--surface2); }
 
@@ -562,7 +562,7 @@
     <div class="gate-error" id="gate-error"></div>
     <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
     <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
-      <a href="index.html" style="color:var(--muted);">← Back to site</a>
+      <a href="/index.html" style="color:var(--muted);">← Back to site</a>
     </p>
   </div>
 </div>
@@ -571,18 +571,18 @@
 <div class="admin-shell" id="admin-shell">
 
   <nav class="admin-nav">
-    <a href="admin.html">Staff</a>
-    <a href="admin-students.html" class="active">Students</a>
-    <a href="admin-classes.html">Classes</a>
-    <a href="admin-base-stats.html">Base Stats</a>
-    <a href="admin-transactions.html">Transactions</a>
-    <a href="admin-hints.html">Game</a>
-    <a href="admin-trail.html">Trail</a>
-    <a href="admin-registrations.html">Registrations</a>
-    <a href="admin-messages.html">Messages</a>
-    <a href="leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <a href="/admin/admin.html">Staff</a>
+    <a href="/admin-students/admin-students.html" class="active">Students</a>
+    <a href="/admin-classes/admin-classes.html">Classes</a>
+    <a href="/admin-base-stats/admin-base-stats.html">Base Stats</a>
+    <a href="/admin-transactions/admin-transactions.html">Transactions</a>
+    <a href="/admin-hints/admin-hints.html">Game</a>
+    <a href="/admin-trail/admin-trail.html">Trail</a>
+    <a href="/admin-registrations/admin-registrations.html">Registrations</a>
+    <a href="/admin-messages/admin-messages.html">Messages</a>
+    <a href="/leaderboard/leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
     <span class="spacer"></span>
-    <a href="index.html" data-admin-logout>Log out</a>
+    <a href="/index.html" data-admin-logout>Log out</a>
   </nav>
 
   <div class="admin-welcome">
@@ -668,7 +668,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="students-data.js"></script>
+<script src="/students-data.js"></script>
 <script>
 /* ─────────── Passcode gate (server-validated) ─────────── */
 const gate = document.getElementById('gate');
@@ -823,7 +823,7 @@ function render() {
         </div>
         ${baseCats.length === 0 ? `
           <div class="stat-empty">
-            No statistics defined yet. <a href="admin-base-stats.html">Add some on the Base Stats page →</a><br/>
+            No statistics defined yet. <a href="/admin-base-stats/admin-base-stats.html">Add some on the Base Stats page →</a><br/>
             <span style="font-size:.78rem;">Each stat has a points-per-unit value. Increasing a student's count by 1 awards (or removes) that many points automatically.</span>
           </div>
         ` : baseCats.map(c => {
@@ -1326,7 +1326,7 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
     e.preventDefault();
     sessionStorage.removeItem('hg_admin_unlocked');
     try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
-    location.href = a.getAttribute('href') || 'index.html';
+    location.href = a.getAttribute('href') || '/index.html';
   });
 });
 </script>

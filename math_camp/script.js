@@ -24,12 +24,17 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   const navbar    = document.querySelector('.navbar');
   const hamburger = document.querySelector('.hamburger');
   const navLinks  = document.querySelector('.nav-links');
-  const page      = location.pathname.split('/').pop() || 'index.html';
+  // Pages now live in per-page subfolders, so compare full pathnames
+  // (normalising "/index.html" and "/x/x.html" forms) rather than basenames.
+  const norm = p => p.replace(/\/index\.html$/, '/') || '/';
+  const here = norm(location.pathname);
 
   // Mark active nav link
   document.querySelectorAll('.nav-links a').forEach(a => {
-    const href = a.getAttribute('href');
-    if (href === page || (page === '' && href === 'index.html')) {
+    const raw = a.getAttribute('href');
+    if (!raw) return;
+    const ahref = norm(new URL(raw, location.href).pathname);
+    if (ahref === here) {
       a.classList.add('active');
     }
   });
@@ -67,7 +72,7 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
     const firstName = (student.firstName || 'Profile')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     signInEl.innerHTML = `👤 ${firstName}`;
-    signInEl.href = 'student-portal.html';
+    signInEl.href = '/student-portal/student-portal.html';
     signInEl.title = 'Go to your student portal';
     signInEl.classList.add('logged-in');
   }

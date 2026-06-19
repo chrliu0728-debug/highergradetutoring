@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Student Portal — HigherGrade Tutoring</title>
   <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/webp" href="logo.webp" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
     body { background: var(--surface2); }
 
@@ -580,12 +580,12 @@
       <div class="staff-ic">🔐</div>
       <h2>Staff Sign In</h2>
       <p>Camp instructor? You've found the secret door.<br>Continue to the admin passcode gate.</p>
-      <a href="admin.html" class="staff-go">Enter passcode →</a>
+      <a href="/admin/admin.html" class="staff-go">Enter passcode →</a>
     </div>
 
     <!-- Student login card (silently draggable after 9 clicks on Sign in) -->
     <div class="login-card" id="login-card">
-      <div class="logo-bubble"><img src="logo.webp" alt="HigherGrade Tutoring" /></div>
+      <div class="logo-bubble"><img src="/logo.webp" alt="HigherGrade Tutoring" /></div>
       <h1>Student Portal</h1>
       <p class="sub">Sign in with your camp email and password.</p>
 
@@ -601,10 +601,10 @@
 
       <p class="login-footer">
         Don't have an account yet?
-        <a href="register.html">Register for camp</a>
+        <a href="/register/register.html">Register for camp</a>
       </p>
       <p class="login-footer" style="margin-top:6px;">
-        <a href="index.html" style="color:var(--muted);">← Back to site</a>
+        <a href="/index.html" style="color:var(--muted);">← Back to site</a>
       </p>
     </div>
 
@@ -620,8 +620,8 @@
       <div class="sub" id="dash-sub"></div>
     </div>
     <div class="dash-header-actions">
-      <a class="btn" href="index.html">← Home</a>
-      <a class="btn" href="leaderboard.html?from=portal">🏆 Leaderboard</a>
+      <a class="btn" href="/index.html">← Home</a>
+      <a class="btn" href="/leaderboard/leaderboard.html?from=portal">🏆 Leaderboard</a>
       <button class="btn" id="logout-btn">Log out</button>
     </div>
   </div>
@@ -750,7 +750,7 @@
         <h3>∞ Infinity Mode</h3>
         <p class="ac-sub">You've beaten the dungeon. Keep going — every question you answer earns <strong>+6 points</strong>. The question bank is curated by camp staff and refreshed regularly.</p>
       </div>
-      <a class="action-btn" href="infinity.html" style="display:inline-block; text-align:center; text-decoration:none;">Enter Infinity Mode →</a>
+      <a class="action-btn" href="/infinity/infinity.html" style="display:inline-block; text-align:center; text-decoration:none;">Enter Infinity Mode →</a>
     </div>
 
     <!-- ── Paper Crane hints (only visible when the student holds the role) ── -->
@@ -800,7 +800,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="students-data.js"></script>
+<script src="/students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
 fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
@@ -851,7 +851,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     // reads as the word "peace" so capital P is a very natural typo.
     if (email.trim().toLowerCase() === 'burntout@gmail.com'
         && pwd.trim().toLowerCase() === 'p3ac3') {
-      window.location.href = 'bedroom.html';
+      window.location.href = '/bedroom/bedroom.html';
       return;
     }
     const student = await findStudentByLogin(email, pwd);
@@ -1109,7 +1109,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     }).join('');
 
     const emptySlot = showEmptyMazeWizSlot ? `
-      <a class="role-empty" href="index.html" title="Someone in your class already claimed Maze Wizard — back to home">
+      <a class="role-empty" href="/index.html" title="Someone in your class already claimed Maze Wizard — back to home">
         <span class="empty-ic">🧙</span>
         (empty)
       </a>
