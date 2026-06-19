@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sponsors Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid)); padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1100px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px; font-size: .9rem; font-weight: 600; color: var(--text-mid);
+      text-decoration: none; border-radius: 8px; transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: flex; gap: 18px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px 28px; margin-bottom: 24px; box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon { font-size: 2rem; }
+    .admin-welcome h1 { font-size: 1.3rem; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .92rem; color: var(--muted); margin: 0; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 22px 24px; box-shadow: var(--shadow-sm); margin-bottom: 22px;
+    }
+    .panel h2 { font-size: 1.1rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .panel .panel-desc { font-size: .85rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+
+    .btn-mini {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text-mid);
+      padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: .82rem; cursor: pointer;
+    }
+    .btn-mini:hover { background: var(--surface); color: var(--text); }
+    .btn-mini.danger { color: #c0392b; }
+    .file-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .toolbar select {
+      flex: 1; min-width: 200px; max-width: 460px; padding: 10px 12px;
+      border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); font-size: .95rem;
+    }
+
+    /* Editor layout */
+    .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; margin-top: 16px; }
+    @media (max-width: 820px) { .editor-grid { grid-template-columns: 1fr; } }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: .82rem; font-weight: 700; color: var(--text-mid); margin-bottom: 5px; }
+    .field input[type=text], .field textarea {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 10px; background: var(--surface2); font-size: .92rem; font-family: inherit;
+    }
+    .field input:focus, .field textarea:focus { border-color: var(--blush); outline: none; }
+    .field textarea { min-height: 120px; resize: vertical; }
+
+    .sub { font-size: .95rem; font-weight: 700; margin: 18px 0 8px; }
+
+    .img-preview {
+      width: 100%; aspect-ratio: 16/9; max-height: 150px;
+      border: 2px dashed var(--border); border-radius: 12px; background: var(--surface2);
+      background-size: contain; background-position: center; background-repeat: no-repeat;
+      display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .82rem;
+      margin-bottom: 8px;
+    }
+    .img-preview.logo { aspect-ratio: 5/2; max-height: 96px; }
+    .img-preview.has { border-style: solid; color: transparent; }
+
+    .slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 520px) { .slot-grid { grid-template-columns: 1fr; } }
+    .slot {
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface);
+    }
+    .slot .img-preview { aspect-ratio: 1/1; max-height: 110px; }
+
+    .staff-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; background: var(--surface); }
+    .staff-photo { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
+    .staff-photo.ph { display: flex; align-items: center; justify-content: center; background: var(--surface2); color: var(--muted); font-weight: 700; }
+
+    /* colours */
+    .color-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+    .swatch { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; padding: 4px 6px 4px 4px; background: var(--surface); }
+    .swatch input[type=color] { width: 30px; height: 30px; border: none; background: none; padding: 0; cursor: pointer; }
+    .swatch button { border: none; background: none; color: #c0392b; cursor: pointer; font-size: 1rem; line-height: 1; }
+    .hint { font-size: .76rem; color: var(--muted); margin: 2px 0 8px; }
+
+    /* live preview */
+    .preview-box { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+    .pv-bubble {
+      width: 96px; height: 96px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+      background: rgba(255,255,255,.95); box-shadow: 0 8px 22px rgba(0,0,0,.18);
+    }
+    .pv-bubble img { max-width: 70%; max-height: 70%; object-fit: contain; }
+    .pv-bubble .wm { font-weight: 800; font-size: .8rem; text-align: center; padding: 0 4px; }
+    .pv-card { width: 220px; border-radius: 14px; overflow: hidden; box-shadow: 0 8px 22px rgba(0,0,0,.16); }
+    .pv-card .pv-board { padding: 14px 16px; font-weight: 800; }
+    .pv-card .pv-body { padding: 12px 16px; font-size: .8rem; color: var(--text-mid); background: var(--surface); }
+
+    .save-bar {
+      position: sticky; bottom: 0; background: rgba(255,255,255,.96);
+      border-top: 1px solid var(--border); padding: 14px 18px; margin: 24px -24px -22px;
+      display: flex; gap: 14px; align-items: center; backdrop-filter: blur(6px); border-radius: 0 0 16px 16px;
+    }
+    .save-bar .status { font-size: .85rem; color: var(--muted); }
+    .save-bar .status.dirty { color: #c0392b; font-weight: 600; }
+    .save-bar .status.saved { color: #2f7a3a; }
+
+    .danger-zone { background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 12px; padding: 14px 18px; font-size: .88rem; color: #5a4500; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+      background: var(--navy, #14233b); color: #fff; padding: 12px 20px; border-radius: 12px;
+      font-size: .9rem; box-shadow: 0 12px 30px rgba(0,0,0,.3); opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 1000;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .empty-state { text-align: center; color: var(--muted); padding: 30px 10px; font-size: .92rem; }
+  </style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage sponsors.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px; font-size:.78rem; color:var(--muted);">
+      <a href="/index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="/admin/admin.html">Staff</a>
+    <a href="/admin-students/admin-students.html">Students</a>
+    <a href="/admin-classes/admin-classes.html">Classes</a>
+    <a href="/admin-base-stats/admin-base-stats.html">Base Stats</a>
+    <a href="/admin-transactions/admin-transactions.html">Transactions</a>
+    <a href="/admin-hints/admin-hints.html">Game</a>
+    <a href="/admin-trail/admin-trail.html">Trail</a>
+    <a href="/admin-sponsors/admin-sponsors.html" class="active">Sponsors</a>
+    <a href="/admin-registrations/admin-registrations.html">Registrations</a>
+    <a href="/admin-messages/admin-messages.html">Messages</a>
+    <a href="/leaderboard/leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="/index.html" data-admin-logout>Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">🫧</div>
+    <div>
+      <h1>Sponsors editor</h1>
+      <p>Add the title sponsors that float as bubbles on the <a href="/sponsors/sponsors.html" target="_blank" rel="noopener">Our Sponsors</a> page. Each sponsor gets a logo bubble, a pop-out card with photos, up to two staff contacts, and your choice of brand colours.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🫧 Sponsors</h2>
+    <p class="panel-desc">Pick a sponsor to edit, or add a new one. Changes aren't live until you hit <strong>Save</strong>.</p>
+
+    <div class="toolbar">
+      <select id="sponsor-select"></select>
+      <button class="btn-mini" id="add-btn">+ Add sponsor</button>
+      <button class="btn-mini danger" id="del-btn">Delete this sponsor</button>
+    </div>
+
+    <div id="editor"></div>
+    <div class="empty-state" id="empty-state" style="display:none;">No sponsors yet — click <strong>+ Add sponsor</strong> to create your first one.</div>
+
+    <div class="save-bar">
+      <button class="btn btn-blue" id="save-btn">💾 Save all changes</button>
+      <button class="btn-mini" id="reload-btn">Discard &amp; reload</button>
+      <span class="status" id="status">Up to date.</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="danger-zone">
+      <strong>Heads up:</strong> logos and photos are stored as base64 data inside one sponsors row. We down-scale on upload, but keep originals reasonable — the whole sponsors config is capped at 8&nbsp;MB.
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── Gate (same pattern as the other admin pages) ──────────────── */
+const gate = document.getElementById('gate');
+const shell = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none'; shell.classList.add('unlocked');
+      await loadAll(); return;
+    }
+  } catch (_) {}
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = ''; passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none'; shell.classList.add('unlocked');
+}
+(async function () {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none'; shell.classList.add('unlocked');
+      await loadAll();
+    } else {
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = ''; shell.classList.remove('unlocked');
+    }
+  } catch (_) {}
+})();
+
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest('a[data-admin-logout]');
+  if (!a) return;
+  e.preventDefault();
+  sessionStorage.removeItem('hg_admin_unlocked');
+  try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+  window.location.href = a.getAttribute('href') || '/index.html';
+});
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+const toastEl = document.getElementById('toast');
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+/* ── Image utility: down-scale to a JPEG data URL ──────────────── */
+function readImageFile(file, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png' === file.type ? 'image/png' : 'image/jpeg', quality));
+      };
+      img.onerror = reject; img.src = fr.result;
+    };
+    fr.onerror = reject; fr.readAsDataURL(file);
+  });
+}
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0,2).join('').toUpperCase();
+function grad(colors, fb) {
+  const c = (colors || []).filter(Boolean);
+  if (!c.length) return fb || '';
+  return c.length === 1 ? c[0] : `linear-gradient(135deg, ${c.join(', ')})`;
+}
+function contrast(hex) {
+  if (!hex || hex[0] !== '#') return '#ffffff';
+  let h = hex.slice(1); if (h.length === 3) h = h.split('').map(x => x + x).join('');
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  return (0.299*r + 0.587*g + 0.114*b)/255 > 0.6 ? '#1b2430' : '#ffffff';
+}
+
+/* ── State ─────────────────────────────────────────────────────── */
+let config = { sponsors: [] };
+let originalJSON = '{"sponsors":[]}';
+let currentIdx = -1;
+
+function newSponsor() {
+  return {
+    id: 'sp_' + Math.random().toString(36).slice(2, 9),
+    name: 'New sponsor', tagline: '', logo: '', description: '',
+    location: { label: '', url: '' },
+    staff: [], images: [], board: [], border: '', background: [],
+  };
+}
+function cur() { return config.sponsors[currentIdx]; }
+function markDirty() {
+  const st = document.getElementById('status');
+  const same = JSON.stringify(config) === originalJSON;
+  st.classList.toggle('dirty', !same);
+  st.classList.remove('saved');
+  st.textContent = same ? 'Up to date.' : 'Unsaved changes — click Save.';
+}
+
+/* ── Sponsor selector ──────────────────────────────────────────── */
+const sponsorSelect = document.getElementById('sponsor-select');
+const editorEl = document.getElementById('editor');
+const emptyState = document.getElementById('empty-state');
+
+function refreshSelect() {
+  sponsorSelect.innerHTML = config.sponsors.map((s, i) =>
+    `<option value="${i}">${esc(s.name || 'Untitled')}</option>`).join('');
+  if (currentIdx >= 0) sponsorSelect.value = String(currentIdx);
+  sponsorSelect.style.display = config.sponsors.length ? '' : 'none';
+}
+sponsorSelect.addEventListener('change', () => { currentIdx = parseInt(sponsorSelect.value, 10) || 0; renderEditor(); });
+
+document.getElementById('add-btn').addEventListener('click', () => {
+  config.sponsors.push(newSponsor());
+  currentIdx = config.sponsors.length - 1;
+  refreshSelect(); renderEditor(); markDirty();
+});
+document.getElementById('del-btn').addEventListener('click', () => {
+  if (currentIdx < 0) return;
+  const s = cur();
+  if (!confirm(`Delete sponsor "${s.name || 'Untitled'}"? This can't be undone after you Save.`)) return;
+  config.sponsors.splice(currentIdx, 1);
+  currentIdx = config.sponsors.length ? Math.min(currentIdx, config.sponsors.length - 1) : -1;
+  refreshSelect(); renderEditor(); markDirty();
+});
+
+/* ── Editor render ─────────────────────────────────────────────── */
+function renderEditor() {
+  if (currentIdx < 0 || !cur()) {
+    editorEl.innerHTML = ''; emptyState.style.display = ''; return;
+  }
+  emptyState.style.display = 'none';
+  const s = cur();
+  editorEl.innerHTML = `
+    <div class="editor-grid">
+      <div>
+        <div class="field"><label>Name</label><input type="text" id="f-name" value="${esc(s.name)}" /></div>
+        <div class="field"><label>Tagline</label><input type="text" id="f-tagline" value="${esc(s.tagline)}" placeholder="e.g. Work. Learn. Grow." /></div>
+        <div class="field"><label>Description</label><textarea id="f-desc" placeholder="A paragraph about the sponsor…">${esc(s.description)}</textarea></div>
+        <div class="field"><label>Location label</label><input type="text" id="f-loc-label" value="${esc(s.location && s.location.label)}" placeholder="e.g. Oakville, Ontario" /></div>
+        <div class="field"><label>Location link (Google Maps URL)</label><input type="text" id="f-loc-url" value="${esc(s.location && s.location.url)}" placeholder="https://…" /></div>
+
+        <div class="sub">Brand colours</div>
+        <div class="hint">Board colours theme the card's header band (2–3 = gradient, top-left → bottom-right). Border is a single outline colour. Background is the full-page colour the site fades into when the bubble pops (2 = gradient).</div>
+        <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Board (up to 3)</label>
+        <div class="color-row" id="board-row"></div>
+        <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Border (1, optional)</label>
+        <div class="color-row" id="border-row"></div>
+        <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Background (up to 2)</label>
+        <div class="color-row" id="bg-row"></div>
+
+        <div class="sub">Preview</div>
+        <div class="preview-box" id="preview-box"></div>
+      </div>
+
+      <div>
+        <div class="sub" style="margin-top:0;">Logo (the bubble)</div>
+        <div class="img-preview logo" id="logo-preview">No logo — the bubble shows the name instead.</div>
+        <div class="file-row">
+          <input type="file" id="logo-input" accept="image/*" style="font-size:.85rem;" />
+          <button class="btn-mini danger" id="logo-clear">Remove</button>
+        </div>
+
+        <div class="sub">Photos to flip through (up to 4)</div>
+        <div class="slot-grid" id="images-grid"></div>
+        <button class="btn-mini" id="add-image" style="margin-top:10px;">+ Add photo</button>
+
+        <div class="sub">Staff contacts (up to 2)</div>
+        <div id="staff-list"></div>
+        <button class="btn-mini" id="add-staff">+ Add staff profile</button>
+      </div>
+    </div>`;
+
+  // text fields
+  bindText('f-name', v => { s.name = v; refreshSelect(); renderPreview(); });
+  bindText('f-tagline', v => { s.tagline = v; });
+  bindText('f-desc', v => { s.description = v; });
+  bindText('f-loc-label', v => { s.location.label = v; });
+  bindText('f-loc-url', v => { s.location.url = v; });
+
+  wireLogo(s);
+  renderImages(s);
+  renderStaff(s);
+  renderColors(s);
+  renderPreview();
+}
+
+function bindText(id, set) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => { set(el.value); markDirty(); });
+}
+
+/* logo */
+function wireLogo(s) {
+  const pv = document.getElementById('logo-preview');
+  const refresh = () => {
+    if (s.logo) { pv.style.backgroundImage = `url("${s.logo}")`; pv.classList.add('has'); }
+    else { pv.style.backgroundImage = ''; pv.classList.remove('has'); }
+  };
+  refresh();
+  document.getElementById('logo-input').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try { s.logo = await readImageFile(f, 420, 0.92); refresh(); renderPreview(); markDirty(); }
+    catch { toast('Could not read that image.'); }
+    e.target.value = '';
+  });
+  document.getElementById('logo-clear').addEventListener('click', () => {
+    if (!s.logo) return; s.logo = ''; refresh(); renderPreview(); markDirty();
+  });
+}
+
+/* carousel images */
+function renderImages(s) {
+  const grid = document.getElementById('images-grid');
+  s.images = (s.images || []).filter(Boolean);
+  grid.innerHTML = s.images.map((src, i) => `
+    <div class="slot">
+      <div class="img-preview has" style="background-image:url('${src.replace(/'/g, "%27")}')"></div>
+      <button class="btn-mini danger" data-rm-img="${i}">Remove</button>
+    </div>`).join('') || `<div class="hint">No photos yet.</div>`;
+  grid.querySelectorAll('[data-rm-img]').forEach(btn =>
+    btn.addEventListener('click', () => { s.images.splice(+btn.dataset.rmImg, 1); renderImages(s); markDirty(); }));
+  const add = document.getElementById('add-image');
+  add.disabled = s.images.length >= 4;
+  add.onclick = () => {
+    if (s.images.length >= 4) return;
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      try { s.images.push(await readImageFile(f, 1000, 0.85)); renderImages(s); markDirty(); }
+      catch { toast('Could not read that image.'); }
+    };
+    inp.click();
+  };
+}
+
+/* staff */
+function renderStaff(s) {
+  const list = document.getElementById('staff-list');
+  s.staff = (s.staff || []).slice(0, 2);
+  list.innerHTML = s.staff.map((p, i) => `
+    <div class="staff-card">
+      <div class="file-row" style="align-items:flex-start;">
+        ${p.photo
+          ? `<img class="staff-photo" src="${esc(p.photo)}" alt="" />`
+          : `<div class="staff-photo ph">${esc(initials(p.name))}</div>`}
+        <div style="flex:1; min-width:160px;">
+          <div class="field" style="margin-bottom:8px;"><label>Name</label><input type="text" data-st-name="${i}" value="${esc(p.name)}" /></div>
+          <div class="field" style="margin-bottom:8px;"><label>Position</label><input type="text" data-st-pos="${i}" value="${esc(p.position)}" /></div>
+          <div class="file-row">
+            <input type="file" accept="image/*" data-st-photo="${i}" style="font-size:.8rem;" />
+            <button class="btn-mini danger" data-st-rm="${i}">Remove profile</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('') || `<div class="hint">No staff profiles yet.</div>`;
+
+  list.querySelectorAll('[data-st-name]').forEach(el =>
+    el.addEventListener('input', () => { s.staff[+el.dataset.stName].name = el.value; markDirty(); }));
+  list.querySelectorAll('[data-st-pos]').forEach(el =>
+    el.addEventListener('input', () => { s.staff[+el.dataset.stPos].position = el.value; markDirty(); }));
+  list.querySelectorAll('[data-st-photo]').forEach(el =>
+    el.addEventListener('change', async () => {
+      const f = el.files && el.files[0]; if (!f) return;
+      try { s.staff[+el.dataset.stPhoto].photo = await readImageFile(f, 480, 0.88); renderStaff(s); markDirty(); }
+      catch { toast('Could not read that image.'); }
+    }));
+  list.querySelectorAll('[data-st-rm]').forEach(el =>
+    el.addEventListener('click', () => { s.staff.splice(+el.dataset.stRm, 1); renderStaff(s); markDirty(); }));
+
+  const add = document.getElementById('add-staff');
+  add.disabled = s.staff.length >= 2;
+  add.onclick = () => {
+    if (s.staff.length >= 2) return;
+    s.staff.push({ photo: '', name: '', position: '' });
+    renderStaff(s); markDirty();
+  };
+}
+
+/* colours — board (≤3), border (1), background (≤2) */
+function renderColors(s) {
+  s.board = (s.board || []).filter(Boolean).slice(0, 3);
+  s.background = (s.background || []).filter(Boolean).slice(0, 2);
+  colorList('board-row', s.board, 3, () => { renderPreview(); markDirty(); });
+  colorList('bg-row', s.background, 2, () => { renderPreview(); markDirty(); });
+  borderControl(s);
+}
+function colorList(rowId, arr, max, onChange) {
+  const row = document.getElementById(rowId);
+  function draw() {
+    row.innerHTML = arr.map((c, i) => `
+      <span class="swatch">
+        <input type="color" value="${/^#[0-9a-fA-F]{6}$/.test(c) ? c : '#3366cc'}" data-ci="${i}" />
+        <button data-rmc="${i}" title="Remove">×</button>
+      </span>`).join('') +
+      (arr.length < max ? `<button class="btn-mini" data-addc="1">+ Add colour</button>` : '');
+    row.querySelectorAll('[data-ci]').forEach(el =>
+      el.addEventListener('input', () => { arr[+el.dataset.ci] = el.value; onChange(); }));
+    row.querySelectorAll('[data-rmc]').forEach(el =>
+      el.addEventListener('click', () => { arr.splice(+el.dataset.rmc, 1); draw(); onChange(); }));
+    const ab = row.querySelector('[data-addc]');
+    if (ab) ab.addEventListener('click', () => { arr.push('#3366cc'); draw(); onChange(); });
+  }
+  draw();
+}
+function borderControl(s) {
+  const row = document.getElementById('border-row');
+  function draw() {
+    const on = !!s.border;
+    row.innerHTML = `
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:.85rem;">
+        <input type="checkbox" id="border-on" ${on ? 'checked' : ''}/> use a border colour
+      </label>` +
+      (on ? `<span class="swatch"><input type="color" id="border-color" value="${/^#[0-9a-fA-F]{6}$/.test(s.border) ? s.border : '#cc0000'}" /></span>` : '');
+    row.querySelector('#border-on').addEventListener('change', (e) => {
+      s.border = e.target.checked ? (s.border || '#cc0000') : '';
+      draw(); renderPreview(); markDirty();
+    });
+    const ci = row.querySelector('#border-color');
+    if (ci) ci.addEventListener('input', () => { s.border = ci.value; renderPreview(); markDirty(); });
+  }
+  draw();
+}
+
+/* live preview of bubble + card theme */
+function renderPreview() {
+  const box = document.getElementById('preview-box'); if (!box) return;
+  const s = cur(); if (!s) return;
+  const accent = s.border || (s.board && s.board[0]) || (s.background && s.background[0]) || '#173a63';
+  const boardBg = grad(s.board, '#eef2f7');
+  const boardText = s.board && s.board[0] ? contrast(s.board[0]) : '#1b2430';
+  const bgBg = grad(s.background, 'linear-gradient(135deg,#0f2a4a,#173a63)');
+  box.innerHTML = `
+    <div class="pv-bubble" style="border:3px solid ${esc(accent)}">
+      ${s.logo ? `<img src="${esc(s.logo)}" alt="" />` : `<span class="wm" style="color:${esc(accent)}">${esc(s.name || 'Name')}</span>`}
+    </div>
+    <div class="pv-card" style="border:3px solid ${s.border ? esc(s.border) : 'transparent'}">
+      <div class="pv-board" style="background:${esc(boardBg)};color:${esc(boardText)}">${esc(s.name || 'Sponsor')}</div>
+      <div class="pv-body">Card header uses the board colours.</div>
+    </div>
+    <div style="width:90px;height:90px;border-radius:14px;background:${esc(bgBg)};box-shadow:0 8px 22px rgba(0,0,0,.16);display:flex;align-items:flex-end;justify-content:center;color:#fff;font-size:.66rem;padding:6px;text-align:center;">page fade</div>`;
+}
+
+/* ── Save / load ───────────────────────────────────────────────── */
+async function loadAll() {
+  try {
+    const r = await fetch('/api/sponsors', { credentials: 'same-origin' });
+    const j = await r.json();
+    config = (j && j.ok && j.config && Array.isArray(j.config.sponsors)) ? { sponsors: j.config.sponsors } : { sponsors: [] };
+  } catch (_) { config = { sponsors: [] }; }
+  originalJSON = JSON.stringify(config);
+  currentIdx = config.sponsors.length ? 0 : -1;
+  refreshSelect(); renderEditor(); markDirty();
+}
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/admin/sponsors', {
+      method: 'PUT', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error((j && j.error) || 'Save failed');
+    originalJSON = JSON.stringify(config);
+    const st = document.getElementById('status');
+    st.classList.remove('dirty'); st.classList.add('saved'); st.textContent = '✓ Saved.';
+    toast('Sponsors saved.');
+  } catch (e) {
+    toast('Save failed: ' + (e.message || e));
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Save all changes';
+  }
+});
+
+document.getElementById('reload-btn').addEventListener('click', async () => {
+  if (JSON.stringify(config) !== originalJSON && !confirm('Discard unsaved changes and reload from the server?')) return;
+  await loadAll(); toast('Reloaded from server.');
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (JSON.stringify(config) !== originalJSON) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+</body>
+</html>

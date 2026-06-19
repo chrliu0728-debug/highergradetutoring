@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Sponsors — HigherGrade Tutoring</title>
+  <meta name="description" content="Meet the sponsors who make HigherGrade Tutoring's Summer Math Camp possible. Tap a bubble to learn about each partner." />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 700px at 50% 120%, #dbeafe 0%, transparent 60%),
+        linear-gradient(160deg, var(--navy, #0f2a4a), var(--navy-mid, #173a63));
+      color: #fff;
+    }
+
+    /* ── Floating bubble field (whole page, bottom → top) ─────────── */
+    .bubble-field {
+      position: fixed; inset: 0;
+      overflow: hidden;
+      z-index: 1;
+      pointer-events: none;       /* only the bubbles themselves catch clicks */
+    }
+    .bubble {
+      position: absolute;
+      bottom: -160px;
+      left: var(--x);
+      width: var(--size);
+      height: var(--size);
+      pointer-events: auto;
+      cursor: pointer;
+      animation: rise var(--dur) linear var(--delay) infinite;
+      will-change: transform, opacity;
+    }
+    @keyframes rise {
+      0%   { transform: translate(0, 0)            scale(.96); opacity: 0; }
+      8%   { opacity: 1; }
+      92%  { opacity: 1; }
+      100% { transform: translate(var(--drift), calc(-100vh - 320px)) scale(1.04); opacity: 0; }
+    }
+    .bubble-inner {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: rgba(255,255,255,.92);
+      border: 3px solid var(--ring, rgba(255,255,255,.6));
+      box-shadow: 0 10px 30px rgba(0,0,0,.28), inset 0 6px 14px rgba(255,255,255,.7);
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .bubble:hover .bubble-inner {
+      transform: scale(1.07);
+      box-shadow: 0 16px 40px rgba(0,0,0,.34), inset 0 6px 14px rgba(255,255,255,.8);
+    }
+    .bubble-inner img { max-width: 72%; max-height: 72%; object-fit: contain; }
+    .bubble-inner .wordmark {
+      font-weight: 800; font-size: calc(var(--size) * .17);
+      text-align: center; line-height: 1.1; padding: 0 6px;
+      color: var(--ring-solid, #173a63);
+    }
+    /* sheen */
+    .bubble-inner::before {
+      content: ''; position: absolute;
+      top: 12%; left: 16%; width: 30%; height: 22%;
+      background: rgba(255,255,255,.85);
+      border-radius: 50%; filter: blur(2px);
+    }
+
+    /* Pop: freeze the rise (set inline) and burst the inner + a ring */
+    .bubble.popping .bubble-inner { animation: pop .42s cubic-bezier(.3,.7,.4,1) forwards; }
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.3); }
+      100% { transform: scale(0); opacity: 0; }
+    }
+    .bubble.popping::after {
+      content: ''; position: absolute; inset: -6%;
+      border-radius: 50%;
+      border: 4px solid var(--ring, #fff);
+      animation: ring .45s ease-out forwards;
+    }
+    @keyframes ring {
+      0%   { transform: scale(.7); opacity: .9; }
+      100% { transform: scale(1.9); opacity: 0; }
+    }
+
+    /* ── Top rectangle (header banner) ───────────────────────────── */
+    .topbar {
+      position: fixed; left: 50%; top: 18px;
+      transform: translateX(-50%);
+      z-index: 5;
+      width: min(940px, calc(100% - 32px));
+      display: flex; align-items: center; gap: 14px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 18px;
+      padding: 12px 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 36px rgba(0,0,0,.25);
+    }
+    .topbar img.logo { height: 34px; width: auto; }
+    .topbar .title { font-weight: 800; font-size: 1.05rem; letter-spacing: -.01em; }
+    .topbar .spacer { flex: 1; }
+    .topbar a.back {
+      color: #fff; text-decoration: none; font-weight: 600; font-size: .88rem;
+      padding: 8px 14px; border-radius: 10px;
+      background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.2);
+      transition: background .15s;
+    }
+    .topbar a.back:hover { background: rgba(255,255,255,.26); }
+
+    /* ── Center circle ───────────────────────────────────────────── */
+    .center {
+      position: fixed; left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      pointer-events: none;       /* let bubbles drift behind & stay clickable */
+      width: clamp(220px, 42vw, 340px);
+      height: clamp(220px, 42vw, 340px);
+      border-radius: 50%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 26px;
+      background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.18), rgba(255,255,255,.06));
+      border: 1.5px solid rgba(255,255,255,.32);
+      box-shadow: 0 24px 70px rgba(0,0,0,.3), inset 0 2px 30px rgba(255,255,255,.18);
+      backdrop-filter: blur(4px);
+    }
+    .center h1 { margin: 0; font-size: clamp(1.3rem, 3.4vw, 1.9rem); font-weight: 800; letter-spacing: -.02em; }
+    .center p  { margin: 12px 0 0; font-size: clamp(.8rem, 1.8vw, .92rem); color: rgba(255,255,255,.85); line-height: 1.5; }
+    .center .empty-note { margin-top: 14px; font-size: .8rem; color: rgba(255,255,255,.7); }
+
+    /* ── Color-fade overlay (page fades into sponsor colour) ─────── */
+    .color-fade {
+      position: fixed; inset: 0; z-index: 50;
+      opacity: 0; pointer-events: none;
+      transition: opacity .35s ease;
+    }
+    .color-fade.show { opacity: 1; pointer-events: auto; }
+
+    /* ── Modal: reuse .sponsor-* classes from style.css, sit on top ── */
+    #sponsor-modal { z-index: 60; }
+    #sponsor-modal .sponsor-modal-backdrop { background: rgba(8, 18, 34, .35); }
+    #sponsor-modal .sponsor-modal-card { border: 3px solid var(--sponsor-border, transparent); }
+    #sponsor-modal .sponsor-modal-head {
+      background: var(--board-bg, transparent);
+      color: var(--board-text, inherit);
+      margin: -6px -6px 18px;
+      padding: 18px 20px;
+      border-radius: 14px;
+    }
+    /* When the board band is coloured, keep the eyebrow/name/tagline legible. */
+    #sponsor-modal .sponsor-modal-head.tinted .sponsor-modal-eyebrow,
+    #sponsor-modal .sponsor-modal-head.tinted .sponsor-modal-name,
+    #sponsor-modal .sponsor-modal-head.tinted .sponsor-modal-tagline { color: var(--board-text); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bubble { animation-duration: 0.001s; animation-iteration-count: 1; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating bubbles fill the whole page -->
+  <div class="bubble-field" id="bubble-field" aria-hidden="true"></div>
+
+  <!-- Big rectangle at the top -->
+  <header class="topbar">
+    <img class="logo" src="/logo.webp" alt="HigherGrade Tutoring" />
+    <span class="title">Our Sponsors</span>
+    <span class="spacer"></span>
+    <a class="back" href="/index.html">← Back to site</a>
+  </header>
+
+  <!-- Circle in the middle -->
+  <div class="center" id="center">
+    <h1>Check out our sponsors</h1>
+    <p>click on the bubbles to select sponsor</p>
+    <div class="empty-note" id="empty-note" style="display:none;">Sponsors will appear here soon.</div>
+  </div>
+
+  <!-- Quick colour wash before the modal opens -->
+  <div class="color-fade" id="color-fade"></div>
+
+  <!-- ── Sponsor modal (mirrors the homepage title-sponsor modal) ── -->
+  <div class="sponsor-modal" id="sponsor-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Sponsor details">
+    <div class="sponsor-modal-backdrop" data-sponsor-close></div>
+    <div class="sponsor-modal-card" role="document">
+      <button class="sponsor-modal-close" data-sponsor-close aria-label="Close">×</button>
+
+      <div class="sponsor-modal-head" id="sm-head">
+        <img class="sponsor-modal-logo" id="sm-logo" alt="" />
+        <div>
+          <div class="sponsor-modal-eyebrow">Title Sponsor</div>
+          <h2 class="sponsor-modal-name" id="sm-name"></h2>
+          <p class="sponsor-modal-tagline" id="sm-tagline"></p>
+        </div>
+      </div>
+
+      <div class="sponsor-carousel">
+        <button class="sponsor-carousel-arrow prev" id="sm-prev" aria-label="Previous image">‹</button>
+        <div class="sponsor-carousel-viewport">
+          <div class="sponsor-carousel-track" id="sm-track"></div>
+        </div>
+        <button class="sponsor-carousel-arrow next" id="sm-next" aria-label="Next image">›</button>
+      </div>
+      <div class="sponsor-carousel-dots" id="sm-dots"></div>
+
+      <div class="sponsor-location" id="sm-location"></div>
+      <div class="sponsor-modal-desc" id="sm-desc"></div>
+
+      <div class="sponsor-people-label">In partnership with</div>
+      <div class="sponsor-people" id="sm-people"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const field    = document.getElementById('bubble-field');
+  const center   = document.getElementById('center');
+  const emptyNote = document.getElementById('empty-note');
+  const fade     = document.getElementById('color-fade');
+  const modal    = document.getElementById('sponsor-modal');
+  const elCard   = modal.querySelector('.sponsor-modal-card');
+  const elHead   = document.getElementById('sm-head');
+  const elLogo   = document.getElementById('sm-logo');
+  const elName   = document.getElementById('sm-name');
+  const elTag    = document.getElementById('sm-tagline');
+  const elTrack  = document.getElementById('sm-track');
+  const elDots   = document.getElementById('sm-dots');
+  const elLoc    = document.getElementById('sm-location');
+  const elDesc   = document.getElementById('sm-desc');
+  const elPeople = document.getElementById('sm-people');
+  const elPrev   = document.getElementById('sm-prev');
+  const elNext   = document.getElementById('sm-next');
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0,2).join('').toUpperCase();
+
+  // up-to-N colours → solid or 135° (top-left → bottom-right) gradient
+  function grad(colors, fallback) {
+    const c = (colors || []).filter(Boolean);
+    if (!c.length) return fallback || '';
+    if (c.length === 1) return c[0];
+    return `linear-gradient(135deg, ${c.join(', ')})`;
+  }
+  // pick readable text colour for a given solid colour
+  function contrast(hex) {
+    if (!hex || hex[0] !== '#') return '#fff';
+    let h = hex.slice(1);
+    if (h.length === 3) h = h.split('').map(x => x + x).join('');
+    const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+    const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+    return lum > 0.6 ? '#1b2430' : '#ffffff';
+  }
+  function accentOf(s) {
+    return s.border || (s.board && s.board[0]) || (s.background && s.background[0]) || 'var(--blush, #e9a4ab)';
+  }
+
+  let SPONSORS = [];
+  let current = null, slide = 0, lastBubble = null;
+
+  /* ── Carousel ── */
+  function renderCarousel(s) {
+    const imgs = (s.images || []).filter(Boolean).slice(0, 4);
+    if (!imgs.length) imgs.push('');
+    elTrack.innerHTML = imgs.map((src, i) => `
+      <div class="sponsor-slide">
+        ${src
+          ? `<img src="${esc(src)}" alt="${esc(s.name)} photo ${i+1}" />`
+          : `<div class="sponsor-slide-placeholder">Image ${i+1}<br><small>add a photo</small></div>`}
+      </div>`).join('');
+    elDots.innerHTML = imgs.map((_, i) =>
+      `<button class="sponsor-dot" data-i="${i}" aria-label="Go to image ${i+1}"></button>`).join('');
+    slide = 0; updateCarousel();
+  }
+  function updateCarousel() {
+    elTrack.style.transform = `translateX(-${slide * 100}%)`;
+    [...elDots.children].forEach((d, i) => d.classList.toggle('active', i === slide));
+  }
+  function go(n) {
+    const count = elTrack.children.length || 1;
+    slide = (n + count) % count; updateCarousel();
+  }
+  elPrev.addEventListener('click', () => go(slide - 1));
+  elNext.addEventListener('click', () => go(slide + 1));
+  elDots.addEventListener('click', e => { const d = e.target.closest('.sponsor-dot'); if (d) go(+d.dataset.i); });
+
+  /* ── Theme + fill the modal for a sponsor ── */
+  function applyTheme(s) {
+    const accent = accentOf(s);
+    elCard.style.setProperty('--sponsor-accent', accent);
+    elCard.style.setProperty('--sponsor-border', s.border || 'transparent');
+    const boardBg = grad(s.board, '');
+    if (boardBg) {
+      elCard.style.setProperty('--board-bg', boardBg);
+      elCard.style.setProperty('--board-text', contrast((s.board && s.board[0]) || ''));
+      elHead.classList.add('tinted');
+    } else {
+      elCard.style.setProperty('--board-bg', 'transparent');
+      elCard.style.removeProperty('--board-text');
+      elHead.classList.remove('tinted');
+    }
+  }
+
+  function fillModal(s) {
+    if (s.logo) {
+      elLogo.src = s.logo; elLogo.style.display = '';
+      elName.style.display = 'none'; elTag.style.display = 'none';
+    } else {
+      elLogo.style.display = 'none';
+      elName.style.display = ''; elTag.style.display = '';
+    }
+    elName.textContent = s.name || '';
+    elTag.textContent  = s.tagline || '';
+    elDesc.textContent = s.description || '';
+    if (s.location && s.location.label) {
+      const url = s.location.url || '';
+      elLoc.innerHTML = url
+        ? `<a href="${esc(url)}" target="_blank" rel="noopener">📍 ${esc(s.location.label)}</a>`
+        : `<span>📍 ${esc(s.location.label)}</span>`;
+      elLoc.style.display = '';
+    } else { elLoc.style.display = 'none'; }
+    elPeople.innerHTML = (s.staff || []).filter(p => p && (p.name || p.photo)).slice(0, 2).map(p => `
+      <div class="sponsor-person">
+        ${p.photo
+          ? `<img class="sponsor-person-photo" src="${esc(p.photo)}" alt="${esc(p.name)}" />`
+          : `<div class="sponsor-person-photo placeholder">${esc(initials(p.name))}</div>`}
+        <div class="sponsor-person-name">${esc(p.name)}</div>
+        <div class="sponsor-person-role">${esc(p.position)}</div>
+      </div>`).join('');
+    renderCarousel(s);
+  }
+
+  /* ── Open / close ── */
+  function openModal(s) {
+    current = s;
+    applyTheme(s);
+    fillModal(s);
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    fade.classList.remove('show');
+    if (lastBubble) {                       // un-pop & let it rise again
+      lastBubble.classList.remove('popping');
+      lastBubble.style.animationPlayState = 'running';
+      lastBubble = null;
+    }
+  }
+  modal.querySelectorAll('[data-sponsor-close]').forEach(el => el.addEventListener('click', closeModal));
+  document.addEventListener('keydown', e => {
+    if (!modal.classList.contains('open')) return;
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowLeft') go(slide - 1);
+    if (e.key === 'ArrowRight') go(slide + 1);
+  });
+
+  /* ── Bubble click: pop → colour-fade → modal ── */
+  function popAndOpen(bubble, s) {
+    if (bubble.classList.contains('popping')) return;
+    lastBubble = bubble;
+    bubble.style.animationPlayState = 'paused';   // freeze the rise in place
+    bubble.classList.add('popping');
+    setTimeout(() => {
+      fade.style.background = grad(s.background, 'linear-gradient(135deg, #0f2a4a, #173a63)');
+      fade.classList.add('show');
+      setTimeout(() => openModal(s), 300);
+    }, 360);
+  }
+
+  /* ── Build the floating bubbles ── */
+  function buildBubbles() {
+    field.innerHTML = '';
+    if (!SPONSORS.length) { emptyNote.style.display = ''; return; }
+    emptyNote.style.display = 'none';
+    // Enough bubbles to feel full; cycle through the sponsor list.
+    const TOTAL = Math.min(22, Math.max(10, SPONSORS.length * 4));
+    for (let i = 0; i < TOTAL; i++) {
+      const s = SPONSORS[i % SPONSORS.length];
+      const size  = 76 + Math.round(Math.random() * 66);          // 76–142px
+      const x     = Math.round(Math.random() * 92);                // vw %
+      const drift = (Math.random() * 80 - 40).toFixed(0) + 'px';   // lateral wander
+      const dur   = (14 + Math.random() * 12).toFixed(1) + 's';    // 14–26s
+      const delay = (-Math.random() * 24).toFixed(1) + 's';        // stagger (negative = already mid-flight)
+      const accent = accentOf(s);
+
+      const b = document.createElement('button');
+      b.className = 'bubble';
+      b.style.setProperty('--x', x + 'vw');
+      b.style.setProperty('--size', size + 'px');
+      b.style.setProperty('--drift', drift);
+      b.style.setProperty('--dur', dur);
+      b.style.setProperty('--delay', delay);
+      b.style.setProperty('--ring', accent);
+      b.style.setProperty('--ring-solid', (typeof accent === 'string' && accent[0] === '#') ? accent : '#173a63');
+      b.setAttribute('aria-label', s.name + ' — view sponsor');
+      b.innerHTML = `<span class="bubble-inner">${
+        s.logo ? `<img src="${esc(s.logo)}" alt="${esc(s.name)}" />`
+               : `<span class="wordmark">${esc(s.name)}</span>`}</span>`;
+      b.addEventListener('click', () => popAndOpen(b, s));
+      field.appendChild(b);
+    }
+  }
+
+  /* ── Load sponsors from the admin-managed config ── */
+  (async function load() {
+    try {
+      const r = await fetch('/api/sponsors', { credentials: 'same-origin' });
+      const j = await r.json();
+      SPONSORS = (j && j.ok && j.config && Array.isArray(j.config.sponsors)) ? j.config.sponsors : [];
+    } catch (_) { SPONSORS = []; }
+    buildBubbles();
+  })();
+})();
+</script>
+</body>
+</html>

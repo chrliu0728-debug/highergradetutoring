@@ -2228,6 +2228,47 @@ def register_routes(app):
         _meta_set("trail_config", blob)
         return jsonify(ok=True)
 
+    # ── Sponsors ─────────────────────────────────────────────────────
+    # Admin-managed list of title sponsors, rendered as the floating
+    # bubbles on /sponsors/sponsors.html. JSON blob in meta["sponsors"]:
+    #   { "sponsors": [ {
+    #       id, name, tagline, logo:"data:…|''", description,
+    #       location: { label, url },
+    #       staff:  [ { photo:"data:…|''", name, position }, … up to 2 ],
+    #       images: [ "data:…", … up to 4 ],
+    #       board:      [ "#hex", … up to 3 ],   // modal card; ≥2 ⇒ gradient TL→BR
+    #       border:     "#hex|''",                // single border colour
+    #       background: [ "#hex", … up to 2 ],   // page fade + backdrop; ≥2 ⇒ gradient
+    #     }, … ] }
+    # All fields optional — the page falls back to sensible defaults.
+    @app.route("/api/sponsors", methods=["GET"])
+    def sponsors_get():
+        raw = _meta_get("sponsors", "{}") or "{}"
+        try:
+            cfg = json.loads(raw)
+            if not isinstance(cfg, dict):
+                cfg = {}
+        except (TypeError, ValueError):
+            cfg = {}
+        if not isinstance(cfg.get("sponsors"), list):
+            cfg["sponsors"] = []
+        return jsonify(ok=True, config=cfg)
+
+    @app.route("/api/admin/sponsors", methods=["PUT"])
+    @require_admin
+    def sponsors_set():
+        d = request.get_json(silent=True) or {}
+        cfg = d.get("config")
+        if not isinstance(cfg, dict) or not isinstance(cfg.get("sponsors"), list):
+            return jsonify(ok=False, error="config must be {sponsors: [...]}"), 400
+        # Clamp the size — refuse blobs > 8 MB so a runaway admin upload
+        # (base64 logos/photos) can't fill the SQLite file with one row.
+        blob = json.dumps(cfg)
+        if len(blob) > 8 * 1024 * 1024:
+            return jsonify(ok=False, error="Sponsors data exceeds 8 MB. Try smaller images."), 413
+        _meta_set("sponsors", blob)
+        return jsonify(ok=True)
+
     @app.route("/api/admin/settings/student-cap", methods=["POST"])
     @require_admin
     def settings_student_cap_set():
