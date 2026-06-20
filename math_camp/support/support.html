@@ -65,7 +65,9 @@
     body.sp-glass .page-hero, body.sp-glass .section, body.sp-glass footer { position: relative; z-index: 1; }
 
     /* persistent company-colour wash for the page (kept after a sponsor is opened) */
-    .sp-tint { position: fixed; inset: 0; z-index: -2; pointer-events: none; opacity: 0; background: #3b82f6; transition: opacity .8s ease, background .8s ease; }
+    /* page colour overlays span the whole document and fade out toward the bottom */
+    .sp-tint { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; opacity: 0; }
+    .sp-ink  { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0; clip-path: inset(0 0 100% 0); }
 
     /* full-document bubble field that scrolls with the page */
     .sp-field { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
@@ -105,14 +107,14 @@
     /* ── Whole page = frosted glass; CLEARLY see-through buttons + fields ── */
     body.sp-glass .section, body.sp-glass .support-tier, body.sp-glass .donation-card,
     body.sp-glass .impact-cell, body.sp-glass .contact-form {
-      background: rgba(255,255,255,.20) !important;
+      background: linear-gradient(var(--glass-tint, transparent), var(--glass-tint, transparent)), rgba(255,255,255,.16) !important;
       -webkit-backdrop-filter: blur(6px) saturate(1.2); backdrop-filter: blur(6px) saturate(1.2);
       border-color: rgba(255,255,255,.5) !important;
     }
     body.sp-glass .page-hero { background: transparent !important; }
     body.sp-glass .btn, body.sp-glass .amount-btn,
     body.sp-glass .contact-form input, body.sp-glass .contact-form textarea, body.sp-glass .contact-form select {
-      background: rgba(255,255,255,.16) !important;
+      background: linear-gradient(var(--glass-tint, transparent), var(--glass-tint, transparent)), rgba(255,255,255,.12) !important;
       -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
       border-color: rgba(255,255,255,.55) !important;
     }
@@ -136,7 +138,7 @@
       box-shadow: inset 5px 0 12px rgba(255,255,255,.45), inset -6px 0 14px rgba(120,160,210,.18);
     }
     .sp-tube-base { position: absolute; inset: 0; background: var(--base, transparent); opacity: .85; }
-    .sp-tube-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--sig, #3b82f6); opacity: .85; transition: height .9s cubic-bezier(.4,.6,.3,1); }
+    .sp-tube-fill { position: absolute; left: 0; right: 0; top: 0; height: 0; background: var(--sig, #3b82f6); opacity: .85; transition: height .9s cubic-bezier(.4,.6,.3,1); }
     .sp-tube.fill .sp-tube-fill { height: 100%; }
 
     .sp-circle {
@@ -180,11 +182,10 @@
     @keyframes sp-circle-ring { 0%{opacity:.7; transform:scale(1)} 100%{opacity:0; transform:scale(1.28)} }
 
     /* expanding "ink" overlay — spreads the new colour over the previous one */
-    .sp-ink { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; background: #3b82f6; clip-path: circle(0 at 50% 50%); }
-    .sp-ink.spread { animation: sp-ink-spread .9s ease-out forwards; }
-    @keyframes sp-ink-spread {
-      from { clip-path: circle(0 at var(--cx, 50%) var(--cy, 50%)); }
-      to   { clip-path: circle(150vmax at var(--cx, 50%) var(--cy, 50%)); }
+    .sp-ink.spread { animation: sp-ink-wipe 1s ease-out forwards; }
+    @keyframes sp-ink-wipe {
+      from { clip-path: inset(0 0 100% 0); }
+      to   { clip-path: inset(0 0 0 0); }
     }
 
     /* ── Splat overlay ── */
@@ -912,23 +913,25 @@ Your donation to this category covers the printed certificates, the medals and s
     // bring the tube + circle into view so the formation is visible
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const prevInk = lastInk;
-    // INK: show the previous colour as the base, then spread the new colour
-    // over it from the popped bubble's position.
-    if (prevInk) { tint.style.background = prevInk; tint.style.opacity = '0.42'; }
-    else { tint.style.opacity = '0'; }
-    ink.style.background = sig;
-    ink.style.setProperty('--cx', (r.left + r.width / 2) + 'px');
-    ink.style.setProperty('--cy', (r.top + r.height / 2) + 'px');
-    ink.style.opacity = '0.42';
-    ink.classList.remove('spread'); void ink.offsetWidth; ink.classList.add('spread');
-    setTimeout(() => { tint.style.opacity = '0'; }, 950);  // ink now fully covers
-    lastInk = sig;
-    // TUBE: the new colour fills the pipe ON TOP of the previous colour —
-    // the old colour holds the pipe as a base while the new one rises over it.
+    // TUBE: the new colour fills the pipe from the TOP downward, on top of the
+    // previous colour (old colour holds the pipe as a base while the new flows down).
     tube.style.setProperty('--base', prevInk || 'transparent');
     tube.style.setProperty('--sig', sig);
     tube.classList.remove('fill'); void tube.offsetWidth; tube.classList.add('fill');
-    setTimeout(() => { tube.style.setProperty('--base', sig); tube.classList.remove('fill'); }, 950);
+    setTimeout(() => { tube.style.setProperty('--base', sig); tube.classList.remove('fill'); }, 1100);
+    // PAGE: after the colour heads down the pipe, it floods the whole page as a
+    // top→bottom wipe, fading out toward the bottom. Previous colour stays as base.
+    if (prevInk) { tint.style.background = washGrad(prevInk); tint.style.opacity = '0.55'; }
+    else { tint.style.opacity = '0'; }
+    ink.style.background = washGrad(sig);
+    ink.style.opacity = '0.55';
+    setTimeout(() => {
+      ink.classList.remove('spread'); void ink.offsetWidth; ink.classList.add('spread');
+    }, 450);  // start the page flood once the colour is heading down the tube
+    setTimeout(() => { tint.style.opacity = '0'; }, 1500);  // ink now fully covers
+    // glass UI takes on the colour (translucent in that colour)
+    document.body.style.setProperty('--glass-tint', sig + '2b');
+    lastInk = sig;
     // it reaches the circle and forms the logo, then the card opens
     setTimeout(() => formCircle(s, sig), 950);
     setTimeout(() => { openModal(s); popping = false; }, 1650);
@@ -941,11 +944,15 @@ Your donation to this category covers the printed certificates, the medals and s
   function sizeField() {
     const H = docHeight();
     field.style.height = H + 'px';
+    tint.style.height = H + 'px';
+    ink.style.height = H + 'px';
     for (const b of field.children) {
       b.style.setProperty('--startY', H + 'px');
       b.style.setProperty('--rise', '-' + (H + 220) + 'px');
     }
   }
+  // vertical wash: strong at the top, fading out toward the bottom of the page
+  function washGrad(col) { return 'linear-gradient(180deg, ' + col + ' 0%, ' + col + ' 7%, transparent 78%)'; }
 
   function build() {
     field.innerHTML = '';
