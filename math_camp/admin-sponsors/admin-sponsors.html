@@ -84,6 +84,7 @@
     .sponsor-chip:hover { background: var(--surface2); color: var(--text); }
     .sponsor-chip.active { border-color: var(--blush); background: rgba(232,128,138,.08); color: var(--text); }
     .sponsor-chip .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); flex-shrink: 0; }
+    .sponsor-chip .chip-logo { width: 24px; height: 24px; border-radius: 6px; background: #fff center/contain no-repeat; border: 1px solid var(--border); flex-shrink: 0; }
 
     /* Link-embed button row above the description */
     .desc-tools { display: flex; gap: 8px; margin-bottom: 6px; }
@@ -365,8 +366,10 @@ const emptyState = document.getElementById('empty-state');
 function refreshSelect() {
   sponsorListEl.innerHTML = config.sponsors.map((s, i) => {
     const sig = /^#[0-9a-fA-F]{6}$/.test(s.signature || '') ? s.signature : '#3b82f6';
-    return `<button class="sponsor-chip${i === currentIdx ? ' active' : ''}" data-i="${i}">
-      <span class="dot" style="background:${esc(sig)}"></span>${esc(s.name || 'Untitled')}</button>`;
+    const badge = s.logo
+      ? `<span class="chip-logo" style="background-image:url('${String(s.logo).replace(/'/g, "%27")}')"></span>`
+      : `<span class="dot" style="background:${esc(sig)}"></span>`;
+    return `<button class="sponsor-chip${i === currentIdx ? ' active' : ''}" data-i="${i}">${badge}${esc(s.name || 'Untitled')}</button>`;
   }).join('');
   sponsorListEl.style.display = config.sponsors.length ? '' : 'none';
 }

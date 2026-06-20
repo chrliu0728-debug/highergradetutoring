@@ -153,13 +153,38 @@
     .sp-circle-content .sp-empty { margin-top: 12px; font-size: .8rem; color: var(--muted); }
     .sp-circle-logo {
       position: absolute; inset: 20%; display: flex; align-items: center; justify-content: center;
-      opacity: 0; transform: scale(.3); transition: opacity .5s ease, transform .5s cubic-bezier(.2,.85,.25,1);
+      opacity: 0; transform: scale(.3);
     }
     .sp-circle-logo img { max-width: 100%; max-height: 100%; object-fit: contain; filter: drop-shadow(0 6px 14px rgba(0,0,0,.28)); }
     .sp-circle-wm { font-weight: 900; font-size: clamp(1.4rem, 4vw, 2.3rem); line-height: 1.05; }
     .sp-circle.formed { background: #fff; border: 4px solid var(--sig, #3b82f6); box-shadow: 0 26px 70px rgba(0,0,0,.22), inset 0 2px 24px rgba(255,255,255,.4); }
     .sp-circle.formed .sp-circle-content { opacity: 0; }
     .sp-circle.formed .sp-circle-logo { opacity: 1; transform: scale(1); }
+    /* lively logo pop-in (re-triggered on every formation) */
+    .sp-circle-logo.pop { animation: sp-logo-in .72s cubic-bezier(.18,1.5,.4,1) both; }
+    @keyframes sp-logo-in {
+      0%   { opacity: 0; transform: scale(.2) rotate(-14deg); }
+      45%  { opacity: 1; }
+      62%  { transform: scale(1.14) rotate(5deg); }
+      80%  { transform: scale(.96) rotate(-2deg); }
+      100% { opacity: 1; transform: scale(1) rotate(0); }
+    }
+    .sp-circle.bloop { animation: sp-circle-bloop .55s cubic-bezier(.2,.9,.3,1); }
+    @keyframes sp-circle-bloop { 0%{transform:scale(1)} 28%{transform:scale(1.05)} 60%{transform:scale(.985)} 100%{transform:scale(1)} }
+    /* a quick ring pulse out from the circle when the logo lands */
+    .sp-circle.bloop::after {
+      content: ''; position: absolute; inset: -4px; border-radius: 50%;
+      border: 4px solid var(--sig, #3b82f6); animation: sp-circle-ring .6s ease-out forwards;
+    }
+    @keyframes sp-circle-ring { 0%{opacity:.7; transform:scale(1)} 100%{opacity:0; transform:scale(1.28)} }
+
+    /* expanding "ink" overlay — spreads the new colour over the previous one */
+    .sp-ink { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; background: #3b82f6; clip-path: circle(0 at 50% 50%); }
+    .sp-ink.spread { animation: sp-ink-spread .9s ease-out forwards; }
+    @keyframes sp-ink-spread {
+      from { clip-path: circle(0 at var(--cx, 50%) var(--cy, 50%)); }
+      to   { clip-path: circle(150vmax at var(--cx, 50%) var(--cy, 50%)); }
+    }
 
     /* ── Splat overlay ── */
     .sp-splat { position: fixed; z-index: 1500; pointer-events: none; }
@@ -213,6 +238,7 @@
 
 <!-- ─────────────────── SPONSOR BUBBLES (full-page, behind glass) ─────────────────── -->
 <div class="sp-tint" id="sp-tint"></div>
+<div class="sp-ink" id="sp-ink"></div>
 <div class="sp-field" id="sp-field" aria-hidden="true"></div>
 
 <section class="sp-box" id="sp-box">
@@ -712,6 +738,7 @@ Your donation to this category covers the printed certificates, the medals and s
   const circle    = document.getElementById('sp-circle');
   const circleLogo= document.getElementById('sp-circle-logo');
   const tint      = document.getElementById('sp-tint');
+  const ink       = document.getElementById('sp-ink');
   const emptyEl = document.getElementById('sp-empty');
   const modal   = document.getElementById('sp-modal');
   const elCard  = modal.querySelector('.sponsor-modal-card');
@@ -754,7 +781,7 @@ Your donation to this category covers the printed certificates, the medals and s
   const sigOf = s => isHex(s.signature) ? s.signature
     : (isHex(s.border) ? s.border : (isHex(s.board && s.board[0]) ? s.board[0] : '#3b82f6'));
 
-  let SPONSORS = [], slide = 0, popped = null, popping = false;
+  let SPONSORS = [], slide = 0, popped = null, popping = false, lastInk = null;
 
   function renderCarousel(s) {
     const imgs = (s.images || []).filter(Boolean).slice(0, 4);
@@ -864,6 +891,10 @@ Your donation to this category covers the printed certificates, the medals and s
       ? '<img src="' + esc(s.logo) + '" alt="' + esc(s.name) + '" />'
       : '<span class="sp-circle-wm" style="color:' + sig + '">' + esc(s.name) + '</span>';
     circle.classList.add('formed');
+    // (re)trigger the lively pop-in each time a logo forms
+    circleLogo.classList.remove('pop'); circle.classList.remove('bloop');
+    void circle.offsetWidth;
+    circleLogo.classList.add('pop'); circle.classList.add('bloop');
   }
 
   /* pop → colour spreads through the tube → up into the circle → logo forms → card */
@@ -879,9 +910,17 @@ Your donation to this category covers the printed certificates, the medals and s
     popped = { bubble, rot };
     // bring the tube + circle into view so the formation is visible
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    // the page begins keeping the company's colour
-    tint.style.background = sig;
-    tint.style.opacity = '0.42';
+    // INK: show the previous colour as the base, then spread the new colour
+    // over it from the popped bubble's position.
+    if (lastInk) { tint.style.background = lastInk; tint.style.opacity = '0.42'; }
+    else { tint.style.opacity = '0'; }
+    ink.style.background = sig;
+    ink.style.setProperty('--cx', (r.left + r.width / 2) + 'px');
+    ink.style.setProperty('--cy', (r.top + r.height / 2) + 'px');
+    ink.style.opacity = '0.42';
+    ink.classList.remove('spread'); void ink.offsetWidth; ink.classList.add('spread');
+    setTimeout(() => { tint.style.opacity = '0'; }, 950);  // ink now fully covers
+    lastInk = sig;
     // the colour travels up the glass tube
     tube.style.setProperty('--sig', sig);
     tube.classList.remove('fill'); void tube.offsetWidth; tube.classList.add('fill');
