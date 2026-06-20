@@ -135,6 +135,7 @@
       -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
       box-shadow: inset 5px 0 12px rgba(255,255,255,.45), inset -6px 0 14px rgba(120,160,210,.18);
     }
+    .sp-tube-base { position: absolute; inset: 0; background: var(--base, transparent); opacity: .85; }
     .sp-tube-fill { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--sig, #3b82f6); opacity: .85; transition: height .9s cubic-bezier(.4,.6,.3,1); }
     .sp-tube.fill .sp-tube-fill { height: 100%; }
 
@@ -242,7 +243,7 @@
 <div class="sp-field" id="sp-field" aria-hidden="true"></div>
 
 <section class="sp-box" id="sp-box">
-  <div class="sp-tube" id="sp-tube"><div class="sp-tube-fill" id="sp-tube-fill"></div></div>
+  <div class="sp-tube" id="sp-tube"><div class="sp-tube-base" id="sp-tube-base"></div><div class="sp-tube-fill" id="sp-tube-fill"></div></div>
   <div class="sp-circle" id="sp-circle">
     <div class="sp-circle-content" id="sp-circle-content">
       <h2>Check out our sponsors</h2>
@@ -910,9 +911,10 @@ Your donation to this category covers the printed certificates, the medals and s
     popped = { bubble, rot };
     // bring the tube + circle into view so the formation is visible
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    const prevInk = lastInk;
     // INK: show the previous colour as the base, then spread the new colour
     // over it from the popped bubble's position.
-    if (lastInk) { tint.style.background = lastInk; tint.style.opacity = '0.42'; }
+    if (prevInk) { tint.style.background = prevInk; tint.style.opacity = '0.42'; }
     else { tint.style.opacity = '0'; }
     ink.style.background = sig;
     ink.style.setProperty('--cx', (r.left + r.width / 2) + 'px');
@@ -921,9 +923,12 @@ Your donation to this category covers the printed certificates, the medals and s
     ink.classList.remove('spread'); void ink.offsetWidth; ink.classList.add('spread');
     setTimeout(() => { tint.style.opacity = '0'; }, 950);  // ink now fully covers
     lastInk = sig;
-    // the colour travels up the glass tube
+    // TUBE: the new colour fills the pipe ON TOP of the previous colour —
+    // the old colour holds the pipe as a base while the new one rises over it.
+    tube.style.setProperty('--base', prevInk || 'transparent');
     tube.style.setProperty('--sig', sig);
     tube.classList.remove('fill'); void tube.offsetWidth; tube.classList.add('fill');
+    setTimeout(() => { tube.style.setProperty('--base', sig); tube.classList.remove('fill'); }, 950);
     // it reaches the circle and forms the logo, then the card opens
     setTimeout(() => formCircle(s, sig), 950);
     setTimeout(() => { openModal(s); popping = false; }, 1650);
