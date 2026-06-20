@@ -166,9 +166,10 @@ _REPLY_LOCK = threading.Lock()
 def enqueue_reply(payload):
     """Queue a human-approved reply. payload = dict(to_email, subject, body,
     in_reply_to, references, attachments, by). Queued replies are sent FIRST at
-    the next send slot — no need to pause the queue."""
+    the next send slot — and each new one jumps to the FRONT of the reply line
+    (appendleft) so the just-sent reply is the very next thing to go out."""
     with _REPLY_LOCK:
-        _REPLY_QUEUE.append(payload)
+        _REPLY_QUEUE.appendleft(payload)
     return len(_REPLY_QUEUE)
 
 
@@ -179,6 +180,104 @@ def _next_reply():
 
 def replies_pending():
     return len(_REPLY_QUEUE)
+
+
+# ── Outreach queue (exposed so the Discord layer can preview / edit / skip the
+# upcoming emails before they send). The send loop fills _OUTREACH once it has
+# built the ordered sponsor list; _OUTREACH_IDX is the next not-yet-handled row.
+_OUTREACH: list = []
+_OUTREACH_IDX = 0
+_OUTREACH_LOCK = threading.Lock()
+
+
+def _set_outreach(sponsors):
+    """Called by run() once the ordered send list is built."""
+    global _OUTREACH, _OUTREACH_IDX
+    with _OUTREACH_LOCK:
+        _OUTREACH = sponsors
+        _OUTREACH_IDX = 0
+
+
+def _ensure_email(s):
+    """Generate this sponsor's outreach email once and cache it on the dict, so
+    a preview matches exactly what will send. Returns (subject, body), applying
+    any human override."""
+    if "subject" not in s or "body" not in s:
+        subj, body = build_email(s["type"], s["name"])
+        if s.get("note"):
+            body += f"\n\nP.S. {s['note']}\n"
+        s["subject"], s["body"] = subj, body
+    subj = s["override_subject"] if s.get("override_subject") else s["subject"]
+    body = s["override_body"] if s.get("override_body") is not None else s["body"]
+    return subj, body
+
+
+def _next_outreach():
+    """Advance to and return the next not-skipped upcoming sponsor (or None)."""
+    global _OUTREACH_IDX
+    with _OUTREACH_LOCK:
+        while _OUTREACH_IDX < len(_OUTREACH):
+            s = _OUTREACH[_OUTREACH_IDX]
+            _OUTREACH_IDX += 1
+            if not s.get("skip"):
+                return s
+        return None
+
+
+def outreach_position():
+    with _OUTREACH_LOCK:
+        return _OUTREACH_IDX
+
+
+def outreach_upcoming(limit=10):
+    """The next `limit` not-yet-sent, not-skipped outreach emails, each with the
+    exact subject/body that will go out (so edits act on the real thing)."""
+    out = []
+    with _OUTREACH_LOCK:
+        for s in _OUTREACH[_OUTREACH_IDX:]:
+            if s.get("skip"):
+                continue
+            subj, body = _ensure_email(s)
+            out.append({
+                "row": s["row"], "name": s["name"], "type": s["type"],
+                "location": s.get("location", ""), "email": s["email"],
+                "subject": subj, "body": body,
+                "edited": bool(s.get("override_body") is not None
+                               or s.get("override_subject")),
+            })
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _find_upcoming(row):
+    """(caller holds the lock) the upcoming sponsor with this sheet row, or None."""
+    for s in _OUTREACH[_OUTREACH_IDX:]:
+        if s.get("row") == row and not s.get("skip"):
+            return s
+    return None
+
+
+def set_outreach_override(row, subject, body):
+    """Override the email for an upcoming sponsor. (ok, name_or_error)."""
+    with _OUTREACH_LOCK:
+        s = _find_upcoming(row)
+        if s is None:
+            return False, "That email isn't in the upcoming queue (already sent or skipped)."
+        if subject is not None and subject.strip():
+            s["override_subject"] = subject.strip()
+        s["override_body"] = body
+        return True, s["name"]
+
+
+def skip_outreach(row):
+    """Drop an upcoming sponsor so it's never emailed this run. (ok, name_or_error)."""
+    with _OUTREACH_LOCK:
+        s = _find_upcoming(row)
+        if s is None:
+            return False, "That email isn't in the upcoming queue (already sent or skipped)."
+        s["skip"] = True
+        return True, s["name"]
 
 # ─────────────────────────────────────────────
 # CONFIG — fill these in before running
@@ -796,6 +895,9 @@ def run():
     # ── Order by location (Oakville/Mississauga alternate up front; empty
     #    shuffled, then grouped by category; 'Whatever' rows are held back) ──
     sponsors = order_shuffled_by_category(to_send)
+    # Expose the ordered list so the Discord layer can preview / edit / skip the
+    # upcoming emails before they go out.
+    _set_outreach(sponsors)
 
     if not sponsors:
         print("Nothing to send. (Everyone is already contacted, a duplicate, or has no email.)")
@@ -814,7 +916,6 @@ def run():
     replies_sent = 0
     sent_in_batch = 0               # emails sent since the last mandatory break
     last_break = time.time()        # clock for the mandatory 12h break
-    idx = 0                         # next outreach sponsor index
     STATUS.update(state="running", total=total, sent=0, failed=0,
                   sent_in_batch=0, batch_size=0,
                   resting_until=0.0)
@@ -853,21 +954,20 @@ def run():
                 failed += 1
                 print(f"  ❌ Reply to {reply.get('to_email')} FAILED — {e}")
 
-        elif idx < total:
-            # 2) Next outreach email.
-            sponsor = sponsors[idx]
-            idx += 1
+        elif (sponsor := _next_outreach()) is not None:
+            # 2) Next outreach email (skips any the team dropped via /queue-next).
+            idx = outreach_position()        # 1-based position of this send
             STATUS["current"] = sponsor["name"]
-            # Assemble a one-of-a-kind email: "Hi <company>," + randomized,
-            # equivalent paraphrases of each paragraph (see build_email).
-            subject, body = build_email(sponsor["type"], sponsor["name"])
-            if sponsor["note"]:
-                body += f"\n\nP.S. {sponsor['note']}\n"
+            # The exact, one-of-a-kind email — generated once and cached, with any
+            # human edit from /queue-next applied (see _ensure_email / build_email).
+            subject, body = _ensure_email(sponsor)
             to_email = ZOHO_EMAIL if TEST_MODE else sponsor["email"]
             try:
                 send_email(to_email, subject, body)
                 loc = sponsor["location"] or "—"
-                print(f"  ✅ [{idx}/{total}] Sent [{loc}/{sponsor['type']}] → {sponsor['name']} <{to_email}>")
+                edited = " ✏️" if (sponsor.get("override_body") is not None
+                                   or sponsor.get("override_subject")) else ""
+                print(f"  ✅ [{idx}/{total}]{edited} Sent [{loc}/{sponsor['type']}] → {sponsor['name']} <{to_email}>")
                 sent += 1
                 if not TEST_MODE:
                     mark_contacted(sheet, sponsor["row"], today_str)  # row → green

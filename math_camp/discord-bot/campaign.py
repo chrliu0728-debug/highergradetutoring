@@ -358,6 +358,93 @@ class ReviewView(discord.ui.View):
         await interaction.followup.send("Archived. 🗑️", ephemeral=True)
 
 
+# ── upcoming-outreach review UI (preview / edit / skip before it sends) ──
+
+class EditOutreachModal(discord.ui.Modal, title="Edit outreach email"):
+    """Edit the exact subject + body that will be sent to one upcoming sponsor."""
+
+    def __init__(self, item: dict):
+        super().__init__()
+        self.item = item
+        self.subject = discord.ui.TextInput(
+            label="Subject", default=(item.get("subject") or "")[:300],
+            max_length=300, required=True)
+        self.body = discord.ui.TextInput(
+            label="Email body (this exact text gets sent)",
+            style=discord.TextStyle.paragraph,
+            default=(item.get("body") or "")[:4000], max_length=4000, required=True)
+        self.add_item(self.subject)
+        self.add_item(self.body)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        ok, res = await asyncio.to_thread(
+            emailer.set_outreach_override, self.item["row"],
+            str(self.subject.value), str(self.body.value))
+        track(interaction, "queue.outreach.edit", self.item.get("name", ""))
+        if ok:
+            self.item.update(subject=str(self.subject.value),
+                             body=str(self.body.value), edited=True)
+            await interaction.response.send_message(
+                f"✅ Saved — **{res}**'s email will send with your edited text.",
+                ephemeral=True)
+        else:
+            await interaction.response.send_message(f"⚠️ {res}", ephemeral=True)
+
+
+class OutreachItemView(discord.ui.View):
+    """Edit / Skip buttons for one chosen upcoming email."""
+
+    def __init__(self, item: dict):
+        super().__init__(timeout=600)
+        self.item = item
+
+    @discord.ui.button(label="✏️ Edit text", style=discord.ButtonStyle.primary)
+    async def edit(self, interaction: discord.Interaction, _b: discord.ui.Button):
+        await interaction.response.send_modal(EditOutreachModal(self.item))
+
+    @discord.ui.button(label="⏭️ Skip this one", style=discord.ButtonStyle.danger)
+    async def skip(self, interaction: discord.Interaction, _b: discord.ui.Button):
+        ok, res = await asyncio.to_thread(emailer.skip_outreach, self.item["row"])
+        track(interaction, "queue.outreach.skip", self.item.get("name", ""))
+        for c in self.children:
+            c.disabled = True
+        msg = (f"⏭️ Skipped **{res}** — it won't be emailed this run."
+               if ok else f"⚠️ {res}")
+        await interaction.response.edit_message(content=msg, embed=None, view=self)
+
+
+class OutreachQueueView(discord.ui.View):
+    """Dropdown to pick one of the listed upcoming emails to edit or skip."""
+
+    def __init__(self, items: list):
+        super().__init__(timeout=600)
+        self.items = {str(it["row"]): it for it in items}
+        options = [
+            discord.SelectOption(
+                label=f"{i}. {it['name']}"[:100], value=str(it["row"]),
+                description=(it.get("subject") or "—")[:100])
+            for i, it in enumerate(items, 1)]
+        self.select = discord.ui.Select(
+            placeholder="Choose an email to edit or skip…", options=options)
+        self.select.callback = self._on_select
+        self.add_item(self.select)
+
+    async def _on_select(self, interaction: discord.Interaction):
+        it = self.items.get(self.select.values[0])
+        if not it:
+            await interaction.response.send_message(
+                "That one's no longer in the queue.", ephemeral=True)
+            return
+        body = it.get("body") or "—"
+        preview = (body[:1500] + "…") if len(body) > 1500 else body
+        e = discord.Embed(title=f"✏️ {it['name']}", colour=discord.Colour.blurple())
+        e.add_field(name="To", value=it.get("email") or "—", inline=False)
+        e.add_field(name="Subject", value=it.get("subject") or "—", inline=False)
+        e.add_field(name="Body", value=preview, inline=False)
+        await interaction.response.send_message(
+            embed=e, view=OutreachItemView(it), ephemeral=True)
+
+
 # ── background mailbox poll (module-level so it can start in setup_hook) ──
 _bot: discord.Client | None = None
 
@@ -608,3 +695,32 @@ def setup(bot: discord.Client) -> None:
         track(interaction, "queue.status")
         await interaction.response.send_message(
             _fmt_status(emailer.status()), ephemeral=True)
+
+    @tree.command(name="queue-next",
+                  description="Preview, edit, or skip the upcoming outreach emails.")
+    @app_commands.describe(count="How many upcoming emails to list (1-15, default 8).")
+    async def queue_next(interaction: discord.Interaction, count: int = 8):
+        if not await _admin_only(interaction):
+            return
+        count = max(1, min(15, count))
+        items = await asyncio.to_thread(emailer.outreach_upcoming, count)
+        if not items:
+            await interaction.response.send_message(
+                "No upcoming outreach emails — the queue isn't running, or "
+                "everything's been sent or skipped.", ephemeral=True)
+            return
+        e = discord.Embed(
+            title="📤 Upcoming outreach emails",
+            colour=discord.Colour.blurple(),
+            description="Pick one below to ✏️ edit its exact text or ⏭️ skip it "
+                        "before it sends. Each is the real email that will go out.")
+        for i, it in enumerate(items, 1):
+            body = it.get("body") or "—"
+            prev = (body[:160] + "…") if len(body) > 160 else body
+            tag = "  ·  ✏️ edited" if it.get("edited") else ""
+            where = it.get("location") or it.get("type") or "—"
+            e.add_field(name=f"{i}. {it['name']} · {where}{tag}",
+                        value=f"**{it.get('subject') or '—'}**\n{prev}", inline=False)
+        track(interaction, "queue.next", f"{len(items)} shown")
+        await interaction.response.send_message(
+            embed=e, view=OutreachQueueView(items), ephemeral=True)
