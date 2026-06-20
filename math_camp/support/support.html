@@ -176,6 +176,7 @@
     #sp-modal .sponsor-modal-desc, #sp-modal .sponsor-people-label, #sp-modal .sponsor-person-name { color: var(--card-text, var(--text)); }
     #sp-modal .sponsor-modal-desc, #sp-modal .sponsor-person-role { opacity: .85; }
     #sp-modal .sponsor-location a { color: var(--card-text, var(--text)); border-bottom-color: var(--sponsor-accent); }
+    #sp-modal .sponsor-modal-desc a { color: var(--sponsor-accent); font-weight: 700; text-decoration: underline; }
     #sp-modal.open .sponsor-modal-card { animation: sp-form .55s cubic-bezier(.2,.85,.25,1); }
     @keyframes sp-form { 0%{transform:scale(.2);border-radius:50%;opacity:0} 55%{opacity:1} 100%{transform:scale(1);border-radius:18px;opacity:1} }
     #sp-modal.open .sp-stagger > * { animation: sp-stag .5s both; }
@@ -728,6 +729,16 @@ Your donation to this category covers the printed certificates, the medals and s
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0,2).join('').toUpperCase();
+  // Render a description: escape HTML, then turn [text](url) and bare URLs into
+  // safe clickable links (http/https/mailto only), and newlines into breaks.
+  function renderDesc(text) {
+    let h = esc(text || '');
+    h = h.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/gi,
+      (m, t, u) => '<a href="' + u + '" target="_blank" rel="noopener">' + t + '</a>');
+    h = h.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+)/gi,
+      (m, pre, u) => pre + '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>');
+    return h.replace(/\n/g, '<br>');
+  }
   const rnd = (a, b) => a + Math.random() * (b - a);
   const isHex = c => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
   function grad(colors, fb) {
@@ -778,7 +789,7 @@ Your donation to this category covers the printed certificates, the medals and s
     else { elLogo.style.display = 'none'; elName.style.display = ''; elTag.style.display = ''; }
     elName.textContent = s.name || '';
     elTag.textContent = s.tagline || '';
-    elDesc.textContent = s.description || '';
+    elDesc.innerHTML = renderDesc(s.description);
     if (s.location && s.location.label) {
       const u = s.location.url || '';
       elLoc.innerHTML = u

@@ -71,10 +71,22 @@
     .file-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
     .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
-    .toolbar select {
-      flex: 1; min-width: 200px; max-width: 460px; padding: 10px 12px;
-      border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); font-size: .95rem;
+
+    /* Visible list of all sponsors — click one to edit it */
+    .sponsor-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .sponsor-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 10px; cursor: pointer;
+      border: 1.5px solid var(--border); background: var(--surface);
+      font-size: .9rem; font-weight: 600; color: var(--text-mid);
+      transition: border-color .15s, background .15s, color .15s;
     }
+    .sponsor-chip:hover { background: var(--surface2); color: var(--text); }
+    .sponsor-chip.active { border-color: var(--blush); background: rgba(232,128,138,.08); color: var(--text); }
+    .sponsor-chip .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); flex-shrink: 0; }
+
+    /* Link-embed button row above the description */
+    .desc-tools { display: flex; gap: 8px; margin-bottom: 6px; }
 
     /* Editor layout */
     .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; margin-top: 16px; }
@@ -199,8 +211,8 @@
     <h2>🫧 Sponsors</h2>
     <p class="panel-desc">Pick a sponsor to edit, or add a new one. Changes aren't live until you hit <strong>Save</strong>.</p>
 
+    <div class="sponsor-list" id="sponsor-list"></div>
     <div class="toolbar">
-      <select id="sponsor-select"></select>
       <button class="btn-mini" id="add-btn">+ Add sponsor</button>
       <button class="btn-mini danger" id="del-btn">Delete this sponsor</button>
     </div>
@@ -345,18 +357,25 @@ function markDirty() {
   st.textContent = same ? 'Up to date.' : 'Unsaved changes — click Save.';
 }
 
-/* ── Sponsor selector ──────────────────────────────────────────── */
-const sponsorSelect = document.getElementById('sponsor-select');
+/* ── Sponsor selector (visible clickable list) ─────────────────── */
+const sponsorListEl = document.getElementById('sponsor-list');
 const editorEl = document.getElementById('editor');
 const emptyState = document.getElementById('empty-state');
 
 function refreshSelect() {
-  sponsorSelect.innerHTML = config.sponsors.map((s, i) =>
-    `<option value="${i}">${esc(s.name || 'Untitled')}</option>`).join('');
-  if (currentIdx >= 0) sponsorSelect.value = String(currentIdx);
-  sponsorSelect.style.display = config.sponsors.length ? '' : 'none';
+  sponsorListEl.innerHTML = config.sponsors.map((s, i) => {
+    const sig = /^#[0-9a-fA-F]{6}$/.test(s.signature || '') ? s.signature : '#3b82f6';
+    return `<button class="sponsor-chip${i === currentIdx ? ' active' : ''}" data-i="${i}">
+      <span class="dot" style="background:${esc(sig)}"></span>${esc(s.name || 'Untitled')}</button>`;
+  }).join('');
+  sponsorListEl.style.display = config.sponsors.length ? '' : 'none';
 }
-sponsorSelect.addEventListener('change', () => { currentIdx = parseInt(sponsorSelect.value, 10) || 0; renderEditor(); });
+sponsorListEl.addEventListener('click', e => {
+  const chip = e.target.closest('.sponsor-chip');
+  if (!chip) return;
+  currentIdx = parseInt(chip.dataset.i, 10) || 0;
+  refreshSelect(); renderEditor();
+});
 
 document.getElementById('add-btn').addEventListener('click', () => {
   config.sponsors.push(newSponsor());
@@ -384,7 +403,11 @@ function renderEditor() {
       <div>
         <div class="field"><label>Name</label><input type="text" id="f-name" value="${esc(s.name)}" /></div>
         <div class="field"><label>Tagline</label><input type="text" id="f-tagline" value="${esc(s.tagline)}" placeholder="e.g. Work. Learn. Grow." /></div>
-        <div class="field"><label>Description</label><textarea id="f-desc" placeholder="A paragraph about the sponsor…">${esc(s.description)}</textarea></div>
+        <div class="field"><label>Description</label>
+          <div class="desc-tools"><button type="button" class="btn-mini" id="desc-link-btn">🔗 Insert link</button></div>
+          <textarea id="f-desc" placeholder="A paragraph about the sponsor…">${esc(s.description)}</textarea>
+          <div class="hint">Links you insert show as clickable links on the sponsor card.</div>
+        </div>
         <div class="field"><label>Location label</label><input type="text" id="f-loc-label" value="${esc(s.location && s.location.label)}" placeholder="e.g. Oakville, Ontario" /></div>
         <div class="field"><label>Location link (Google Maps URL)</label><input type="text" id="f-loc-url" value="${esc(s.location && s.location.url)}" placeholder="https://…" /></div>
 
@@ -427,6 +450,25 @@ function renderEditor() {
   bindText('f-desc', v => { s.description = v; });
   bindText('f-loc-label', v => { s.location.label = v; });
   bindText('f-loc-url', v => { s.location.url = v; });
+
+  document.getElementById('desc-link-btn').addEventListener('click', () => {
+    const ta = document.getElementById('f-desc');
+    const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+    const label = prompt('Link text (the words people click):', sel || '');
+    if (label === null || !label.trim()) return;
+    let url = prompt('Link URL:', 'https://');
+    if (url === null || !url.trim()) return;
+    url = url.trim();
+    if (!/^(https?:\/\/|mailto:)/i.test(url)) url = 'https://' + url;
+    const md = '[' + label.trim() + '](' + url + ')';
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.slice(0, start) + md + ta.value.slice(end);
+    s.description = ta.value;
+    ta.focus();
+    const pos = start + md.length;
+    ta.setSelectionRange(pos, pos);
+    markDirty();
+  });
 
   wireLogo(s);
   renderImages(s);
