@@ -60,6 +60,9 @@ SPIDER_THRESHOLD       = 20
 CLASS_POINT_TO_INDIV   = 10
 CLASS_BANK_DAILY_RATE  = 0.05
 TX_MAX                 = 2000
+# Combined size of the whole sponsors blob (all sponsors + their base64 logos and
+# photos) stored in one meta row. Generous headroom for ~30 sponsors; bump freely.
+SPONSORS_MAX_BYTES     = 50 * 1024 * 1024
 MAZEWIZ_ROLE_ID        = "mazewiz"
 MONEY_TREE_ROLE_ID     = "money_tree"
 CLICKER_ROLE_ID        = "clicker"
@@ -2264,8 +2267,9 @@ def register_routes(app):
         # Clamp the size — refuse blobs > 8 MB so a runaway admin upload
         # (base64 logos/photos) can't fill the SQLite file with one row.
         blob = json.dumps(cfg)
-        if len(blob) > 8 * 1024 * 1024:
-            return jsonify(ok=False, error="Sponsors data exceeds 8 MB. Try smaller images."), 413
+        if len(blob) > SPONSORS_MAX_BYTES:
+            mb = SPONSORS_MAX_BYTES // (1024 * 1024)
+            return jsonify(ok=False, error=f"Sponsors data exceeds {mb} MB. Try smaller images."), 413
         _meta_set("sponsors", blob)
         return jsonify(ok=True)
 
