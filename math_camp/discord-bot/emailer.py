@@ -316,12 +316,42 @@ MAX_GAP_MIN = 11.0   # longest gap between two emails (minutes)
 # you're ready to send them — they'll be the only 'Not Contacted' rows left.
 INCLUDE_WHATEVER = os.environ.get("INCLUDE_WHATEVER", "0") == "1"
 
-# No warm-up batch ramp. Emails go out one at a time on a human-like 7-11 min
-# gap (MIN/MAX_GAP_MIN above); the ONLY long pause is a single mandatory break of
-# MANDATORY_BREAK_MINUTES after every MANDATORY_BREAK_EVERY_HOURS of sending.
-# (Default: 1 hour off after every 12 hours of active sending.)
-MANDATORY_BREAK_EVERY_HOURS = 12
-MANDATORY_BREAK_MINUTES     = 60
+# ── Warm-up batch ramp ────────────────────────────────────────────────────
+# Outreach goes out in growing batches with shrinking rests between them, so a
+# sending address warms up gently instead of blasting from cold. Within a batch,
+# emails still space out on the human-like MIN/MAX_GAP_MIN gap above. After each
+# batch the bot rests, then the NEXT batch is BATCH_STEP larger and its rest
+# BATCH_REST_STEP_MIN shorter — until the rest reaches BATCH_REST_FLOOR_MIN,
+# where the batch size and rest both freeze and hold (steady cruise).
+#   20 emails → rest 180m → 25 → 165m → 30 → 150m → … → 75 → 15m → 75 / 15m …
+# (Lands at ~160 outreach emails/day once warmed up — well under Gmail's cap.)
+# Only OUTREACH counts toward a batch; human-approved replies are priority sends
+# and don't consume the batch quota.
+BATCH_START          = 20    # emails in the very first batch
+BATCH_STEP           = 5     # each batch sends this many more than the last
+BATCH_REST_START_MIN = 180   # rest after the first batch (minutes)
+BATCH_REST_STEP_MIN  = 15    # each batch's rest is this many minutes shorter
+BATCH_REST_FLOOR_MIN = 15    # rest never drops below this; batch size freezes here too
+
+
+def _batch_ramp_steps():
+    """Number of ramp steps until the rest reaches its floor (after which the
+    batch size and rest both hold steady)."""
+    return max(0, (BATCH_REST_START_MIN - BATCH_REST_FLOOR_MIN) // BATCH_REST_STEP_MIN)
+
+
+def _batch_size(n):
+    """Size of batch index `n` (0-based). Grows by BATCH_STEP each batch, then
+    freezes once the rest has ramped down to its floor, so volume doesn't climb
+    forever."""
+    n = min(max(0, n), _batch_ramp_steps())
+    return BATCH_START + BATCH_STEP * n
+
+
+def _batch_rest_min(n):
+    """Rest in minutes after batch index `n`, shrinking by BATCH_REST_STEP_MIN
+    each batch down to BATCH_REST_FLOOR_MIN."""
+    return max(BATCH_REST_FLOOR_MIN, BATCH_REST_START_MIN - BATCH_REST_STEP_MIN * max(0, n))
 
 # Column letters used when writing results back to the sheet
 COL_EMAIL          = "D"  # used to highlight duplicate emails yellow
@@ -906,18 +936,20 @@ def run():
 
     today_str = datetime.now().strftime("%a %B %d")  # e.g. "Fri June 05"
     total = len(sponsors)
-    print(f"⏳ Queue mode: random {MIN_GAP_MIN:.0f}-{MAX_GAP_MIN:.0f} min between "
-          f"emails, with a {MANDATORY_BREAK_MINUTES}-min break after every "
-          f"{MANDATORY_BREAK_EVERY_HOURS}h of sending. {total} to send.")
+    print(f"⏳ Queue mode: warm-up batches — {BATCH_START} emails, then "
+          f"+{BATCH_STEP} each batch; rest starts at {BATCH_REST_START_MIN}m and "
+          f"shrinks {BATCH_REST_STEP_MIN}m per batch down to {BATCH_REST_FLOOR_MIN}m. "
+          f"Within a batch, random {MIN_GAP_MIN:.0f}-{MAX_GAP_MIN:.0f} min between "
+          f"emails. {total} to send.")
     print("   Keep this script running the whole time. (Ctrl+C to stop.)\n")
 
     sent = 0
     failed = 0
     replies_sent = 0
-    sent_in_batch = 0               # emails sent since the last mandatory break
-    last_break = time.time()        # clock for the mandatory 12h break
+    batch_idx = 0                   # which warm-up batch we're on (0-based)
+    count_in_batch = 0              # OUTREACH emails sent in the current batch
     STATUS.update(state="running", total=total, sent=0, failed=0,
-                  sent_in_batch=0, batch_size=0,
+                  sent_in_batch=0, batch_size=_batch_size(0),
                   resting_until=0.0)
 
     # Keep running until Stop. Queued replies are sent FIRST at each slot; once
@@ -927,6 +959,7 @@ def run():
             print("\n⏹ Stopped by user.")
             break
 
+        did_outreach = False    # was this slot an outreach send? (drives batch pacing)
         reply = _next_reply()
         if reply is not None:
             # 1) Priority: a human-approved reply.
@@ -956,6 +989,7 @@ def run():
 
         elif (sponsor := _next_outreach()) is not None:
             # 2) Next outreach email (skips any the team dropped via /queue-next).
+            did_outreach = True
             idx = outreach_position()        # 1-based position of this send
             STATUS["current"] = sponsor["name"]
             # The exact, one-of-a-kind email — generated once and cached, with any
@@ -969,6 +1003,7 @@ def run():
                                    or sponsor.get("override_subject")) else ""
                 print(f"  ✅ [{idx}/{total}]{edited} Sent [{loc}/{sponsor['type']}] → {sponsor['name']} <{to_email}>")
                 sent += 1
+                count_in_batch += 1          # only outreach counts toward the batch
                 if not TEST_MODE:
                     mark_contacted(sheet, sponsor["row"], today_str)  # row → green
             except Exception as e:
@@ -980,43 +1015,42 @@ def run():
             STATUS.update(state="idle", current="",
                           message=f"{sent} sent, {replies_sent} replies — "
                                   f"standing by for replies (/queue-stop to end).")
-            last_break = time.time()       # idle time doesn't count toward 12h
             interruptible_sleep(20)
             continue
 
-        sent_in_batch += 1
         STATUS.update(state="running", sent=sent, failed=failed,
-                      sent_in_batch=sent_in_batch)
+                      sent_in_batch=count_in_batch)
 
         # ── Pacing before the next send ──
-        # Every email waits a human-like 7-11 min (whole seconds + a sub-second
-        # jitter so it never lands on a clean boundary — e.g. 8m 32.473s). The
-        # ONLY long pause is a mandatory MANDATORY_BREAK_MINUTES break after every
-        # MANDATORY_BREAK_EVERY_HOURS of active sending. No warm-up batches.
+        # Within a batch, every email waits a human-like 7-11 min (whole seconds +
+        # a sub-second jitter so it never lands on a clean boundary — e.g.
+        # 8m 32.473s). When a batch fills up, the bot takes the warm-up rest
+        # instead; the next batch is then BATCH_STEP larger with a shorter rest,
+        # until both level off at the floor (see the BATCH_* constants).
         now = time.time()
-        rest_reason = ""           # set ONLY for the long mandatory break
-        base_secs = random.randint(int(MIN_GAP_MIN * 60), int(MAX_GAP_MIN * 60))
-        wait_min = (base_secs + random.random()) / 60.0
-        label = f"{sent} sent · next in"
+        rest_reason = ""           # set ONLY for a between-batch warm-up rest
+        bsize = _batch_size(batch_idx)
+        if did_outreach and count_in_batch >= bsize:
+            rest_min = _batch_rest_min(batch_idx)
+            wait_secs = rest_min * 60
+            nxt = _batch_size(batch_idx + 1)
+            rest_reason = f"🌙 batch {batch_idx + 1} done ({bsize} sent) — resting {rest_min}m"
+            print(f"\n🌙 Batch {batch_idx + 1} complete ({bsize} emails) — resting "
+                  f"{rest_min} min, then the next batch sends {nxt}.\n")
+            count_in_batch = 0
+            batch_idx += 1
+            STATUS.update(batch_size=_batch_size(batch_idx))
+        else:
+            base_secs = random.randint(int(MIN_GAP_MIN * 60), int(MAX_GAP_MIN * 60))
+            wait_secs = base_secs + random.random()
 
-        if now - last_break >= MANDATORY_BREAK_EVERY_HOURS * 3600:
-            wait_min = MANDATORY_BREAK_MINUTES
-            sent_in_batch = 0
-            rest_reason = (f"🌙 mandatory {MANDATORY_BREAK_MINUTES}-min break "
-                           f"after {MANDATORY_BREAK_EVERY_HOURS}h of sending")
-            print(f"\n🌙 {MANDATORY_BREAK_EVERY_HOURS}h of sending — taking a "
-                  f"{MANDATORY_BREAK_MINUTES}-min break.\n")
-
-        wait_secs = wait_min * 60
         if wait_secs >= 60:
             STATUS.update(state="resting", resting_until=now + wait_secs,
                           rest_reason=rest_reason)
         _m, _s = divmod(wait_secs, 60)
-        print(f"     …waiting {int(_m)}m {_s:06.3f}s ({label}).")
+        print(f"     …waiting {int(_m)}m {_s:06.3f}s ({sent} sent · next in).")
         interruptible_sleep(wait_secs)
         STATUS.update(state="running", resting_until=0.0, rest_reason="")
-        if rest_reason:                 # the mandatory break just happened
-            last_break = time.time()    # → reset the 12h clock
 
     STATUS.update(state=("stopped" if STOP_EVENT.is_set() else "done"),
                   sent=sent, failed=failed, current="", resting_until=0.0,
