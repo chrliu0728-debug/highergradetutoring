@@ -503,7 +503,7 @@ Your donation to this category covers the printed certificates, the medals and s
       </div>
       <div class="sponsor-location" id="spm-location"></div>
       <div class="sponsor-modal-desc" id="spm-desc"></div>
-      <div>
+      <div id="spm-people-wrap">
         <div class="sponsor-people-label">In partnership with</div>
         <div class="sponsor-people" id="spm-people"></div>
       </div>
@@ -752,6 +752,7 @@ Your donation to this category covers the printed certificates, the medals and s
   const elLoc   = document.getElementById('spm-location');
   const elDesc  = document.getElementById('spm-desc');
   const elPeople= document.getElementById('spm-people');
+  const elPeopleWrap = document.getElementById('spm-people-wrap');
   const elPrev  = document.getElementById('spm-prev');
   const elNext  = document.getElementById('spm-next');
 
@@ -826,12 +827,15 @@ Your donation to this category covers the printed certificates, the medals and s
         : '<span>📍 ' + esc(s.location.label) + '</span>';
       elLoc.style.display = '';
     } else { elLoc.style.display = 'none'; }
-    elPeople.innerHTML = (s.staff || []).filter(p => p && (p.name || p.photo)).slice(0, 2).map(p =>
+    const people = (s.staff || []).filter(p => p && (p.name || p.photo)).slice(0, 2);
+    elPeople.innerHTML = people.map(p =>
       '<div class="sponsor-person">' + (p.photo
         ? '<img class="sponsor-person-photo" src="' + esc(p.photo) + '" alt="' + esc(p.name) + '" />'
         : '<div class="sponsor-person-photo placeholder">' + esc(initials(p.name)) + '</div>') +
       '<div class="sponsor-person-name">' + esc(p.name) + '</div>' +
       '<div class="sponsor-person-role">' + esc(p.position) + '</div></div>').join('');
+    // Only show the "In partnership with" heading when there's actually someone to show.
+    elPeopleWrap.style.display = people.length ? '' : 'none';
     renderCarousel(s);
   }
 
@@ -994,6 +998,12 @@ Your donation to this category covers the printed certificates, the medals and s
       inner.style.setProperty('--wm', contrast(sig));
       inner.style.borderColor = sig;
       inner.style.boxShadow = '0 10px 28px rgba(40,80,140,.24), 0 0 0 1px ' + sig + '22, inset 0 0 22px rgba(255,255,255,.5)';
+      // Optional per-sponsor bubble fill — useful when the logo is transparent or
+      // white. The glossy highlight is layered on top of the chosen colour.
+      if (s.bubbleBg) {
+        inner.style.background = 'radial-gradient(circle at 32% 26%, rgba(255,255,255,.5), rgba(255,255,255,.12) 58%, transparent), ' + s.bubbleBg;
+        inner.style.setProperty('--wm', contrast(s.bubbleBg));
+      }
       inner.innerHTML = s.logo
         ? '<img src="' + esc(s.logo) + '" alt="' + esc(s.name) + '" />'
         : '<span class="wm">' + esc(s.name) + '</span>';

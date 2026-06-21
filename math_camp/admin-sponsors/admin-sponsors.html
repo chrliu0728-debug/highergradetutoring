@@ -119,7 +119,11 @@
     .slot {
       border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface);
     }
-    .slot .img-preview { aspect-ratio: 1/1; max-height: 110px; }
+    .slot .img-preview { aspect-ratio: 1/1; max-height: 110px; position: relative; }
+    .img-order { position: absolute; top: 6px; left: 6px; background: rgba(20,35,59,.82); color: #fff; font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 6px; letter-spacing: .02em; }
+    .img-actions { display: flex; gap: 6px; align-items: center; }
+    .img-actions .spacer { flex: 1; }
+    .btn-mini[disabled] { opacity: .35; cursor: default; }
 
     .staff-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; background: var(--surface); }
     .staff-photo { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
@@ -346,7 +350,7 @@ function newSponsor() {
     id: 'sp_' + Math.random().toString(36).slice(2, 9),
     name: 'New sponsor', tagline: '', logo: '', description: '',
     location: { label: '', url: '' },
-    staff: [], images: [], signature: '#3b82f6', board: [], border: '', background: [],
+    staff: [], images: [], signature: '#3b82f6', bubbleBg: '', board: [], border: '', background: [],
   };
 }
 function cur() { return config.sponsors[currentIdx]; }
@@ -418,6 +422,9 @@ function renderEditor() {
         <div class="hint">Signature colour is required — it's the colour that spreads across the page and travels up into the circle when a visitor pops this sponsor's bubble, and the page keeps it afterward. Board colours theme the card's header band (2–3 = gradient). Border is a single outline colour. Background is an optional fade gradient.</div>
         <label style="font-size:.82rem;font-weight:800;color:var(--text);">Signature colour <span style="color:#c0392b;">*</span></label>
         <div class="color-row" id="sig-row"></div>
+        <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Bubble background (optional)</label>
+        <div class="hint" style="margin:0 0 6px;">Fills the floating bubble behind the logo — set this when the logo is transparent or white so it stays visible. Leave off for the default clear glossy bubble.</div>
+        <div class="color-row" id="bubblebg-row"></div>
         <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Board (up to 3)</label>
         <div class="color-row" id="board-row"></div>
         <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Border (1, optional)</label>
@@ -510,9 +517,31 @@ function renderImages(s) {
   s.images = (s.images || []).filter(Boolean);
   grid.innerHTML = s.images.map((src, i) => `
     <div class="slot">
-      <div class="img-preview has" style="background-image:url('${src.replace(/'/g, "%27")}')"></div>
-      <button class="btn-mini danger" data-rm-img="${i}">Remove</button>
+      <div class="img-preview has" style="background-image:url('${src.replace(/'/g, "%27")}')">
+        <span class="img-order">${i === 0 ? '★ Shown first' : '#' + (i + 1)}</span>
+      </div>
+      <div class="img-actions">
+        <button class="btn-mini" data-mv-img="${i}" data-dir="-1" title="Move earlier" ${i === 0 ? 'disabled' : ''}>◀</button>
+        <button class="btn-mini" data-mv-img="${i}" data-dir="1" title="Move later" ${i === s.images.length - 1 ? 'disabled' : ''}>▶</button>
+        <span class="spacer"></span>
+        <button class="btn-mini danger" data-rm-img="${i}">Remove</button>
+      </div>
     </div>`).join('') || `<div class="hint">No photos yet.</div>`;
+  if (s.images.length > 1) {
+    const note = document.createElement('div');
+    note.className = 'hint';
+    note.style.gridColumn = '1 / -1';
+    note.textContent = 'Photos flip through in this order on the sponsor card. Use ◀ ▶ to reorder — the ★ one shows first.';
+    grid.appendChild(note);
+  }
+  grid.querySelectorAll('[data-mv-img]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      const i = +btn.dataset.mvImg, j = i + (+btn.dataset.dir);
+      if (j < 0 || j >= s.images.length) return;
+      [s.images[i], s.images[j]] = [s.images[j], s.images[i]];
+      renderImages(s); markDirty();
+    }));
   grid.querySelectorAll('[data-rm-img]').forEach(btn =>
     btn.addEventListener('click', () => { s.images.splice(+btn.dataset.rmImg, 1); renderImages(s); markDirty(); }));
   const add = document.getElementById('add-image');
@@ -579,9 +608,28 @@ function renderColors(s) {
   s.board = (s.board || []).filter(Boolean).slice(0, 3);
   s.background = (s.background || []).filter(Boolean).slice(0, 2);
   signatureControl(s);
+  bubbleBgControl(s);
   colorList('board-row', s.board, 3, () => { renderPreview(); markDirty(); });
   colorList('bg-row', s.background, 2, () => { renderPreview(); markDirty(); });
   borderControl(s);
+}
+function bubbleBgControl(s) {
+  const row = document.getElementById('bubblebg-row');
+  function draw() {
+    const on = !!s.bubbleBg;
+    row.innerHTML = `
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:.85rem;">
+        <input type="checkbox" id="bubblebg-on" ${on ? 'checked' : ''}/> fill the bubble background
+      </label>` +
+      (on ? `<span class="swatch"><input type="color" id="bubblebg-color" value="${/^#[0-9a-fA-F]{6}$/.test(s.bubbleBg) ? s.bubbleBg : '#ffffff'}" /></span>` : '');
+    row.querySelector('#bubblebg-on').addEventListener('change', (e) => {
+      s.bubbleBg = e.target.checked ? (s.bubbleBg || '#ffffff') : '';
+      draw(); renderPreview(); markDirty();
+    });
+    const ci = row.querySelector('#bubblebg-color');
+    if (ci) ci.addEventListener('input', () => { s.bubbleBg = ci.value; renderPreview(); markDirty(); });
+  }
+  draw();
 }
 function signatureControl(s) {
   const row = document.getElementById('sig-row');
@@ -634,9 +682,11 @@ function renderPreview() {
   const accent = sig;
   const boardBg = grad(s.board, '#eef2f7');
   const boardText = s.board && s.board[0] ? contrast(s.board[0]) : '#1b2430';
+  const bubbleBg = s.bubbleBg ? `radial-gradient(circle at 32% 26%, rgba(255,255,255,.5), rgba(255,255,255,.12) 58%, transparent), ${esc(s.bubbleBg)}` : '';
+  const wmColor = s.bubbleBg ? contrast(s.bubbleBg) : accent;
   box.innerHTML = `
-    <div class="pv-bubble" style="border:3px solid ${esc(accent)}">
-      ${s.logo ? `<img src="${esc(s.logo)}" alt="" />` : `<span class="wm" style="color:${esc(accent)}">${esc(s.name || 'Name')}</span>`}
+    <div class="pv-bubble" style="border:3px solid ${esc(accent)}${bubbleBg ? `;background:${bubbleBg}` : ''}">
+      ${s.logo ? `<img src="${esc(s.logo)}" alt="" />` : `<span class="wm" style="color:${esc(wmColor)}">${esc(s.name || 'Name')}</span>`}
     </div>
     <div class="pv-card" style="border:3px solid ${s.border ? esc(s.border) : 'transparent'}">
       <div class="pv-board" style="background:${esc(boardBg)};color:${esc(boardText)}">${esc(s.name || 'Sponsor')}</div>
