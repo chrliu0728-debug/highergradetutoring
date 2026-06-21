@@ -999,9 +999,9 @@ Your donation to this category covers the printed certificates, the medals and s
       inner.style.borderColor = sig;
       inner.style.boxShadow = '0 10px 28px rgba(40,80,140,.24), 0 0 0 1px ' + sig + '22, inset 0 0 22px rgba(255,255,255,.5)';
       // Optional per-sponsor bubble fill — useful when the logo is transparent or
-      // white. The glossy highlight is layered on top of the chosen colour.
+      // white. One flat colour, no gloss overlay.
       if (s.bubbleBg) {
-        inner.style.background = 'radial-gradient(circle at 32% 26%, rgba(255,255,255,.5), rgba(255,255,255,.12) 58%, transparent), ' + s.bubbleBg;
+        inner.style.background = s.bubbleBg;
         inner.style.setProperty('--wm', contrast(s.bubbleBg));
       }
       inner.innerHTML = s.logo

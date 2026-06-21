@@ -682,7 +682,7 @@ function renderPreview() {
   const accent = sig;
   const boardBg = grad(s.board, '#eef2f7');
   const boardText = s.board && s.board[0] ? contrast(s.board[0]) : '#1b2430';
-  const bubbleBg = s.bubbleBg ? `radial-gradient(circle at 32% 26%, rgba(255,255,255,.5), rgba(255,255,255,.12) 58%, transparent), ${esc(s.bubbleBg)}` : '';
+  const bubbleBg = s.bubbleBg ? esc(s.bubbleBg) : '';
   const wmColor = s.bubbleBg ? contrast(s.bubbleBg) : accent;
   box.innerHTML = `
     <div class="pv-bubble" style="border:3px solid ${esc(accent)}${bubbleBg ? `;background:${bubbleBg}` : ''}">

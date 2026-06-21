@@ -1053,6 +1053,85 @@ async def cmd_unlink(interaction: discord.Interaction) -> None:
     await interaction.followup.send("Unlinked.", ephemeral=True)
 
 
+@bot.tree.command(name="help", description="List the commands you can use and what they do.")
+async def cmd_help(interaction: discord.Interaction) -> None:
+    """Role-aware command list: everyone sees the public commands; staff/admins
+    additionally see the campaign and server-admin tiers they're allowed to run.
+    The tiers below mirror the actual permission checks on each command."""
+    import campaign  # already loaded via setup(); gives the queue tier + _is_admin
+
+    def fmt(items):
+        return "\n".join(f"`/{name}` — {desc}" for name, desc in items)
+
+    everyone = [
+        ("help", "Show this list of commands."),
+        ("enrolled", "How many campers are currently enrolled."),
+        ("campers", "Camper breakdown: total, paid, and registered-not-paid."),
+        ("oncall", "See the call-window schedule and sign yourself up."),
+        ("verify", "Link your Discord account to your camp account."),
+        ("whoami", "Show your linked camp profile."),
+        ("unlink", "Remove the link between your Discord and camp account."),
+        ("unlock", "Open a locked chest with its passcode."),
+    ]
+    chest_tools = [
+        ("chest-create", "Place a locked chest in this channel."),
+        ("chest-list", "List every chest in this server."),
+        ("chest-delete", "Remove a chest by id."),
+    ]
+    campaign_cmds = [
+        ("queue-start", "Start the sponsor email queue."),
+        ("queue-pause", "Pause all sending."),
+        ("queue-resume", "Resume sending."),
+        ("queue-stop", "Stop the queue for this run."),
+        ("queue-status", "Show the email queue status."),
+        ("queue-next", "Preview, edit, or skip the upcoming outreach emails."),
+    ]
+    server_admin = [
+        ("perms-grant", "Allow a role to run a restricted command."),
+        ("perms-revoke", "Remove a role's access to a restricted command."),
+        ("perms-list", "Show which roles can run which commands."),
+        ("role-mirror-block", "Stop a Discord role from mirroring to the camp website."),
+        ("role-mirror-unblock", "Allow a Discord role to mirror to the website again."),
+        ("role-mirror-list", "Show every Discord role currently blocked from mirroring."),
+    ]
+
+    embed = discord.Embed(title="📖 HigherGrade Bot — commands you can use",
+                          colour=0x5865F2)
+    embed.add_field(name="Everyone", value=fmt(everyone), inline=False)
+
+    # Chest tools — Administrators always; everyone else only for roles that were
+    # opened up via /perms-grant (same rule as the commands' own _user_can_run).
+    is_admin = _is_server_admin(interaction)
+    visible_chest = []
+    if is_admin:
+        visible_chest = chest_tools
+    elif interaction.guild:
+        res = await api.perms_list(str(interaction.guild.id))
+        if res.get("ok"):
+            user_roles = {str(r.id) for r in getattr(interaction.user, "roles", [])}
+            for name, desc in chest_tools:
+                allowed = {p["roleId"] for p in (res.get("data") or [])
+                           if p.get("command") == name}
+                if allowed & user_roles:
+                    visible_chest.append((name, desc))
+    if visible_chest:
+        embed.add_field(name="🔐 Chest tools", value=fmt(visible_chest), inline=False)
+
+    # Email campaign — needs Manage Server (or the configured control role).
+    if campaign._is_admin(interaction):
+        embed.add_field(name="📧 Email campaign · needs Manage Server",
+                        value=fmt(campaign_cmds), inline=False)
+
+    # Server-admin meta commands — Administrator / server owner only.
+    if is_admin:
+        embed.add_field(name="🛠️ Server admin · needs Administrator",
+                        value=fmt(server_admin), inline=False)
+
+    embed.set_footer(text="You only see commands your roles let you run — "
+                          "ask a server admin if you need more access.")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 @bot.tree.command(name="unlock", description="Open a locked chest with its passcode.")
 @app_commands.describe(code="The chest's secret code")
 async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
