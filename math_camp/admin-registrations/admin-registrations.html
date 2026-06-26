@@ -286,6 +286,10 @@
             <th class="wrap">Authorized pickup</th>
             <th>Photo consent</th>
             <th>Campus breaks</th>
+            <th>Attends</th>
+            <th class="wrap">Medical</th>
+            <th>Discount</th>
+            <th>Amount due</th>
             <th class="wrap">Hobbies</th>
             <th class="wrap">Why join</th>
             <th></th>
@@ -465,6 +469,10 @@ function render() {
       <td class="wrap">${renderPickup(r.pickupPeople)}</td>
       <td>${r.consentPhoto ? '✅ yes' : '—'}</td>
       <td>${r.campusRoaming === 'allow' ? '🚶 free roam' : r.campusRoaming === 'no' ? '🔒 supervised' : '—'}</td>
+      <td>${r.deliveryMode === 'online' ? '💻 Online' : r.deliveryMode === 'in_person' ? '🏫 In person' : '—'}</td>
+      <td class="wrap">${esc(r.medicalInfo || '—')}</td>
+      <td>${esc(r.discountCode || '—')}</td>
+      <td>${r.amountDue != null ? '$' + r.amountDue : '—'}</td>
       <td class="wrap">${esc(r.hobbies || '')}</td>
       <td class="wrap">${esc(r.whyJoin || '')}</td>
       <td><button class="delete-btn" data-id="${esc(r.id)}" title="Delete">🗑</button></td>

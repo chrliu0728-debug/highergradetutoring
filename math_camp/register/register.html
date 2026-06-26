@@ -538,6 +538,25 @@
               <div class="field-error" id="err-school">Please select your school.</div>
             </div>
 
+            <div class="field">
+              <label>How will the camper attend? <span class="req">*</span></label>
+              <label class="checkbox-label" style="margin-top:6px;">
+                <input type="radio" name="delivery_mode" value="in_person" required />
+                <span><strong>🏫 In person</strong> — at Sheridan College — Trafalgar Campus, Oakville</span>
+              </label>
+              <label class="checkbox-label" style="margin-top:8px;">
+                <input type="radio" name="delivery_mode" value="online" />
+                <span><strong>💻 Online</strong> — join us live from home, every day of camp</span>
+              </label>
+              <div class="field-error" id="err-mode">Please choose whether the camper will attend in person or online.</div>
+            </div>
+
+            <div class="field">
+              <label>Medical information <span style="font-weight:600;color:var(--muted);font-size:.78rem;">(optional)</span></label>
+              <textarea id="medical-info" name="medical_info" rows="3" placeholder="Allergies, medical conditions, medications, or accommodations — anything our staff should know to keep your camper safe. Leave blank if none."></textarea>
+              <div class="field-hint">Seen only by camp staff, and used only to keep your camper safe.</div>
+            </div>
+
             <div class="form-nav">
               <div class="form-nav-left">
                 <span style="font-size:.82rem;color:var(--muted);">Step 1 of 5</span>
@@ -715,7 +734,18 @@
           <div class="form-card form-panel" id="panel-5">
             <div class="form-section-title">✅ Review Your Application</div>
 
-            <div id="review-summary" style="margin-bottom:28px; background:var(--surface2); border-radius:var(--radius-sm); padding:20px; font-size:.9rem; line-height:1.8; color:var(--text-mid);">
+            <div id="review-summary" style="margin-bottom:20px; background:var(--surface2); border-radius:var(--radius-sm); padding:20px; font-size:.9rem; line-height:1.8; color:var(--text-mid);">
+            </div>
+
+            <!-- Discount code -->
+            <div style="background:linear-gradient(135deg,rgba(107,191,160,.10),rgba(232,128,138,.08)); border:1px solid rgba(107,191,160,.35); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
+              <label style="display:block; font-weight:700; font-size:.9rem; margin-bottom:8px;">🎟️ Have a discount code?</label>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="discount-code" name="discount_code" placeholder="Enter your code" autocomplete="off"
+                  style="flex:1; min-width:170px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-family:inherit;" />
+                <button type="button" class="btn btn-blue" id="apply-discount" style="font-size:.85rem;">Apply</button>
+              </div>
+              <div id="discount-msg" style="margin-top:8px; font-size:.85rem; font-weight:600; display:none;"></div>
             </div>
 
             <hr class="form-divider" style="margin-top:0;" />
@@ -809,6 +839,9 @@
                 <div style="background:#FEF3C7; border:1px solid #FDE68A; border-radius:var(--radius-sm); padding:10px 14px; margin-top:6px; font-size:.82rem; line-height:1.5; color:#92400E;">
                   <strong>Heads up to parents:</strong> camp runs at <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><strong>Sheridan College — Trafalgar Campus</strong></a> in Oakville. Click the link for Google Maps directions. Specific room and drop-off / pick-up details will be emailed at least two weeks before camp starts.
                 </div>
+                <div style="background:#ECFDF5; border:1px solid #A7F3D0; border-radius:var(--radius-sm); padding:10px 14px; margin-top:6px; font-size:.82rem; line-height:1.5; color:#065F46;">
+                  <strong>🚌 Daily camp bus.</strong> Campers who live in <strong>Oakville ride the bus free</strong>. Campers coming from outside Oakville are welcome to ride too for a <strong>small fee</strong>. We'll email the route, stops, and timing to registered families before camp starts.
+                </div>
 
                 <!-- Checkbox 3: Photo / Social Media -->
                 <label class="checkbox-label" style="margin-top:14px;">
@@ -853,9 +886,9 @@
         <!-- ── Success ── -->
         <div class="form-card form-success" id="form-success">
           <div class="check-circle">✓</div>
-          <h2>You're registered!</h2>
+          <h2>🎉 Congratulations — you're registered!</h2>
           <p>
-            Thanks for registering for HigherGrade Tutoring's Summer Camp 2026. We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before August 4.
+            Congratulations, and thank you for registering for HigherGrade Tutoring's Summer Camp 2026! We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before August 4. There's just one quick step left to lock in your spot.
           </p>
 
           <!-- ── Spam-folder reminder ── -->
@@ -876,7 +909,7 @@
               lucas.liu.ca2009@gmail.com
             </div>
             <p style="margin:0 0 6px;font-size:.85rem;">
-              In the e-Transfer <strong>message</strong> field, please include the camper's <strong>first and last name</strong> and their <strong>email address</strong> so we can match the payment to your registration.
+              In the e-Transfer <strong>message</strong> field, please include the camper's <strong>first and last name</strong> and the <strong>high school they're going to</strong> so we can match the payment to your registration.
             </p>
             <p style="margin:0;font-size:.85rem;">
               <strong>Heads up:</strong> your camper's account will stay <strong>frozen</strong> until our staff confirms the e-Transfer. Once we see it, we'll unfreeze the account (usually within 24 hours) and the camper will be able to sign in to the student portal.
@@ -993,6 +1026,14 @@
         el.classList.add('error'); err && err.classList.add('show'); ok = false;
       }
     });
+    // Delivery mode (panel 1) is a radio group — validate it separately.
+    if (panel === 1) {
+      const modeErr = document.getElementById('err-mode');
+      modeErr && modeErr.classList.remove('show');
+      if (!document.querySelector('input[name="delivery_mode"]:checked')) {
+        modeErr && modeErr.classList.add('show'); ok = false;
+      }
+    }
     return ok;
   }
 
@@ -1050,10 +1091,39 @@
     if (badge) badge.textContent = (reg.label || 'Open') + ' registration · $' + reg.price + ' CAD';
     if (form)   form.style.display = '';
     if (notice) notice.style.display = 'none';
+    window.__hgRegPrice = reg.price;   // base fee, before any discount code
     document.querySelectorAll('.pay-amount').forEach(el => { el.textContent = '$' + reg.price; });
   }
   window.__hgApplyRegTier = applyRegTier;
   if (window.__hgRegTier) applyRegTier(window.__hgRegTier);
+
+  /* ─────────── Discount code — "higher grade report card" = 15% off ─────────── */
+  // Spaces and capitalization are ignored. The backend re-validates the code and
+  // is the source of truth for the amount the family is finally asked to send.
+  (function () {
+    const DISCOUNTS = { 'highergradereportcard': 0.15 };
+    const norm = s => (s || '').replace(/\s+/g, '').toLowerCase();
+    const money = n => Number.isInteger(n) ? '$' + n : '$' + n.toFixed(2);
+    const btn = document.getElementById('apply-discount');
+    const inp = document.getElementById('discount-code');
+    const msg = document.getElementById('discount-msg');
+    function apply() {
+      const frac  = DISCOUNTS[norm(inp.value)] || 0;
+      const price = Number(window.__hgRegPrice) || 0;
+      msg.style.display = 'block';
+      if (frac > 0 && price) {
+        const final = Math.round(price * (1 - frac) * 100) / 100;
+        msg.style.color = '#2f7a3a';
+        msg.innerHTML = '✓ ' + Math.round(frac * 100) + '% off applied — you\'ll send <strong>' +
+          money(final) + ' CAD</strong> <span style="color:var(--muted);font-weight:500;">(was $' + price + ')</span>.';
+      } else {
+        msg.style.color = '#c0392b';
+        msg.textContent = inp.value.trim() ? "That code isn't valid." : 'Enter a code first.';
+      }
+    }
+    if (btn) btn.addEventListener('click', apply);
+    if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+  })();
 
   /* ─────────────────── Math Check (BEDMAS practice test) ─────────────────── */
   const BEDMAS_POOL = [
@@ -1320,6 +1390,9 @@
       why_join:            document.getElementById('why-join')?.value?.trim() || null,
       consent_photo:       document.getElementById('consent-photo').checked,
       campus_roaming:      roamEl ? roamEl.value : null,
+      delivery_mode:       (document.querySelector('input[name="delivery_mode"]:checked') || {}).value || null,
+      medical_info:        document.getElementById('medical-info')?.value?.trim() || null,
+      discount_code:       document.getElementById('discount-code')?.value?.trim() || null,
       password:            pwdVal,
       pickup_people:       collectPickupPeople(),
     };
@@ -1348,6 +1421,12 @@
       // Success — show different banner depending on whether the
       // student squeezed into the cap or hit the waitlist.
       const successEl = document.getElementById('form-success');
+      // Show the final amount (after any discount) the family should e-Transfer.
+      if (respData && respData.amountDue != null) {
+        const a = Number(respData.amountDue);
+        const astr = Number.isInteger(a) ? '$' + a : '$' + a.toFixed(2);
+        document.querySelectorAll('.pay-amount').forEach(el => { el.textContent = astr; });
+      }
       if (respData && respData.waitlisted) {
         const h2 = successEl.querySelector('h2');
         const p  = successEl.querySelector('p');

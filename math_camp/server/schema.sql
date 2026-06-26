@@ -216,6 +216,10 @@ CREATE TABLE IF NOT EXISTS registrations (
   whyJoin             TEXT,
   consentPhoto        INTEGER NOT NULL DEFAULT 0,
   campusRoaming       TEXT,                          -- 'allow' | 'no' — free movement on campus during breaks
+  deliveryMode        TEXT,                          -- 'in_person' | 'online' — how the camper attends
+  medicalInfo         TEXT,                          -- free-text medical notes the family wants us to know
+  discountCode        TEXT,                          -- raw discount code entered (blank if none)
+  amountDue           REAL,                          -- fee owed after any discount, in CAD
   password            TEXT,
   waitlisted          INTEGER NOT NULL DEFAULT 0,
   pickupPeople        TEXT NOT NULL DEFAULT '[]'   -- JSON: [{name, phone, relationship}]

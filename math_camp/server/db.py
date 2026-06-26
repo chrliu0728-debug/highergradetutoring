@@ -79,6 +79,19 @@ def _migrate(conn):
             conn.execute("ALTER TABLE registrations ADD COLUMN campusRoaming TEXT")
     except sqlite3.OperationalError:
         pass
+    # Delivery mode (in-person vs online), medical notes, discount code, and the
+    # post-discount amount due. Added after launch; pre-existing rows stay NULL.
+    for _col, _type in (
+        ("deliveryMode", "TEXT"),
+        ("medicalInfo",  "TEXT"),
+        ("discountCode", "TEXT"),
+        ("amountDue",    "REAL"),
+    ):
+        try:
+            if _has_column("registrations", "id") and not _has_column("registrations", _col):
+                conn.execute(f"ALTER TABLE registrations ADD COLUMN {_col} {_type}")
+        except sqlite3.OperationalError:
+            pass
     # Chests gained imageUrl + channelId + messageId for the public-message
     # button flow. Add them to existing tables that pre-date the change.
     for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT")):

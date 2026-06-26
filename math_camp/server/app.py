@@ -270,13 +270,45 @@ def send_email(to, subject, body, reply_to=None):
         return "error"
 
 
+# ── Discount codes ─────────────────────────────────────────────────────────
+# Codes match case-insensitively and ignore all whitespace, so
+# "Higher Grade Report Card" == "highergradereportcard". Value = fraction off.
+DISCOUNT_CODES = {
+    "highergradereportcard": 0.15,
+}
+
+
+def _normalize_code(code):
+    return "".join((code or "").split()).lower()
+
+
+def _discount_for(code):
+    """Discount fraction (0.0–1.0) for a code, or 0.0 if it isn't recognized."""
+    return DISCOUNT_CODES.get(_normalize_code(code), 0.0)
+
+
+def _amount_after_discount(price, code):
+    """Final fee (CAD) after applying any valid discount, rounded to the cent."""
+    if not price:
+        return price
+    return round(price * (1.0 - _discount_for(code)), 2)
+
+
+def _fmt_amount(amount):
+    """Money string: '$135 CAD' for whole dollars, '$114.75 CAD' with cents,
+    or a generic phrase when the amount is unknown."""
+    if not amount:
+        return "your registration fee"
+    return f"${int(amount)} CAD" if float(amount).is_integer() else f"${amount:.2f} CAD"
+
+
 def _send_registration_confirm(student_email, name, parent_email=None, amount=None):
     """Sent right after registration. Thanks the family and asks for the
     e-Transfer — the account stays frozen until payment is confirmed, at
     which point _send_camp_welcome() goes out with the full camp details.
     Returns the send status for the registrant's address ("sent",
     "refused", "no_config", "error") so the caller can detect a bad email."""
-    amount_str = f"${int(amount)} CAD" if amount else "your registration fee"
+    amount_str = _fmt_amount(amount)
     subject = "Thanks for registering — one step left to hold your spot"
     body = (
         f"Hi {name or 'there'},\n\n"
@@ -1966,12 +1998,16 @@ def register_routes(app):
         # stop here and ask them to re-register BEFORE we persist anything, so
         # no orphan registration is left behind. Any other send failure is our
         # side (SMTP down, etc.) and must NOT block the registration.
+        # Apply any discount code to the tier price; this is the amount we ask
+        # for in the confirmation email and store on the registration.
+        discount_code = (d.get("discount_code") or "").strip()
+        amount_due = _amount_after_discount(REG_TIERS[_reg_tier()]["price"], discount_code)
         try:
             confirm_status = _send_registration_confirm(
                 student_email,
                 f"{first} {last}".strip(),
                 parent_email or None,
-                amount=REG_TIERS[_reg_tier()]["price"] or None,
+                amount=amount_due or None,
             )
         except Exception:  # noqa: BLE001
             confirm_status = "error"
@@ -2008,14 +2044,22 @@ def register_routes(app):
         roaming = (d.get("campus_roaming") or "").strip().lower()
         if roaming not in ("allow", "no"):
             roaming = None
+        # Delivery mode (in-person vs online) and any medical notes the family
+        # wants staff to know about. Both optional; invalid mode stored as NULL.
+        mode = (d.get("delivery_mode") or "").strip().lower()
+        if mode not in ("in_person", "online"):
+            mode = None
+        medical = (d.get("medical_info") or "").strip() or None
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
                 parentFirst, parentLast, relationship, parentPhone, parentEmail,
                 emerg1Name, emerg1Phone, emerg1Relationship,
-                hobbies, whyJoin, consentPhoto, campusRoaming, password, waitlisted, pickupPeople)
+                hobbies, whyJoin, consentPhoto, campusRoaming,
+                deliveryMode, medicalInfo, discountCode, amountDue,
+                password, waitlisted, pickupPeople)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
                 first, last,
@@ -2034,6 +2078,7 @@ def register_routes(app):
                 (d.get("why_join") or None),
                 1 if d.get("consent_photo") else 0,
                 roaming,
+                mode, medical, (discount_code or None), amount_due,
                 password,
                 waitlisted,
                 pickup_json,
@@ -2074,7 +2119,8 @@ def register_routes(app):
         # NOTE: the confirmation / payment-request email was already sent
         # near the top of this handler (before any DB writes) so we could
         # reject undeliverable addresses up front.
-        return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted))
+        return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted),
+                       amountDue=amount_due)
 
     @app.route("/api/settings/student-cap", methods=["GET"])
     def settings_student_cap():
