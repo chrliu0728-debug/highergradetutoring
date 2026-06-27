@@ -220,13 +220,11 @@
     <div style="flex:1; min-width:240px;">
       <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Pricing window</div>
       <h2 style="margin:0 0 4px;">💰 Registration tier <span id="tier-status" style="font-size:.85rem; font-weight:600; color:var(--muted);">— loading…</span></h2>
-      <p style="font-size:.85rem; color:var(--muted); margin:0; line-height:1.5;">Controls the registration page directly. <strong>Closed</strong> hides the form behind a "registration closed" notice; the three open tiers reveal the form and set the e-Transfer fee. Pick one to switch instantly.</p>
+      <p style="font-size:.85rem; color:var(--muted); margin:0; line-height:1.5;">Controls the registration page directly. <strong>Closed</strong> hides the form behind a "registration closed" notice; <strong>Open</strong> reveals the form at the flat <strong>$135</strong> fee. Pick one to switch instantly.</p>
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
       <button type="button" class="btn-tidy tier-opt" data-tier="closed">🔒 Closed</button>
-      <button type="button" class="btn-tidy tier-opt" data-tier="early">Early-bird · $135</button>
-      <button type="button" class="btn-tidy tier-opt" data-tier="normal">Normal · $150</button>
-      <button type="button" class="btn-tidy tier-opt" data-tier="late">Late · $200</button>
+      <button type="button" class="btn-tidy tier-opt" data-tier="open">✅ Open · $135</button>
     </div>
     <div id="tier-msg" style="font-size:.82rem; margin-top:8px; min-height:1.1em; color:var(--muted);"></div>
   </div>
@@ -239,7 +237,7 @@
         <span class="count" id="cap-summary">—</span>
       </div>
       <div class="panel-actions" style="align-items:center; gap:6px;">
-        <label style="font-size:.78rem; color:var(--muted);">Max active students</label>
+        <label style="font-size:.78rem; color:var(--muted);">Max in-person students</label>
         <input type="number" id="cap-input" min="1" style="width:90px; padding:8px 10px; font-size:.92rem; border:1.5px solid var(--border); border-radius:8px; font-variant-numeric:tabular-nums;" />
         <button class="btn-tidy" id="cap-save">Save cap</button>
       </div>
@@ -516,7 +514,9 @@ async function loadCap() {
     const j = await r.json();
     if (!j.ok) return;
     capInput.value = j.cap;
-    capSummary.textContent = `${j.active} active · ${j.waitlisted} on waitlist · cap ${j.cap}`;
+    const ip = (j.inPersonActive != null) ? j.inPersonActive : j.active;
+    const on = (j.onlineActive != null) ? j.onlineActive : 0;
+    capSummary.textContent = `${ip}/${j.cap} in-person · ${on} online · ${j.waitlisted} on waitlist`;
   } catch (_) { capSummary.textContent = 'failed to load'; }
 }
 capSave.addEventListener('click', async () => {
@@ -627,7 +627,7 @@ loadCap();
   const msgEl    = document.getElementById('tier-msg');
   const btns     = Array.from(document.querySelectorAll('.tier-opt'));
   if (!btns.length) return;
-  const LABEL = { closed: 'CLOSED', early: 'Early-bird · $135', normal: 'Normal · $150', late: 'Late · $200' };
+  const LABEL = { closed: 'CLOSED', open: 'Open · $135' };
   function paint(tier) {
     statusEl.textContent = '— ' + (LABEL[tier] || tier);
     statusEl.style.color = tier === 'closed' ? '#B91C1C' : '#0F8A56';

@@ -225,3 +225,21 @@ CREATE TABLE IF NOT EXISTS registrations (
   pickupPeople        TEXT NOT NULL DEFAULT '[]'   -- JSON: [{name, phone, relationship}]
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
+
+-- Discount codes for camp registration. Evergreen codes (multiUse = 1) always
+-- work; single-use codes (e.g. the per-visitor crane codes) are consumed on
+-- first use and can't be used again.
+CREATE TABLE IF NOT EXISTS discount_codes (
+  code      TEXT PRIMARY KEY,            -- normalized: lowercase, no spaces
+  label     TEXT,                        -- display form shown to users
+  percent   REAL NOT NULL,               -- fraction off, e.g. 0.10 or 0.15
+  multiUse  INTEGER NOT NULL DEFAULT 0,  -- 1 = evergreen (never consumed)
+  used      INTEGER NOT NULL DEFAULT 0,  -- 1 = consumed (single-use codes only)
+  usedAt    INTEGER,
+  usedBy    TEXT,
+  createdAt INTEGER NOT NULL,
+  kind      TEXT                          -- 'manual' | 'crane'
+);
+-- Evergreen public code: "higher grade report card" = 15% off (spaces/caps ignored).
+INSERT OR IGNORE INTO discount_codes (code, label, percent, multiUse, used, createdAt, kind)
+VALUES ('highergradereportcard', 'Higher Grade Report Card', 0.15, 1, 0, strftime('%s','now'), 'manual');

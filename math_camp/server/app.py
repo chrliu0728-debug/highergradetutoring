@@ -271,27 +271,50 @@ def send_email(to, subject, body, reply_to=None):
 
 
 # ── Discount codes ─────────────────────────────────────────────────────────
-# Codes match case-insensitively and ignore all whitespace, so
-# "Higher Grade Report Card" == "highergradereportcard". Value = fraction off.
-DISCOUNT_CODES = {
-    "highergradereportcard": 0.15,
-}
-
-
+# Codes are stored in the discount_codes table and matched case-insensitively,
+# ignoring all whitespace ("Higher Grade Report Card" == "highergradereportcard").
+# Evergreen codes (multiUse = 1) always work; single-use codes are consumed on
+# first use. See schema.sql for the seeded evergreen 15% code.
 def _normalize_code(code):
     return "".join((code or "").split()).lower()
 
 
-def _discount_for(code):
-    """Discount fraction (0.0–1.0) for a code, or 0.0 if it isn't recognized."""
-    return DISCOUNT_CODES.get(_normalize_code(code), 0.0)
+def _lookup_discount(db, code):
+    """Return the discount_codes row for a code if it's currently usable
+    (exists, and either evergreen or not yet used), else None."""
+    norm = _normalize_code(code)
+    if not norm:
+        return None
+    row = db.execute("SELECT * FROM discount_codes WHERE code = ?", (norm,)).fetchone()
+    if not row or (row["used"] and not row["multiUse"]):
+        return None
+    return row
 
 
-def _amount_after_discount(price, code):
-    """Final fee (CAD) after applying any valid discount, rounded to the cent."""
-    if not price:
-        return price
-    return round(price * (1.0 - _discount_for(code)), 2)
+def _consume_discount(db, code, used_by):
+    """Mark a single-use code as used so it can't be redeemed again. Evergreen
+    codes (multiUse = 1) are left untouched."""
+    db.execute(
+        "UPDATE discount_codes SET used = 1, usedAt = ?, usedBy = ? "
+        "WHERE code = ? AND multiUse = 0 AND used = 0",
+        (int(time.time()), used_by, _normalize_code(code)),
+    )
+
+
+def _gen_crane_code(db):
+    """Mint, store, and return a fresh single-use 10% 'crane' code (label form)."""
+    alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no easily-confused characters
+    for _ in range(20):
+        label = "CRANE-" + "".join(secrets.choice(alphabet) for _ in range(5))
+        norm = _normalize_code(label)
+        if not db.execute("SELECT 1 FROM discount_codes WHERE code = ?", (norm,)).fetchone():
+            db.execute(
+                "INSERT INTO discount_codes (code, label, percent, multiUse, used, createdAt, kind) "
+                "VALUES (?, ?, 0.10, 0, 0, ?, 'crane')",
+                (norm, label, int(time.time())),
+            )
+            return label
+    return None
 
 
 def _fmt_amount(amount):
@@ -1900,7 +1923,8 @@ def register_routes(app):
         return jsonify(ok=True, data={"awarded": balance, "newBalance": 0})
 
     # ── Camp registration intake ────────────────────────────────────
-    DEFAULT_STUDENT_CAP = 100
+    # Cap applies to IN-PERSON seats only; online seats are unlimited.
+    DEFAULT_STUDENT_CAP = 40
 
     def _student_cap():
         try:
@@ -1947,16 +1971,19 @@ def register_routes(app):
         return removed
 
     # Registration pricing window — set manually from the admin panel.
+    # One flat registration fee now (the old early/normal/late tiers were scrapped
+    # in favour of discount codes). Registration is simply Open or Closed.
+    FLAT_PRICE = 135
     REG_TIERS = {
-        "closed": {"open": False, "price": 0,   "label": "Closed"},
-        "early":  {"open": True,  "price": 135, "label": "Early-bird"},
-        "normal": {"open": True,  "price": 150, "label": "Normal"},
-        "late":   {"open": True,  "price": 200, "label": "Late"},
+        "closed": {"open": False, "price": 0,          "label": "Closed"},
+        "open":   {"open": True,  "price": FLAT_PRICE,  "label": "Open"},
     }
 
     def _reg_tier():
+        # Any non-'closed' stored value (including the legacy early/normal/late)
+        # means registration is open at the single flat price.
         t = _meta_get("reg_tier", "closed") or "closed"
-        return t if t in REG_TIERS else "closed"
+        return "closed" if t == "closed" else "open"
 
     @app.route("/api/camp/register", methods=["POST"])
     def camp_register():
@@ -2001,7 +2028,16 @@ def register_routes(app):
         # Apply any discount code to the tier price; this is the amount we ask
         # for in the confirmation email and store on the registration.
         discount_code = (d.get("discount_code") or "").strip()
-        amount_due = _amount_after_discount(REG_TIERS[_reg_tier()]["price"], discount_code)
+        disc_row = _lookup_discount(g.db, discount_code) if discount_code else None
+        _base_price = REG_TIERS[_reg_tier()]["price"]
+        amount_due = (round(_base_price * (1.0 - (disc_row["percent"] if disc_row else 0.0)), 2)
+                      if _base_price else _base_price)
+        # Delivery mode decides capacity below: online seats are unlimited,
+        # in-person seats are capped.
+        mode = (d.get("delivery_mode") or "").strip().lower()
+        if mode not in ("in_person", "online"):
+            mode = None
+        is_online = (mode == "online")
         try:
             confirm_status = _send_registration_confirm(
                 student_email,
@@ -2018,12 +2054,17 @@ def register_routes(app):
                 error="We were unable to send a confirmation to that email address, so we couldn't verify it. Please re-register with a valid email address.",
             ), 400
 
-        # Cap check — count active (non-waitlisted) registrations.
+        # Cap check — in-person seats are capped; online seats are unlimited.
         cap = _student_cap()
-        active_count = g.db.execute(
-            "SELECT COUNT(*) AS n FROM registrations WHERE COALESCE(waitlisted, 0) = 0"
-        ).fetchone()["n"]
-        waitlisted = 1 if active_count >= cap else 0
+        if is_online:
+            waitlisted = 0
+        else:
+            in_person_active = g.db.execute(
+                "SELECT COUNT(*) AS n FROM registrations "
+                "WHERE COALESCE(waitlisted, 0) = 0 "
+                "AND COALESCE(deliveryMode, 'in_person') != 'online'"
+            ).fetchone()["n"]
+            waitlisted = 1 if in_person_active >= cap else 0
         rid = "reg-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         # Authorized pickup people — optional list of {name, phone, relationship}.
         raw_pickup = d.get("pickup_people")
@@ -2044,11 +2085,7 @@ def register_routes(app):
         roaming = (d.get("campus_roaming") or "").strip().lower()
         if roaming not in ("allow", "no"):
             roaming = None
-        # Delivery mode (in-person vs online) and any medical notes the family
-        # wants staff to know about. Both optional; invalid mode stored as NULL.
-        mode = (d.get("delivery_mode") or "").strip().lower()
-        if mode not in ("in_person", "online"):
-            mode = None
+        # Medical notes the family wants staff to know about (mode computed up top).
         medical = (d.get("medical_info") or "").strip() or None
         g.db.execute(
             """INSERT INTO registrations
@@ -2116,6 +2153,13 @@ def register_routes(app):
             _reconcile_camper_email(student_email)
         except Exception:  # noqa: BLE001
             pass
+        # Consume a single-use discount code now that the registration is saved
+        # (evergreen codes are left in place so they keep working).
+        if disc_row:
+            try:
+                _consume_discount(g.db, discount_code, rid)
+            except Exception:  # noqa: BLE001
+                pass
         # NOTE: the confirmation / payment-request email was already sent
         # near the top of this handler (before any DB writes) so we could
         # reject undeliverable addresses up front.
@@ -2131,7 +2175,17 @@ def register_routes(app):
         waitlisted = g.db.execute(
             "SELECT COUNT(*) AS n FROM registrations WHERE COALESCE(waitlisted, 0) = 1"
         ).fetchone()["n"]
-        return jsonify(ok=True, cap=cap, active=active, waitlisted=waitlisted)
+        # In-person seats are the capped ones; online is unlimited.
+        in_person = g.db.execute(
+            "SELECT COUNT(*) AS n FROM registrations "
+            "WHERE COALESCE(waitlisted, 0) = 0 AND COALESCE(deliveryMode, 'in_person') != 'online'"
+        ).fetchone()["n"]
+        online = g.db.execute(
+            "SELECT COUNT(*) AS n FROM registrations "
+            "WHERE COALESCE(waitlisted, 0) = 0 AND deliveryMode = 'online'"
+        ).fetchone()["n"]
+        return jsonify(ok=True, cap=cap, active=active, waitlisted=waitlisted,
+                       inPersonActive=in_person, onlineActive=online)
 
     @app.route("/api/stats/enrolled", methods=["GET"])
     def stats_enrolled():
@@ -2236,12 +2290,35 @@ def register_routes(app):
     def settings_reg_tier_set():
         d = request.get_json(silent=True) or {}
         t = (d.get("tier") or "").strip()
+        # Legacy values collapse to the single open tier.
+        if t in ("early", "normal", "late"):
+            t = "open"
         if t not in REG_TIERS:
-            return jsonify(ok=False, error="tier must be: closed, early, normal, or late"), 400
+            return jsonify(ok=False, error="tier must be: open or closed"), 400
         _meta_set("reg_tier", t)
         info = REG_TIERS[t]
         return jsonify(ok=True, tier=t, open=info["open"],
                        price=info["price"], label=info["label"])
+
+    # ── Discount codes ──────────────────────────────────────────────
+    @app.route("/api/discount/crane", methods=["POST"])
+    def discount_crane():
+        """Mint a fresh single-use 10% 'crane' code for an About-page visitor."""
+        label = _gen_crane_code(g.db)
+        if not label:
+            return jsonify(ok=False, error="Couldn't generate a code — try again."), 500
+        return jsonify(ok=True, code=label, percent=10)
+
+    @app.route("/api/discount/check", methods=["GET"])
+    def discount_check():
+        """Validate a code without consuming it (used for the live preview on
+        the registration form). Returns whether it's currently usable + the %."""
+        row = _lookup_discount(g.db, request.args.get("code", ""))
+        if not row:
+            return jsonify(ok=True, valid=False)
+        return jsonify(ok=True, valid=True,
+                       percent=round(row["percent"] * 100),
+                       label=row["label"])
 
     # ── Trail mini-game config ──────────────────────────────────────
     # JSON blob in meta["trail_config"]:
