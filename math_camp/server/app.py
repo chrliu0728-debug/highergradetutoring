@@ -379,7 +379,7 @@ def _send_camp_welcome(student_email, name, parent_email=None):
         f"📅 Camp dates: August 4 – August 15, 2026\n"
         f"   Week 1 (Tue–Fri): Aug 4, 5, 6, 7\n"
         f"   Week 2 (Mon–Sat): Aug 10, 11, 12, 13, 14, 15\n"
-        f"⏰ Hours: 9:00 AM – 3:30 PM daily\n"
+        f"⏰ Hours: 8:45 AM – 4:45 PM daily\n"
         f"📍 Location: Sheridan College — Trafalgar Campus, 1430 Trafalgar Road, Oakville, ON\n"
         f"   Directions: https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON\n\n"
         f"📺 Parent / camper info session — video meeting\n"

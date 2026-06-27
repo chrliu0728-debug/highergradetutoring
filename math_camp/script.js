@@ -290,10 +290,10 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   const el = document.getElementById('countdown');
   if (!el) return;
 
-  // Camp runs Aug 4 → Aug 15, 2026. Count down to the 9:00 AM Day 1 start,
+  // Camp runs Aug 4 → Aug 15, 2026. Count down to the 8:45 AM Day 1 start,
   // switch to an "in session" badge during camp, then disappear after.
-  const start = new Date('2026-08-04T09:00:00');
-  const end   = new Date('2026-08-15T15:30:00');
+  const start = new Date('2026-08-04T08:45:00');
+  const end   = new Date('2026-08-15T16:45:00');
 
   function tick() {
     const now = new Date();
