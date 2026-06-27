@@ -430,7 +430,8 @@
             <div class="field-row">
               <div class="field">
                 <label>Date of Birth <span class="req">*</span></label>
-                <input type="date" id="dob" name="dob" min="2008-01-01" max="2014-12-31" value="2012-01-01" required />
+                <input type="date" id="dob" name="dob" min="2008-01-01" max="2016-12-31" value="2012-01-01" required />
+                <div class="field-hint">Campers 12 and under are welcome in our online group.</div>
                 <div class="field-error" id="err-dob">Please enter your date of birth.</div>
               </div>
               <div class="field">
@@ -547,7 +548,10 @@
                 <span><strong>💻 Online</strong> — join us live from home, every day of camp</span>
               </label>
               <div class="field-error" id="err-mode">Please choose whether the camper will attend in person or online.</div>
-              <div class="field-hint">Online campers are full members of the class — live via a camera in the room and a Discord stage, with staff dedicated to the online group. <a href="/about/about.html#online" target="_blank" rel="noopener" style="color:var(--blush-dark);">How online works →</a></div>
+              <div class="field-hint">Online campers are full members of the class — live via a camera in the room and a Discord stage, with staff dedicated to the online group. <strong>Online campers don't take the math check.</strong> <a href="/about/about.html#online" target="_blank" rel="noopener" style="color:var(--blush-dark);">How online works →</a></div>
+              <div style="background:#EEF6FF;border:1px solid #BBD9F7;border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;font-size:.82rem;line-height:1.55;color:#1E3A5F;">
+                <strong>👶 Younger than high school?</strong> Campers <strong>12 and under</strong> are welcome to join us <strong>online</strong>. In person is built to get you ready for Grade 9, so we highly recommend it for high-school-bound students — but if a younger student is really keen and not quite old enough for the in-person group, they're welcome in the online group from home.
+              </div>
             </div>
 
             <div class="field">
@@ -702,11 +706,22 @@
           <div class="form-card form-panel" id="panel-4">
             <div class="form-section-title">🧮 Quick Math Check</div>
             <p style="font-size:.9rem;color:var(--text-mid);margin-bottom:18px;line-height:1.6;">
-              This camp moves fast, so every camper takes a short order-of-operations
-              (<strong>BEDMAS</strong>) check before registering. Answer <strong>10 questions</strong> —
-              you need <strong>60% (6 out of 10)</strong> to continue. You can retake it as many
-              times as you like, with a fresh set of questions each attempt.
+              In-person camp moves fast, so every <strong>in-person</strong> camper takes a short
+              order-of-operations (<strong>BEDMAS</strong>) check before registering. Answer
+              <strong>10 questions</strong> — you need <strong>60% (6 out of 10)</strong> to continue.
+              You can retake it as many times as you like, with a fresh set of questions each attempt.
+              <strong>Online campers skip this check.</strong>
             </p>
+
+            <!-- Shown instead of the quiz when the camper is attending online -->
+            <div id="mc-online-exempt" style="display:none;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--radius-sm);padding:22px;text-align:center;">
+              <div style="font-size:2rem;margin-bottom:6px;">💻</div>
+              <div style="font-weight:700;margin-bottom:4px;color:#065F46;">No math check needed</div>
+              <p style="font-size:.86rem;color:#065F46;margin:0 auto;max-width:400px;line-height:1.55;">
+                You're registering as an <strong>online camper</strong>, so you can skip the BEDMAS
+                check and head straight to review. We can't wait to have you in the online group!
+              </p>
+            </div>
 
             <div id="mc-intro" style="background:var(--blush-bg);border:1px solid var(--blush-light);border-radius:var(--radius-sm);padding:22px;text-align:center;">
               <div style="font-size:2rem;margin-bottom:6px;">✏️</div>
@@ -1052,14 +1067,23 @@
     return ok;
   }
 
+  function isOnlineCamper() {
+    return (document.querySelector('input[name="delivery_mode"]:checked') || {}).value === 'online';
+  }
+
   function goToPanel(next) {
     if (next > currentPanel && !validatePanel(currentPanel)) {
       document.querySelector('#panel-' + currentPanel + ' .error')
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    // Math Check gate — can't advance past Step 4 without passing the check.
-    if (next > 4 && !mathCheckPassed) {
+    // Whenever we land on Step 4, set it up based on attendance mode:
+    // online campers see the "no check needed" banner; in-person campers
+    // see the quiz.
+    if (next === 4) setupMathCheckPanel();
+    // Math Check gate — can't advance past Step 4 without passing the check,
+    // unless the camper is attending online (online campers are exempt).
+    if (next > 4 && !mathCheckPassed && !isOnlineCamper()) {
       const r = document.getElementById('mc-result');
       if (r) {
         r.style.display = 'block';
@@ -1171,7 +1195,41 @@
   ];
   const MC_COUNT = 10, MC_PASS = 6;
   let mathCheckPassed = false;
+  let mcExempt = false;           // true when the camper is online (no check)
   let mcQuestions = [];
+
+  // Configure Step 4 based on attendance mode. Online campers skip the
+  // BEDMAS check entirely; in-person campers take it as usual.
+  function setupMathCheckPanel() {
+    const exempt   = document.getElementById('mc-online-exempt');
+    const intro    = document.getElementById('mc-intro');
+    const quiz     = document.getElementById('mc-quiz');
+    const result   = document.getElementById('mc-result');
+    const nextBtn  = document.getElementById('mc-next-btn');
+    if (isOnlineCamper()) {
+      mcExempt = true;
+      mathCheckPassed = true;                 // nothing to gate on for online
+      if (exempt) exempt.style.display = 'block';
+      if (intro)  intro.style.display  = 'none';
+      if (quiz)   quiz.style.display   = 'none';
+      if (result) result.style.display = 'none';
+      if (nextBtn) nextBtn.disabled = false;
+    } else {
+      if (exempt) exempt.style.display = 'none';
+      // If they were previously exempt (came in as online), reset the
+      // quiz so an in-person camper actually has to pass it.
+      if (mcExempt) {
+        mcExempt = false;
+        mathCheckPassed = false;
+        if (intro)  intro.style.display  = 'block';
+        if (quiz) { quiz.style.display = 'none'; quiz.innerHTML = ''; }
+        if (result) result.style.display = 'none';
+        if (nextBtn) nextBtn.disabled = true;
+      } else if (!mathCheckPassed) {
+        if (intro) intro.style.display = 'block';
+      }
+    }
+  }
 
   function mcShuffle(arr) {
     const a = arr.slice();
@@ -1240,11 +1298,23 @@
       result.className = 'mc-banner fail';
       result.innerHTML = '<strong>✗ You scored ' + correct + ' / ' + MC_COUNT + ' (' + pct +
         '%).</strong> You need ' + MC_PASS + ' out of ' + MC_COUNT + ' to continue.' +
-        '<div style="margin-top:10px;"><button type="button" class="btn btn-blue" id="mc-retry-btn">Try again with new questions</button></div>';
+        '<div style="margin-top:10px;"><button type="button" class="btn btn-blue" id="mc-retry-btn">Try again with new questions</button></div>' +
+        '<div style="margin-top:12px;background:#EEF6FF;border:1px solid #BBD9F7;border-radius:8px;padding:12px 14px;font-size:.86rem;line-height:1.55;color:#1E3A5F;">' +
+          '💻 <strong>Want to join online instead?</strong> Online campers don\'t take the math check — ' +
+          'you\'re part of the class live from home, with staff dedicated to the online group. ' +
+          'Switch to online and you can continue right away.' +
+          '<div style="margin-top:10px;"><button type="button" class="btn btn-blue" id="mc-switch-online-btn">Switch to online &amp; continue →</button></div>' +
+        '</div>';
       document.getElementById('mc-retry-btn').addEventListener('click', function () {
         result.style.display = 'none';
         renderMathCheck();
         document.getElementById('panel-4').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      document.getElementById('mc-switch-online-btn').addEventListener('click', function () {
+        const r = document.querySelector('input[name="delivery_mode"][value="online"]');
+        if (r) r.checked = true;
+        setupMathCheckPanel();   // flips Step 4 to the exempt banner, marks passed
+        goToPanel(5);            // straight to review
       });
     }
     result.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1336,6 +1406,7 @@
         <div><strong>School:</strong> ${get('school')}</div>
         <div><strong>Date of Birth:</strong> ${get('dob')}</div>
         <div><strong>Student Email:</strong> ${get('student-email')}</div>
+        <div style="grid-column:1/-1;"><strong>Attendance:</strong> ${isOnlineCamper() ? '💻 Online — live from home' : '🏫 In person — Sheridan College, Oakville'}</div>
         <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
           <strong>Parent/Guardian:</strong> ${get('parent-first')} ${get('parent-last')} (${get('relationship')}) · ${get('parent-phone')}
         </div>
