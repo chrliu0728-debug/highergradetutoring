@@ -354,73 +354,51 @@
         <p style="color:var(--muted); margin-bottom:20px;">
           On Day 1, every camper is invited to our private Discord server. The game runs in parallel with regular sessions — drop in when you have time, or sprint through it on the weekend break.
         </p>
-        <p style="color:var(--muted); margin-bottom:20px;">
+        <p style="color:var(--muted);">
           Our mascot is a <strong>paper crane 🕊</strong>. If you spot one — physical or digital — there's a clue attached. Most puzzles are math-flavoured; some are pure critical thinking; together they reveal the password.
-        </p>
-        <p style="color:var(--blush-dark); font-weight:600;">
-          👀 And there's a perk hiding in plain sight: <strong>tap the crane</strong> to reveal a one-time <strong>10% discount code</strong> for camp registration — yours to use when you sign up.
         </p>
       </div>
       <button type="button" id="crane-clicker" aria-label="Tap the paper crane"
         style="all:unset; cursor:pointer; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 50%, #F9A8D4 100%); position:relative; transition:transform .12s ease;">
         <div id="crane-emoji" style="font-size:9rem; filter:drop-shadow(0 8px 24px rgba(0,0,0,.2)); transition:transform .12s ease, filter .12s ease;">🕊</div>
-        <div id="crane-hint" style="position:absolute; bottom:18px; left:0; right:0; text-align:center; font-size:.86rem; color:rgba(0,0,0,.6); font-weight:700; letter-spacing:.04em; text-transform:uppercase;">
-          Tap the crane 🕊
+        <div style="position:absolute; bottom:18px; left:0; right:0; text-align:center; font-size:.86rem; color:rgba(0,0,0,.55); font-weight:600; letter-spacing:.04em; text-transform:uppercase;">
+          Look for the crane
+        </div>
+        <div id="crane-counter" style="position:absolute; top:14px; right:16px; font-size:.78rem; font-weight:800; color:#9D174D; background:rgba(255,255,255,.7); padding:4px 10px; border-radius:999px; opacity:0; transition:opacity .25s ease;">
+          0 / 100
         </div>
       </button>
-      <div id="crane-reward" style="display:none; grid-column:1 / -1; margin-top:18px; background:linear-gradient(135deg, rgba(107,191,160,.12), rgba(232,128,138,.10)); border:1px solid rgba(107,191,160,.4); border-radius:var(--radius); padding:20px 22px; text-align:center;">
-        <div style="font-size:1.05rem; font-weight:800; margin-bottom:6px;">🎉 You found a 10% discount code!</div>
-        <p style="color:var(--text-mid); font-size:.9rem; margin:0 0 12px;">Use it at registration for <strong>10% off</strong>. It's one-time only — once it's redeemed, it's gone, so it's yours to use when you sign up.</p>
-        <div style="display:inline-flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center;">
-          <span id="crane-code" style="font-family:'JetBrains Mono', monospace; font-size:1.1rem; font-weight:800; letter-spacing:.04em; background:#fff; border:1px dashed #6BBFA0; border-radius:10px; padding:8px 16px;">CRANE-…</span>
-          <button type="button" id="crane-copy" class="btn btn-blue" style="font-size:.82rem;">Copy</button>
-        </div>
-      </div>
 <script>
 (function () {
-  const STORE = 'highergrade_crane_code';
+  const KEY  = 'highergrade_crane_clicks';
+  const NEED = 100;
   const btn = document.getElementById('crane-clicker');
   const emoji = document.getElementById('crane-emoji');
-  const hint = document.getElementById('crane-hint');
-  const reward = document.getElementById('crane-reward');
-  const codeEl = document.getElementById('crane-code');
-  const copyBtn = document.getElementById('crane-copy');
-  if (!btn || !emoji || !reward) return;
-
-  // One 10% code per visitor, remembered in the browser so reloads show the
-  // same code until it's used (the server mints a fresh single-use code).
-  let code = localStorage.getItem(STORE) || '';
-  async function ensureCode() {
-    if (code) return code;
-    try {
-      const r = await fetch('/api/discount/crane', { method: 'POST', credentials: 'same-origin' });
-      const j = await r.json();
-      if (j && j.ok && j.code) { code = j.code; localStorage.setItem(STORE, code); }
-    } catch (_) {}
-    return code;
+  const counter = document.getElementById('crane-counter');
+  if (!btn || !emoji || !counter) return;
+  let clicks = parseInt(sessionStorage.getItem(KEY) || '0', 10);
+  if (!Number.isFinite(clicks) || clicks < 0) clicks = 0;
+  let pulseTimer = null;
+  function update() {
+    if (clicks > 0) {
+      counter.style.opacity = '1';
+      counter.textContent = `${Math.min(clicks, NEED)} / ${NEED}`;
+    }
   }
-  ensureCode();
-
-  let pulseTimer = null, revealed = false;
-  btn.addEventListener('click', async () => {
+  update();
+  btn.addEventListener('click', () => {
+    clicks++;
+    sessionStorage.setItem(KEY, String(clicks));
+    update();
+    // Tiny pulse animation on the emoji each click
     emoji.style.transform = 'scale(1.12)';
     if (pulseTimer) clearTimeout(pulseTimer);
     pulseTimer = setTimeout(() => { emoji.style.transform = ''; }, 110);
-    if (revealed) return;
-    const c = await ensureCode();
-    if (!c) return;
-    revealed = true;
-    if (codeEl) codeEl.textContent = c;
-    if (hint)   hint.textContent = 'You found it! 🎉';
-    reward.style.display = 'block';
-    reward.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  });
-  if (copyBtn) copyBtn.addEventListener('click', () => {
-    if (!code || !navigator.clipboard) return;
-    navigator.clipboard.writeText(code).then(() => {
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-    }).catch(() => {});
+    if (clicks >= NEED) {
+      // Take them to the claim page; reset counter so they can't replay it.
+      sessionStorage.removeItem(KEY);
+      location.href = '/crane/crane.html';
+    }
   });
 })();
 </script>
@@ -492,5 +470,68 @@
 <script src="/staff-data.js"></script>
 <script src="/students-data.js"></script>
 <script src="/script.js"></script>
+
+<!-- ── Hidden discount crane — tap it for a one-time 10% code ── -->
+<img id="hidden-crane" src="/trail/paper-crane.jpg" alt="" role="button" tabindex="0"
+  aria-label="Hidden paper crane — tap for a discount"
+  style="position:fixed; bottom:16px; left:16px; width:46px; height:46px; object-fit:contain; cursor:pointer; opacity:.5; z-index:60; transition:opacity .2s ease, transform .2s ease; filter:drop-shadow(0 3px 8px rgba(0,0,0,.18));" />
+
+<div id="crane-discount-pop" style="display:none; position:fixed; inset:0; z-index:1200; align-items:center; justify-content:center; background:rgba(8,18,34,.45); padding:20px;">
+  <div style="background:#fff; border-radius:16px; max-width:380px; width:100%; padding:26px 24px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.35); position:relative;">
+    <button type="button" id="crane-discount-close" aria-label="Close" style="position:absolute; top:10px; right:12px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:#99a; line-height:1;">✕</button>
+    <div style="font-size:2.4rem; line-height:1; margin-bottom:8px;">🕊</div>
+    <div style="font-size:1.1rem; font-weight:800; margin-bottom:6px;">You found the hidden crane!</div>
+    <p style="color:#555; font-size:.9rem; margin:0 0 14px;">Here's a one-time <strong>10% off</strong> code for camp registration — enter it at checkout. Once it's used it's gone, so it's all yours.</p>
+    <div style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap;">
+      <span id="crane-discount-code" style="font-family:'JetBrains Mono',monospace; font-weight:800; font-size:1.05rem; letter-spacing:.04em; background:#F1FAF5; border:1px dashed #6BBFA0; border-radius:10px; padding:9px 16px;">CRANE-…</span>
+      <button type="button" id="crane-discount-copy" class="btn btn-blue" style="font-size:.82rem;">Copy</button>
+    </div>
+    <div><a href="/register/register.html" class="btn btn-primary" style="margin-top:14px; font-size:.85rem;">Use it — register →</a></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const STORE = 'highergrade_crane_code';
+  const crane = document.getElementById('hidden-crane');
+  const pop   = document.getElementById('crane-discount-pop');
+  const codeEl = document.getElementById('crane-discount-code');
+  const copyBtn = document.getElementById('crane-discount-copy');
+  const closeBtn = document.getElementById('crane-discount-close');
+  if (!crane || !pop) return;
+  // One 10% code per visitor, remembered in the browser (server mints a fresh
+  // single-use code). Same code the registration form will accept.
+  let code = localStorage.getItem(STORE) || '';
+  async function ensureCode() {
+    if (code) return code;
+    try {
+      const r = await fetch('/api/discount/crane', { method: 'POST', credentials: 'same-origin' });
+      const j = await r.json();
+      if (j && j.ok && j.code) { code = j.code; localStorage.setItem(STORE, code); }
+    } catch (_) {}
+    return code;
+  }
+  ensureCode();
+  crane.addEventListener('mouseenter', () => { crane.style.opacity = '1'; crane.style.transform = 'translateY(-2px) rotate(-6deg)'; });
+  crane.addEventListener('mouseleave', () => { crane.style.opacity = '.5'; crane.style.transform = ''; });
+  async function open() {
+    const c = await ensureCode();
+    if (c && codeEl) codeEl.textContent = c;
+    pop.style.display = 'flex';
+  }
+  function close() { pop.style.display = 'none'; }
+  crane.addEventListener('click', open);
+  crane.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  pop.addEventListener('click', e => { if (e.target === pop) close(); });
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    if (!code || !navigator.clipboard) return;
+    navigator.clipboard.writeText(code).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+    }).catch(() => {});
+  });
+})();
+</script>
 </body>
 </html>
