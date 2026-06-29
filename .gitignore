@@ -35,6 +35,9 @@ build/
 dist/
 *.log
 
+# Local dev database (created by npm run flask)
+math_camp/server/dev.db
+
 # Secrets — never commit these
 .env
 .env.*

@@ -1,0 +1,15 @@
+{
+  "name": "highergrade-tutoring",
+  "version": "1.0.0",
+  "description": "HigherGrade Tutoring Math Camp — local development",
+  "private": true,
+  "scripts": {
+    "setup": "cd math_camp/server && python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt",
+    "dev": "concurrently --names flask,vite --prefix-colors yellow,cyan \"npm run flask\" \"vite\"",
+    "flask": "cd math_camp/server && HIGHERGRADE_DB=./dev.db .venv/bin/python app.py"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2",
+    "vite": "^6.0.0"
+  }
+}
