@@ -10,25 +10,31 @@
 </head>
 <body>
 
-<!-- ─────────────────── NAVBAR ─────────────────── -->
-<nav class="navbar">
-  <div class="nav-inner">
-    <a href="/index.html" class="nav-logo">
-      <img src="/logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+<!-- ─────────────────── SIDENAV ─────────────────── -->
+<nav class="sidenav" id="sidenav" aria-label="Main navigation">
+  <div class="sidenav-inner">
+    <a href="/index.html" class="sidenav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring" />
     </a>
-    <ul class="nav-links">
-      <li><a href="/index.html">Home</a></li>
-      <li><a href="/about/about.html">About Us</a></li>
-      <li><a href="/support/support.html">Support Us</a></li>
-      <li><a href="/contact/contact.html">Contact</a></li>
-      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
+    <ul class="sidenav-links">
+      <li><a href="/index.html"><i data-icon="tent"></i><span>Home</span></a></li>
+      <li><a href="/about/about.html"><i data-icon="users"></i><span>About</span></a></li>
+      <li><a href="/support/support.html"><i data-icon="heart"></i><span>Support</span></a></li>
+      <li><a href="/contact/contact.html"><i data-icon="mail"></i><span>Contact</span></a></li>
     </ul>
-    <button class="hamburger" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="sidenav-bottom">
+      <a href="/student-portal/student-portal.html" class="sidenav-signin nav-signin">
+        <i data-icon="user"></i><span>Sign In</span>
+      </a>
+      <a href="/register/register.html" class="sidenav-cta">Register Now</a>
+    </div>
   </div>
 </nav>
+<button class="sidenav-toggle" id="sidenav-toggle" aria-label="Open navigation">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidenav-overlay" id="sidenav-overlay"></div>
+<div class="page-wrapper">
 
 <!-- ─────────────────── PAGE HERO ─────────────────── -->
 <section class="page-hero">
@@ -47,7 +53,7 @@
     <p class="section-desc" style="margin:0 auto 28px;">Every day, our phone line is open for live calls from <strong>5:00&nbsp;PM to 8:00&nbsp;PM</strong>. Call during that window and a member of our team will pick up.</p>
 
     <div style="background:var(--blush-bg); border:1px solid var(--blush); border-radius:var(--radius); box-shadow:var(--shadow); padding:32px 28px; max-width:480px; margin:0 auto;">
-      <div style="font-size:2.6rem; line-height:1; margin-bottom:10px;">📞</div>
+      <div style="font-size:2.4rem; line-height:1; margin-bottom:12px; color:var(--blush);" data-icon="phone"></div>
       <div style="font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">Open daily · 5:00–8:00&nbsp;PM</div>
       <div id="today-caller" style="font-size:.92rem; font-weight:600; color:var(--text-mid); margin-bottom:6px; display:none;"></div>
       <a id="today-number" href="#" style="display:none; font-size:2rem; font-weight:800; color:var(--text); text-decoration:none; letter-spacing:.01em; margin-bottom:20px;"></a>
@@ -56,7 +62,7 @@
     </div>
 
     <div style="margin-top:26px; max-width:560px; margin-left:auto; margin-right:auto; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px; text-align:left;">
-      <p style="margin:0; color:var(--text-mid); line-height:1.65;">📨 <strong>Can't call between 5 and 8?</strong> No problem — dial <a href="tel:+13433682005">343-368-2005</a> any time and leave us a voicemail. We'll get back to you within <strong>2 business days</strong>.</p>
+      <p style="margin:0; color:var(--text-mid); line-height:1.65;"><i data-icon="mail" style="color:var(--blush);"></i> <strong>Can't call between 5 and 8?</strong> No problem — dial <a href="tel:+13433682005">343-368-2005</a> any time and leave us a voicemail. We'll get back to you within <strong>2 business days</strong>.</p>
     </div>
   </div>
 </section>
@@ -71,22 +77,22 @@
     </div>
     <div class="grid-3" style="gap:20px;">
       <a class="card reveal" href="mailto:info@highergradetutoring.ca" style="text-decoration:none; color:inherit; display:block;">
-        <div class="card-icon" style="background:rgba(232,128,138,.12); font-size:1.6rem;">✉️</div>
+        <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="mail"></div>
         <h3>Email</h3>
         <p>Ask us anything at <strong>info@highergradetutoring.ca</strong> — best for detailed questions or sending documents.</p>
       </a>
       <a class="card reveal" href="https://www.instagram.com/highergradetutoring/" target="_blank" rel="noopener" style="text-decoration:none; color:inherit; display:block;">
-        <div class="card-icon" style="background:rgba(225,48,108,.12); font-size:1.6rem;">📸</div>
+        <div class="card-icon" style="background:rgba(225,48,108,.12); color:#E1306C;" data-icon="camera"></div>
         <h3>Instagram</h3>
         <p>Message us on Instagram — <strong>Higher Grade Tutoring</strong> (<strong>@highergradetutoring</strong>).</p>
       </a>
       <a class="card reveal" href="https://www.tiktok.com/@highergradeteachers?_r=1&amp;_t=ZS-969JJ4leV4m" target="_blank" rel="noopener" style="text-decoration:none; color:inherit; display:block;">
-        <div class="card-icon" style="background:rgba(0,0,0,.06); font-size:1.6rem;">🎵</div>
+        <div class="card-icon" style="background:rgba(0,0,0,.06); color:var(--text);" data-icon="music"></div>
         <h3>TikTok</h3>
         <p>Message us on TikTok — <strong>Higher Grade Tutoring</strong> (<strong>@highergradeteachers</strong>).</p>
       </a>
     </div>
-    <p style="text-align:center; color:var(--muted); margin-top:24px; font-size:.98rem;">More social media platforms coming soon — stay tuned. ✨</p>
+    <p style="text-align:center; color:var(--muted); margin-top:24px; font-size:.98rem;">More social media platforms coming soon — stay tuned.</p>
   </div>
 </section>
 
@@ -108,9 +114,9 @@
   <div class="footer-inner">
     <div class="footer-grid">
       <div class="footer-brand">
-        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <div class="logo-text"><i data-icon="tent"></i> HigherGrade Tutoring</div>
         <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
-        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+        <div style="margin-top:14px;"><span class="footer-tag"><i data-icon="star"></i> 100% Student-Led</span></div>
       </div>
       <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="/index.html">Home</a></li><li><a href="/about/about.html">About Us</a></li><li><a href="/support/support.html">Support Us</a></li><li><a href="/contact/contact.html">Contact</a></li><li><a href="/register/register.html">Register</a></li></ul></div>
       <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="/about/about.html#schedule">Schedule</a></li><li><a href="/about/about.html#team">Our Team</a></li><li><a href="/index.html#faq">FAQ</a></li></ul></div>
@@ -118,7 +124,7 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 HigherGrade Tutoring — All rights reserved.</span>
-      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+      <span>Made by Grade 11 &amp; 12 HDSB students</span>
     </div>
   </div>
 </footer>
@@ -142,12 +148,14 @@
       var caller = document.getElementById('today-caller');
       link.textContent = d.number; link.href = href; link.style.display = 'inline-block';
       btn.href = href; document.getElementById('today-callbtn-wrap').style.display = '';
-      if (d.name) { caller.textContent = '📅 On call today: ' + d.name; caller.style.display = 'block'; }
+      if (d.name) { caller.innerHTML = (window.Icons ? Icons.svg('calendar') : '') + ' On call today: ' + d.name.replace(/[&<>]/g, ''); caller.style.display = 'block'; }
       document.getElementById('today-fallback').style.display = 'none';
     })
     .catch(function () { /* leave the fallback message in place */ });
 })();
 </script>
+<script src="/icons.js"></script>
 <script src="/script.js"></script>
+</div><!-- /.page-wrapper -->
 </body>
 </html>

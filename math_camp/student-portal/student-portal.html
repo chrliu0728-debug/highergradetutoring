@@ -57,7 +57,7 @@
       transform: translate(-50%, -50%);
       width: 100%;
       max-width: 420px;
-      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      background: var(--navy);
       color: white;
       border-radius: 18px;
       padding: 52px 36px 44px;
@@ -90,7 +90,6 @@
       text-decoration: none;
       font-weight: 700;
       font-size: .95rem;
-      box-shadow: 0 10px 28px rgba(232,128,138,.4);
       transition: background .15s, transform .12s;
     }
     .staff-hidden .staff-go:hover { background: var(--blush-dark); transform: translateY(-1px); }
@@ -105,9 +104,10 @@
       border-radius: 22px;
       margin: 0 auto 18px;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 24px rgba(232, 128, 138, 0.18);
+      box-shadow: var(--shadow-sm);
       overflow: hidden;
       background: white;
+      border: 1px solid var(--border);
     }
     .login-card .logo-bubble img {
       width: 100%; height: 100%;
@@ -136,10 +136,9 @@
     .dash-header {
       display: flex; justify-content: space-between; align-items: center;
       flex-wrap: wrap; gap: 12px;
-      background: linear-gradient(135deg, var(--blush), var(--blush-dark));
+      background: var(--blush);
       color: white; border-radius: 16px;
       padding: 24px 28px; margin-bottom: 22px;
-      box-shadow: 0 14px 40px rgba(232, 128, 138, 0.3);
     }
     .dash-header h1 { font-size: 1.4rem; color: white; letter-spacing: -.02em; margin-bottom: 2px; }
     .dash-header .sub { font-size: .88rem; opacity: .9; }
@@ -186,7 +185,7 @@
 
     /* ── My class (read-only) ── */
     .class-panel {
-      background: linear-gradient(135deg, var(--mint-bg), var(--blush-bg));
+      background: var(--mint-bg);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 22px 26px;
@@ -301,11 +300,11 @@
 
     /* MazeWiz role gets the purple signature styling */
     .role-card.mazewiz {
-      background: linear-gradient(135deg, #5B21B6, #8B5CF6 70%, #C084FC);
-      box-shadow: 0 12px 32px rgba(139, 92, 246, .4);
+      background: #6D28D9;
+      box-shadow: var(--shadow);
     }
     .role-card.mazewiz::before {
-      content: '✨';
+      content: '★';
       position: absolute; top: 8px; right: 10px; font-size: 1rem;
       opacity: .7;
     }
@@ -362,8 +361,8 @@
     }
     .luck-progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--mint), var(--mint-dark));
-      transition: width .3s cubic-bezier(.34,1.56,.64,1);
+      background: var(--mint);
+      transition: width .3s ease;
     }
     .luck-progress-label {
       font-size: .82rem; color: var(--text-mid);
@@ -437,11 +436,11 @@
     }
     .clicker-cap-row .cap-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--blush), var(--blush-dark));
+      background: var(--blush);
       transition: width .25s ease;
     }
     .clicker-cap-row .cap-fill.auto {
-      background: linear-gradient(90deg, #60A5FA, #3B82F6);
+      background: #3B82F6;
     }
     .clicker-cap-row .cap-tag { font-weight: 700; }
     .clicker-cap-row .cap-tag.full { color: #DC2626; }
@@ -455,7 +454,7 @@
       font-size: 1.3rem; font-weight: 800;
       cursor: pointer;
       margin: 16px auto;
-      box-shadow: 0 14px 40px rgba(232, 128, 138, 0.45), inset 0 -6px 14px rgba(0,0,0,.18);
+      box-shadow: 0 10px 28px rgba(0,0,0,.18), inset 0 -6px 14px rgba(0,0,0,.18);
       transition: transform .06s ease-out, box-shadow .1s;
       user-select: none;
     }
@@ -520,9 +519,11 @@
     .spider-overlay .spider {
       font-size: min(70vw, 70vh);
       line-height: 1;
+      color: white;
       animation: spider-drop .6s cubic-bezier(.36, 1.6, .55, 1);
       filter: drop-shadow(0 20px 60px rgba(0,0,0,.6));
     }
+    .spider-overlay .spider svg { stroke-width: 1.2; }
     .spider-overlay .spider-msg {
       position: absolute; bottom: 12%;
       color: white; font-size: 1.1rem; font-weight: 700;
@@ -577,7 +578,7 @@
     <!-- Hidden staff sign-in — sits behind the student login card,
          revealed once the student card is dragged out of the way. -->
     <div class="staff-hidden" id="staff-hidden">
-      <div class="staff-ic">🔐</div>
+      <div class="staff-ic" data-icon="lock"></div>
       <h2>Staff Sign In</h2>
       <p>Camp instructor? You've found the secret door.<br>Continue to the admin passcode gate.</p>
       <a href="/admin/admin.html" class="staff-go">Enter passcode →</a>
@@ -597,7 +598,7 @@
 
       <div class="login-error" id="login-error"></div>
 
-      <button class="btn btn-blue btn-full" id="login-btn" style="justify-content:center;">🕊 Sign in →</button>
+      <button class="btn btn-blue btn-full" id="login-btn" style="justify-content:center;">Sign in →</button>
 
       <p class="login-footer">
         Don't have an account yet?
@@ -621,7 +622,7 @@
     </div>
     <div class="dash-header-actions">
       <a class="btn" href="/index.html">← Home</a>
-      <a class="btn" href="/leaderboard/leaderboard.html?from=portal">🏆 Leaderboard</a>
+      <a class="btn" href="/leaderboard/leaderboard.html?from=portal"><i data-icon="trophy"></i> Leaderboard</a>
       <button class="btn" id="logout-btn">Log out</button>
     </div>
   </div>
@@ -629,7 +630,7 @@
   <!-- Summary (Points + Luck) -->
   <div class="summary-row">
     <div class="summary-tile points">
-      <div class="summary-icon">💰</div>
+      <div class="summary-icon" style="color:var(--blush);" data-icon="money"></div>
       <div>
         <div class="summary-label">Your Current Points</div>
         <div class="summary-value" id="points-val">0</div>
@@ -637,7 +638,7 @@
       </div>
     </div>
     <div class="summary-tile luck">
-      <div class="summary-icon">🍀</div>
+      <div class="summary-icon" style="color:var(--mint-dark);" data-icon="leaf"></div>
       <div>
         <div class="summary-label">Luck Stat</div>
         <div class="summary-value" id="luck-val">0</div>
@@ -662,7 +663,7 @@
     <!-- ── Invest in luck ── -->
     <div class="action-card">
       <div class="ac-head">
-        <h3>🍀 Invest in Luck</h3>
+        <h3><i data-icon="leaf" style="color:var(--mint-dark);"></i> Invest in Luck</h3>
         <p class="ac-sub">Spend <strong>800 points</strong> to permanently raise your luck by <strong>+1</strong>.</p>
       </div>
       <div class="luck-progress-label"><span id="luck-progress-text">0 / 800 points saved</span></div>
@@ -675,7 +676,7 @@
     <!-- ── Transfer ── -->
     <div class="action-card">
       <div class="ac-head">
-        <h3>🔄 Transfer Points</h3>
+        <h3><i data-icon="refresh" style="color:var(--blush);"></i> Transfer Points</h3>
         <p class="ac-sub">Send points to a classmate. <strong>50% is lost in the transfer</strong> — choose wisely.</p>
       </div>
       <div class="xfer-form">
@@ -699,7 +700,7 @@
     <!-- ── Clicker ── -->
     <div class="action-card">
       <div class="ac-head">
-        <h3>🖱 Click for Points</h3>
+        <h3><i data-icon="mouse-pointer" style="color:var(--blush);"></i> Click for Points</h3>
         <p class="ac-sub">Every <strong>100 clicks</strong> earns you <strong>1 point</strong>, capped at <strong>50 manual points</strong> per day. The Clicker role adds passive points on top: <strong>+1 every 6 minutes per level</strong>, working in the background even when the tab is closed.</p>
       </div>
       <div class="clicker-wrap">
@@ -724,9 +725,9 @@
     </div>
 
     <!-- ── Class points contributor ── -->
-    <div class="action-card" id="class-contrib-card" style="background:linear-gradient(135deg, rgba(74,144,226,.10), rgba(107,191,160,.06)); border-color:#6BBFA0;">
+    <div class="action-card" id="class-contrib-card" style="background:rgba(107,191,160,.08); border-color:#6BBFA0;">
       <div class="ac-head">
-        <h3>🏫 Contribute to Class Points</h3>
+        <h3><i data-icon="school" style="color:var(--mint-dark);"></i> Contribute to Class Points</h3>
         <p class="ac-sub">Send some of your private points toward your class. Every <strong>200 contributed points</strong> automatically becomes <strong>+1 class point</strong>, deposited straight into the class bank — locked there until exam-time, then converted to private points for every member.</p>
       </div>
       <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -745,27 +746,27 @@
     </div>
 
     <!-- ── Infinity Mode (visible to students who beat the dungeon) ── -->
-    <div class="action-card" id="infinity-card" style="display:none; background:linear-gradient(135deg, rgba(167,139,250,.10), rgba(76,29,149,.06)); border-color:#A78BFA;">
+    <div class="action-card" id="infinity-card" style="display:none; background:rgba(167,139,250,.08); border-color:#A78BFA;">
       <div class="ac-head">
-        <h3>∞ Infinity Mode</h3>
+        <h3 style="color:#6D28D9;">∞ Infinity Mode</h3>
         <p class="ac-sub">You've beaten the dungeon. Keep going — every question you answer earns <strong>+6 points</strong>. The question bank is curated by camp staff and refreshed regularly.</p>
       </div>
       <a class="action-btn" href="/infinity/infinity.html" style="display:inline-block; text-align:center; text-decoration:none;">Enter Infinity Mode →</a>
     </div>
 
     <!-- ── Paper Crane hints (only visible when the student holds the role) ── -->
-    <div class="action-card" id="crane-hints-card" style="display:none; background:linear-gradient(135deg, rgba(236,72,153,.08), rgba(244,114,182,.04)); border-color:#EC4899;">
+    <div class="action-card" id="crane-hints-card" style="display:none; background:rgba(236,72,153,.06); border-color:#EC4899;">
       <div class="ac-head">
-        <h3>🕊 Paper Crane Hints</h3>
+        <h3><i data-icon="feather" style="color:#EC4899;"></i> Paper Crane Hints</h3>
         <p class="ac-sub">Live feed from camp instructors — clues and updates for the mini-game. Only Paper Crane holders see these.</p>
       </div>
       <div id="crane-hints-list" style="display:flex; flex-direction:column; gap:10px; max-height:360px; overflow:auto; padding-right:4px;"></div>
     </div>
 
     <!-- ── Money Tree (only visible when the student holds the role) ── -->
-    <div class="action-card" id="money-tree-card" style="display:none; background:linear-gradient(135deg, rgba(16,185,129,.08), rgba(16,185,129,.02)); border-color:#10B981;">
+    <div class="action-card" id="money-tree-card" style="display:none; background:rgba(16,185,129,.06); border-color:#10B981;">
       <div class="ac-head">
-        <h3>🌳 Money Tree</h3>
+        <h3><i data-icon="tree" style="color:#10B981;"></i> Money Tree</h3>
         <p class="ac-sub">A one-time enchantment. <strong>Spend 6,000 pts</strong> to activate — your remaining private points <strong>double</strong>. Or gift it to a classmate.</p>
       </div>
       <div class="xfer-form">
@@ -785,21 +786,22 @@
 
   <!-- Note about point awards -->
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; font-size: .88rem; color: var(--text-mid); line-height: 1.6;">
-    <strong>ℹ️ Heads up:</strong> You can't give yourself points directly — camp instructors award points based on class participation, perfect scores, and other in-person activities. Ask your instructor if you're wondering how to earn more!
+    <strong>Heads up:</strong> You can't give yourself points directly — camp instructors award points based on class participation, perfect scores, and other in-person activities. Ask your instructor if you're wondering how to earn more!
   </div>
 </div>
 
 <!-- Spider overlay (triggered once at 20 clicker pts earned) -->
 <div class="spider-overlay" id="spider-overlay">
-  <div class="spider">🕷</div>
+  <div class="spider" data-icon="spider"></div>
   <div class="spider-msg">
-    🕸 Congratulations, you've unlocked the spider! 🕸
+    Congratulations, you've unlocked the spider!
     <small>Click anywhere to dismiss…</small>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<script src="/icons.js"></script>
 <script src="/students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
@@ -1101,7 +1103,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       const customBg = (!special && r.color) ? `style="background: linear-gradient(135deg, ${r.color}, ${r.color});"` : '';
       return `
         <div class="role-card ${special}" ${customBg}>
-          <span class="role-icon">${r.icon || '🏅'}</span>
+          <span class="role-icon">${r.icon || (window.Icons ? Icons.svg('medal') : '')}</span>
           <div class="role-name">${esc(r.name)}</div>
           <div class="role-desc">${esc(r.description || '')}</div>
         </div>
@@ -1110,7 +1112,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
 
     const emptySlot = showEmptyMazeWizSlot ? `
       <a class="role-empty" href="/index.html" title="Someone in your class already claimed Maze Wizard — back to home">
-        <span class="empty-ic">🧙</span>
+        <span class="empty-ic">${window.Icons ? Icons.svg('wand') : ''}</span>
         (empty)
       </a>
     ` : '';
@@ -1119,9 +1121,9 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       <div class="roles-panel-head">
         <div>
           <div class="label">Your Roles</div>
-          <div class="name">🏅 Titles &amp; honours</div>
+          <div class="name">${window.Icons ? Icons.svg('medal') : ''} Titles &amp; honours</div>
         </div>
-        <span class="private-tag">🔒 Only you &amp; admin can see this</span>
+        <span class="private-tag">${window.Icons ? Icons.svg('lock') : ''} Only you &amp; admin can see this</span>
       </div>
       <div class="roles-grid">
         ${cards}${emptySlot}
@@ -1135,7 +1137,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     if (!panel) return;
     if (!s.classId) {
       panel.className = 'class-panel class-panel-empty';
-      panel.innerHTML = '👥 You haven\'t been assigned to a class yet — ask your camp instructor!';
+      panel.innerHTML = (window.Icons ? Icons.svg('users') : '') + ' You haven\'t been assigned to a class yet — ask your camp instructor!';
       return;
     }
     // refresh bank growth so the student sees the current value
@@ -1143,7 +1145,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const cls = getClassById(s.classId);
     if (!cls) {
       panel.className = 'class-panel class-panel-empty';
-      panel.innerHTML = '👥 Your previous class no longer exists. Ask your instructor for a new one.';
+      panel.innerHTML = (window.Icons ? Icons.svg('users') : '') + ' Your previous class no longer exists. Ask your instructor for a new one.';
       return;
     }
     const memberCount = findClassMembers(cls.id).length;
@@ -1155,21 +1157,21 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       <div class="class-panel-head">
         <div>
           <div class="label">Your Class</div>
-          <div class="name">🏫 ${esc(cls.name)}</div>
+          <div class="name">${window.Icons ? Icons.svg('school') : ''} ${esc(cls.name)}</div>
         </div>
         <span class="class-panel-tag">View only — your instructor controls these</span>
       </div>
       <div class="class-panel-stats">
         <div class="class-panel-stat">
-          <div class="stat-label">👥 Classmates</div>
+          <div class="stat-label">${window.Icons ? Icons.svg('users') : ''} Classmates</div>
           <div class="stat-num">${memberCount}</div>
         </div>
         <div class="class-panel-stat">
-          <div class="stat-label">🌟 Class Points</div>
+          <div class="stat-label">${window.Icons ? Icons.svg('star') : ''} Class Points</div>
           <div class="stat-num">${(cls.classPoints || 0).toLocaleString()}</div>
         </div>
         <div class="class-panel-stat">
-          <div class="stat-label">🏦 Investment Bank</div>
+          <div class="stat-label">${window.Icons ? Icons.svg('bank') : ''} Investment Bank</div>
           <div class="stat-num">${bankDisplay}</div>
         </div>
       </div>
@@ -1197,7 +1199,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const res = await investInLuck(s.id);
     if (!res.ok) { flashBanner(luckError, res.error); luckSuccess.classList.remove('show'); return; }
     luckError.classList.remove('show');
-    flashBanner(luckSuccess, `🍀 Luck is now ${res.data.newLuck}! ${res.data.remaining.toLocaleString()} pts remaining.`);
+    flashBanner(luckSuccess, `Luck is now ${res.data.newLuck}! ${res.data.remaining.toLocaleString()} pts remaining.`);
     // Refresh /auth/me so currentStudent() picks up the new stats
     if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
     renderDashboard();
@@ -1234,7 +1236,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     if (!res.ok) { flashBanner(xferError, res.error); xferSuccess.classList.remove('show'); return; }
     xferError.classList.remove('show');
     const toStudent = getStudents().find(x => x.id === toId);
-    flashBanner(xferSuccess, `✅ Sent ${res.data.sent} pts. ${studentFullName(toStudent)} received ${res.data.received} pts (${res.data.lost} lost).`);
+    flashBanner(xferSuccess, `Sent ${res.data.sent} pts. ${studentFullName(toStudent)} received ${res.data.received} pts (${res.data.lost} lost).`);
     xferAmt.value = '';
     updatePreview();
     if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
@@ -1298,7 +1300,8 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
         orb.dataset.idx = String(i);
         // Stagger each helper's starting angle around the button.
         orb.style.animationDelay = `${-(i * (6 / Math.max(level, 1)))}s`;
-        orb.textContent = '🖱';
+        orb.innerHTML = window.Icons ? Icons.svg('mouse-pointer') : '';
+        orb.style.color = '#fff';
         orbitWrap.appendChild(orb);
       }
       renderedClickerLevel = level;
@@ -1397,7 +1400,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const res = await activateMoneyTree();
     if (!res.ok) { flashBanner(mtErr, res.error); mtOk.classList.remove('show'); mtActivate.disabled = false; return; }
     mtErr.classList.remove('show');
-    flashBanner(mtOk, `🌳 Activated! Private points now ${res.data.newPrivatePoints.toLocaleString()}.`);
+    flashBanner(mtOk, `Activated! Private points now ${res.data.newPrivatePoints.toLocaleString()}.`);
     renderDashboard();
   });
 
@@ -1411,7 +1414,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     mtGiftBtn.disabled = false;
     if (!res.ok) { flashBanner(mtErr, res.error); mtOk.classList.remove('show'); return; }
     mtErr.classList.remove('show');
-    flashBanner(mtOk, `🌳 Money Tree gifted to ${studentFullName(toStudent)}.`);
+    flashBanner(mtOk, `Money Tree gifted to ${studentFullName(toStudent)}.`);
     renderDashboard();
   });
 
@@ -1455,7 +1458,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     craneHintsList.innerHTML = hints.map(h => `
       <div style="background:rgba(255,255,255,.85); border:1px solid rgba(236,72,153,.25); border-radius:10px; padding:12px 14px; box-shadow:0 1px 0 rgba(0,0,0,.04);">
         <div style="font-size:.95rem; line-height:1.5; color:var(--text); white-space:pre-wrap;">${esc(h.body)}</div>
-        <div style="font-size:.72rem; color:var(--muted); margin-top:6px;">🕊 ${fmtHintTime(h.createdAt)}</div>
+        <div style="font-size:.72rem; color:var(--muted); margin-top:6px; display:flex; align-items:center; gap:5px;">${window.Icons ? Icons.svg('feather') : ''} ${fmtHintTime(h.createdAt)}</div>
       </div>
     `).join('');
   }

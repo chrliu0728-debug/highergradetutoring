@@ -10,25 +10,31 @@
 </head>
 <body>
 
-<!-- ─────────────────── NAVBAR ─────────────────── -->
-<nav class="navbar">
-  <div class="nav-inner">
-    <a href="/index.html" class="nav-logo">
-      <img src="/logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+<!-- ─────────────────── SIDENAV ─────────────────── -->
+<nav class="sidenav" id="sidenav" aria-label="Main navigation">
+  <div class="sidenav-inner">
+    <a href="/index.html" class="sidenav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring" />
     </a>
-    <ul class="nav-links">
-      <li><a href="/index.html">Home</a></li>
-      <li><a href="/about/about.html">About Us</a></li>
-      <li><a href="/support/support.html">Support Us</a></li>
-      <li><a href="/contact/contact.html">Contact</a></li>
-      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
+    <ul class="sidenav-links">
+      <li><a href="/index.html"><i data-icon="tent"></i><span>Home</span></a></li>
+      <li><a href="/about/about.html"><i data-icon="users"></i><span>About</span></a></li>
+      <li><a href="/support/support.html"><i data-icon="heart"></i><span>Support</span></a></li>
+      <li><a href="/contact/contact.html"><i data-icon="mail"></i><span>Contact</span></a></li>
     </ul>
-    <button class="hamburger" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="sidenav-bottom">
+      <a href="/student-portal/student-portal.html" class="sidenav-signin nav-signin">
+        <i data-icon="user"></i><span>Sign In</span>
+      </a>
+      <a href="/register/register.html" class="sidenav-cta">Register Now</a>
+    </div>
   </div>
 </nav>
+<button class="sidenav-toggle" id="sidenav-toggle" aria-label="Open navigation">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidenav-overlay" id="sidenav-overlay"></div>
+<div class="page-wrapper">
 
 <!-- ─────────────────── PAGE HERO ─────────────────── -->
 <section class="page-hero">
@@ -86,28 +92,28 @@
         <h2 class="section-title">Our values</h2>
         <div style="display:flex; flex-direction:column; gap:16px; margin-top:24px;">
           <div class="value-card reveal">
-            <div class="value-icon">🎓</div>
+            <div class="value-icon" data-icon="graduation-cap"></div>
             <div>
               <h3>Overqualified, on purpose</h3>
               <p>90+ in MHF4U, currently in Grade 12 calculus or data management. They've gone well past what they teach.</p>
             </div>
           </div>
           <div class="value-card reveal">
-            <div class="value-icon">🧠</div>
+            <div class="value-icon" data-icon="brain"></div>
             <div>
               <h3>Recent enough to remember</h3>
               <p>16–18 year olds who remember exactly where they got stuck — and explain it without making you feel dumb.</p>
             </div>
           </div>
           <div class="value-card reveal">
-            <div class="value-icon">🤝</div>
+            <div class="value-icon" data-icon="handshake"></div>
             <div>
               <h3>Radical inclusion</h3>
               <p>$135 flat, discount codes available, all boards welcome. Motivation is the only prerequisite.</p>
             </div>
           </div>
           <div class="value-card reveal">
-            <div class="value-icon">🔥</div>
+            <div class="value-icon" data-icon="flame"></div>
             <div>
               <h3>Taught with actual passion</h3>
               <p>Every problem set and activity was put there because someone genuinely loves it. You can tell.</p>
@@ -138,39 +144,39 @@
 
     <div class="grid-3" style="gap:20px;">
       <div class="card reveal">
-        <div class="card-icon" style="background:rgba(232,128,138,.12); font-size:1.5rem;">💰</div>
+        <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="money"></div>
         <h3>Earning private points</h3>
         <p><strong>+5</strong> per correct answer · <strong>+1</strong> per attempt · <strong>+120</strong> perfect worksheet · <strong>+50</strong> finishing a handout in time.</p>
       </div>
       <div class="card reveal">
-        <div class="card-icon" style="background:rgba(107,191,160,.15); font-size:1.5rem;">⏰</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="clock"></div>
         <h3>Showing up</h3>
         <p><strong>+50</strong> for arriving · <strong>+150</strong> extra if on time. Compounds across 10 days.</p>
       </div>
       <div class="card reveal">
-        <div class="card-icon" style="background:rgba(74,144,226,.15); font-size:1.5rem;">🏫</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="school"></div>
         <h3>Class points</h3>
         <p>Won through room-cleanliness contests and class challenges. Each converts to <strong>10 private points</strong> per student.</p>
       </div>
       <div class="card reveal">
-        <div class="card-icon" style="background:rgba(167,139,250,.15); font-size:1.5rem;">🔄</div>
+        <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="refresh"></div>
         <h3>Trading &amp; gifting</h3>
         <p>Points can be transferred between students, but <strong>50% is lost in the transaction</strong> — a one-way tax that keeps the economy honest. Use it strategically.</p>
       </div>
       <div class="card reveal">
-        <div class="card-icon" style="background:rgba(254,202,202,.55); font-size:1.5rem;">⚠️</div>
+        <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="alert"></div>
         <h3>Penalties</h3>
         <p><strong>−100</strong> for caught bad language; ten strikes triggers a call home — unless you've saved up <strong>10,000 points</strong> to buy your way out. Other misbehavior is penalized at instructor discretion.</p>
       </div>
       <div class="card reveal">
-        <div class="card-icon" style="background:rgba(252,211,77,.25); font-size:1.5rem;">🦸</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="shield"></div>
         <h3>Whistleblower bonus</h3>
         <p>If you report another student's misbehavior to a teacher, the offender pays a penalty — and you receive <strong>60% of that penalty</strong> as a reward.</p>
       </div>
     </div>
 
     <div style="margin-top:32px; background:var(--blush-bg); border:1px solid var(--blush); border-radius:var(--radius); padding:24px 28px;">
-      <h3 style="margin-bottom:8px;">🛍️ What you can spend points on</h3>
+      <h3 style="margin-bottom:8px; display:flex; align-items:center; gap:8px;"><i data-icon="bag" style="color:var(--blush);"></i> What you can spend points on</h3>
       <p style="color:var(--text-mid); margin-bottom:12px;">Private points are real currency at camp, not just leaderboard fuel:</p>
       <ul style="line-height:1.7; color:var(--text-mid); padding-left:1.2rem; margin:0;">
         <li><strong>Stat boosts</strong> — invest in the <em>Luck</em> stat to improve your odds in any random draw or pick.</li>
@@ -207,7 +213,7 @@
     <div class="team-modal" id="team-modal" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="team-modal-backdrop"></div>
       <div class="team-modal-content">
-        <button class="team-modal-close" id="team-modal-close" aria-label="Close">✕</button>
+        <button class="team-modal-close" id="team-modal-close" aria-label="Close" data-icon="x"></button>
         <div class="team-modal-avatar"><img id="team-modal-img" src="" alt="" /></div>
         <div class="team-modal-name" id="team-modal-name"></div>
         <div class="team-modal-role" id="team-modal-role"></div>
@@ -231,7 +237,7 @@
         <div class="team-modal-section" id="team-modal-transcript-section">
           <h4>Credentials &amp; Transcripts</h4>
           <p id="team-modal-transcript"></p>
-          <a id="team-modal-transcript-download" class="transcript-download" style="display:none;" download>📄 Download transcript file</a>
+          <a id="team-modal-transcript-download" class="transcript-download" style="display:none;" download><i data-icon="file"></i> Download transcript file</a>
         </div>
 
       </div>
@@ -251,7 +257,7 @@
 
     <div class="reveal" style="max-width:780px; margin:0 auto 36px;">
       <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:22px 24px; box-shadow:var(--shadow-sm);">
-        <h3 style="margin:0 0 6px; font-size:1.15rem;">⏱ A typical day — four periods</h3>
+        <h3 style="margin:0 0 6px; font-size:1.15rem; display:flex; align-items:center; gap:8px;"><i data-icon="clock" style="color:var(--blush);"></i> A typical day — four periods</h3>
         <p style="color:var(--text-mid); font-size:.92rem; margin:0 0 16px;">Each period mixes focused lessons with hands-on coordinated activities.</p>
         <div style="display:grid; gap:10px;">
           <div style="display:flex; gap:14px; align-items:center; background:var(--blush-bg); border-radius:10px; padding:12px 16px;">
@@ -277,7 +283,7 @@
 
     <div class="grid-2" style="gap:24px; align-items:stretch;">
       <div class="week-block reveal">
-        <div class="week-header blue-bg">📅 Week 1 — August 4–7 · Units 1–4</div>
+        <div class="week-header blue-bg"><i data-icon="calendar"></i> Week 1 — August 4–7 · Units 1–4</div>
         <div class="week-body">
           <div class="day-row"><div class="day-label">Tue Aug 4</div><div class="day-content"><strong>Day 1 — Unit 1: Grade 8 Review</strong><span>Introductions &amp; course overview · Rational Numbers · Powers &amp; Roots · Inequalities</span></div></div>
           <div class="day-row"><div class="day-label">Wed Aug 5</div><div class="day-content"><strong>Day 2 — Unit 2: Algebra</strong><span>Simplifying algebraic expressions · Solving equations (easy &amp; methods) · Relations</span></div></div>
@@ -286,14 +292,14 @@
         </div>
       </div>
       <div class="week-block reveal">
-        <div class="week-header teal-bg">📅 Week 2 — August 10–15 · Units 4–5 + Exam</div>
+        <div class="week-header teal-bg"><i data-icon="calendar"></i> Week 2 — August 10–15 · Units 4–5 + Exam</div>
         <div class="week-body">
           <div class="day-row"><div class="day-label">Mon Aug 10</div><div class="day-content"><strong>Day 5 — Unit 4: Geometry II</strong><span>Shape areas continued · Geometric properties · Coordinate Geometry · Putting it all together</span></div></div>
           <div class="day-row"><div class="day-label">Tue Aug 11</div><div class="day-content"><strong>Day 6 — Unit 5: Linear Relations I</strong><span>Introduction to linear equations · Slope-intercept form · X &amp; Y values · Graphing equations</span></div></div>
           <div class="day-row"><div class="day-label">Wed Aug 12</div><div class="day-content"><strong>Day 7 — Unit 5: Linear Relations II</strong><span>Forms of linear equations · Solving linear equations · Applications · Perpendicular &amp; parallel lines</span></div></div>
           <div class="day-row"><div class="day-label">Thu Aug 13</div><div class="day-content"><strong>Day 8 — Linear Relations III + Review</strong><span>Interpreting linear relationships · Linear inequalities · Harder equations · Unit review</span></div></div>
-          <div class="day-row"><div class="day-label">Fri Aug 14</div><div class="day-content"><strong>Day 9 — Final Exam 🎓</strong><span>Review Periods 1 &amp; 2 · Applications EXAM (multiple choice + standard) · Thinking EXAM</span></div></div>
-          <div class="day-row"><div class="day-label" style="color:var(--mint);font-weight:800;">Sat Aug 15</div><div class="day-content"><strong>Day 10 — Flex &amp; Fun 🎉</strong><span>Flex Periods 1 &amp; 2 · Fun Periods 1 &amp; 2 · Informal closing and celebration</span></div></div>
+          <div class="day-row"><div class="day-label">Fri Aug 14</div><div class="day-content"><strong>Day 9 — Final Exam</strong><span>Review Periods 1 &amp; 2 · Applications EXAM (multiple choice + standard) · Thinking EXAM</span></div></div>
+          <div class="day-row"><div class="day-label" style="color:var(--mint);font-weight:800;">Sat Aug 15</div><div class="day-content"><strong>Day 10 — Flex &amp; Fun</strong><span>Flex Periods 1 &amp; 2 · Fun Periods 1 &amp; 2 · Informal closing and celebration</span></div></div>
         </div>
       </div>
     </div>
@@ -310,28 +316,28 @@
     </div>
     <div class="grid-2" style="gap:24px; align-items:stretch;">
       <div class="value-card reveal">
-        <div class="value-icon">🎥</div>
+        <div class="value-icon" data-icon="video"></div>
         <div>
           <h3>A camera in the room</h3>
           <p>A live stream from the back of the classroom — the board, the teacher, the class, in real time.</p>
         </div>
       </div>
       <div class="value-card reveal">
-        <div class="value-icon">🎙</div>
+        <div class="value-icon" data-icon="mic"></div>
         <div>
           <h3>A Discord stage to connect</h3>
           <p>Live Discord stage so you can listen in, ask questions, and participate — not just watch.</p>
         </div>
       </div>
       <div class="value-card reveal">
-        <div class="value-icon">🧑‍🏫</div>
+        <div class="value-icon" data-icon="graduation-cap"></div>
         <div>
           <h3>Staff dedicated to online</h3>
           <p>Dedicated staff manage the online group all day — same attention and support as in the room.</p>
         </div>
       </div>
       <div class="value-card reveal">
-        <div class="value-icon">🤝</div>
+        <div class="value-icon" data-icon="handshake"></div>
         <div>
           <h3>Same camp, same curriculum</h3>
           <p>Same schedule, same lessons, same activities. Full member of the camp — just from home.</p>
@@ -340,7 +346,7 @@
     </div>
 
     <div class="reveal" style="margin-top:28px; background:#EEF6FF; border:1px solid #BBD9F7; border-radius:var(--radius); padding:24px 26px; color:#1E3A5F; line-height:1.6;">
-      <h3 style="margin:0 0 8px; color:#1E3A5F;">👶 Not in high school yet? You can still join online.</h3>
+      <h3 style="margin:0 0 8px; color:#1E3A5F; display:flex; align-items:center; gap:8px;"><i data-icon="user"></i> Not in high school yet? You can still join online.</h3>
       <p style="margin:0;">
         Campers <strong>12 and under</strong> are welcome <strong>online</strong> — no on-site supervision needed. We strongly recommend in person for high-school-bound students, but the online group is perfect for younger learners who are keen.
       </p>
@@ -362,12 +368,12 @@
           Runs in parallel with regular sessions — drop in when you have time, or sprint through it on the weekend.
         </p>
         <p style="color:var(--muted);">
-          Spot a <strong>paper crane 🕊</strong> — physical or digital — and there's a clue attached. Math-flavoured puzzles that together reveal the password.
+          Spot a <strong>paper crane</strong> — physical or digital — and there's a clue attached. Math-flavoured puzzles that together reveal the password.
         </p>
       </div>
       <button type="button" id="crane-clicker" aria-label="Tap the paper crane"
-        style="all:unset; cursor:pointer; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 50%, #F9A8D4 100%); position:relative; transition:transform .12s ease;">
-        <div id="crane-emoji" style="font-size:9rem; filter:drop-shadow(0 8px 24px rgba(0,0,0,.2)); transition:transform .12s ease, filter .12s ease;">🕊</div>
+        style="all:unset; cursor:pointer; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:var(--blush-bg); border:1px solid var(--border); position:relative; transition:transform .12s ease;">
+        <div id="crane-emoji" style="font-size:8rem; color:var(--blush); transition:transform .12s ease, filter .12s ease;" data-icon="feather"></div>
         <div style="position:absolute; bottom:18px; left:0; right:0; text-align:center; font-size:.86rem; color:rgba(0,0,0,.55); font-weight:600; letter-spacing:.04em; text-transform:uppercase;">
           Look for the crane
         </div>
@@ -423,17 +429,17 @@
     </div>
     <div class="grid-3" style="gap:20px;">
       <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);">
-        <div class="card-icon" style="background:rgba(107,191,160,.15);font-size:1.6rem;">🎯</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="target"></div>
         <h3 style="color:white;">Focus on Understanding</h3>
         <p>Every session asks "why" — not just "how".</p>
       </div>
       <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);">
-        <div class="card-icon" style="background:rgba(107,191,160,.15);font-size:1.6rem;">🌍</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="globe"></div>
         <h3 style="color:white;">HDSB + Beyond</h3>
         <p>Built for HDSB MTH1W, open to all boards. No application — just register.</p>
       </div>
       <div class="card" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);">
-        <div class="card-icon" style="background:rgba(107,191,160,.15);font-size:1.6rem;">💪</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="zap"></div>
         <h3 style="color:white;">Peer Empowerment</h3>
         <p>Learning from someone your own age hits differently.</p>
       </div>
@@ -459,9 +465,9 @@
   <div class="footer-inner">
     <div class="footer-grid">
       <div class="footer-brand">
-        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <div class="logo-text"><i data-icon="tent"></i> HigherGrade Tutoring</div>
         <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
-        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+        <div style="margin-top:14px;"><span class="footer-tag"><i data-icon="star"></i> 100% Student-Led</span></div>
       </div>
       <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="/index.html">Home</a></li><li><a href="/about/about.html">About Us</a></li><li><a href="/support/support.html">Support Us</a></li><li><a href="/register/register.html">Register</a></li></ul></div>
       <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="#schedule">Schedule</a></li><li><a href="#team">Our Team</a></li><li><a href="/index.html#faq">FAQ</a></li></ul></div>
@@ -469,11 +475,12 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 HigherGrade Tutoring — All rights reserved.</span>
-      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+      <span>Made by Grade 11 &amp; 12 HDSB students</span>
     </div>
   </div>
 </footer>
 
+<script src="/icons.js"></script>
 <script src="/staff-data.js"></script>
 <script src="/students-data.js"></script>
 <script src="/script.js"></script>
@@ -485,8 +492,8 @@
 
 <div id="crane-discount-pop" style="display:none; position:fixed; inset:0; z-index:1200; align-items:center; justify-content:center; background:rgba(8,18,34,.45); padding:20px;">
   <div style="background:#fff; border-radius:16px; max-width:380px; width:100%; padding:26px 24px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.35); position:relative;">
-    <button type="button" id="crane-discount-close" aria-label="Close" style="position:absolute; top:10px; right:12px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:#99a; line-height:1;">✕</button>
-    <div style="font-size:2.4rem; line-height:1; margin-bottom:8px;">🕊</div>
+    <button type="button" id="crane-discount-close" aria-label="Close" style="position:absolute; top:10px; right:12px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:#99a; line-height:1;" data-icon="x"></button>
+    <div style="font-size:2.4rem; line-height:1; margin-bottom:8px; color:var(--blush);" data-icon="feather"></div>
     <div style="font-size:1.1rem; font-weight:800; margin-bottom:6px;">You found the hidden crane!</div>
     <p style="color:#555; font-size:.9rem; margin:0 0 14px;">Here's a one-time <strong>10% off</strong> code for camp registration — enter it at checkout. Once it's used it's gone, so it's all yours.</p>
     <div style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap;">
@@ -540,5 +547,6 @@
   });
 })();
 </script>
+</div><!-- /.page-wrapper -->
 </body>
 </html>

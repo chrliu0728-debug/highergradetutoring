@@ -8,36 +8,52 @@
   <link rel="icon" type="image/webp" href="logo.webp" />
   <link rel="stylesheet" href="style.css" />
   <style>
+    /* Hero simplified styles */
+    .hero-eyebrow {
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .14em; color: var(--blush); margin-bottom: clamp(16px, 2.4vh, 28px);
+    }
+    .hero h1 .accent { font-style: italic; color: var(--blush); }
+    .hero-meta {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 8px; margin-bottom: clamp(14px, 2vh, 24px);
+      font-size: .88rem; color: var(--text-mid); font-weight: 500;
+    }
+    .hero-meta a { color: var(--text-mid); text-decoration: underline; text-underline-offset: 3px; }
+    .hero-meta a:hover { color: var(--blush); }
+    .hero-meta [data-icon] { display: inline-flex; margin-right: 4px; opacity: .65; }
+    .hero-meta-sep { opacity: .3; }
+
     #countdown {
       display: flex; flex-direction: column; gap: 8px;
       margin-top: clamp(14px, 2.4vh, 24px); align-items: flex-start;
     }
     .cd-label {
       font-size: .72rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .1em; color: rgba(255,255,255,.6);
+      letter-spacing: .1em; color: var(--text-mid);
     }
     .cd-boxes { display: flex; gap: clamp(8px, 1.4vw, 14px); flex-wrap: wrap; }
     .cd-live {
       display: inline-block;
-      background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28);
+      background: var(--surface); border: 1px solid var(--border);
       border-radius: 12px; padding: 12px 20px;
-      color: #fff; font-weight: 800; font-size: clamp(1rem, 2.2vw, 1.25rem);
+      color: var(--text); font-weight: 800; font-size: clamp(1rem, 2.2vw, 1.25rem);
     }
     #countdown span {
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.2);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: clamp(8px, 1.2vh, 12px) clamp(10px, 1.4vw, 16px);
       text-align: center;
       font-size: clamp(1.1rem, 2.6vw, 1.5rem);
       font-weight: 900;
-      color: white;
+      color: var(--text);
       line-height: 1;
       min-width: clamp(52px, 7vw, 64px);
     }
     #countdown small {
       display: block; font-size: .62rem; font-weight: 500;
-      color: rgba(255,255,255,.55); text-transform: uppercase;
+      color: var(--muted); text-transform: uppercase;
       letter-spacing: .08em; margin-top: 4px;
     }
 
@@ -102,9 +118,11 @@
     }
     .unit-modal-close:hover { background: var(--blush); color: white; transform: rotate(90deg); }
     .unit-modal-icon {
-      font-size: 2.8rem; line-height: 1;
-      margin-bottom: 8px;
+      font-size: 2.4rem; line-height: 1;
+      color: var(--blush);
+      margin-bottom: 12px;
     }
+    .schedule-list [data-icon] { color: var(--blush); }
     .unit-modal-eyebrow {
       font-size: .74rem; font-weight: 700;
       color: var(--blush); text-transform: uppercase; letter-spacing: .1em;
@@ -132,84 +150,71 @@
 </head>
 <body>
 
-<!-- ─────────────────── NAVBAR ─────────────────── -->
-<nav class="navbar">
-  <div class="nav-inner">
-    <div class="nav-left">
-      <a href="index.html" class="nav-logo">
-        <img src="logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
-      </a>
-      <!-- ── TITLE SPONSORS ──────────────────────────────────────────
-           Up to 4 sponsor slots fit here, beside the logo. Slots are
-           rendered from the SPONSORS array near the bottom of this file.
-           Click a slot → pops out the sponsor modal below. -->
-      <div class="title-sponsors" id="title-sponsors" aria-label="Title sponsors"></div>
-    </div>
-    <ul class="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="/about/about.html">About Us</a></li>
-      <li><a href="/support/support.html">Support Us</a></li>
-      <li><a href="/contact/contact.html">Contact</a></li>
-      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
+<!-- ─────────────────── SIDENAV ─────────────────── -->
+<nav class="sidenav" id="sidenav" aria-label="Main navigation">
+  <div class="sidenav-inner">
+    <a href="/index.html" class="sidenav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring" />
+    </a>
+    <ul class="sidenav-links">
+      <li><a href="/index.html"><i data-icon="tent"></i><span>Home</span></a></li>
+      <li><a href="/about/about.html"><i data-icon="users"></i><span>About</span></a></li>
+      <li><a href="/support/support.html"><i data-icon="heart"></i><span>Support</span></a></li>
+      <li><a href="/contact/contact.html"><i data-icon="mail"></i><span>Contact</span></a></li>
     </ul>
-    <button class="hamburger" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="sidenav-bottom">
+      <a href="/student-portal/student-portal.html" class="sidenav-signin nav-signin">
+        <i data-icon="user"></i><span>Sign In</span>
+      </a>
+      <a href="/register/register.html" class="sidenav-cta">Register Now</a>
+    </div>
   </div>
 </nav>
+<button class="sidenav-toggle" id="sidenav-toggle" aria-label="Open navigation">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidenav-overlay" id="sidenav-overlay"></div>
+<div class="page-wrapper">
 
 <!-- ─────────────────── HERO ─────────────────── -->
 <section class="hero">
-  <div class="hero-math-bg">
-    <div class="math-symbol">∑</div>
-    <div class="math-symbol">π</div>
-    <div class="math-symbol">√</div>
-    <div class="math-symbol">∫</div>
-    <div class="math-symbol">∞</div>
-    <div class="math-symbol">Δ</div>
-    <div class="math-symbol">θ</div>
-    <div class="math-symbol">≠</div>
-  </div>
   <div class="hero-content">
-    <!-- Left-aligned text (hero image removed) -->
     <div class="hero-text">
-      <div class="hero-badge">Accelerated · MTH1W (Grade 9 Math) · Summer 2026</div>
-      <h1>Grade 9 Math,<br><span class="accent">Mastered</span> in 10 Days</h1>
+      <p class="hero-eyebrow">MTH1W · Grade 9 Math · Summer 2026</p>
+      <h1>Grade 9 Math,<br><span class="accent">Mastered</span><br>in 10 days.</h1>
       <p class="hero-sub">
-        An accelerated summer program covering the full MTH1W (Grade 9 math) curriculum —
-        designed for Grade 9 students who are serious about mathematics and ready to push beyond the classroom.
+        Full MTH1W curriculum — 5 units, 10 intensive days, final exam.
+        In person or online. HDSB and all boards welcome.
       </p>
-      <div class="hero-dates">
-        <span class="cal-icon">📅</span>
-        August 4 – August 15, 2026 &nbsp;·&nbsp; 10 Days of Math
-      </div>
-      <div class="hero-dates" style="margin-top:8px;">
-        <span class="cal-icon">📍</span>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Sheridan College — Trafalgar Campus</a> &nbsp;·&nbsp; HDSB &amp; other boards welcome
+      <div class="hero-meta">
+        <span><i data-icon="calendar"></i> Aug 4 – 15, 2026</span>
+        <span class="hero-meta-sep">·</span>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><i data-icon="map-pin"></i> Sheridan College, Oakville</a>
+        <span class="hero-meta-sep">·</span>
+        <span><i data-icon="dollar"></i> 135 flat</span>
       </div>
       <div id="countdown" aria-label="Countdown to camp start"></div>
-      <div class="hero-buttons" style="margin-top: clamp(16px, 2.6vh, 28px);">
+      <div class="hero-buttons" style="margin-top: clamp(20px, 3vh, 36px);">
         <a href="/register/register.html" class="btn btn-primary">Register Now →</a>
-        <a href="/about/about.html"    class="btn btn-outline">Learn More</a>
+        <a href="/about/about.html" class="btn btn-outline">Learn More</a>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ─────────────────── STATS ─────────────────── -->
-<section style="background: var(--navy); padding: 0;">
+<section style="background: var(--surface2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0;">
   <div class="container">
     <div class="grid-4">
-      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid rgba(255,255,255,.08);border-radius:0;">
+      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid var(--border);border-radius:0;">
         <div class="stat-number">10</div>
         <div class="stat-label">Days of Camp</div>
       </div>
-      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid rgba(255,255,255,.08);border-radius:0;">
-        <div class="stat-number">🏆</div>
+      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid var(--border);border-radius:0;">
+        <div class="stat-number" data-icon="trophy"></div>
         <div class="stat-label">Class-vs-Class Battles</div>
       </div>
-      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid rgba(255,255,255,.08);border-radius:0;">
+      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid var(--border);border-radius:0;">
         <div class="stat-number">5</div>
         <div class="stat-label">MTH1W Units<br><span style="font-size:.72em;opacity:.75;">(Grade 9 Math)</span></div>
       </div>
@@ -224,28 +229,29 @@
 <!-- ─────────────────── WHY MATHCAMP ─────────────────── -->
 <section class="section">
   <div class="container">
-    <div class="section-head">
-      <div class="section-label">Why Us?</div>
-      <h2 class="section-title">A different kind of<br>math experience</h2>
-      <p class="section-desc">Full MTH1W curriculum, daily problem sets, peer tutoring, and a final exam. At pace.</p>
-    </div>
-    <p style="text-align:center; color:var(--muted); font-size:.88rem; margin: -8px auto 20px;">👆 Click a card to read more</p>
-    <div class="grid-3">
-      <button class="card why-card" data-why="led">
-        <div class="card-icon" style="background:rgba(232,128,138,.1);">🤝</div>
-        <h3>Peer Tutors for Strugglers</h3>
-        <p>Free one-on-one help from Grade 9 &amp; 10 peer tutors for any camper who falls behind.</p>
-      </button>
-      <button class="card why-card" data-why="coverage">
-        <div class="card-icon" style="background:rgba(107,191,160,.1);">📚</div>
-        <h3>Full MTH1W Coverage</h3>
-        <p>All 5 units of MTH1W across 10 intensive days.</p>
-      </button>
-      <button class="card why-card" data-why="problems">
-        <div class="card-icon" style="background:rgba(232,128,138,.1);">✏️</div>
-        <h3>Daily Problem Sets</h3>
-        <p>Tiered homework problems every day. Come ready to work.</p>
-      </button>
+    <div class="section-cols">
+      <div class="section-head" style="margin-bottom:0;">
+        <div class="section-label">Why Us?</div>
+        <h2 class="section-title">A different kind of math experience</h2>
+        <p class="section-desc">Full MTH1W curriculum, daily problem sets, peer tutoring, and a final exam. At pace.</p>
+      </div>
+      <div class="grid-3">
+        <button class="card why-card" data-why="led">
+          <div class="card-icon" data-icon="handshake"></div>
+          <h3>Peer Tutors for Strugglers</h3>
+          <p>Free one-on-one help from Grade 9 &amp; 10 peer tutors for any camper who falls behind.</p>
+        </button>
+        <button class="card why-card" data-why="coverage" style="border-top: 3px solid var(--mint);">
+          <div class="card-icon mint" data-icon="book"></div>
+          <h3>Full MTH1W Coverage</h3>
+          <p>All 5 units of MTH1W across 10 intensive days.</p>
+        </button>
+        <button class="card why-card" data-why="problems">
+          <div class="card-icon" data-icon="pencil"></div>
+          <h3>Daily Problem Sets</h3>
+          <p>Tiered homework problems every day. Come ready to work.</p>
+        </button>
+      </div>
     </div>
   </div>
 </section>
@@ -253,61 +259,32 @@
 <!-- ─────────────────── TOPICS ─────────────────── -->
 <section class="section">
   <div class="container">
-    <div class="section-head section-head-center">
-      <div class="section-label">Curriculum · MTH1W (Grade 9 Math)</div>
-      <h2 class="section-title">5 units. 10 days.</h2>
-      <p class="section-desc">The complete Grade 9 math curriculum, taught intensively by students who know it inside and out.</p>
-    </div>
-    <p style="text-align:center; color:var(--muted); font-size:.88rem; margin: -18px auto 20px;">👆 Click any unit for more details</p>
-    <div class="grid-3" style="gap:16px; margin-top: 8px;">
-      <div role="button" tabindex="0" class="card unit-card" data-unit="1" style="border-top: 3px solid var(--blush);">
-        <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">🔄</div>
-        <h3>Unit 1 — Grade 8 Review</h3>
-        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <button type="button" class="topic-pill" data-topic="rational" style="font-size:.78rem; padding:4px 10px;">Rational Numbers</button>
-          <button type="button" class="topic-pill" data-topic="powers" style="font-size:.78rem; padding:4px 10px;">Powers &amp; Roots</button>
-          <button type="button" class="topic-pill" data-topic="ineq8" style="font-size:.78rem; padding:4px 10px;">Inequalities</button>
-        </div>
+    <div class="section-cols">
+      <div class="section-head" style="margin-bottom:0;">
+        <div class="section-label">Curriculum · MTH1W</div>
+        <h2 class="section-title">5 units. 10 days.</h2>
+        <p class="section-desc">The complete Grade 9 math curriculum, taught intensively. Select any unit for details.</p>
       </div>
-      <div role="button" tabindex="0" class="card unit-card" data-unit="2" style="border-top: 3px solid var(--mint);">
-        <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📈</div>
-        <h3>Unit 2 — Algebra</h3>
-        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <button type="button" class="topic-pill" data-topic="simplify" style="font-size:.78rem; padding:4px 10px;">Simplifying Expressions</button>
-          <button type="button" class="topic-pill" data-topic="solve-eq" style="font-size:.78rem; padding:4px 10px;">Solving Equations</button>
-          <button type="button" class="topic-pill" data-topic="relations" style="font-size:.78rem; padding:4px 10px;">Relations</button>
+      <div class="grid-3" style="gap:16px;">
+        <div role="button" tabindex="0" class="card unit-card" data-unit="1" style="border-top: 3px solid var(--blush);">
+          <div class="card-icon" data-icon="refresh"></div>
+          <h3>Unit 1 — Grade 8 Review</h3>
         </div>
-      </div>
-      <div role="button" tabindex="0" class="card unit-card" data-unit="3" style="border-top: 3px solid var(--blush);">
-        <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📊</div>
-        <h3>Unit 3 — Data</h3>
-        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <button type="button" class="topic-pill" data-topic="data-lit" style="font-size:.78rem; padding:4px 10px;">Data Literacy</button>
-          <button type="button" class="topic-pill" data-topic="stats" style="font-size:.78rem; padding:4px 10px;">Statistics</button>
-          <button type="button" class="topic-pill" data-topic="modelling" style="font-size:.78rem; padding:4px 10px;">Mathematical Modelling</button>
+        <div role="button" tabindex="0" class="card unit-card" data-unit="2" style="border-top: 3px solid var(--mint);">
+          <div class="card-icon mint" data-icon="trending-up"></div>
+          <h3>Unit 2 — Algebra</h3>
         </div>
-      </div>
-      <div role="button" tabindex="0" class="card unit-card" data-unit="4" style="border-top: 3px solid var(--mint);">
-        <div class="card-icon" style="background:rgba(107,191,160,.1); font-size:1.4rem;">📐</div>
-        <h3>Unit 4 — Geometry</h3>
-        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <button type="button" class="topic-pill" data-topic="measurement" style="font-size:.78rem; padding:4px 10px;">Measurement</button>
-          <button type="button" class="topic-pill" data-topic="pythag" style="font-size:.78rem; padding:4px 10px;">Pythagorean Theorem</button>
-          <button type="button" class="topic-pill" data-topic="areas" style="font-size:.78rem; padding:4px 10px;">Shape Areas</button>
-          <button type="button" class="topic-pill" data-topic="geom-props" style="font-size:.78rem; padding:4px 10px;">Geometric Properties</button>
-          <button type="button" class="topic-pill" data-topic="coord-geom" style="font-size:.78rem; padding:4px 10px;">Coordinate Geometry</button>
+        <div role="button" tabindex="0" class="card unit-card" data-unit="3" style="border-top: 3px solid var(--blush);">
+          <div class="card-icon" data-icon="bar-chart"></div>
+          <h3>Unit 3 — Data</h3>
         </div>
-      </div>
-      <div role="button" tabindex="0" class="card unit-card" data-unit="5" style="border-top: 3px solid var(--blush); grid-column: span 2 / span 2;">
-        <div class="card-icon" style="background:rgba(232,128,138,.1); font-size:1.4rem;">📉</div>
-        <h3>Unit 5 — Linear Relations</h3>
-        <div class="topics-wrap" style="margin-top:10px; gap:6px;">
-          <button type="button" class="topic-pill" data-topic="linear-eq" style="font-size:.78rem; padding:4px 10px;">Linear Equations</button>
-          <button type="button" class="topic-pill" data-topic="slope-int" style="font-size:.78rem; padding:4px 10px;">Slope-Intercept Form</button>
-          <button type="button" class="topic-pill" data-topic="graphing" style="font-size:.78rem; padding:4px 10px;">Graphing Equations</button>
-          <button type="button" class="topic-pill" data-topic="solve-linear" style="font-size:.78rem; padding:4px 10px;">Solving Linear Equations</button>
-          <button type="button" class="topic-pill" data-topic="parallel-perp" style="font-size:.78rem; padding:4px 10px;">Parallel &amp; Perpendicular Lines</button>
-          <button type="button" class="topic-pill" data-topic="lin-ineq" style="font-size:.78rem; padding:4px 10px;">Linear Inequalities</button>
+        <div role="button" tabindex="0" class="card unit-card" data-unit="4" style="border-top: 3px solid var(--mint);">
+          <div class="card-icon mint" data-icon="triangle-ruler"></div>
+          <h3>Unit 4 — Geometry</h3>
+        </div>
+        <div role="button" tabindex="0" class="card unit-card" data-unit="5" style="border-top: 3px solid var(--blush);">
+          <div class="card-icon" data-icon="trending-down"></div>
+          <h3>Unit 5 — Linear Relations</h3>
         </div>
       </div>
     </div>
@@ -316,8 +293,8 @@
     <div class="unit-modal" id="unit-modal" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="unit-modal-backdrop"></div>
       <div class="unit-modal-content">
-        <button class="unit-modal-close" id="unit-modal-close" aria-label="Close">✕</button>
-        <div class="unit-modal-icon" id="unit-modal-icon">🔄</div>
+        <button class="unit-modal-close" id="unit-modal-close" aria-label="Close" data-icon="x"></button>
+        <div class="unit-modal-icon" id="unit-modal-icon"></div>
         <div class="unit-modal-eyebrow" id="unit-modal-eyebrow">Unit 1</div>
         <h2 class="unit-modal-title" id="unit-modal-title"></h2>
         <p class="unit-modal-lede" id="unit-modal-lede"></p>
@@ -342,19 +319,19 @@
         </p>
       </div>
       <div style="display:flex; flex-direction:column; gap:16px;">
-        <div class="card" style="border-left:4px solid var(--blush);">
+        <div class="card">
           <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--blush);margin-bottom:6px;">Daily Schedule</div>
-          <div style="font-size:.92rem;color:var(--text-mid);display:flex;flex-direction:column;gap:6px;">
-            <div>📚 <strong>8:45 – 10:15</strong> — Period 1</div>
-            <div>☕ <strong>10:15 – 10:45</strong> — Break</div>
-            <div>✏️ <strong>10:45 – 12:15</strong> — Period 2</div>
-            <div>🍕 <strong>12:15 – 1:15</strong> — Lunch</div>
-            <div>🤝 <strong>1:15 – 2:45</strong> — Period 3</div>
-            <div>☕ <strong>2:45 – 3:15</strong> — Break</div>
-            <div>🧮 <strong>3:15 – 4:45</strong> — Period 4</div>
+          <div class="schedule-list" style="font-size:.92rem;color:var(--text-mid);display:flex;flex-direction:column;gap:8px;">
+            <div><i data-icon="book"></i> <strong>8:45 – 10:15</strong> — Period 1</div>
+            <div><i data-icon="coffee"></i> <strong>10:15 – 10:45</strong> — Break</div>
+            <div><i data-icon="pencil"></i> <strong>10:45 – 12:15</strong> — Period 2</div>
+            <div><i data-icon="utensils"></i> <strong>12:15 – 1:15</strong> — Lunch</div>
+            <div><i data-icon="handshake"></i> <strong>1:15 – 2:45</strong> — Period 3</div>
+            <div><i data-icon="coffee"></i> <strong>2:45 – 3:15</strong> — Break</div>
+            <div><i data-icon="calculator"></i> <strong>3:15 – 4:45</strong> — Period 4</div>
           </div>
         </div>
-        <div class="card" style="border-left:4px solid var(--mint);">
+        <div class="card" style="border-top: 3px solid var(--mint);">
           <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mint-dark);margin-bottom:6px;">Who Should Attend</div>
           <div style="font-size:.92rem;color:var(--text-mid);">
             <strong>Accelerated MTH1W</strong> for strong Grade 9 math students. HDSB-focused, all boards welcome. Daily homework expected.
@@ -370,50 +347,52 @@
   <h2>Think you have what it takes?</h2>
   <p>$135 flat — in person or online. Discount codes available. Top math students, this is for you.</p>
   <div class="flex gap-12 items-center flex-wrap" style="justify-content:center;">
-    <a href="/register/register.html" class="btn btn-primary" style="background:white;color:var(--blush);">Register Now →</a>
+    <a href="/register/register.html" class="btn btn-primary">Register Now →</a>
     <a href="/support/support.html"  class="btn btn-outline">Support the Camp</a>
   </div>
 </div>
 
 <!-- ─────────────────── FAQ ─────────────────── -->
 <section class="section section-alt" id="faq">
-  <div class="container-sm">
-    <div class="section-head section-head-center">
-      <div class="section-label">Questions</div>
-      <h2 class="section-title">Frequently asked questions</h2>
-    </div>
-    <div>
-      <div class="faq-item">
-        <button class="faq-q">How much does camp cost? <span class="arrow">▼</span></button>
-        <div class="faq-a">Registration is a flat <strong>$135</strong> for every camper, whether you attend in person or online — and discount codes (like the 10% one hidden in the crane on our About Us page) can lower it. The fee is paid by Interac e-Transfer once you complete the registration form, and it helps cover materials, facilities, and refreshments across the 10 days.</div>
+  <div class="container">
+    <div class="section-cols">
+      <div class="section-head" style="margin-bottom:0;">
+        <div class="section-label">Questions</div>
+        <h2 class="section-title">Frequently asked questions</h2>
       </div>
-      <div class="faq-item">
-        <button class="faq-q">Is this camp for all skill levels? <span class="arrow">▼</span></button>
-        <div class="faq-a">This is an accelerated program covering the full MTH1W curriculum in 10 days. It's best suited for students who already have strong math fundamentals and are ready to be challenged. If you're one of the top math students in your Grade 8 class or early Grade 9, this camp is built for you.</div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">Where is the camp held? <span class="arrow">▼</span></button>
-        <div class="faq-a">All 10 days run at <strong><a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener">Sheridan College — Trafalgar Campus</a></strong> in Oakville. Click the location to get directions in Google Maps. Specific room assignments and drop-off / pick-up details will be emailed to registered families ahead of Day 1.</div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">Do I have to be an HDSB student? <span class="arrow">▼</span></button>
-        <div class="faq-a">No — the program was built around the HDSB MTH1W curriculum, so HDSB students are our primary audience, but we warmly welcome strong Grade 9 math students from any school board.</div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">Who runs the sessions? <span class="arrow">▼</span></button>
-        <div class="faq-a">Sessions are taught by top Grade 11 &amp; 12 HDSB students who have already completed and excelled at this material, with a faculty advisor present for support and safety. Campers who fall behind also get free one-on-one help from Grade 9 &amp; 10 peer tutors.</div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">What should I bring each day? <span class="arrow">▼</span></button>
-        <div class="faq-a">Bring <strong>a device</strong> (laptop, tablet, or Chromebook), <strong>your own lunch</strong>, a water bottle, and a curious mind. All math materials and problem sets are provided. Lunch breaks are a fun social time, so pack something you'll enjoy.</div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">How many spots are available? <span class="arrow">▼</span></button>
-        <div class="faq-a">We have <strong>40 spots</strong> open for Summer Camp 2026. Register early — once all 100 are filled, additional sign-ups go to a waitlist and we'll reach out if a spot opens up.</div>
-      </div>
-      <div class="faq-item">
-        <button class="faq-q">Can I attend just one week? <span class="arrow">▼</span></button>
-        <div class="faq-a">We strongly encourage attending both weeks since the material builds across the two weeks. However, we understand scheduling conflicts — please note your availability in the registration form and we'll do our best to accommodate you.</div>
+      <div>
+        <div class="faq-item">
+          <button class="faq-q">How much does camp cost? <span class="arrow">▼</span></button>
+          <div class="faq-a">Registration is a flat <strong>$135</strong> for every camper, whether you attend in person or online — and discount codes (like the 10% one hidden in the crane on our About Us page) can lower it. The fee is paid by Interac e-Transfer once you complete the registration form, and it helps cover materials, facilities, and refreshments across the 10 days.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Is this camp for all skill levels? <span class="arrow">▼</span></button>
+          <div class="faq-a">This is an accelerated program covering the full MTH1W curriculum in 10 days. It's best suited for students who already have strong math fundamentals and are ready to be challenged. If you're one of the top math students in your Grade 8 class or early Grade 9, this camp is built for you.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Where is the camp held? <span class="arrow">▼</span></button>
+          <div class="faq-a">All 10 days run at <strong><a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener">Sheridan College — Trafalgar Campus</a></strong> in Oakville. Click the location to get directions in Google Maps. Specific room assignments and drop-off / pick-up details will be emailed to registered families ahead of Day 1.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Do I have to be an HDSB student? <span class="arrow">▼</span></button>
+          <div class="faq-a">No — the program was built around the HDSB MTH1W curriculum, so HDSB students are our primary audience, but we warmly welcome strong Grade 9 math students from any school board.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Who runs the sessions? <span class="arrow">▼</span></button>
+          <div class="faq-a">Sessions are taught by top Grade 11 &amp; 12 HDSB students who have already completed and excelled at this material, with a faculty advisor present for support and safety. Campers who fall behind also get free one-on-one help from Grade 9 &amp; 10 peer tutors.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">What should I bring each day? <span class="arrow">▼</span></button>
+          <div class="faq-a">Bring <strong>a device</strong> (laptop, tablet, or Chromebook), <strong>your own lunch</strong>, a water bottle, and a curious mind. All math materials and problem sets are provided. Lunch breaks are a fun social time, so pack something you'll enjoy.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">How many spots are available? <span class="arrow">▼</span></button>
+          <div class="faq-a">We have <strong>40 spots</strong> open for Summer Camp 2026. Register early — once all 100 are filled, additional sign-ups go to a waitlist and we'll reach out if a spot opens up.</div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q">Can I attend just one week? <span class="arrow">▼</span></button>
+          <div class="faq-a">We strongly encourage attending both weeks since the material builds across the two weeks. However, we understand scheduling conflicts — please note your availability in the registration form and we'll do our best to accommodate you.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -424,9 +403,9 @@
   <div class="footer-inner">
     <div class="footer-grid">
       <div class="footer-brand">
-        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <div class="logo-text"><i data-icon="tent"></i> HigherGrade Tutoring</div>
         <p>An accelerated Grade 9 math (MTH1W) summer camp. August 4–15, 2026.</p>
-        <div style="margin-top:14px;"><span class="footer-tag">★ Only 100 Spots</span></div>
+        <div style="margin-top:14px;"><span class="footer-tag"><i data-icon="star"></i> Only 100 Spots</span></div>
       </div>
       <div class="footer-col footer-pages">
         <h4>Pages</h4>
@@ -455,11 +434,12 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 HigherGrade Tutoring — All rights reserved.</span>
-      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+      <span>Made by Grade 11 &amp; 12 HDSB students</span>
     </div>
   </div>
 </footer>
 
+<script src="icons.js"></script>
 <script src="students-data.js"></script>
 <script src="script.js"></script>
 <script>
@@ -489,7 +469,7 @@
 
   const UNITS = {
     1: {
-      icon: '🔄', eyebrow: 'Unit 1 · Day 1',
+      icon: 'refresh', eyebrow: 'Unit 1 · Day 1',
       title: 'Grade 8 Review',
       lede: 'We kick off camp by filling in the gaps from Grade 8 so nobody falls behind once we pick up pace. Expect a friendly first-day vibe — introductions, diagnostic problems, and building the foundation everything else relies on.',
       body: `
@@ -502,7 +482,7 @@
       `
     },
     2: {
-      icon: '📈', eyebrow: 'Unit 2 · Day 2',
+      icon: 'trending-up', eyebrow: 'Unit 2 · Day 2',
       title: 'Algebra',
       lede: 'The heart of Grade 9 math. We build from simplifying expressions to solving equations with multiple methods, then introduce relations as the bridge into Unit 5.',
       body: `
@@ -515,7 +495,7 @@
       `
     },
     3: {
-      icon: '📊', eyebrow: 'Unit 3 · Day 3',
+      icon: 'bar-chart', eyebrow: 'Unit 3 · Day 3',
       title: 'Data',
       lede: 'A lighter but important day — numeracy in the real world. We focus on reading data critically and building simple models, not crunching through computations.',
       body: `
@@ -528,7 +508,7 @@
       `
     },
     4: {
-      icon: '📐', eyebrow: 'Unit 4 · Days 4–5',
+      icon: 'triangle-ruler', eyebrow: 'Unit 4 · Days 4–5',
       title: 'Geometry',
       lede: 'A full two-day unit because there\'s a lot here — measurement, the Pythagorean theorem, shape areas, geometric properties, and coordinate geometry all stack on each other.',
       body: `
@@ -544,7 +524,7 @@
       `
     },
     5: {
-      icon: '📉', eyebrow: 'Unit 5 · Days 6–8',
+      icon: 'trending-down', eyebrow: 'Unit 5 · Days 6–8',
       title: 'Linear Relations',
       lede: 'The biggest unit in Grade 9 and the one students tend to struggle with most. We spend three full days on it — builds from basics, through multiple solving strategies, into applications.',
       body: `
@@ -562,7 +542,7 @@
 
   const WHY = {
     led: {
-      icon: '🤝', eyebrow: 'Why Us · Extra Help',
+      icon: 'handshake', eyebrow: 'Why Us · Extra Help',
       title: 'Peer Tutors for Strugglers',
       lede: 'Falling behind is normal in an accelerated course — so any camper who needs it gets free one-on-one help from Grade 9 & 10 student tutors, right at camp.',
       body: `
@@ -573,7 +553,7 @@
       `
     },
     coverage: {
-      icon: '📚', eyebrow: 'Why Us · Curriculum',
+      icon: 'book', eyebrow: 'Why Us · Curriculum',
       title: 'Full MTH1W Coverage',
       lede: 'We cover the entire Ontario Grade 9 De-streamed Math curriculum (MTH1W) across 10 intensive days — every strand, every expectation.',
       body: `
@@ -588,7 +568,7 @@
       `
     },
     problems: {
-      icon: '✏️', eyebrow: 'Why Us · Practice',
+      icon: 'pencil', eyebrow: 'Why Us · Practice',
       title: 'Daily Problem Sets',
       lede: 'Hundreds of curated practice questions, tiered by difficulty, handed out fresh each day. Math is a skill — you build it by doing problems, not by watching someone else do them.',
       body: `
@@ -605,7 +585,7 @@
   const TOPICS = {
     /* Unit 1 — Grade 8 Review */
     rational: {
-      icon: '🔢', eyebrow: 'Unit 1 · Topic',
+      icon: 'hash', eyebrow: 'Unit 1 · Topic',
       title: 'Rational Numbers',
       lede: 'Any number you can write as a fraction of two integers — including negatives, decimals that terminate, and decimals that repeat. The foundation for almost everything else in Grade 9 math.',
       body: `
@@ -618,7 +598,7 @@
       `
     },
     powers: {
-      icon: '⚡', eyebrow: 'Unit 1 · Topic',
+      icon: 'zap', eyebrow: 'Unit 1 · Topic',
       title: 'Powers & Roots',
       lede: 'Exponents are repeated multiplication; roots are the inverse. Together they let you write very big and very small numbers compactly and reason about them quickly.',
       body: `
@@ -631,7 +611,7 @@
       `
     },
     ineq8: {
-      icon: '⚖️', eyebrow: 'Unit 1 · Topic',
+      icon: 'scale', eyebrow: 'Unit 1 · Topic',
       title: 'Inequalities (Intro)',
       lede: 'Like equations, but instead of "equals" we have "less than", "greater than", "at most", or "at least". One small twist: multiplying or dividing by a negative flips the sign.',
       body: `
@@ -646,7 +626,7 @@
 
     /* Unit 2 — Algebra */
     simplify: {
-      icon: '🧮', eyebrow: 'Unit 2 · Topic',
+      icon: 'calculator', eyebrow: 'Unit 2 · Topic',
       title: 'Simplifying Expressions',
       lede: 'Rewriting an algebraic expression so it has fewer terms or factors, without changing what it means. Step zero before solving.',
       body: `
@@ -659,7 +639,7 @@
       `
     },
     'solve-eq': {
-      icon: '🟰', eyebrow: 'Unit 2 · Topic',
+      icon: 'equals', eyebrow: 'Unit 2 · Topic',
       title: 'Solving Equations',
       lede: 'Finding the value of the variable that makes the equation true. The whole game: do the same thing to both sides until the variable is alone.',
       body: `
@@ -672,7 +652,7 @@
       `
     },
     relations: {
-      icon: '🔗', eyebrow: 'Unit 2 · Topic',
+      icon: 'link', eyebrow: 'Unit 2 · Topic',
       title: 'Relations',
       lede: 'A relation is any pairing between two sets — usually called <em>x</em> values and <em>y</em> values. The setup that turns into "functions" later, and the bridge into Unit 5.',
       body: `
@@ -687,7 +667,7 @@
 
     /* Unit 3 — Data */
     'data-lit': {
-      icon: '🔍', eyebrow: 'Unit 3 · Topic',
+      icon: 'search', eyebrow: 'Unit 3 · Topic',
       title: 'Data Literacy',
       lede: 'Reading data critically — knowing what a chart actually says, what it leaves out, and when someone is using a graph to mislead you.',
       body: `
@@ -700,7 +680,7 @@
       `
     },
     stats: {
-      icon: '📊', eyebrow: 'Unit 3 · Topic',
+      icon: 'bar-chart', eyebrow: 'Unit 3 · Topic',
       title: 'Statistics',
       lede: 'Summarizing a dataset with a few numbers — central tendency (mean, median, mode) and spread (range).',
       body: `
@@ -711,7 +691,7 @@
       `
     },
     modelling: {
-      icon: '🧩', eyebrow: 'Unit 3 · Topic',
+      icon: 'puzzle', eyebrow: 'Unit 3 · Topic',
       title: 'Mathematical Modelling',
       lede: 'Translating a real-world situation into a mathematical statement you can actually solve. The hardest part of word problems — and the most useful skill in this course.',
       body: `
@@ -724,7 +704,7 @@
 
     /* Unit 4 — Geometry */
     measurement: {
-      icon: '📏', eyebrow: 'Unit 4 · Topic',
+      icon: 'ruler', eyebrow: 'Unit 4 · Topic',
       title: 'Measurement',
       lede: 'Units, conversions, and the difference between length, area, and volume. Sounds simple — but trip on this and the rest of geometry falls over.',
       body: `
@@ -735,7 +715,7 @@
       `
     },
     pythag: {
-      icon: '📐', eyebrow: 'Unit 4 · Topic',
+      icon: 'triangle-ruler', eyebrow: 'Unit 4 · Topic',
       title: 'Pythagorean Theorem',
       lede: 'In a right-angled triangle, a² + b² = c², where c is the hypotenuse (the side across from the 90° angle). The single most-used identity in Grade 9.',
       body: `
@@ -748,7 +728,7 @@
       `
     },
     areas: {
-      icon: '🟦', eyebrow: 'Unit 4 · Topic',
+      icon: 'shapes', eyebrow: 'Unit 4 · Topic',
       title: 'Shape Areas',
       lede: 'Computing the area of triangles, quadrilaterals, circles, and composite shapes — and the surface area / volume of common 3D solids.',
       body: `
@@ -761,7 +741,7 @@
       `
     },
     'geom-props': {
-      icon: '📐', eyebrow: 'Unit 4 · Topic',
+      icon: 'shapes', eyebrow: 'Unit 4 · Topic',
       title: 'Geometric Properties',
       lede: 'The angle relationships that fall out of parallel lines, transversals, and triangle sums. Most "find the missing angle" problems use one of three or four facts.',
       body: `
@@ -774,7 +754,7 @@
       `
     },
     'coord-geom': {
-      icon: '🗺️', eyebrow: 'Unit 4 · Topic',
+      icon: 'map', eyebrow: 'Unit 4 · Topic',
       title: 'Coordinate Geometry',
       lede: 'Geometry done on the Cartesian plane — distance, midpoint, and slope between two points. Half algebra, half geometry, all useful.',
       body: `
@@ -790,7 +770,7 @@
 
     /* Unit 5 — Linear Relations */
     'linear-eq': {
-      icon: '📐', eyebrow: 'Unit 5 · Topic',
+      icon: 'trending-up', eyebrow: 'Unit 5 · Topic',
       title: 'Linear Equations',
       lede: 'An equation whose graph is a straight line. The defining property: equal change in x produces equal change in y.',
       body: `
@@ -803,7 +783,7 @@
       `
     },
     'slope-int': {
-      icon: '📈', eyebrow: 'Unit 5 · Topic',
+      icon: 'trending-up', eyebrow: 'Unit 5 · Topic',
       title: 'Slope-Intercept Form',
       lede: 'y = mx + b. m is the slope (steepness), b is the y-intercept (where the line crosses the y-axis). Read the equation, sketch the line in seconds.',
       body: `
@@ -816,7 +796,7 @@
       `
     },
     graphing: {
-      icon: '📊', eyebrow: 'Unit 5 · Topic',
+      icon: 'bar-chart', eyebrow: 'Unit 5 · Topic',
       title: 'Graphing Equations',
       lede: 'Turning an equation into a picture. Several reliable strategies depending on what form the equation is in.',
       body: `
@@ -829,7 +809,7 @@
       `
     },
     'solve-linear': {
-      icon: '🛠️', eyebrow: 'Unit 5 · Topic',
+      icon: 'wrench', eyebrow: 'Unit 5 · Topic',
       title: 'Solving Linear Equations',
       lede: 'A more advanced version of Unit 2 solving — same logic, but now with brackets, fractions on both sides, and word-problem framing.',
       body: `
@@ -842,7 +822,7 @@
       `
     },
     'parallel-perp': {
-      icon: '🪡', eyebrow: 'Unit 5 · Topic',
+      icon: 'equals', eyebrow: 'Unit 5 · Topic',
       title: 'Parallel & Perpendicular Lines',
       lede: 'Two lines are parallel when they have the same slope. They are perpendicular when their slopes multiply to −1 (i.e., one is the negative reciprocal of the other).',
       body: `
@@ -853,7 +833,7 @@
       `
     },
     'lin-ineq': {
-      icon: '⛔', eyebrow: 'Unit 5 · Topic',
+      icon: 'ban', eyebrow: 'Unit 5 · Topic',
       title: 'Linear Inequalities',
       lede: 'Inequalities that involve a linear expression. Solve them like equations, with one twist: flip the inequality sign whenever you multiply or divide by a negative.',
       body: `
@@ -867,7 +847,7 @@
 
   function openModal(data) {
     if (!data) return;
-    iconEl.textContent    = data.icon;
+    iconEl.innerHTML      = window.Icons ? Icons.svg(data.icon) : '';
     eyebrowEl.textContent = data.eyebrow;
     titleEl.textContent   = data.title;
     ledeEl.innerHTML      = data.lede;
@@ -1078,7 +1058,7 @@ const SPONSORS = [
     elTag.textContent  = s.tagline || '';
     elDesc.textContent = s.description || '';
     if (s.location && s.location.label) {
-      elLoc.innerHTML = `<a href="${esc(s.location.url)}" target="_blank" rel="noopener">📍 ${esc(s.location.label)}</a>`;
+      elLoc.innerHTML = `<a href="${esc(s.location.url)}" target="_blank" rel="noopener">${window.Icons ? Icons.svg('map-pin') : ''} ${esc(s.location.label)}</a>`;
       elLoc.style.display = '';
     } else {
       elLoc.style.display = 'none';
@@ -1117,5 +1097,6 @@ const SPONSORS = [
   });
 })();
 </script>
+</div><!-- /.page-wrapper -->
 </body>
 </html>

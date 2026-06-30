@@ -30,7 +30,7 @@
     .donation-card { cursor: pointer; transition: transform .25s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s, border-color .2s; position: relative; }
     .donation-card:hover { transform: translateY(-6px) scale(1.03); box-shadow: var(--shadow); border-color: var(--blush); }
     .donation-card::after {
-      content: '🔍 Click to read more';
+      content: 'Click to read more';
       position: absolute;
       bottom: 10px; left: 50%;
       transform: translateX(-50%) translateY(4px);
@@ -44,15 +44,16 @@
     .donation-card:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
     .donation-card { padding-bottom: 32px; }
 
-    /* Donation modal icon (square rounded, emoji) */
+    /* Donation modal icon (square rounded) */
     .donation-modal-icon {
-      width: 96px; height: 96px;
-      border-radius: 22px;
+      width: 84px; height: 84px;
+      border-radius: 18px;
       margin: 0 auto 20px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 3rem;
-      background: linear-gradient(135deg, var(--blush-bg), var(--mint-bg));
-      box-shadow: 0 8px 24px rgba(232, 128, 138, 0.18);
+      font-size: 2.4rem;
+      color: var(--blush);
+      background: var(--blush-bg);
+      border: 1px solid var(--border);
     }
   </style>
   <style>
@@ -61,7 +62,7 @@
         radial-gradient(1200px 820px at 50% 120%, #cfe6ff 0%, transparent 60%),
         radial-gradient(900px 600px at 85% -8%, #ffd9de 0%, transparent 55%),
         linear-gradient(180deg, #eaf2ff, #f2f8ff) !important; }
-    body.sp-glass .navbar { z-index: 200; }
+    body.sp-glass .sidenav { z-index: 1000; }
     body.sp-glass .page-hero, body.sp-glass .section, body.sp-glass footer { position: relative; z-index: 1; }
 
     /* persistent company-colour wash for the page (kept after a sponsor is opened) */
@@ -218,25 +219,31 @@
 </head>
 <body class="sp-glass">
 
-<!-- ─────────────────── NAVBAR ─────────────────── -->
-<nav class="navbar">
-  <div class="nav-inner">
-    <a href="/index.html" class="nav-logo">
-      <img src="/logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+<!-- ─────────────────── SIDENAV ─────────────────── -->
+<nav class="sidenav" id="sidenav" aria-label="Main navigation">
+  <div class="sidenav-inner">
+    <a href="/index.html" class="sidenav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring" />
     </a>
-    <ul class="nav-links">
-      <li><a href="/index.html">Home</a></li>
-      <li><a href="/about/about.html">About Us</a></li>
-      <li><a href="/support/support.html">Support Us</a></li>
-      <li><a href="/contact/contact.html">Contact</a></li>
-      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
+    <ul class="sidenav-links">
+      <li><a href="/index.html"><i data-icon="tent"></i><span>Home</span></a></li>
+      <li><a href="/about/about.html"><i data-icon="users"></i><span>About</span></a></li>
+      <li><a href="/support/support.html"><i data-icon="heart"></i><span>Support</span></a></li>
+      <li><a href="/contact/contact.html"><i data-icon="mail"></i><span>Contact</span></a></li>
     </ul>
-    <button class="hamburger" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="sidenav-bottom">
+      <a href="/student-portal/student-portal.html" class="sidenav-signin nav-signin">
+        <i data-icon="user"></i><span>Sign In</span>
+      </a>
+      <a href="/register/register.html" class="sidenav-cta">Register Now</a>
+    </div>
   </div>
 </nav>
+<button class="sidenav-toggle" id="sidenav-toggle" aria-label="Open navigation">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidenav-overlay" id="sidenav-overlay"></div>
+<div class="page-wrapper">
 
 <!-- ─────────────────── SPONSOR BUBBLES (full-page, behind glass) ─────────────────── -->
 <div class="sp-tint" id="sp-tint"></div>
@@ -285,30 +292,30 @@
       <div class="impact-cell"><div class="impact-number">$135</div><p>flat registration fee — kept low so cost isn't a barrier</p></div>
     </div>
     <div class="grid-3 donation-impact-grid" style="margin-top:28px;">
-      <div class="card reveal donation-card" data-icon="📦" data-title="Materials &amp; Supplies" data-full-desc="Every camper walks in on Day 1 to a fresh kit — bound problem booklets for all 5 units, pencils, erasers, lined paper, graph paper, and a scientific calculator they get to take home.
+      <div class="card reveal donation-card" data-micon="package" data-title="Materials &amp; Supplies" data-full-desc="Every camper walks in on Day 1 to a fresh kit — bound problem booklets for all 5 units, pencils, erasers, lined paper, graph paper, and a scientific calculator they get to take home.
 
 Running the camp also means whiteboard markers (a lot of them), chart paper for group work, printed unit tests, and small manipulatives for the geometry days — rulers, protractors, cardboard shape kits, and graphing grids.
 
 At roughly $40 per camper for a complete kit, materials are our single biggest cost. Every dollar donated to this category goes directly into a physical resource a student will actually hold and use across the 10 days.">
-        <div class="card-icon" style="background:rgba(232,128,138,.1);">📦</div>
+        <div class="card-icon" style="background:rgba(232,128,138,.1);" data-icon="package"></div>
         <h3>Materials &amp; Supplies</h3>
         <p>Problem sets, stationery, whiteboards, manipulatives, and activity kits for every participant across 10 days.</p>
       </div>
-      <div class="card reveal donation-card" data-icon="🍕" data-title="Refreshments" data-full-desc="The camp runs 8:30 AM to 5:00 PM — that's a long day for anyone, let alone a Grade 9 student pushing through their fourth math problem set.
+      <div class="card reveal donation-card" data-micon="utensils" data-title="Refreshments" data-full-desc="The camp runs 8:30 AM to 5:00 PM — that's a long day for anyone, let alone a Grade 9 student pushing through their fourth math problem set.
 
 Your donations fund morning and afternoon snacks (fruit, granola bars, pretzels, juice boxes), plenty of water, and a hot lunch on exam day so nobody has to stress about packing food on top of studying.
 
 We also put aside a small budget for the occasional pizza Friday and a 'we survived Week 1' treat after the weekend unit tests are handed in. Small things, but they go a long way toward keeping the energy up and making this feel like a community rather than a classroom.">
-        <div class="card-icon" style="background:rgba(107,191,160,.1);">🍕</div>
+        <div class="card-icon mint" style="background:rgba(107,191,160,.1);" data-icon="utensils"></div>
         <h3>Refreshments</h3>
         <p>Light refreshments and snacks to keep energy and focus up throughout each camp day — especially during competition hours.</p>
       </div>
-      <div class="card reveal donation-card" data-icon="🏆" data-title="Awards &amp; Closing" data-full-desc="On Day 9, students sit the full Applications and Thinking exams — the real thing, graded and returned. Every student who completes the camp earns a certificate of completion, and top scorers receive small award medals recognizing their achievement across the 5 units.
+      <div class="card reveal donation-card" data-micon="trophy" data-title="Awards &amp; Closing" data-full-desc="On Day 9, students sit the full Applications and Thinking exams — the real thing, graded and returned. Every student who completes the camp earns a certificate of completion, and top scorers receive small award medals recognizing their achievement across the 5 units.
 
 On Day 10, we wrap with an informal closing — light refreshments, a group photo, and a short recognition for each team member and every camper who stuck with us through the 10 days.
 
 Your donation to this category covers the printed certificates, the medals and small awards, the Day 10 refreshments, and the printing and photography for a memory to take home. It's the smallest line item in our budget, but the one students remember longest.">
-        <div class="card-icon" style="background:rgba(232,128,138,.1);">🏆</div>
+        <div class="card-icon" style="background:rgba(232,128,138,.1);" data-icon="trophy"></div>
         <h3>Awards &amp; Closing</h3>
         <p>Trophies, certificates, and a proper closing ceremony to recognize every participant's effort and growth.</p>
       </div>
@@ -318,7 +325,7 @@ Your donation to this category covers the printed certificates, the medals and s
     <div class="team-modal" id="donation-modal" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="team-modal-backdrop"></div>
       <div class="team-modal-content">
-        <button class="team-modal-close" id="donation-modal-close" aria-label="Close">✕</button>
+        <button class="team-modal-close" id="donation-modal-close" aria-label="Close" data-icon="x"></button>
         <div class="donation-modal-icon" id="donation-modal-icon"></div>
         <div class="team-modal-name" id="donation-modal-title"></div>
         <div class="team-modal-role" style="margin-bottom:20px;">Where your donation goes</div>
@@ -420,19 +427,19 @@ Your donation to this category covers the printed certificates, the medals and s
     </div>
     <div style="margin-top:28px;display:flex;flex-direction:column;gap:12px;">
       <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
-        <span style="font-size:1.4rem;">📝</span>
+        <span style="font-size:1.4rem;color:var(--blush);" data-icon="note"></span>
         <span style="font-size:.9rem;color:var(--text-mid);"><strong>$10</strong> — Covers problem sets &amp; stationery for one camper</span>
       </div>
       <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
-        <span style="font-size:1.4rem;">🍎</span>
+        <span style="font-size:1.4rem;color:var(--blush);" data-icon="apple"></span>
         <span style="font-size:.9rem;color:var(--text-mid);"><strong>$25</strong> — Snacks and refreshments for a full camp day</span>
       </div>
       <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
-        <span style="font-size:1.4rem;">🏅</span>
+        <span style="font-size:1.4rem;color:var(--blush);" data-icon="medal"></span>
         <span style="font-size:.9rem;color:var(--text-mid);"><strong>$50</strong> — Award medals for our closing ceremony competition</span>
       </div>
       <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
-        <span style="font-size:1.4rem;">🎒</span>
+        <span style="font-size:1.4rem;color:var(--blush);" data-icon="backpack"></span>
         <span style="font-size:.9rem;color:var(--text-mid);"><strong>$100</strong> — Fully funds one camper's entire 10-day experience</span>
       </div>
     </div>
@@ -469,7 +476,7 @@ Your donation to this category covers the printed certificates, the medals and s
         <button type="submit" class="btn btn-blue btn-full" style="justify-content:center;">Send Message →</button>
       </form>
       <div id="contact-success" style="display:none;text-align:center;padding:32px 0;">
-        <div style="font-size:2.5rem;margin-bottom:12px;">🎉</div>
+        <div style="font-size:2.2rem;margin-bottom:12px;color:var(--mint-dark);" data-icon="check-circle"></div>
         <h3 style="font-size:1.3rem;font-weight:800;margin-bottom:8px;">Message sent!</h3>
         <p style="color:var(--muted);">Thanks — we'll reply within 48 hours.</p>
       </div>
@@ -483,7 +490,7 @@ Your donation to this category covers the printed certificates, the medals and s
 <div class="sponsor-modal" id="sp-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Sponsor details">
   <div class="sponsor-modal-backdrop" data-sp-close></div>
   <div class="sponsor-modal-card" role="document">
-    <button class="sponsor-modal-close" data-sp-close aria-label="Close">×</button>
+    <button class="sponsor-modal-close" data-sp-close aria-label="Close" data-icon="x"></button>
     <div class="sp-stagger">
       <div class="sponsor-modal-head" id="spm-head">
         <img class="sponsor-modal-logo" id="spm-logo" alt="" />
@@ -525,7 +532,7 @@ Your donation to this category covers the printed certificates, the medals and s
 <div id="sponsor-modal">
   <div style="background:var(--surface); border-radius:16px; max-width:440px; width:100%; padding:32px 28px; box-shadow:0 30px 80px rgba(0,0,0,.35); position:relative;">
     <button type="button" id="sponsor-modal-close"
-      style="position:absolute; top:14px; right:14px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--muted); line-height:1; padding:4px 8px;">✕</button>
+      style="position:absolute; top:14px; right:14px; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--muted); line-height:1; padding:4px 8px;" data-icon="x"></button>
     <h3 id="sponsor-modal-title" style="font-size:1.3rem; margin-bottom:6px;">Become a Partner</h3>
     <p style="color:var(--muted); font-size:.92rem; margin-bottom:18px;">Send us your contact info and we'll reach out within 48 hours.</p>
     <label style="font-size:.78rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:5px;">Your name <span style="color:#DC2626;">*</span></label>
@@ -540,7 +547,7 @@ Your donation to this category covers the printed certificates, the medals and s
     <div id="sponsor-error" style="display:none; background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:.86rem;"></div>
     <button type="button" id="sponsor-send-btn" class="btn btn-blue btn-full" style="justify-content:center;">Send →</button>
     <div id="sponsor-success" style="display:none; text-align:center; padding:18px 0 0;">
-      <div style="font-size:2.2rem;">🎉</div>
+      <div style="font-size:2rem;color:var(--mint-dark);" data-icon="check-circle"></div>
       <p style="color:var(--text-mid); margin-top:6px;">Thanks — we'll be in touch within 48 hours.</p>
     </div>
   </div>
@@ -551,9 +558,9 @@ Your donation to this category covers the printed certificates, the medals and s
   <div class="footer-inner">
     <div class="footer-grid">
       <div class="footer-brand">
-        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <div class="logo-text"><i data-icon="tent"></i> HigherGrade Tutoring</div>
         <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
-        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+        <div style="margin-top:14px;"><span class="footer-tag"><i data-icon="star"></i> 100% Student-Led</span></div>
       </div>
       <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="/index.html">Home</a></li><li><a href="/about/about.html">About Us</a></li><li><a href="/support/support.html">Support Us</a></li><li><a href="/register/register.html">Register</a></li></ul></div>
       <div class="footer-col"><h4>Support</h4><ul><li><a href="#contact-sponsor">Sponsorship</a></li><li><a href="#contact-sponsor">Contact Us</a></li></ul></div>
@@ -561,11 +568,12 @@ Your donation to this category covers the printed certificates, the medals and s
     </div>
     <div class="footer-bottom">
       <span>© 2026 HigherGrade Tutoring — All rights reserved.</span>
-      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+      <span>Made by Grade 11 &amp; 12 HDSB students</span>
     </div>
   </div>
 </footer>
 
+<script src="/icons.js"></script>
 <script src="/students-data.js"></script>
 <script src="/script.js"></script>
 <script>
@@ -583,7 +591,7 @@ Your donation to this category covers the printed certificates, the medals and s
     const backdrop = modal.querySelector('.team-modal-backdrop');
 
     function openModal(card) {
-      iconEl.textContent  = card.dataset.icon  || '';
+      iconEl.innerHTML    = window.Icons ? Icons.svg(card.dataset.micon) : '';
       titleEl.innerHTML   = card.dataset.title || '';
       descEl.textContent  = card.dataset.fullDesc || '';
       modal.classList.add('open');
@@ -822,9 +830,10 @@ Your donation to this category covers the printed certificates, the medals and s
     elDesc.innerHTML = renderDesc(s.description);
     if (s.location && s.location.label) {
       const u = s.location.url || '';
+      const pin = window.Icons ? Icons.svg('map-pin') : '';
       elLoc.innerHTML = u
-        ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">📍 ' + esc(s.location.label) + '</a>'
-        : '<span>📍 ' + esc(s.location.label) + '</span>';
+        ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + pin + ' ' + esc(s.location.label) + '</a>'
+        : '<span>' + pin + ' ' + esc(s.location.label) + '</span>';
       elLoc.style.display = '';
     } else { elLoc.style.display = 'none'; }
     const people = (s.staff || []).filter(p => p && (p.name || p.photo)).slice(0, 2);
@@ -1046,5 +1055,6 @@ Your donation to this category covers the printed certificates, the medals and s
   })();
 })();
 </script>
+</div><!-- /.page-wrapper -->
 </body>
 </html>

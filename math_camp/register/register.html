@@ -203,7 +203,7 @@
       margin-bottom: 10px;
     }
     .sidebar-item:last-child { margin-bottom: 0; }
-    .sidebar-item .si-icon { font-size: 1rem; flex-shrink: 0; }
+    .sidebar-item .si-icon { font-size: 1.05rem; flex-shrink: 0; color: var(--blush); margin-top: 2px; }
 
     /* ── Terms expandable ── */
     .terms-details {
@@ -301,7 +301,7 @@
 <!-- ─────────────────── REGISTRATIONS-CLOSED MODAL ─────────────────── -->
 <div id="frozen-modal" role="dialog" aria-modal="true" aria-labelledby="frozen-title">
   <div class="frozen-card">
-    <div class="frozen-icon">🚧</div>
+    <div class="frozen-icon" style="color:#B91C1C;" data-icon="construction"></div>
     <h2 id="frozen-title">Registrations are closed</h2>
     <p style="color:var(--muted); font-size:.92rem; margin:0;">A note from the camp organizers:</p>
     <div class="frozen-reason" id="frozen-reason-text">Registrations are temporarily closed. Please check back soon.</div>
@@ -333,25 +333,31 @@
   };
 </script>
 
-<!-- ─────────────────── NAVBAR ─────────────────── -->
-<nav class="navbar">
-  <div class="nav-inner">
-    <a href="/index.html" class="nav-logo">
-      <img src="/logo.webp" alt="HigherGrade Tutoring Summer Camp" class="nav-logo-img" />
+<!-- ─────────────────── SIDENAV ─────────────────── -->
+<nav class="sidenav" id="sidenav" aria-label="Main navigation">
+  <div class="sidenav-inner">
+    <a href="/index.html" class="sidenav-logo">
+      <img src="/logo.webp" alt="HigherGrade Tutoring" />
     </a>
-    <ul class="nav-links">
-      <li><a href="/index.html">Home</a></li>
-      <li><a href="/about/about.html">About Us</a></li>
-      <li><a href="/support/support.html">Support Us</a></li>
-      <li><a href="/contact/contact.html">Contact</a></li>
-      <li><a href="/student-portal/student-portal.html" class="nav-signin">Sign In</a></li>
-      <li><a href="/register/register.html" class="nav-cta">Register Now</a></li>
+    <ul class="sidenav-links">
+      <li><a href="/index.html"><i data-icon="tent"></i><span>Home</span></a></li>
+      <li><a href="/about/about.html"><i data-icon="users"></i><span>About</span></a></li>
+      <li><a href="/support/support.html"><i data-icon="heart"></i><span>Support</span></a></li>
+      <li><a href="/contact/contact.html"><i data-icon="mail"></i><span>Contact</span></a></li>
     </ul>
-    <button class="hamburger" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
+    <div class="sidenav-bottom">
+      <a href="/student-portal/student-portal.html" class="sidenav-signin nav-signin">
+        <i data-icon="user"></i><span>Sign In</span>
+      </a>
+      <a href="/register/register.html" class="sidenav-cta">Register Now</a>
+    </div>
   </div>
 </nav>
+<button class="sidenav-toggle" id="sidenav-toggle" aria-label="Open navigation">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidenav-overlay" id="sidenav-overlay"></div>
+<div class="page-wrapper">
 
 <!-- ─────────────────── PAGE HERO ─────────────────── -->
 <section class="page-hero" style="padding-bottom:52px;">
@@ -372,15 +378,15 @@
 
         <!-- ── Registration-not-open notice (shown by JS before May 20) ── -->
         <div class="form-card" id="reg-closed-notice" style="display:none;text-align:center;">
-          <div style="font-size:2.6rem;margin-bottom:8px;">📅</div>
+          <div style="font-size:2.4rem;margin-bottom:8px;color:var(--blush);" data-icon="calendar"></div>
           <h2 style="margin:0 0 10px;">Registration is currently closed</h2>
           <p style="color:var(--text-mid);max-width:480px;margin:0 auto 18px;line-height:1.6;">
             We're not taking sign-ups right now. Check back soon to secure your
             spot for HigherGrade Tutoring Summer Camp 2026.
           </p>
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:18px;max-width:420px;margin:0 auto;text-align:left;font-size:.9rem;color:var(--text-mid);line-height:1.7;">
-            <strong>💰 Registration fee:</strong> one flat <strong>$135</strong> for every camper, in person or online.
-            <div style="margin-top:6px;">🎟️ Got a discount code? Apply it at checkout to save — including the <strong>10% code hidden in the crane</strong> on our <a href="/about/about.html#paper-crane" class="lnk-blush">About Us</a> page.</div>
+            <strong><i data-icon="money" style="color:var(--blush);"></i> Registration fee:</strong> one flat <strong>$135</strong> for every camper, in person or online.
+            <div style="margin-top:6px;"><i data-icon="ticket" style="color:var(--blush);"></i> Got a discount code? Apply it at checkout to save — including the <strong>10% code hidden in the crane</strong> on our <a href="/about/about.html#paper-crane" class="lnk-blush">About Us</a> page.</div>
           </div>
         </div>
 
@@ -416,7 +422,7 @@
 
           <!-- ── Panel 1: Student Info ── -->
           <div class="form-card form-panel active" id="panel-1">
-            <div class="form-section-title">👤 Student Information</div>
+            <div class="form-section-title"><i data-icon="user"></i> Student Information</div>
 
             <div class="field-row">
               <div class="field">
@@ -545,16 +551,16 @@
               <label>How will the camper attend? <span class="req">*</span></label>
               <label class="checkbox-label" style="margin-top:6px;">
                 <input type="radio" name="delivery_mode" value="in_person" required />
-                <span><strong>🏫 In person</strong> — at Sheridan College — Trafalgar Campus, Oakville</span>
+                <span><strong><i data-icon="school" style="color:var(--blush);"></i> In person</strong> — at Sheridan College — Trafalgar Campus, Oakville</span>
               </label>
               <label class="checkbox-label" style="margin-top:8px;">
                 <input type="radio" name="delivery_mode" value="online" />
-                <span><strong>💻 Online</strong> — join us live from home, every day of camp</span>
+                <span><strong><i data-icon="video" style="color:var(--blush);"></i> Online</strong> — join us live from home, every day of camp</span>
               </label>
               <div class="field-error" id="err-mode">Please choose whether the camper will attend in person or online.</div>
               <div class="field-hint">Online campers are full members of the class — live via a camera in the room and a Discord stage, with staff dedicated to the online group. <strong>Online campers don't take the math check.</strong> <a href="/about/about.html#online" target="_blank" rel="noopener" class="lnk-blush">How online works →</a></div>
               <div style="background:#EEF6FF;border:1px solid #BBD9F7;border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;font-size:.82rem;line-height:1.55;color:#1E3A5F;">
-                <strong>👶 Younger than high school?</strong> Campers <strong>12 and under</strong> are welcome to join us <strong>online</strong>. In person is built to get you ready for Grade 9, so we highly recommend it for high-school-bound students — but if a younger student is really keen and not quite old enough for the in-person group, they're welcome in the online group from home.
+                <strong><i data-icon="user"></i> Younger than high school?</strong> Campers <strong>12 and under</strong> are welcome to join us <strong>online</strong>. In person is built to get you ready for Grade 9, so we highly recommend it for high-school-bound students — but if a younger student is really keen and not quite old enough for the in-person group, they're welcome in the online group from home.
               </div>
             </div>
 
@@ -574,7 +580,7 @@
 
           <!-- ── Panel 2: Parent / Guardian ── -->
           <div class="form-card form-panel" id="panel-2">
-            <div class="form-section-title">👨‍👩‍👧 Parent / Guardian Information</div>
+            <div class="form-section-title"><i data-icon="users"></i> Parent / Guardian Information</div>
 
             <div class="field-row">
               <div class="field">
@@ -615,7 +621,7 @@
             </div>
 
             <hr class="form-divider" />
-            <div class="form-section-title">🚨 Emergency Contact</div>
+            <div class="form-section-title"><i data-icon="alert"></i> Emergency Contact</div>
             <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px;">Please provide one emergency contact we can reach if needed.</p>
 
             <!-- Emergency Contact -->
@@ -651,7 +657,7 @@
 
             <!-- Location notice for parents -->
             <div style="margin-top:18px; background:#FFF8E5; border:1px solid #F0D580; border-radius: var(--radius-sm); padding: 14px 18px; font-size:.88rem; color:#5A4500; line-height:1.55;">
-              <strong>📍 Camp location.</strong><br>
+              <strong><i data-icon="map-pin"></i> Camp location.</strong><br>
               All 10 days run at <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><strong>Sheridan College — Trafalgar Campus</strong></a> (1430 Trafalgar Road, Oakville). Click the address to get directions in Google Maps. Specific room assignments and drop-off / pick-up details will be emailed to registered families ahead of Day 1.
             </div>
 
@@ -666,7 +672,7 @@
 
           <!-- ── Panel 3: About Yourself ── -->
           <div class="form-card form-panel" id="panel-3">
-            <div class="form-section-title">✨ About You</div>
+            <div class="form-section-title"><i data-icon="sparkles"></i> About You</div>
             <p style="font-size:.88rem;color:var(--muted);margin-bottom:20px;">Help us get to know you a little better before camp!</p>
 
             <div class="field">
@@ -684,12 +690,12 @@
             </div>
 
             <div style="background: var(--blush-bg); border: 1px solid var(--blush-light); border-radius: var(--radius-sm); padding: 12px 16px; margin-top: 8px; font-size: .85rem; color: var(--text-mid); line-height: 1.5;">
-              <strong>📅 Attendance:</strong> We assume all registered campers attend the full two weeks (August 4–15). If you can only attend part of the camp, please email <a href="mailto:lucas.liu.ca2009@gmail.com" class="lnk-blush">lucas.liu.ca2009@gmail.com</a> after registering so we can plan accordingly.
+              <strong><i data-icon="calendar" style="color:var(--blush);"></i> Attendance:</strong> We assume all registered campers attend the full two weeks (August 4–15). If you can only attend part of the camp, please email <a href="mailto:lucas.liu.ca2009@gmail.com" class="lnk-blush">lucas.liu.ca2009@gmail.com</a> after registering so we can plan accordingly.
             </div>
 
             <!-- Authorized pickup people -->
             <div style="margin-top:24px;">
-              <div class="form-section-title" style="font-size:1.05rem;">🚗 Authorized Pickup People</div>
+              <div class="form-section-title" style="font-size:1.05rem;"><i data-icon="car"></i> Authorized Pickup People</div>
               <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px;line-height:1.55;">
                 List anyone <em>besides the parent/guardian above</em> who is allowed to pick up the camper. We'll only release the camper to people on this list (or the parent/guardian). Leave blank if only the parent/guardian will pick up. You can add multiple people.
               </p>
@@ -708,7 +714,7 @@
 
           <!-- ── Panel 4: Math Check (BEDMAS practice test) ── -->
           <div class="form-card form-panel" id="panel-4">
-            <div class="form-section-title">🧮 Quick Math Check</div>
+            <div class="form-section-title"><i data-icon="calculator"></i> Quick Math Check</div>
             <p style="font-size:.9rem;color:var(--text-mid);margin-bottom:18px;line-height:1.6;">
               In-person camp moves fast, so every <strong>in-person</strong> camper takes a short
               order-of-operations (<strong>BEDMAS</strong>) check before registering. Answer
@@ -719,7 +725,7 @@
 
             <!-- Shown instead of the quiz when the camper is attending online -->
             <div id="mc-online-exempt" style="display:none;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--radius-sm);padding:22px;text-align:center;">
-              <div style="font-size:2rem;margin-bottom:6px;">💻</div>
+              <div style="font-size:1.9rem;margin-bottom:6px;color:#065F46;" data-icon="video"></div>
               <div style="font-weight:700;margin-bottom:4px;color:#065F46;">No math check needed</div>
               <p style="font-size:.86rem;color:#065F46;margin:0 auto;max-width:400px;line-height:1.55;">
                 You're registering as an <strong>online camper</strong>, so you can skip the BEDMAS
@@ -728,7 +734,7 @@
             </div>
 
             <div id="mc-intro" style="background:var(--blush-bg);border:1px solid var(--blush-light);border-radius:var(--radius-sm);padding:22px;text-align:center;">
-              <div style="font-size:2rem;margin-bottom:6px;">✏️</div>
+              <div style="font-size:1.9rem;margin-bottom:6px;color:var(--blush);" data-icon="pencil"></div>
               <div style="font-weight:700;margin-bottom:4px;">Ready when you are</div>
               <p style="font-size:.86rem;color:var(--text-mid);margin:0 auto 14px;max-width:380px;line-height:1.55;">
                 10 multiple-choice questions on order of operations. Take your time — there's no timer.
@@ -750,14 +756,14 @@
 
           <!-- ── Panel 5: Review & Submit ── -->
           <div class="form-card form-panel" id="panel-5">
-            <div class="form-section-title">✅ Review Your Application</div>
+            <div class="form-section-title"><i data-icon="check-circle"></i> Review Your Application</div>
 
             <div id="review-summary" style="margin-bottom:20px; background:var(--surface2); border-radius:var(--radius-sm); padding:20px; font-size:.9rem; line-height:1.8; color:var(--text-mid);">
             </div>
 
             <!-- Discount code -->
-            <div style="background:linear-gradient(135deg,rgba(107,191,160,.10),rgba(232,128,138,.08)); border:1px solid rgba(107,191,160,.35); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
-              <label style="display:block; font-weight:700; font-size:.9rem; margin-bottom:8px;">🎟️ Have a discount code?</label>
+            <div style="background:var(--mint-bg); border:1px solid rgba(107,191,160,.35); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
+              <label style="display:block; font-weight:700; font-size:.9rem; margin-bottom:8px;"><i data-icon="ticket" style="color:var(--mint-dark);"></i> Have a discount code?</label>
               <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
                 <input type="text" id="discount-code" name="discount_code" placeholder="Enter your code" autocomplete="off"
                   style="flex:1; min-width:170px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-family:inherit;" />
@@ -769,9 +775,9 @@
             <hr class="form-divider" style="margin-top:0;" />
 
             <!-- Password -->
-            <div class="form-section-title">🔐 Create Your Camp Password</div>
+            <div class="form-section-title"><i data-icon="lock"></i> Create Your Camp Password</div>
             <div style="background:#FEF3C7; border:1px solid #FDE68A; border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:16px; font-size:.88rem; line-height:1.55; color:#92400E;">
-              <strong>⚠️ Important — please read:</strong> Camp admins can view your password in plain text. <strong>Do NOT use a password you use anywhere else</strong> (school, email, social media, etc.). Pick something simple and unique — you'll only use it here to sign in and track your own stats.
+              <strong><i data-icon="alert"></i> Important — please read:</strong> Camp admins can view your password in plain text. <strong>Do NOT use a password you use anywhere else</strong> (school, email, social media, etc.). Pick something simple and unique — you'll only use it here to sign in and track your own stats.
             </div>
             <div class="field">
               <label>Camp Password <span class="req">*</span></label>
@@ -789,7 +795,7 @@
             <hr class="form-divider" />
 
             <!-- Consent -->
-            <div class="form-section-title">📋 Consent & Agreement</div>
+            <div class="form-section-title"><i data-icon="clipboard"></i> Consent &amp; Agreement</div>
 
             <div class="field">
               <div class="checkbox-group">
@@ -874,7 +880,7 @@
                   <strong>Heads up to parents:</strong> camp runs at <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><strong>Sheridan College — Trafalgar Campus</strong></a> in Oakville. Click the link for Google Maps directions. Specific room and drop-off / pick-up details will be emailed at least two weeks before camp starts.
                 </div>
                 <div style="background:#ECFDF5; border:1px solid #A7F3D0; border-radius:var(--radius-sm); padding:10px 14px; margin-top:6px; font-size:.82rem; line-height:1.5; color:#065F46;">
-                  <strong>🚌 Daily camp bus.</strong> Campers who live in <strong>Oakville ride the bus free</strong>. Campers coming from outside Oakville are welcome to ride too for a <strong>small fee</strong>. We'll email the route, stops, and timing to registered families before camp starts.
+                  <strong><i data-icon="bus"></i> Daily camp bus.</strong> Campers who live in <strong>Oakville ride the bus free</strong>. Campers coming from outside Oakville are welcome to ride too for a <strong>small fee</strong>. We'll email the route, stops, and timing to registered families before camp starts.
                 </div>
 
                 <!-- Checkbox 3: Photo / Social Media -->
@@ -885,7 +891,7 @@
 
                 <!-- Choice: independent time during breaks (Terms, section 5) -->
                 <div class="roam-block">
-                  <div class="roam-title">🚶 Independent time during breaks <span class="req">*</span></div>
+                  <div class="roam-title"><i data-icon="user"></i> Independent time during breaks <span class="req">*</span></div>
                   <p class="roam-desc">
                     See <strong>section 5</strong> of the Terms above. If you opt in, your child may take part in up to <strong>one hour of independent time per day</strong>, within defined <strong>indoor</strong> areas on campus we identify in advance (for example, the cafeteria, student lounge, and library). Campers sign out and back in with a staff member, move in pairs or small groups, and return by a set time. Staff stay present and check in regularly, but this time is <strong>not</strong> one-to-one supervision. We think it's a valuable part of the experience that builds the independence campers need in high school — but it's entirely your choice.
                   </p>
@@ -909,7 +915,7 @@
                 <span class="muted-sm">Step 5 of 5</span>
               </div>
               <button type="submit" class="btn btn-primary" id="submit-btn">
-                Submit Registration 🎉
+                Submit Registration
               </button>
             </div>
             <div class="field-error" id="err-submit" style="margin-top:12px;text-align:right;"></div>
@@ -920,14 +926,14 @@
         <!-- ── Success ── -->
         <div class="form-card form-success" id="form-success">
           <div class="check-circle">✓</div>
-          <h2>🎉 Congratulations — you're registered!</h2>
+          <h2>Congratulations — you're registered!</h2>
           <p>
             Congratulations, and thank you for registering for HigherGrade Tutoring's Summer Camp 2026! We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before August 4. There's just one quick step left to lock in your spot.
           </p>
 
           <!-- ── Spam-folder reminder ── -->
           <div style="background:#EAF4FF;border:2px solid #93C5FD;border-radius:var(--radius-sm);padding:16px 18px;margin:0 auto 20px;max-width:520px;text-align:left;color:#1E3A5F;line-height:1.55;display:flex;gap:12px;align-items:flex-start;">
-            <span style="font-size:1.3rem;line-height:1;">📬</span>
+            <span style="font-size:1.2rem;line-height:1;color:#1E3A5F;" data-icon="mail"></span>
             <div style="font-size:.9rem;">
               <strong>Don't see our confirmation email?</strong> Please check your <strong>spam / junk folder</strong> — it sometimes lands there. If you find it, mark it <strong>"Not spam"</strong> so future camp updates reach your inbox. Still nothing after a little while? Reply to any of our messages or email us and we'll help.
             </div>
@@ -935,7 +941,7 @@
 
           <!-- ── e-Transfer payment step ── -->
           <div style="background:#FEF6D6;border:2px solid #F2C94C;border-radius:var(--radius-sm);padding:20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#5A4500;line-height:1.55;">
-            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;">💸 Final step — send <span class="pay-amount">$135</span> CAD by e-Transfer</div>
+            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><i data-icon="money"></i> Final step — send <span class="pay-amount">$135</span> CAD by e-Transfer</div>
             <p style="margin:0 0 8px;font-size:.9rem;">
               To complete your registration, please send a <strong><span class="pay-amount">$135</span> CAD</strong> Interac e-Transfer to:
             </p>
@@ -951,9 +957,9 @@
           </div>
 
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:520px;text-align:left;font-size:.88rem;color:var(--text-mid);">
-            <div style="margin-bottom:8px;">📅 <strong>Camp Dates:</strong> August 4–15, 2026</div>
-            <div style="margin-bottom:8px;">📧 <strong>Confirmation:</strong> Check your email (and spam)</div>
-            <div>📍 <strong>Location:</strong> Sheridan College — Trafalgar Campus, Oakville</div>
+            <div style="margin-bottom:8px;"><i data-icon="calendar" style="color:var(--blush);"></i> <strong>Camp Dates:</strong> August 4–15, 2026</div>
+            <div style="margin-bottom:8px;"><i data-icon="mail" style="color:var(--blush);"></i> <strong>Confirmation:</strong> Check your email (and spam)</div>
+            <div><i data-icon="map-pin" style="color:var(--blush);"></i> <strong>Location:</strong> Sheridan College — Trafalgar Campus, Oakville</div>
           </div>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <a href="/student-portal/student-portal.html" class="btn btn-primary">Go to your student portal →</a>
@@ -967,27 +973,27 @@
 
         <div class="sidebar-card">
           <h4>Camp Details</h4>
-          <div class="sidebar-item"><span class="si-icon">📅</span><span><strong>August 4–15, 2026</strong><br>Week 1: Tue–Fri · Week 2: Mon–Sat</span></div>
-          <div class="sidebar-item"><span class="si-icon">⏰</span><span><strong>8:45 AM – 4:45 PM</strong> daily</span></div>
-          <div class="sidebar-item"><span class="si-icon">🎓</span><span>For <strong>Grade 9 students</strong> — HDSB &amp; all boards welcome</span></div>
-          <div class="sidebar-item"><span class="si-icon">📍</span><span><strong>Sheridan College — Trafalgar Campus</strong>, 1430 Trafalgar Road, Oakville</span></div>
-          <div class="sidebar-item"><span class="si-icon">💰</span><span><strong>Registration fee</strong><br>Flat $135 · discount codes apply</span></div>
-          <div class="sidebar-item"><span class="si-icon">👥</span><span><strong>40 in-person</strong> seats · <strong>unlimited online</strong></span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="calendar"></span><span><strong>August 4–15, 2026</strong><br>Week 1: Tue–Fri · Week 2: Mon–Sat</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="clock"></span><span><strong>8:45 AM – 4:45 PM</strong> daily</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="graduation-cap"></span><span>For <strong>Grade 9 students</strong> — HDSB &amp; all boards welcome</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="map-pin"></span><span><strong>Sheridan College — Trafalgar Campus</strong>, 1430 Trafalgar Road, Oakville</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="money"></span><span><strong>Registration fee</strong><br>Flat $135 · discount codes apply</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="users"></span><span><strong>40 in-person</strong> seats · <strong>unlimited online</strong></span></div>
         </div>
 
         <div class="sidebar-card">
           <h4>What to Bring</h4>
-          <div class="sidebar-item"><span class="si-icon">💻</span><span>A device (laptop, tablet, or Chromebook)</span></div>
-          <div class="sidebar-item"><span class="si-icon">🍱</span><span>Your own lunch</span></div>
-          <div class="sidebar-item"><span class="si-icon">💧</span><span>Water bottle</span></div>
-          <div class="sidebar-item"><span class="si-icon">😊</span><span>A curious mind!</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="video"></span><span>A device (laptop, tablet, or Chromebook)</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="utensils"></span><span>Your own lunch</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="droplet"></span><span>Water bottle</span></div>
+          <div class="sidebar-item"><span class="si-icon" data-icon="smile"></span><span>A curious mind!</span></div>
         </div>
 
-        <div class="sidebar-card" style="background:linear-gradient(135deg,rgba(232,128,138,.08),rgba(107,191,160,.08)); border-color: rgba(232,128,138,.25);">
+        <div class="sidebar-card" style="background:var(--blush-bg); border-color: rgba(232,128,138,.25);">
           <h4 class="lnk-blush">Questions?</h4>
           <p style="font-size:.85rem;color:var(--text-mid);margin-bottom:12px;">We're happy to help with any registration questions.</p>
           <a href="mailto:lucas.liu.ca2009@gmail.com" class="btn btn-blue btn-full" style="justify-content:center;font-size:.85rem;">
-            📧 Email Us
+            <i data-icon="mail"></i> Email Us
           </a>
         </div>
       </aside>
@@ -1001,9 +1007,9 @@
   <div class="footer-inner">
     <div class="footer-grid">
       <div class="footer-brand">
-        <div class="logo-text">🏕 HigherGrade Tutoring</div>
+        <div class="logo-text"><i data-icon="tent"></i> HigherGrade Tutoring</div>
         <p>A student-led math summer camp for Grade 9 students. August 4–15, 2026.</p>
-        <div style="margin-top:14px;"><span class="footer-tag">★ 100% Student-Led</span></div>
+        <div style="margin-top:14px;"><span class="footer-tag"><i data-icon="star"></i> 100% Student-Led</span></div>
       </div>
       <div class="footer-col footer-pages"><h4>Pages</h4><ul><li><a href="/index.html">Home</a></li><li><a href="/about/about.html">About Us</a></li><li><a href="/support/support.html">Support Us</a></li><li><a href="/register/register.html">Register</a></li></ul></div>
       <div class="footer-col"><h4>Camp Info</h4><ul><li><a href="/about/about.html#schedule">Schedule</a></li><li><a href="/about/about.html#team">Our Team</a></li><li><a href="/index.html#faq">FAQ</a></li></ul></div>
@@ -1011,7 +1017,7 @@
     </div>
     <div class="footer-bottom">
       <span>© 2026 HigherGrade Tutoring — All rights reserved.</span>
-      <span>Made with ❤️ by Grade 11 &amp; 12 HDSB students</span>
+      <span>Made by Grade 11 &amp; 12 HDSB students</span>
     </div>
   </div>
 </footer>
@@ -1019,6 +1025,7 @@
 <!-- students-data.js (40 KB + an /api bootstrap fetch) is intentionally
      NOT loaded here: this page never reads student data, and a signed-in
      student is redirected to /trail before the form ever shows. -->
+<script src="/icons.js"></script>
 <script src="/script.js"></script>
 <script>
   const API_BASE = '/api';  // APSim backend (adjust if running standalone)
@@ -1306,7 +1313,7 @@
         '%).</strong> You need ' + MC_PASS + ' out of ' + MC_COUNT + ' to continue.' +
         '<div style="margin-top:10px;"><button type="button" class="btn btn-blue" id="mc-retry-btn">Try again with new questions</button></div>' +
         '<div style="margin-top:12px;background:#EEF6FF;border:1px solid #BBD9F7;border-radius:8px;padding:12px 14px;font-size:.86rem;line-height:1.55;color:#1E3A5F;">' +
-          '💻 <strong>Want to join online instead?</strong> Online campers don\'t take the math check — ' +
+          (window.Icons ? Icons.svg('video') : '') + ' <strong>Want to join online instead?</strong> Online campers don\'t take the math check — ' +
           'you\'re part of the class live from home, with staff dedicated to the online group. ' +
           'Switch to online and you can continue right away.' +
           '<div style="margin-top:10px;"><button type="button" class="btn btn-blue" id="mc-switch-online-btn">Switch to online &amp; continue →</button></div>' +
@@ -1412,7 +1419,7 @@
         <div><strong>School:</strong> ${get('school')}</div>
         <div><strong>Date of Birth:</strong> ${get('dob')}</div>
         <div><strong>Student Email:</strong> ${get('student-email')}</div>
-        <div style="grid-column:1/-1;"><strong>Attendance:</strong> ${isOnlineCamper() ? '💻 Online — live from home' : '🏫 In person — Sheridan College, Oakville'}</div>
+        <div style="grid-column:1/-1;"><strong>Attendance:</strong> ${isOnlineCamper() ? (window.Icons ? Icons.svg('video') : '') + ' Online — live from home' : (window.Icons ? Icons.svg('school') : '') + ' In person — Sheridan College, Oakville'}</div>
         <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:6px 0;padding-top:6px;">
           <strong>Parent/Guardian:</strong> ${get('parent-first')} ${get('parent-last')} (${get('relationship')}) · ${get('parent-phone')}
         </div>
@@ -1540,9 +1547,10 @@
       apiErr.textContent = err.message;
       apiErr.classList.add('show');
       submitEl.disabled = false;
-      submitEl.textContent = 'Submit Registration 🎉';
+      submitEl.textContent = 'Submit Registration';
     }
   });
 </script>
+</div><!-- /.page-wrapper -->
 </body>
 </html>

@@ -11,17 +11,12 @@
     body { background: var(--surface2); }
 
     .lb-hero {
-      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      background: var(--navy);
       padding: 70px 20px 56px;
       text-align: center;
       color: white;
       position: relative;
       overflow: hidden;
-    }
-    .lb-hero::before {
-      content: '🏆'; position: absolute; font-size: 18rem;
-      opacity: .05; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      pointer-events: none;
     }
     .lb-hero h1 { font-size: 2.6rem; letter-spacing: -.03em; margin-bottom: 10px; color: white; }
     .lb-hero p  { color: rgba(255,255,255,.7); font-size: 1.02rem; }
@@ -98,8 +93,8 @@
     .lb-row:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.12); }
 
     /* Alternating blush / mint backgrounds */
-    .lb-row.blush { background: linear-gradient(135deg, var(--blush-bg) 0%, #FFF5F7 100%); border-color: rgba(232,128,138,.25); }
-    .lb-row.mint  { background: linear-gradient(135deg, var(--mint-bg)  0%, #F4FCF7 100%); border-color: rgba(107,191,160,.28); }
+    .lb-row.blush { background: var(--blush-bg); border-color: rgba(232,128,138,.25); }
+    .lb-row.mint  { background: var(--mint-bg); border-color: rgba(107,191,160,.28); }
 
     .lb-rank-cell {
       text-align: center;
@@ -212,8 +207,8 @@
 
 <section class="lb-hero">
   <a href="/index.html" class="hero-back" id="back-home">← Home</a>
-  <a href="/student-portal/student-portal.html" class="hero-back-right" id="back-profile" style="display:none;">👤 My profile →</a>
-  <h1>🏆 Summer Camp Leaderboard</h1>
+  <a href="/student-portal/student-portal.html" class="hero-back-right" id="back-profile" style="display:none;"><i data-icon="user"></i> My profile →</a>
+  <h1 style="display:flex;align-items:center;justify-content:center;gap:12px;"><i data-icon="trophy"></i> Summer Camp Leaderboard</h1>
   <p>Every registered student, ranked by total points earned.</p>
 </section>
 
@@ -221,9 +216,9 @@
 
 <!-- ── Vulgar Vault claim widget ── -->
 <section id="vault-section" style="max-width:720px; margin:0 auto 80px; padding:0 20px;">
-  <div style="background:linear-gradient(135deg, rgba(124,58,237,.07), rgba(220,38,38,.05)); border:1px solid rgba(124,58,237,.22); border-radius:18px; padding:26px 28px; box-shadow:0 12px 32px rgba(124,58,237,.08);">
+  <div style="background:rgba(124,58,237,.06); border:1px solid rgba(124,58,237,.22); border-radius:18px; padding:26px 28px;">
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
-      <div style="font-size:1.6rem;">🤐</div>
+      <div style="font-size:1.5rem; color:#7C3AED;" data-icon="lock"></div>
       <div>
         <h3 style="margin:0; font-size:1.15rem;">Vulgar Vault</h3>
         <p style="margin:0; font-size:.85rem; color:var(--muted);">Lost points from staff-issued penalties pile up here. Got the rotating code? Claim the whole stash.</p>
@@ -242,7 +237,7 @@
         <input type="text" id="vault-code-input" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="•••••"
           style="flex:1; min-width:140px; padding:12px 14px; font-size:1.4rem; font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing:.18em; text-align:center; border:1.5px solid rgba(124,58,237,.35); border-radius:10px; background:rgba(255,255,255,.7); outline:none; font-variant-numeric:tabular-nums;" />
         <button id="vault-claim-btn" type="button"
-          style="background:linear-gradient(135deg, #7C3AED, #5B21B6); color:white; border:none; padding:0 22px; font-weight:700; font-size:.95rem; border-radius:10px; cursor:pointer; min-width:160px;">Claim 🤐</button>
+          style="background:#7C3AED; color:white; border:none; padding:0 22px; font-weight:700; font-size:.95rem; border-radius:10px; cursor:pointer; min-width:160px;">Claim</button>
       </div>
       <div id="vault-msg" style="font-size:.86rem; margin-top:8px; min-height:1.2em;"></div>
     </div>
@@ -252,6 +247,7 @@
   </div>
 </section>
 
+<script src="/icons.js"></script>
 <script src="/students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
@@ -274,6 +270,11 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
   const root = document.getElementById('lb-content');
   const students = sortedByTotalPoints(getStudents());
+
+  // Rank medals as coloured line icons (gold / silver / bronze).
+  const MEDAL_COLORS = { 1: '#C89D40', 2: '#8A95A1', 3: '#A56939' };
+  const medalIcon = (rank) =>
+    `<span style="color:${MEDAL_COLORS[rank]}">${window.Icons ? Icons.svg('medal') : ''}</span>`;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -307,9 +308,9 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     html += `
       <div class="podium-wrap">
         <div class="podium">
-          ${slot(second, 'second', '🥈', '2nd place')}
-          ${slot(first,  'first',  '🥇', '1st place')}
-          ${slot(third,  'third',  '🥉', '3rd place')}
+          ${slot(second, 'second', medalIcon(2), '2nd place')}
+          ${slot(first,  'first',  medalIcon(1), '1st place')}
+          ${slot(third,  'third',  medalIcon(3), '3rd place')}
         </div>
       </div>
     `;
@@ -331,7 +332,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   students.forEach((s, i) => {
     const rank = i + 1;
     const rankClass = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
-    const rankDisplay = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `<span class="rank-num">#${rank}</span>`;
+    const rankDisplay = rank <= 3 ? medalIcon(rank) : `<span class="rank-num">#${rank}</span>`;
     const rowColor = i % 2 === 0 ? 'blush' : 'mint';
     const stats = s.stats || defaultStats();
 
@@ -352,7 +353,8 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
         <div class="lb-stat-strip">
           ${pillCats.map(c => {
             const v = (s.baseStats && s.baseStats[c.id]) || 0;
-            return `<span class="lb-stat-pill" title="${esc(c.name)}"><span class="pill-ic">${esc(c.icon || '📊')}</span>${v}</span>`;
+            const pic = c.icon ? esc(c.icon) : (window.Icons ? Icons.svg('bar-chart') : '');
+            return `<span class="lb-stat-pill" title="${esc(c.name)}"><span class="pill-ic">${pic}</span>${v}</span>`;
           }).join('')}
         </div>
       </div>
@@ -433,7 +435,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'Claim failed.');
       msgEl.style.color = '#0F8A56';
-      msgEl.textContent = `🎉 Claimed +${(j.data.awarded || 0).toLocaleString()} pts! Vault is now empty.`;
+      msgEl.textContent = `Claimed +${(j.data.awarded || 0).toLocaleString()} pts! Vault is now empty.`;
       inputEl.value = '';
       balance = 0;
       paint();

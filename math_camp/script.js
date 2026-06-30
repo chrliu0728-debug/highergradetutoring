@@ -19,44 +19,39 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   }
 })();
 
-// ── Navbar: active link + scroll shadow + hamburger ──────────
+// ── Sidenav: active link + mobile toggle ──────────────────────
 (function () {
-  const navbar    = document.querySelector('.navbar');
-  const hamburger = document.querySelector('.hamburger');
-  const navLinks  = document.querySelector('.nav-links');
-  // Pages now live in per-page subfolders, so compare full pathnames
-  // (normalising "/index.html" and "/x/x.html" forms) rather than basenames.
-  const norm = p => p.replace(/\/index\.html$/, '/') || '/';
-  const here = norm(location.pathname);
+  const sidenav = document.getElementById('sidenav');
+  const toggle  = document.getElementById('sidenav-toggle');
+  const overlay = document.getElementById('sidenav-overlay');
+  if (!sidenav) return;
 
   // Mark active nav link
-  document.querySelectorAll('.nav-links a').forEach(a => {
+  const norm = p => p.replace(/\/index\.html$/, '/') || '/';
+  const here = norm(location.pathname);
+  document.querySelectorAll('.sidenav-links a').forEach(a => {
     const raw = a.getAttribute('href');
     if (!raw) return;
     const ahref = norm(new URL(raw, location.href).pathname);
-    if (ahref === here) {
-      a.classList.add('active');
-    }
+    if (ahref === here) a.classList.add('active');
   });
 
-  // Scroll shadow
-  window.addEventListener('scroll', () => {
-    navbar.classList.toggle('scrolled', window.scrollY > 10);
-  }, { passive: true });
-
-  // Hamburger toggle
-  hamburger && hamburger.addEventListener('click', () => {
-    navLinks.classList.toggle('open');
-    const open = navLinks.classList.contains('open');
-    hamburger.querySelectorAll('span')[0].style.transform = open ? 'rotate(45deg) translate(5px, 5px)' : '';
-    hamburger.querySelectorAll('span')[1].style.opacity  = open ? '0' : '';
-    hamburger.querySelectorAll('span')[2].style.transform = open ? 'rotate(-45deg) translate(5px, -5px)' : '';
-  });
-
-  // Close menu on link click (mobile)
-  navLinks && navLinks.querySelectorAll('a').forEach(a => {
-    a.addEventListener('click', () => navLinks.classList.remove('open'));
-  });
+  // Mobile open/close
+  function openNav() {
+    sidenav.classList.add('open');
+    if (overlay) overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeNav() {
+    sidenav.classList.remove('open');
+    if (overlay) overlay.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+  toggle  && toggle.addEventListener('click', openNav);
+  overlay && overlay.addEventListener('click', closeNav);
+  document.querySelectorAll('.sidenav-links a').forEach(a =>
+    a.addEventListener('click', closeNav)
+  );
 })();
 
 
@@ -71,17 +66,17 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
   if (signInEl) {
     const firstName = (student.firstName || 'Profile')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    signInEl.innerHTML = `👤 ${firstName}`;
+    const userIcon = window.Icons ? Icons.svg('user') : '';
+    signInEl.innerHTML = `${userIcon}<span>${firstName}</span>`;
     signInEl.href = '/student-portal/student-portal.html';
     signInEl.title = 'Go to your student portal';
     signInEl.classList.add('logged-in');
   }
 
-  // Hide the "Register Now" CTA from the top nav once logged in.
+  // Hide the "Register Now" CTA from the sidenav once logged in.
   // Footer "Register" link stays available for re-registration access.
-  document.querySelectorAll('.nav-links .nav-cta').forEach(el => {
-    const li = el.closest('li');
-    (li || el).style.display = 'none';
+  document.querySelectorAll('.sidenav-cta').forEach(el => {
+    el.style.display = 'none';
   });
 })();
 
@@ -233,7 +228,7 @@ document.querySelectorAll('.faq-q').forEach(btn => {
       if (hasTranscriptFile) {
         transcriptDownloadEl.href = s.transcriptFile.data;
         transcriptDownloadEl.download = s.transcriptFile.name || 'transcript';
-        transcriptDownloadEl.textContent = `📄 Download ${s.transcriptFile.name || 'transcript file'}`;
+        transcriptDownloadEl.innerHTML = `${window.Icons ? Icons.svg('file') : ''}<span>Download ${(s.transcriptFile.name || 'transcript file').replace(/[&<>]/g, '')}</span>`;
         transcriptDownloadEl.style.display = '';
       } else {
         transcriptDownloadEl.style.display = 'none';
@@ -299,7 +294,7 @@ document.querySelectorAll('.faq-q').forEach(btn => {
     const now = new Date();
     if (now >= end) { el.style.display = 'none'; return; }
     if (now >= start) {
-      el.innerHTML = `<div class="cd-live">🎉 Camp is in session!</div>`;
+      el.innerHTML = `<div class="cd-live">${window.Icons ? Icons.svg('sparkles') : ''} Camp is in session!</div>`;
       return;
     }
     const diff = start - now;
