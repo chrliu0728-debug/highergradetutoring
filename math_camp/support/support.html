@@ -958,6 +958,49 @@ Your donation to this category covers the printed certificates, the medals and s
   // vertical wash: strong at the top, fading out toward the bottom of the page
   function washGrad(col) { return 'linear-gradient(180deg, ' + col + ' 0%, ' + col + ' 7%, transparent 78%)'; }
 
+  /* ── Navbar title-sponsor → same showcase reveal, minus the bubble pop ──
+     title-sponsors.js (the logos beside the navbar logo) calls this when a
+     sponsor is clicked on the Support page. We run the exact colour-flood →
+     tube-fill → circle-forms → card sequence from popAndOpen(), but there's
+     no bubble to pop. The navbar sponsor object is mapped onto the shape
+     fillModal() expects (brandColor → signature, people → staff). */
+  function adaptNavSponsor(nav) {
+    return {
+      name: nav.name, tagline: nav.tagline, logo: nav.logo,
+      description: nav.description,
+      images: (nav.images || []).slice(),
+      location: nav.location || null,
+      signature: nav.brandColor,           // sigOf() themes the reveal + accents from this
+      staff: (nav.people || []).map(p => ({ name: p.name, position: p.role, photo: p.photo })),
+    };
+  }
+  function showcaseSponsor(nav) {
+    if (popping) return;                   // don't collide with an in-flight bubble pop
+    const s = adaptNavSponsor(nav);
+    popping = true;
+    const sig = sigOf(s);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const prevInk = lastInk;
+    // tube fills from the top with the new colour, over the previous one
+    tube.style.setProperty('--base', prevInk || 'transparent');
+    tube.style.setProperty('--sig', sig);
+    tube.classList.remove('fill'); void tube.offsetWidth; tube.classList.add('fill');
+    setTimeout(() => { tube.style.setProperty('--base', sig); tube.classList.remove('fill'); }, 1100);
+    // page floods top→bottom in the sponsor's colour
+    if (prevInk) { tint.style.background = washGrad(prevInk); tint.style.opacity = '0.55'; }
+    else { tint.style.opacity = '0'; }
+    ink.style.background = washGrad(sig);
+    ink.style.opacity = '0.55';
+    setTimeout(() => { ink.classList.remove('spread'); void ink.offsetWidth; ink.classList.add('spread'); }, 450);
+    setTimeout(() => { tint.style.opacity = '0'; }, 1500);
+    document.body.style.setProperty('--glass-tint', sig + '2b');
+    lastInk = sig;
+    // colour reaches the circle, the logo forms, then the card opens
+    setTimeout(() => formCircle(s, sig), 950);
+    setTimeout(() => { openModal(s); popping = false; }, 1650);
+  }
+  window.__hgSponsorShowcase = showcaseSponsor;
+
   function build() {
     field.innerHTML = '';
     if (!SPONSORS.length) { emptyEl.style.display = ''; sizeField(); return; }

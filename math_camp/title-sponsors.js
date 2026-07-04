@@ -77,7 +77,7 @@
   ];
 
   const MODAL_HTML =
-    '<div class="sponsor-modal" id="sponsor-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Sponsor details">'
+    '<div class="sponsor-modal" id="hg-sponsor-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Sponsor details">'
     + '<div class="sponsor-modal-backdrop" data-sponsor-close></div>'
     + '<div class="sponsor-modal-card" role="document">'
     + '<button class="sponsor-modal-close" data-sponsor-close aria-label="Close">×</button>'
@@ -128,8 +128,9 @@
       (left || navInner).appendChild(slotsWrap);
     }
 
-    // Inject the modal once.
-    let modal = document.getElementById('sponsor-modal');
+    // Inject the modal once. (Own id so it never collides with a page's
+    // existing #sponsor-modal — e.g. the Support page's tier-inquiry form.)
+    let modal = document.getElementById('hg-sponsor-modal');
     if (!modal) {
       const holder = document.createElement('div');
       holder.innerHTML = MODAL_HTML;
@@ -240,7 +241,16 @@
     slotsWrap.addEventListener('click', e => {
       const btn = e.target.closest('.sponsor-slot'); if (!btn) return;
       const s = SPONSORS.find(x => x.id === btn.dataset.id);
-      if (s) open(s);
+      if (!s) return;
+      // On the Support page the sponsor bubbles expose a richer "showcase"
+      // reveal (colour floods the page, the logo forms, then the card opens).
+      // Clicking a navbar sponsor there runs that same reveal — just without
+      // popping an actual bubble. Elsewhere, open the plain modal.
+      if (typeof window.__hgSponsorShowcase === 'function') {
+        window.__hgSponsorShowcase(s);
+      } else {
+        open(s);
+      }
     });
     modal.querySelectorAll('[data-sponsor-close]').forEach(el =>
       el.addEventListener('click', close));
