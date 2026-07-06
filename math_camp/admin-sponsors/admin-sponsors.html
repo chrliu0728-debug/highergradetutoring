@@ -205,15 +205,15 @@
   </nav>
 
   <div class="admin-welcome">
-    <div class="admin-welcome-icon">🫧</div>
+    <div class="admin-welcome-icon">🤝</div>
     <div>
       <h1>Sponsors editor</h1>
-      <p>Add the title sponsors that float as bubbles at the top of the <a href="/support/support.html#sp-top" target="_blank" rel="noopener">Support Us</a> page. Each sponsor gets a logo bubble, a pop-out card with photos, up to two staff contacts, and your choice of brand colours.</p>
+      <p>Add the sponsors shown in the "Our Sponsors" grid on the <a href="/support/support.html#our-sponsors" target="_blank" rel="noopener">Support Us</a> page. Each sponsor gets a logo card that opens a pop-out with photos, up to two staff contacts, and your choice of brand colours.</p>
     </div>
   </div>
 
   <div class="panel">
-    <h2>🫧 Sponsors</h2>
+    <h2>🤝 Sponsors</h2>
     <p class="panel-desc">Pick a sponsor to edit, or add a new one. Changes aren't live until you hit <strong>Save</strong>.</p>
 
     <div class="sponsor-list" id="sponsor-list"></div>
@@ -419,11 +419,11 @@ function renderEditor() {
         <div class="field"><label>Location link (Google Maps URL)</label><input type="text" id="f-loc-url" value="${esc(s.location && s.location.url)}" placeholder="https://…" /></div>
 
         <div class="sub">Brand colours</div>
-        <div class="hint">Signature colour is required — it's the colour that spreads across the page and travels up into the circle when a visitor pops this sponsor's bubble, and the page keeps it afterward. Board colours theme the card's header band (2–3 = gradient). Border is a single outline colour. Background is an optional fade gradient.</div>
+        <div class="hint">Signature colour is required — it's the accent used on the sponsor's card border and detail pop-out. Board colours theme the card's header band (2–3 = gradient). Border is a single outline colour. Background is an optional fade gradient.</div>
         <label style="font-size:.82rem;font-weight:800;color:var(--text);">Signature colour <span style="color:#c0392b;">*</span></label>
         <div class="color-row" id="sig-row"></div>
-        <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Bubble background (optional)</label>
-        <div class="hint" style="margin:0 0 6px;">Fills the floating bubble behind the logo — set this when the logo is transparent or white so it stays visible. Leave off for the default clear glossy bubble.</div>
+        <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Logo background (optional)</label>
+        <div class="hint" style="margin:0 0 6px;">Fills the tile behind the logo on the sponsor grid — set this when the logo is transparent or white so it stays visible. Leave off for a plain background.</div>
         <div class="color-row" id="bubblebg-row"></div>
         <label style="font-size:.82rem;font-weight:700;color:var(--text-mid);">Board (up to 3)</label>
         <div class="color-row" id="board-row"></div>
@@ -437,8 +437,8 @@ function renderEditor() {
       </div>
 
       <div>
-        <div class="sub" style="margin-top:0;">Logo (the bubble)</div>
-        <div class="img-preview logo" id="logo-preview">No logo — the bubble shows the name instead.</div>
+        <div class="sub" style="margin-top:0;">Logo</div>
+        <div class="img-preview logo" id="logo-preview">No logo — the card shows the name instead.</div>
         <div class="file-row">
           <input type="file" id="logo-input" accept="image/*" style="font-size:.85rem;" />
           <button class="btn-mini danger" id="logo-clear">Remove</button>
@@ -619,7 +619,7 @@ function bubbleBgControl(s) {
     const on = !!s.bubbleBg;
     row.innerHTML = `
       <label style="display:inline-flex;align-items:center;gap:6px;font-size:.85rem;">
-        <input type="checkbox" id="bubblebg-on" ${on ? 'checked' : ''}/> fill the bubble background
+        <input type="checkbox" id="bubblebg-on" ${on ? 'checked' : ''}/> fill the logo background
       </label>` +
       (on ? `<span class="swatch"><input type="color" id="bubblebg-color" value="${/^#[0-9a-fA-F]{6}$/.test(s.bubbleBg) ? s.bubbleBg : '#ffffff'}" /></span>` : '');
     row.querySelector('#bubblebg-on').addEventListener('change', (e) => {

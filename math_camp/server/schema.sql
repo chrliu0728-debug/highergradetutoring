@@ -243,3 +243,6 @@ CREATE TABLE IF NOT EXISTS discount_codes (
 -- Evergreen public code: "higher grade report card" = 15% off (spaces/caps ignored).
 INSERT OR IGNORE INTO discount_codes (code, label, percent, multiUse, used, createdAt, kind)
 VALUES ('highergradereportcard', 'Higher Grade Report Card', 0.15, 1, 0, strftime('%s','now'), 'manual');
+
+-- Registration settings: registration is open by default
+INSERT OR IGNORE INTO meta (key, value) VALUES ('reg_tier', 'open');

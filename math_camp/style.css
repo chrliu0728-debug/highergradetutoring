@@ -91,11 +91,11 @@ body::-webkit-scrollbar,
   --text-mid:  #4a4a4a;
   --muted:     #888888;
 
-  --radius:    10px;
-  --radius-sm: 6px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
-  --shadow:    0 4px 24px rgba(0,0,0,.10);
-  --shadow-lg: 0 10px 48px rgba(0,0,0,.15);
+  --radius:    12px;
+  --radius-sm: 8px;
+  --shadow-sm: 0 2px 10px rgba(0,0,0,.05);
+  --shadow:    0 6px 20px rgba(0,0,0,.07);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,.12);
 }
 
 /* ── Icons (see icons.js) ── */
@@ -521,6 +521,65 @@ a  { color: inherit; text-decoration: none; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 
+/* ── Overlapping card rows — opt in with `.overlap` alongside a grid-N class.
+     Cards cascade diagonally and overlap; hovering (or focusing) one brings
+     it to the front so its full content is readable again. ── */
+.grid-2.overlap,
+.grid-3.overlap,
+.grid-4.overlap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px 0;
+}
+.overlap > * {
+  --sy: 0px;
+  position: relative;
+  flex: 1 1 260px;
+  max-width: 320px;
+  margin: 0 0 80px -90px;
+  transform: translateY(var(--sy));
+  transition: transform .4s ease, box-shadow .4s ease;
+}
+.overlap > .value-card   { flex-basis: 380px; max-width: 440px; }
+.overlap > .support-tier { flex-basis: 300px; max-width: 360px; }
+.overlap > *:nth-child(3n+2) { --sy: -32px; }
+.overlap > *:nth-child(3n)   { --sy: 24px; }
+.overlap > *:hover,
+.overlap > *:focus-within {
+  z-index: 5;
+  transform: translateY(calc(var(--sy) - 6px));
+  box-shadow: var(--shadow-lg);
+}
+/* Beats the plain `.card:hover` lift (equal specificity, but this is more
+   specific) so cards inside an overlap row keep their diagonal stagger
+   instead of snapping to a fixed offset on hover. */
+.overlap > .card:hover,
+.overlap > .card:focus-within {
+  transform: translateY(calc(var(--sy) - 6px));
+  box-shadow: var(--shadow-lg);
+}
+/* Points-economy cards — fixed, identical size so the overlap stack reads
+   as a clean, even cascade instead of a ragged one. */
+.points-grid > .card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 160px;
+}
+.points-grid > .card p { margin-top: auto; }
+
+@media (max-width: 760px) {
+  .overlap > *,
+  .overlap > .value-card {
+    flex-basis: 100%;
+    max-width: 100%;
+    margin: 0 0 20px 0 !important;
+    transform: none !important;
+  }
+}
+
 /* ── Section split: label/title left, content right ── */
 .section-cols {
   display: grid;
@@ -538,14 +597,12 @@ a  { color: inherit; text-decoration: none; }
    ============================================================ */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--blush);
-  border-radius: var(--radius);
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   padding: 28px;
-  box-shadow: var(--shadow-sm);
-  transition: transform .2s, box-shadow .2s;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
-.card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.card:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
 
 .card-icon {
   width: 36px; height: 36px;
@@ -609,7 +666,6 @@ img[src*="placeholder"] {
 .camp-photo-wrap {
   border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
   aspect-ratio: 4/3;
 }
 .camp-photo-wrap img {
@@ -645,30 +701,8 @@ img[src*="placeholder"] {
 }
 
 /* ============================================================
-   TEAM CARDS
+   TEAM CARDS — overlapping photo tiles
    ============================================================ */
-.team-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--blush);
-  border-radius: var(--radius);
-  padding: 28px 24px 40px;
-  text-align: center;
-  box-shadow: var(--shadow-sm);
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-  cursor: pointer;
-  position: relative;
-}
-.team-card-quote {
-  font-size: .88rem;
-  font-style: italic;
-  line-height: 1.55;
-  color: var(--text-mid);
-  margin: 14px 6px 0;
-  padding: 0;
-  border: none;
-  quotes: none;
-}
 /* Category headers */
 .team-category { margin-top: 52px; }
 .team-category:first-child { margin-top: 0; }
@@ -688,24 +722,55 @@ img[src*="placeholder"] {
   margin-left: auto;
   margin-right: auto;
 }
-.team-card:hover {
-  transform: translateY(-3px);
+
+.team-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 24px;
+}
+.team-card {
+  position: relative;
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.team-card:hover,
+.team-card:focus-visible {
+  transform: translateY(-6px);
   box-shadow: var(--shadow);
-  border-color: var(--blush);
+  outline: none;
 }
-.team-card::after {
-  content: 'Click to read more';
+.team-photo {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--surface2);
+}
+.team-photo img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.team-label {
   position: absolute;
-  bottom: 10px; left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  font-size: .72rem; font-weight: 600;
-  color: var(--blush);
-  opacity: 0;
-  transition: opacity .2s, transform .2s;
-  white-space: nowrap;
-  pointer-events: none;
+  left: 14px; right: 14px; bottom: 14px;
+  background: #fff;
+  padding: 14px 18px 16px;
 }
-.team-card:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+.team-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.team-role {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-size: .92rem;
+  color: var(--text-mid);
+}
+@media (max-width: 460px) {
+  .team-row { grid-template-columns: 1fr 1fr; }
+}
 
 /* ============================================================
    TEAM MODAL
@@ -741,22 +806,21 @@ body:has(#sponsor-modal.open) {
 }
 .team-modal-backdrop {
   position: absolute; inset: 0;
-  background: rgba(20, 10, 25, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: modal-fade .2s ease;
+  background: rgba(20, 10, 25, 0.45);
+  animation: modal-fade .15s ease;
 }
 .team-modal-content {
   position: relative;
   background: var(--surface);
-  border-radius: 18px;
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   padding: 48px 40px 40px;
   max-width: 560px;
   width: 100%;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
-  animation: modal-pop .25s ease-out;
+  box-shadow: var(--shadow-lg);
+  animation: modal-pop .18s ease-out;
 }
 .team-modal-close {
   position: absolute; top: 14px; right: 14px;
@@ -903,31 +967,14 @@ body:has(#sponsor-modal.open) {
   from { opacity: 0; } to { opacity: 1; }
 }
 @keyframes modal-pop {
-  from { transform: scale(0.96) translateY(10px); opacity: 0; }
-  to   { transform: scale(1) translateY(0); opacity: 1; }
+  from { transform: scale(0.98); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 @media (max-width: 600px) {
   .team-modal-content { padding: 40px 24px 28px; }
   .team-modal-avatar { width: 110px; height: 110px; }
   .team-modal-name { font-size: 1.35rem; }
 }
-.team-avatar {
-  width: 88px; height: 88px;
-  border-radius: 50%;
-  overflow: hidden;
-  margin: 0 auto 16px;
-  border: 3px solid var(--border);
-  background: var(--blush-bg);
-}
-.team-avatar img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.team-name  { font-size: 1.02rem; font-weight: 700; margin-bottom: 4px; }
-.team-role  { font-size: .82rem; font-weight: 600; color: var(--blush); margin-bottom: 8px; }
-.team-bio   { font-size: .85rem; color: var(--muted); line-height: 1.55; }
-
 /* ============================================================
    TIMELINE
    ============================================================ */
@@ -967,11 +1014,11 @@ body:has(#sponsor-modal.open) {
   display: flex; gap: 20px; align-items: flex-start;
   padding: 24px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--blush);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
+.value-card:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
 .value-icon { font-size: 1.75rem; color: var(--blush); flex-shrink: 0; margin-top: 4px; }
 .value-card h3 { font-weight: 700; margin-bottom: 5px; }
 .value-card p  { font-size: .88rem; color: var(--muted); }
@@ -981,13 +1028,14 @@ body:has(#sponsor-modal.open) {
    ============================================================ */
 .week-block {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
+.week-block:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
 .week-body { display: flex; flex-direction: column; flex: 1; }
 .week-header {
   padding: 18px 24px;
@@ -1019,17 +1067,13 @@ body:has(#sponsor-modal.open) {
    SUPPORT TIERS
    ============================================================ */
 .support-tier {
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   overflow: hidden;
   background: var(--surface);
-  transition: transform .2s, box-shadow .2s, border-color .2s;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
-.support-tier:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
-.support-tier.featured {
-  border-color: var(--blush);
-  box-shadow: 0 0 0 1px var(--blush), var(--shadow);
-}
+.support-tier:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
 .tier-header {
   padding: 28px 28px 20px;
   background: var(--surface2);
@@ -1063,10 +1107,9 @@ body:has(#sponsor-modal.open) {
    ============================================================ */
 .form-card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   padding: 44px 48px;
-  box-shadow: var(--shadow);
 }
 .form-section-title {
   font-size: 1rem; font-weight: 700; color: var(--blush);
@@ -1184,11 +1227,13 @@ body:has(#sponsor-modal.open) {
    ============================================================ */
 .quote-card {
   background: var(--surface);
+  border: 1px solid #1a1a1a;
   border-left: 4px solid var(--blush);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: 0;
   padding: 24px 28px;
-  box-shadow: var(--shadow-sm);
+  transition: transform .2s ease, box-shadow .2s ease;
 }
+.quote-card:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
 .quote-card blockquote { font-size: 1.05rem; color: var(--text-mid); font-style: italic; margin-bottom: 12px; }
 .quote-card cite { font-size: .82rem; font-weight: 600; color: var(--muted); font-style: normal; }
 
@@ -1366,11 +1411,9 @@ footer {
   border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  transition: transform .15s, box-shadow .15s, border-color .15s;
+  transition: border-color .15s ease;
 }
 .sponsor-slot:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow);
   border-color: var(--blush);
 }
 .sponsor-slot-img { max-height: 100%; max-width: 100%; object-fit: contain; display: block; }
@@ -1397,8 +1440,7 @@ footer {
 .sponsor-modal.open { display: flex; }
 .sponsor-modal-backdrop {
   position: absolute; inset: 0;
-  background: rgba(15, 23, 42, .6);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, .5);
 }
 .sponsor-modal-card {
   --sponsor-accent: var(--blush);          /* overridden per-sponsor via JS */
@@ -1406,10 +1448,11 @@ footer {
   width: min(720px, 100%);
   max-height: 90vh; overflow-y: auto;
   background: #fff;                          /* white, Staples-themed */
-  border-radius: 18px;
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   border-top: 5px solid var(--sponsor-accent);
   padding: clamp(20px, 3vw, 32px);
-  box-shadow: 0 30px 80px rgba(0,0,0,.4);
+  box-shadow: var(--shadow-lg);
 }
 .sponsor-modal-close {
   position: absolute; top: 12px; right: 14px;

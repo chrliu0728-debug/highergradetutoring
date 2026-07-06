@@ -63,14 +63,6 @@
       display: block; width: 100%;
       font: inherit; color: inherit; text-align: left;
       cursor: pointer;
-      border: 1px solid var(--border);
-      transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s, border-color .2s;
-    }
-    .unit-card:hover,
-    button.why-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 14px 36px rgba(0,0,0,.12);
-      border-color: var(--blush);
     }
     .unit-card:focus-visible,
     button.why-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
@@ -91,19 +83,19 @@
     .unit-modal.open { display: flex; }
     .unit-modal-backdrop {
       position: absolute; inset: 0;
-      background: rgba(20,10,25,.55);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      animation: modal-fade .2s ease;
+      background: rgba(20,10,25,.45);
+      animation: modal-fade .15s ease;
     }
     .unit-modal-content {
       position: relative;
       background: var(--surface);
-      border-radius: 20px;
+      border: 1px solid #1a1a1a;
+      border-radius: 0;
       padding: 36px 36px 32px;
       max-width: 620px; width: 100%;
       max-height: 86vh; overflow-y: auto;
-      box-shadow: 0 30px 80px rgba(0,0,0,.25);
-      animation: modal-pop .35s cubic-bezier(.34, 1.56, .64, 1);
+      box-shadow: var(--shadow-lg);
+      animation: modal-pop .18s ease-out;
     }
     .unit-modal-close {
       position: absolute; top: 14px; right: 14px;
@@ -203,28 +195,28 @@
 </section>
 
 <!-- ─────────────────── STATS ─────────────────── -->
-<section style="background: var(--surface2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0;">
+<!--<section style="background: var(--surface2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 32px 24px;">
   <div class="container">
-    <div class="grid-4">
-      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid var(--border);border-radius:0;">
+    <div class="grid-4 overlap">
+      <div class="card stat-card">
         <div class="stat-number">10</div>
         <div class="stat-label">Days of Camp</div>
       </div>
-      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid var(--border);border-radius:0;">
+      <div class="card stat-card">
         <div class="stat-number" data-icon="trophy"></div>
         <div class="stat-label">Class-vs-Class Battles</div>
       </div>
-      <div class="card stat-card" style="background:transparent;border:none;border-right:1px solid var(--border);border-radius:0;">
+      <div class="card stat-card">
         <div class="stat-number">5</div>
         <div class="stat-label">MTH1W Units<br><span style="font-size:.72em;opacity:.75;">(Grade 9 Math)</span></div>
       </div>
-      <div class="card stat-card" style="background:transparent;border:none;border-radius:0;">
+      <div class="card stat-card">
         <div class="stat-number">100</div>
         <div class="stat-label">Spots Available</div>
       </div>
     </div>
   </div>
-</section>
+</section>-->
 
 <!-- ─────────────────── WHY MATHCAMP ─────────────────── -->
 <section class="section">
@@ -233,15 +225,15 @@
       <div class="section-head" style="margin-bottom:0;">
         <div class="section-label">Why Us?</div>
         <h2 class="section-title">A different kind of math experience</h2>
-        <p class="section-desc">Full MTH1W curriculum, daily problem sets, peer tutoring, and a final exam. At pace.</p>
+        <p class="section-desc">Full Grade 9 Math curriculum,<br> Daily problem sets, <br> Peer tutoring, <br> Final exam.</p>
       </div>
-      <div class="grid-3">
+      <div class="grid-3 overlap">
         <button class="card why-card" data-why="led">
           <div class="card-icon" data-icon="handshake"></div>
           <h3>Peer Tutors for Strugglers</h3>
           <p>Free one-on-one help from Grade 9 &amp; 10 peer tutors for any camper who falls behind.</p>
         </button>
-        <button class="card why-card" data-why="coverage" style="border-top: 3px solid var(--mint);">
+        <button class="card why-card" data-why="coverage">
           <div class="card-icon mint" data-icon="book"></div>
           <h3>Full MTH1W Coverage</h3>
           <p>All 5 units of MTH1W across 10 intensive days.</p>
@@ -263,26 +255,26 @@
       <div class="section-head" style="margin-bottom:0;">
         <div class="section-label">Curriculum · MTH1W</div>
         <h2 class="section-title">5 units. 10 days.</h2>
-        <p class="section-desc">The complete Grade 9 math curriculum, taught intensively. Select any unit for details.</p>
+        <p class="section-desc">Everything in detail -> <br> what's to be expected.</p>
       </div>
-      <div class="grid-3" style="gap:16px;">
-        <div role="button" tabindex="0" class="card unit-card" data-unit="1" style="border-top: 3px solid var(--blush);">
+      <div class="grid-3 overlap" style="gap:16px;">
+        <div role="button" tabindex="0" class="card unit-card" data-unit="1">
           <div class="card-icon" data-icon="refresh"></div>
           <h3>Unit 1 — Grade 8 Review</h3>
         </div>
-        <div role="button" tabindex="0" class="card unit-card" data-unit="2" style="border-top: 3px solid var(--mint);">
+        <div role="button" tabindex="0" class="card unit-card" data-unit="2">
           <div class="card-icon mint" data-icon="trending-up"></div>
           <h3>Unit 2 — Algebra</h3>
         </div>
-        <div role="button" tabindex="0" class="card unit-card" data-unit="3" style="border-top: 3px solid var(--blush);">
+        <div role="button" tabindex="0" class="card unit-card" data-unit="3">
           <div class="card-icon" data-icon="bar-chart"></div>
           <h3>Unit 3 — Data</h3>
         </div>
-        <div role="button" tabindex="0" class="card unit-card" data-unit="4" style="border-top: 3px solid var(--mint);">
+        <div role="button" tabindex="0" class="card unit-card" data-unit="4">
           <div class="card-icon mint" data-icon="triangle-ruler"></div>
           <h3>Unit 4 — Geometry</h3>
         </div>
-        <div role="button" tabindex="0" class="card unit-card" data-unit="5" style="border-top: 3px solid var(--blush);">
+        <div role="button" tabindex="0" class="card unit-card" data-unit="5">
           <div class="card-icon" data-icon="trending-down"></div>
           <h3>Unit 5 — Linear Relations</h3>
         </div>
@@ -331,7 +323,7 @@
             <div><i data-icon="calculator"></i> <strong>3:15 – 4:45</strong> — Period 4</div>
           </div>
         </div>
-        <div class="card" style="border-top: 3px solid var(--mint);">
+        <div class="card">
           <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mint-dark);margin-bottom:6px;">Who Should Attend</div>
           <div style="font-size:.92rem;color:var(--text-mid);">
             <strong>Accelerated MTH1W</strong> for strong Grade 9 math students. HDSB-focused, all boards welcome. Daily homework expected.
@@ -471,71 +463,71 @@
     1: {
       icon: 'refresh', eyebrow: 'Unit 1 · Day 1',
       title: 'Grade 8 Review',
-      lede: 'We kick off camp by filling in the gaps from Grade 8 so nobody falls behind once we pick up pace. Expect a friendly first-day vibe — introductions, diagnostic problems, and building the foundation everything else relies on.',
+      lede: 'A friendly first day that fills in Grade 8 gaps before we pick up pace — introductions, diagnostics, and the foundation everything else builds on.',
       body: `
         <h4>What we cover</h4>
-        <p><strong>Rational numbers</strong> — operations with fractions, decimals, and negatives; order of operations; real-world contexts.</p>
-        <p><strong>Powers &amp; roots</strong> — exponent laws, square &amp; cube roots, estimating irrationals, scientific notation.</p>
-        <p><strong>Inequalities</strong> — reading, writing, and solving simple one-variable inequalities; number-line representations.</p>
+        <p><strong>Rational numbers</strong> — operations with fractions, decimals, and negatives.</p>
+        <p><strong>Powers &amp; roots</strong> — exponent laws, square &amp; cube roots, scientific notation.</p>
+        <p><strong>Inequalities</strong> — reading, writing, and solving simple one-variable inequalities.</p>
         <h4>Homework</h4>
-        <p>100 problems to take home: 60 easy, 20 medium, 10 hard. Designed to feel beatable but not trivial.</p>
+        <p>100 problems to take home — 60 easy, 20 medium, 10 hard.</p>
       `
     },
     2: {
       icon: 'trending-up', eyebrow: 'Unit 2 · Day 2',
       title: 'Algebra',
-      lede: 'The heart of Grade 9 math. We build from simplifying expressions to solving equations with multiple methods, then introduce relations as the bridge into Unit 5.',
+      lede: 'The heart of Grade 9 math — from simplifying expressions to solving equations, ending with relations as the bridge into Unit 5.',
       body: `
         <h4>What we cover</h4>
-        <p><strong>Simplifying expressions</strong> — combining like terms, distributive property, factoring GCFs, substitution.</p>
-        <p><strong>Solving equations</strong> — one-step, two-step, then equations requiring multiple methods (combining, rearranging, isolating).</p>
-        <p><strong>Relations</strong> — input/output tables, mappings, and introducing the vocabulary we'll need for linear relations later.</p>
+        <p><strong>Simplifying expressions</strong> — combining like terms, distributive property, factoring GCFs.</p>
+        <p><strong>Solving equations</strong> — one-step, two-step, and equations needing multiple methods.</p>
+        <p><strong>Relations</strong> — input/output tables and mappings, setting up vocabulary for linear relations.</p>
         <h4>Homework</h4>
-        <p>80 problems: 15 substitution, 5 thinking, 60 easy. Plus one applied thinking question (the "fill-the-bucket-at-a-constant-rate" problem).</p>
+        <p>80 problems — 15 substitution, 5 thinking, 60 easy, plus one applied thinking question.</p>
       `
     },
     3: {
       icon: 'bar-chart', eyebrow: 'Unit 3 · Day 3',
       title: 'Data',
-      lede: 'A lighter but important day — numeracy in the real world. We focus on reading data critically and building simple models, not crunching through computations.',
+      lede: 'A lighter day focused on reading data critically and building simple models, not crunching numbers.',
       body: `
         <h4>What we cover</h4>
-        <p><strong>Data literacy</strong> — spotting misleading graphs, understanding scales, asking what a dataset can and can't tell you.</p>
+        <p><strong>Data literacy</strong> — spotting misleading graphs and understanding scales.</p>
         <p><strong>Statistics</strong> — mean, median, mode, range, and when each is the right tool.</p>
         <p><strong>Mathematical modelling</strong> — translating a real-world scenario into a mathematical statement.</p>
         <h4>Catch-up afternoon</h4>
-        <p>Last period of Day 3 is a catch-up/free period — finish any homework from Days 1 &amp; 2, or tackle a 100-question review set (30 inequalities, 10 stats, 10 data, 30 powers &amp; roots, 15 equations, 15 simplifying).</p>
+        <p>Last period is catch-up time — finish Days 1 &amp; 2 homework or tackle a 100-question review set.</p>
       `
     },
     4: {
       icon: 'triangle-ruler', eyebrow: 'Unit 4 · Days 4–5',
       title: 'Geometry',
-      lede: 'A full two-day unit because there\'s a lot here — measurement, the Pythagorean theorem, shape areas, geometric properties, and coordinate geometry all stack on each other.',
+      lede: 'Two full days covering measurement, the Pythagorean theorem, shape areas, geometric properties, and coordinate geometry.',
       body: `
         <h4>Day 4</h4>
         <p><strong>Measurement</strong> — units, conversions, perimeter, surface area fundamentals.</p>
         <p><strong>Pythagorean theorem</strong> — derivation, then applying it to word problems.</p>
         <p><strong>Calculating shape areas</strong> — triangles, quadrilaterals, circles, composite figures.</p>
         <h4>Day 5</h4>
-        <p><strong>More shape calculations</strong>, then <strong>geometric properties</strong> (parallel lines, transversals, angle relationships) and <strong>coordinate geometry</strong> (distance, midpoint, slope).</p>
-        <p>The day ends with a "putting it all together" session — combined problems that draw on everything so far.</p>
+        <p><strong>More shape calculations</strong>, then <strong>geometric properties</strong> and <strong>coordinate geometry</strong>.</p>
+        <p>The day ends with a combined-problem review pulling from everything so far.</p>
         <h4>Homework</h4>
-        <p>Day 4: 30 shape calculations + 20 Pythagoras. Day 5: 30 easy + 10 hard geometry, 10 hard geometric proofs, 40 graphical shape calculations, 10 thinking questions. Weekend: 4 unit tests to return Monday.</p>
+        <p>Day 4: 50 mixed problems. Day 5: 100 problems across geometry, proofs, and graphing. Weekend: 4 unit tests due Monday.</p>
       `
     },
     5: {
       icon: 'trending-down', eyebrow: 'Unit 5 · Days 6–8',
       title: 'Linear Relations',
-      lede: 'The biggest unit in Grade 9 and the one students tend to struggle with most. We spend three full days on it — builds from basics, through multiple solving strategies, into applications.',
+      lede: 'The biggest, toughest unit — three full days from basics through solving strategies into applications.',
       body: `
         <h4>Day 6</h4>
-        <p><strong>Introduction to linear equations</strong>, <strong>slope-intercept form</strong>, how x and y values work in tables and on graphs, and <strong>graphing equations</strong> from scratch.</p>
+        <p><strong>Linear equations</strong>, <strong>slope-intercept form</strong>, and <strong>graphing equations</strong> from scratch.</p>
         <h4>Day 7</h4>
-        <p><strong>Forms of linear equations</strong> (point-slope, standard, slope-intercept), solving linear equations with multiple techniques, <strong>applications</strong>, and <strong>parallel &amp; perpendicular lines</strong>.</p>
+        <p>All three <strong>forms of linear equations</strong>, multi-method solving, <strong>applications</strong>, and <strong>parallel &amp; perpendicular lines</strong>.</p>
         <h4>Day 8</h4>
-        <p>Interpreting linear relationships, <strong>linear inequalities</strong>, harder mixed-method solving, and a full unit review. 200 mixed homework problems — but three hours of in-class time to tackle them together.</p>
+        <p>Interpreting linear relationships, <strong>linear inequalities</strong>, and a full unit review — 200 homework problems, with in-class time to start them.</p>
         <h4>What's next</h4>
-        <p>Day 9 is the final exam: Applications (multiple choice + standard questions) in the morning, Thinking (stretch + mixed-unit) in the afternoon.</p>
+        <p>Day 9 is the final exam — Applications in the morning, Thinking in the afternoon.</p>
       `
     },
   };
@@ -544,10 +536,10 @@
     led: {
       icon: 'handshake', eyebrow: 'Why Us · Extra Help',
       title: 'Peer Tutors for Strugglers',
-      lede: 'Falling behind is normal in an accelerated course — so any camper who needs it gets free one-on-one help from Grade 9 & 10 student tutors, right at camp.',
+      lede: 'Any camper who falls behind gets free one-on-one help from Grade 9 & 10 student tutors, right at camp.',
       body: `
         <h4>How it works</h4>
-        <p>We pair struggling campers with peer tutors who just learned the same material — one-on-one during practice periods and breaks, at the camper's own pace.</p>
+        <p>Struggling campers are paired one-on-one with peer tutors during practice periods and breaks.</p>
         <h4>Who's behind it</h4>
         <p>Strong Grade 9 and 10 students — recent enough to remember exactly where it gets confusing.</p>
       `
@@ -555,22 +547,22 @@
     coverage: {
       icon: 'book', eyebrow: 'Why Us · Curriculum',
       title: 'Full MTH1W Coverage',
-      lede: 'We cover the entire Ontario Grade 9 De-streamed Math curriculum (MTH1W) across 10 intensive days — every strand, every expectation.',
+      lede: 'The entire Ontario Grade 9 De-streamed Math curriculum (MTH1W), every strand, in 10 intensive days.',
       body: `
         <h4>The five strands we cover</h4>
         <p><strong>Number</strong> — rational numbers, powers, roots, exponent laws.</p>
         <p><strong>Algebra</strong> — simplifying expressions, solving equations, introducing relations.</p>
         <p><strong>Data</strong> — data literacy, descriptive statistics, mathematical modelling.</p>
-        <p><strong>Geometry &amp; Measurement</strong> — Pythagorean theorem, shape areas and surface areas, geometric properties, coordinate geometry.</p>
-        <p><strong>Linear Relations</strong> — the biggest unit: forms of linear equations, slope, graphing, applications, parallel/perpendicular lines, linear inequalities.</p>
+        <p><strong>Geometry &amp; Measurement</strong> — Pythagorean theorem, shape areas, geometric properties, coordinate geometry.</p>
+        <p><strong>Linear Relations</strong> — the biggest unit: forms of linear equations, slope, graphing, applications, linear inequalities.</p>
         <h4>Why an accelerated pace?</h4>
-        <p>10 intensive days lets you see how the strands connect — instead of forgetting Unit 1 by the time Unit 5 hits.</p>
+        <p>10 intensive days means you still remember Unit 1 by the time Unit 5 hits.</p>
       `
     },
     problems: {
       icon: 'pencil', eyebrow: 'Why Us · Practice',
       title: 'Daily Problem Sets',
-      lede: 'Hundreds of curated practice questions, tiered by difficulty, handed out fresh each day. Math is a skill — you build it by doing problems, not by watching someone else do them.',
+      lede: 'Hundreds of curated practice questions, tiered by difficulty, handed out fresh every day.',
       body: `
         <h4>How the sets are built</h4>
         <p>60–100 questions per day: easy, medium, and thinking tiers. Hardest days have ~200 mixed problems — with in-class time to tackle them.</p>
@@ -587,33 +579,33 @@
     rational: {
       icon: 'hash', eyebrow: 'Unit 1 · Topic',
       title: 'Rational Numbers',
-      lede: 'Any number you can write as a fraction of two integers — including negatives, decimals that terminate, and decimals that repeat. The foundation for almost everything else in Grade 9 math.',
+      lede: 'Any number you can write as a fraction of two integers — the foundation for almost everything else in Grade 9 math.',
       body: `
         <h4>What you should be able to do</h4>
-        <p>Add, subtract, multiply, and divide fractions, decimals, and integers — including mixing them in the same expression.</p>
+        <p>Add, subtract, multiply, and divide fractions, decimals, and integers in the same expression.</p>
         <p>Apply the order of operations (BEDMAS) when negatives, fractions, and exponents are all in play.</p>
         <p>Convert between fraction, decimal, and percent forms fluidly.</p>
         <h4>Where it shows up later</h4>
-        <p>Solving equations in Unit 2, computing slope in Unit 5, and basically every word problem all year. If your fraction arithmetic is shaky, fix it here.</p>
+        <p>Solving equations in Unit 2, computing slope in Unit 5, and nearly every word problem all year.</p>
       `
     },
     powers: {
       icon: 'zap', eyebrow: 'Unit 1 · Topic',
       title: 'Powers & Roots',
-      lede: 'Exponents are repeated multiplication; roots are the inverse. Together they let you write very big and very small numbers compactly and reason about them quickly.',
+      lede: 'Exponents are repeated multiplication and roots are their inverse — together they let you write huge or tiny numbers compactly.',
       body: `
         <h4>What you should be able to do</h4>
         <p>Apply exponent laws — product, quotient, power-of-a-power, zero exponent, negative exponent.</p>
         <p>Estimate square and cube roots that aren't perfect, and explain why √2 is irrational.</p>
         <p>Read and write numbers in scientific notation (e.g., 6.02 × 10²³).</p>
         <h4>Why it matters</h4>
-        <p>Exponent rules return in MPM2D and every grade after. The cleaner your habits here, the less rework later.</p>
+        <p>Exponent rules return in MPM2D and every grade after, so clean habits here save rework later.</p>
       `
     },
     ineq8: {
       icon: 'scale', eyebrow: 'Unit 1 · Topic',
       title: 'Inequalities (Intro)',
-      lede: 'Like equations, but instead of "equals" we have "less than", "greater than", "at most", or "at least". One small twist: multiplying or dividing by a negative flips the sign.',
+      lede: 'Like equations, but with "less than," "greater than," "at most," or "at least" instead of "equals" — with one twist: multiplying or dividing by a negative flips the sign.',
       body: `
         <h4>What you should be able to do</h4>
         <p>Read inequality statements written as words, symbols, or number lines, and translate between them.</p>
@@ -628,40 +620,40 @@
     simplify: {
       icon: 'calculator', eyebrow: 'Unit 2 · Topic',
       title: 'Simplifying Expressions',
-      lede: 'Rewriting an algebraic expression so it has fewer terms or factors, without changing what it means. Step zero before solving.',
+      lede: 'Rewriting an expression to have fewer terms or factors without changing its meaning — step zero before solving.',
       body: `
         <h4>What you should be able to do</h4>
         <p>Combine like terms — only terms with the exact same variable part can merge.</p>
-        <p>Apply the distributive property in both directions: a(b + c) = ab + ac, and factoring out a GCF.</p>
-        <p>Substitute given values for variables and evaluate carefully (watch the negatives).</p>
+        <p>Apply the distributive property in both directions and factor out a GCF.</p>
+        <p>Substitute given values for variables and evaluate carefully.</p>
         <h4>Common slip-ups</h4>
-        <p>Treating 3x and 3x² as like terms (they aren't), or forgetting to distribute the negative when an expression has a − sign in front of a bracket.</p>
+        <p>Treating 3x and 3x² as like terms, or forgetting to distribute a negative across a bracket.</p>
       `
     },
     'solve-eq': {
       icon: 'equals', eyebrow: 'Unit 2 · Topic',
       title: 'Solving Equations',
-      lede: 'Finding the value of the variable that makes the equation true. The whole game: do the same thing to both sides until the variable is alone.',
+      lede: 'Finding the value that makes an equation true — do the same thing to both sides until the variable is alone.',
       body: `
         <h4>What you should be able to do</h4>
         <p>Solve one-step and two-step linear equations.</p>
         <p>Solve equations with the variable on both sides, with brackets, or with fractions and decimals.</p>
         <p>Check your answer by substituting it back in.</p>
         <h4>Strategy</h4>
-        <p>Always plan the inverse-operation order before you start: undo addition/subtraction first, then multiplication/division. With brackets, decide whether to distribute or to multiply through by the LCD first — both work.</p>
+        <p>Undo addition/subtraction before multiplication/division, and distribute or clear the LCD first with brackets.</p>
       `
     },
     relations: {
       icon: 'link', eyebrow: 'Unit 2 · Topic',
       title: 'Relations',
-      lede: 'A relation is any pairing between two sets — usually called <em>x</em> values and <em>y</em> values. The setup that turns into "functions" later, and the bridge into Unit 5.',
+      lede: 'A relation pairs two sets of values (<em>x</em>\'s and <em>y</em>\'s) — the setup that becomes "functions" later and the bridge into Unit 5.',
       body: `
         <h4>What you should be able to do</h4>
         <p>Read a relation given as a table, a set of ordered pairs, a graph, or a rule.</p>
         <p>Convert between those four representations.</p>
-        <p>Spot a linear relation: equal x-step produces equal y-step (constant first differences).</p>
+        <p>Spot a linear relation: equal x-step produces equal y-step.</p>
         <h4>Where it shows up later</h4>
-        <p>Everywhere in Unit 5 and in every math course after. Get fluent here.</p>
+        <p>Everywhere in Unit 5 and every math course after — get fluent here.</p>
       `
     },
 
@@ -676,7 +668,7 @@
         <p>Tell the difference between correlation and causation.</p>
         <p>Pick the right chart type for a question — bar, line, scatter, histogram, box plot.</p>
         <h4>Why it matters</h4>
-        <p>Most "math in real life" is data interpretation. The Ontario curriculum leans hard into this strand because it's the most directly useful — for school, for work, for being a citizen who reads news.</p>
+        <p>Most "math in real life" is data interpretation — the most directly useful strand for school, work, and everyday life.</p>
       `
     },
     stats: {
@@ -698,7 +690,7 @@
         <h4>The four-step loop</h4>
         <p><strong>1. Understand</strong> the situation in plain words. <strong>2. Model</strong> with a variable, equation, or graph. <strong>3. Solve.</strong> <strong>4. Interpret</strong> — does the answer make sense in the original context?</p>
         <h4>Common contexts</h4>
-        <p>Cell-phone plans (linear), filling tanks at constant rates, comparing two pricing options. We'll do all of these.</p>
+        <p>Cell-phone plans, filling tanks at constant rates, and comparing pricing options.</p>
       `
     },
 
@@ -706,7 +698,7 @@
     measurement: {
       icon: 'ruler', eyebrow: 'Unit 4 · Topic',
       title: 'Measurement',
-      lede: 'Units, conversions, and the difference between length, area, and volume. Sounds simple — but trip on this and the rest of geometry falls over.',
+      lede: 'Units, conversions, and the difference between length, area, and volume — simple, but trip here and the rest of geometry falls over.',
       body: `
         <h4>What you should be able to do</h4>
         <p>Convert between metric units (mm ↔ cm ↔ m ↔ km), and between metric and imperial when needed.</p>
@@ -750,7 +742,7 @@
         <p>Use co-interior, alternate, and corresponding angles when a transversal cuts parallel lines.</p>
         <p>Use triangle angle sum (180°) and exterior angle theorems.</p>
         <h4>Strategy</h4>
-        <p>When a diagram has lots of angles, mark every angle you can deduce in one step. Repeat. Most problems crack within 2–3 rounds.</p>
+        <p>Mark every angle you can deduce in one step and repeat — most problems crack within 2–3 rounds.</p>
       `
     },
     'coord-geom': {
@@ -805,7 +797,7 @@
         <p><strong>Two-intercept method</strong> — set y = 0 to find x-intercept, set x = 0 to find y-intercept, draw the line through both.</p>
         <p><strong>Table of values</strong> — plug in three x's, plot the points, draw through them.</p>
         <h4>Tip</h4>
-        <p>Always plot at least three points (not two), so you'd notice if you made an arithmetic mistake — three colinear points means you're probably right.</p>
+        <p>Plot at least three points — if they're not collinear, you made an arithmetic mistake.</p>
       `
     },
     'solve-linear': {

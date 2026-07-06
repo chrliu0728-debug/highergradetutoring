@@ -1982,7 +1982,8 @@ def register_routes(app):
     def _reg_tier():
         # Any non-'closed' stored value (including the legacy early/normal/late)
         # means registration is open at the single flat price.
-        t = _meta_get("reg_tier", "closed") or "closed"
+        # Defaults to "open" so registration is live by default.
+        t = _meta_get("reg_tier", "open") or "open"
         return "closed" if t == "closed" else "open"
 
     @app.route("/api/camp/register", methods=["POST"])

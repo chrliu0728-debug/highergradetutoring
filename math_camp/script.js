@@ -101,12 +101,15 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
 })();
 
 // ── Scroll-reveal animation ───────────────────────────────────
+// Fades elements in on scroll. Deliberately opacity-only: these cards
+// have their own hover transforms in CSS (lift, diagonal stagger), and
+// an inline `transform` set here would permanently win the cascade
+// over any stylesheet rule, killing those hover effects for good.
 (function () {
   const observer = new IntersectionObserver(
     entries => entries.forEach(e => {
       if (e.isIntersecting) {
         e.target.style.opacity = '1';
-        e.target.style.transform = 'translateY(0)';
         observer.unobserve(e.target);
       }
     }),
@@ -115,8 +118,7 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
 
   document.querySelectorAll('.card, .timeline-item, .support-tier, .faq-item, .reveal').forEach(el => {
     el.style.opacity = '0';
-    el.style.transform = 'translateY(24px)';
-    el.style.transition = 'opacity .5s ease, transform .5s ease';
+    el.style.transition = 'opacity .5s ease';
     observer.observe(el);
   });
 })();
@@ -154,10 +156,11 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   function cardHtml(s) {
     return `
       <div class="team-card" data-id="${esc(s.id)}">
-        <div class="team-avatar"><img src="${esc(s.image)}" alt="${esc(s.name)}" onerror="this.style.opacity='0'" /></div>
-        <div class="team-name">${esc(s.name)}</div>
-        <div class="team-role">${esc(s.role)}</div>
-        <blockquote class="team-card-quote">"${esc(s.quote || '')}"</blockquote>
+        <div class="team-photo"><img src="${esc(s.image)}" alt="${esc(s.name)}" onerror="this.style.opacity='0'" /></div>
+        <div class="team-label">
+          <div class="team-name">${esc(s.name)}</div>
+          <div class="team-role">${esc(s.role)}</div>
+        </div>
       </div>
     `;
   }
@@ -175,7 +178,7 @@ document.querySelectorAll('.faq-q').forEach(btn => {
           <div class="section-label">${esc(cat.label)}</div>
           <p class="team-category-desc">${esc(cat.desc)}</p>
         </div>
-        <div class="grid-4">${members.map(cardHtml).join('')}</div>
+        <div class="team-row">${members.map(cardHtml).join('')}</div>
       `;
       container.appendChild(section);
     });
