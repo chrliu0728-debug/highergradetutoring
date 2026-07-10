@@ -1415,3 +1415,8 @@ footer {
 }
 .sponsor-person-name { font-weight: 700; font-size: .95rem; }
 .sponsor-person-role { color: var(--text-mid); font-size: .82rem; margin-top: 2px; }
+/* Staff-contact boxes are always a light card with black text — no matter the
+   sponsor's card theme (some flip body text to white, which would vanish here). */
+.sponsor-person { background: #fff; }
+.sponsor-person-name,
+.sponsor-person-role { color: #111 !important; opacity: 1 !important; }

@@ -73,7 +73,32 @@
       ],
       people: [],                                       // add up to 2 { name, role, photo } when you have them
     },
-    // Add up to 2 more sponsor objects here when you have them.
+    {
+      id: 'maplestaple',
+      name: 'The Maple Staple',
+      tagline: 'For bookworms, by passionate writers',
+      brandColor: '#DD5A34',                            // Maple Staple orange
+      logo: '/maplestaple-logo.png',
+      description:
+        'The Maple Staple is a bookstore for bookworms, by passionate writers — a home '
+        + 'for readers across every genre, from romance and fantasy to mystery, young '
+        + 'adult, and children’s books, plus their own maple staple magazine and a '
+        + 'community of authors. The Maple Staple is proud to support HigherGrade '
+        + 'Tutoring Summer Camp 2026 and to champion young readers and writers. Visit '
+        + 'themaplestaple.com or call (888) 426-9236.',
+      location: {
+        label: 'themaplestaple.com',
+        url: 'https://themaplestaple.com',
+      },
+      images: [
+        '/maplestaple-1.jpg',
+        '/maplestaple-2.jpg',
+        '/maplestaple-3.jpg',
+        '/maplestaple-4.jpg',
+      ],
+      people: [],                                       // add up to 2 { name, role, photo } when you have them
+    },
+    // Add one more sponsor object here when you have it.
   ];
 
   const MODAL_HTML =
