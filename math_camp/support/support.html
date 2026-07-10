@@ -313,20 +313,25 @@ Your donation to this category covers the printed certificates, the medals and s
         <p>Trophies, certificates, and a proper closing ceremony to recognize every participant's effort and growth.</p>
       </div>
     </div>
-
-    <!-- ── Donation Detail Modal ── -->
-    <div class="team-modal" id="donation-modal" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="team-modal-backdrop"></div>
-      <div class="team-modal-content">
-        <button class="team-modal-close" id="donation-modal-close" aria-label="Close">✕</button>
-        <div class="donation-modal-icon" id="donation-modal-icon"></div>
-        <div class="team-modal-name" id="donation-modal-title"></div>
-        <div class="team-modal-role" style="margin-bottom:20px;">Where your donation goes</div>
-        <div class="team-modal-bio" id="donation-modal-desc"></div>
-      </div>
-    </div>
   </div>
 </section>
+
+<!-- ── Donation Detail Modal ──
+     Body-level ON PURPOSE. Inside the .section it was trapped by the
+     frosted-glass layer: the section's backdrop-filter made position:fixed
+     resolve to the block (so it centred on the card block, not the screen),
+     and the section's pointer-events:none stopped the backdrop from being
+     clicked (only the X button, which is re-enabled, could close it). -->
+<div class="team-modal" id="donation-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="team-modal-backdrop"></div>
+  <div class="team-modal-content">
+    <button class="team-modal-close" id="donation-modal-close" aria-label="Close">✕</button>
+    <div class="donation-modal-icon" id="donation-modal-icon"></div>
+    <div class="team-modal-name" id="donation-modal-title"></div>
+    <div class="team-modal-role" style="margin-bottom:20px;">Where your donation goes</div>
+    <div class="team-modal-bio" id="donation-modal-desc"></div>
+  </div>
+</div>
 
 <!-- ─────────────────── SPONSORSHIP TIERS ─────────────────── -->
 <section class="section section-alt">
