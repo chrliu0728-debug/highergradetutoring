@@ -288,6 +288,7 @@
             <th class="wrap">Medical</th>
             <th>Discount</th>
             <th>Amount due</th>
+            <th>Payment</th>
             <th class="wrap">Hobbies</th>
             <th class="wrap">Why join</th>
             <th></th>
@@ -471,6 +472,9 @@ function render() {
       <td class="wrap">${esc(r.medicalInfo || '—')}</td>
       <td>${esc(r.discountCode || '—')}</td>
       <td>${r.amountDue != null ? '$' + r.amountDue : '—'}</td>
+      <td>${r.paymentMethod === 'cash'
+            ? '<span style="background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💵 Cash</span>'
+            : '<span style="background:#DBEAFE; color:#1E40AF; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💳 e-Transfer</span>'}</td>
       <td class="wrap">${esc(r.hobbies || '')}</td>
       <td class="wrap">${esc(r.whyJoin || '')}</td>
       <td><button class="delete-btn" data-id="${esc(r.id)}" title="Delete">🗑</button></td>
@@ -691,6 +695,7 @@ exportBtn.addEventListener('click', () => {
     ['pickupPeople',       'Authorized pickup'],
     ['consentPhoto',       'Photo consent'],
     ['campusRoaming',      'Campus breaks'],
+    ['paymentMethod','Payment method'],
     ['hobbies',     'Hobbies'],
     ['whyJoin',     'Why join'],
   ];
@@ -707,6 +712,7 @@ exportBtn.addEventListener('click', () => {
       if (k === 'consentPhoto') v = v ? 'yes' : 'no';
       if (k === 'campusRoaming') v = v === 'allow' ? 'free roam' : v === 'no' ? 'supervised' : '';
       if (k === 'waitlisted')   v = v ? 'waitlist' : 'active';
+      if (k === 'paymentMethod') v = v === 'cash' ? 'Cash' : 'e-Transfer';
       if (k === 'pickupPeople') v = pickupCsv(v);
       return escCsv(v);
     }).join(','));

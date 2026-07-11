@@ -2167,6 +2167,28 @@ def register_routes(app):
         return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted),
                        amountDue=amount_due)
 
+    @app.route("/api/camp/register/<rid>/payment-method", methods=["POST"])
+    def camp_register_payment_method(rid):
+        """Let a family flag their own registration as "pay in cash" from the
+        post-submit success screen (instead of e-Transfer). Unauthenticated,
+        like the registration submission itself — `rid` includes a random
+        suffix so it isn't guessable, and this can only ever set a payment
+        method on a row that already exists."""
+        d = request.get_json(silent=True) or {}
+        method = (d.get("method") or "").strip().lower()
+        if method not in ("cash", "e_transfer"):
+            return jsonify(ok=False, error="Invalid payment method."), 400
+        reg = g.db.execute(
+            "SELECT id FROM registrations WHERE id = ?", (rid,)
+        ).fetchone()
+        if not reg:
+            return jsonify(ok=False, error="Registration not found."), 404
+        g.db.execute(
+            "UPDATE registrations SET paymentMethod = ? WHERE id = ?",
+            (method, rid),
+        )
+        return jsonify(ok=True, paymentMethod=method)
+
     @app.route("/api/settings/student-cap", methods=["GET"])
     def settings_student_cap():
         cap = _student_cap()

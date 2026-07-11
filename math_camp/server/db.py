@@ -82,10 +82,11 @@ def _migrate(conn):
     # Delivery mode (in-person vs online), medical notes, discount code, and the
     # post-discount amount due. Added after launch; pre-existing rows stay NULL.
     for _col, _type in (
-        ("deliveryMode", "TEXT"),
-        ("medicalInfo",  "TEXT"),
-        ("discountCode", "TEXT"),
-        ("amountDue",    "REAL"),
+        ("deliveryMode",   "TEXT"),
+        ("medicalInfo",    "TEXT"),
+        ("discountCode",   "TEXT"),
+        ("amountDue",      "REAL"),
+        ("paymentMethod",  "TEXT"),
     ):
         try:
             if _has_column("registrations", "id") and not _has_column("registrations", _col):

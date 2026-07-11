@@ -222,7 +222,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   amountDue           REAL,                          -- fee owed after any discount, in CAD
   password            TEXT,
   waitlisted          INTEGER NOT NULL DEFAULT 0,
-  pickupPeople        TEXT NOT NULL DEFAULT '[]'   -- JSON: [{name, phone, relationship}]
+  pickupPeople        TEXT NOT NULL DEFAULT '[]',  -- JSON: [{name, phone, relationship}]
+  paymentMethod       TEXT                          -- 'cash' | 'e_transfer' | NULL (not yet chosen — treated as e-Transfer)
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
 

@@ -940,7 +940,7 @@
           </div>
 
           <!-- ── e-Transfer payment step ── -->
-          <div style="background:#FEF6D6;border:2px solid #F2C94C;border-radius:var(--radius-sm);padding:20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#5A4500;line-height:1.55;">
+          <div id="etransfer-block" style="background:#FEF6D6;border:2px solid #F2C94C;border-radius:var(--radius-sm);padding:20px;margin:0 auto 12px;max-width:520px;text-align:left;color:#5A4500;line-height:1.55;">
             <div style="font-weight:800;font-size:1rem;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><i data-icon="money"></i> Final step — send <span class="pay-amount">$135</span> CAD by e-Transfer</div>
             <p style="margin:0 0 8px;font-size:.9rem;">
               To complete your registration, please send a <strong><span class="pay-amount">$135</span> CAD</strong> Interac e-Transfer to:
@@ -953,6 +953,19 @@
             </p>
             <p style="margin:0;font-size:.85rem;">
               <strong>Heads up:</strong> your camper's account will stay <strong>frozen</strong> until our staff confirms the e-Transfer. Once we see it, we'll unfreeze the account (usually within 24 hours) and the camper will be able to sign in to the student portal.
+            </p>
+          </div>
+
+          <!-- ── Pay-in-cash alternative ── -->
+          <div id="cash-pay-block" style="background:var(--surface2);border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:16px 20px;margin:0 auto 20px;max-width:520px;text-align:center;">
+            <p style="margin:0 0 10px;font-size:.86rem;color:var(--text-mid);">Prefer not to e-Transfer? You can pay <strong class="pay-amount">$135</strong> CAD in cash on Day 1 instead.</p>
+            <button type="button" id="cash-pay-btn" class="btn btn-ghost" style="font-size:.85rem;">I'll pay in cash instead</button>
+            <div id="cash-pay-msg" style="font-size:.82rem;margin-top:8px;min-height:1.1em;"></div>
+          </div>
+          <div id="cash-confirmed-block" style="display:none;background:#ECFDF5;border:2px solid #A7F3D0;border-radius:var(--radius-sm);padding:20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#065F46;line-height:1.55;">
+            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><i data-icon="check-circle"></i> Got it — paying <span class="pay-amount">$135</span> CAD in cash</div>
+            <p style="margin:0;font-size:.9rem;">
+              We've noted that you'll pay in cash on Day 1 of camp. <strong>Heads up:</strong> your camper's account will stay <strong>frozen</strong> until our staff collects payment and confirms it — then we'll unfreeze the account and the camper can sign in to the student portal.
             </p>
           </div>
 
@@ -1523,6 +1536,9 @@
         throw new Error(data.detail || data.error || 'Submission failed. Please try again.');
       }
       const respData = await res.json().catch(() => ({}));
+      // Needed by the "pay in cash instead" button below, to tell the
+      // server which registration row to flag.
+      window.__hgRegId = respData && respData.id;
       // Success — show different banner depending on whether the
       // student squeezed into the cap or hit the waitlist.
       const successEl = document.getElementById('form-success');
@@ -1550,6 +1566,44 @@
       submitEl.textContent = 'Submit Registration';
     }
   });
+
+  /* ─────────── "Pay in cash instead" — flips the registration's
+     paymentMethod so staff can tell cash payers apart from e-Transfer
+     payers in the admin table. ─────────── */
+  (function () {
+    const btn      = document.getElementById('cash-pay-btn');
+    const msg      = document.getElementById('cash-pay-msg');
+    const etransfer= document.getElementById('etransfer-block');
+    const cashBlock= document.getElementById('cash-pay-block');
+    const confirmed= document.getElementById('cash-confirmed-block');
+    if (!btn) return;
+    btn.addEventListener('click', async function () {
+      if (!window.__hgRegId) {
+        msg.style.color = '#c0392b';
+        msg.textContent = "Couldn't find your registration — please refresh and try again.";
+        return;
+      }
+      btn.disabled = true;
+      msg.style.color = 'var(--muted)';
+      msg.textContent = 'Saving…';
+      try {
+        const r = await fetch(API_BASE + '/camp/register/' + encodeURIComponent(window.__hgRegId) + '/payment-method', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: 'cash' }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || 'Please try again.');
+        if (etransfer) etransfer.style.display = 'none';
+        if (cashBlock) cashBlock.style.display = 'none';
+        if (confirmed) confirmed.style.display = 'block';
+      } catch (err) {
+        btn.disabled = false;
+        msg.style.color = '#c0392b';
+        msg.textContent = err.message || 'Something went wrong — please try again.';
+      }
+    });
+  })();
 </script>
 </div><!-- /.page-wrapper -->
 </body>

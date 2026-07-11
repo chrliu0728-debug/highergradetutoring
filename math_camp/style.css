@@ -12,9 +12,9 @@
   right: 24px;
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: 0;
   border: none;
-  background: var(--blush);
+  background: #111;
   color: white;
   font-size: 1.1rem;
   font-weight: 700;
@@ -34,7 +34,7 @@
   visibility: visible;
   transform: translateY(0);
 }
-.back-to-top:hover { background: var(--blush-dark); transform: translateY(-2px); }
+.back-to-top:hover { background: var(--blush); transform: translateY(-2px); }
 .back-to-top:active { transform: translateY(0); }
 @media (max-width: 600px) {
   .back-to-top { bottom: 16px; right: 16px; width: 42px; height: 42px; }
@@ -65,18 +65,19 @@ body::-webkit-scrollbar,
   --blush:      #E8808A;
   --blush-light:#F9C5CA;
   --blush-dark: #C45A65;
-  --blush-bg:   #FDF0F1;
+  --blush-bg:   #F7F7F7;
 
-  /* Accent = Mint green (maps to old --gold) */
-  --gold:       #6BBFA0;
-  --gold-light: #A8DBC8;
-  --mint:       #6BBFA0;
-  --mint-light: #A8DBC8;
-  --mint-dark:  #4A9E82;
-  --mint-bg:    #EFF8F4;
+  /* Secondary accent = near-black (was mint green — simplified for the
+     sharp black/white editorial theme; one brand accent, one ink accent) */
+  --gold:       #111111;
+  --gold-light: #555555;
+  --mint:       #111111;
+  --mint-light: #555555;
+  --mint-dark:  #111111;
+  --mint-bg:    #F7F7F7;
 
   /* Teal (dark mint) */
-  --teal:      #4A9E82;
+  --teal:      #111111;
 
   /* Utility */
   --green:     #52B788;
@@ -91,8 +92,8 @@ body::-webkit-scrollbar,
   --text-mid:  #4a4a4a;
   --muted:     #888888;
 
-  --radius:    12px;
-  --radius-sm: 8px;
+  --radius:    0px;
+  --radius-sm: 0px;
   --shadow-sm: 0 2px 10px rgba(0,0,0,.05);
   --shadow:    0 6px 20px rgba(0,0,0,.07);
   --shadow-lg: 0 16px 40px rgba(0,0,0,.12);
@@ -111,6 +112,19 @@ body::-webkit-scrollbar,
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+
+/* ── Sharp-edge theme ──
+   Editorial look: no rounded corners anywhere, including the many inline
+   border-radius styles scattered through the pages (hence !important).
+   The only survivors are genuinely circular elements listed below. */
+*, *::before, *::after { border-radius: 0 !important; }
+.timeline-dot,
+.sponsor-dot,
+.check-circle,
+.clicker-btn,
+.clicker-orbit {
+  border-radius: 50% !important;
+}
 
 /* ── Display / heading typeface ── */
 h1, h2 {
@@ -233,17 +247,19 @@ a  { color: inherit; text-decoration: none; }
 
 .sidenav-cta {
   display: block;
-  background: var(--blush);
-  color: #fff !important;
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-size: .84rem;
+  background: #fff;
+  color: #111 !important;
+  padding: 11px 16px;
+  border-radius: 0;
+  font-size: .74rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .12em;
   text-align: center;
-  transition: background .15s;
+  transition: background .15s, color .15s;
   text-decoration: none;
 }
-.sidenav-cta:hover { background: var(--blush-dark) !important; }
+.sidenav-cta:hover { background: var(--blush) !important; color: #fff !important; }
 
 /* ── Page wrapper (main content shifted right of sidenav) ── */
 .page-wrapper {
@@ -349,10 +365,10 @@ a  { color: inherit; text-decoration: none; }
    instead of stretching it across the full hero. */
 .hero-text { max-width: 720px; }
 .hero-image {
-  border-radius: 20px;
+  border-radius: 0;
   overflow: hidden;
   box-shadow: 0 24px 64px rgba(0,0,0,.12);
-  border: 3px solid var(--border);
+  border: 1px solid #1a1a1a;
 }
 .hero-image img {
   width: 100%;
@@ -365,15 +381,15 @@ a  { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--blush-bg);
-  border: 1px solid rgba(232,128,138,.3);
-  color: var(--blush-dark);
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #1a1a1a;
   font-size: clamp(.68rem, 1.4vw, .76rem);
   font-weight: 700;
-  padding: 5px 12px;
-  border-radius: 999px;
+  padding: 5px 14px;
+  border-radius: 0;
   margin-bottom: clamp(12px, 2.4vh, 24px);
-  letter-spacing: .06em;
+  letter-spacing: .12em;
   text-transform: uppercase;
 }
 
@@ -400,8 +416,8 @@ a  { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 10px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
   padding: clamp(7px, 1vh, 10px) clamp(12px, 1.6vw, 18px);
   color: var(--text);
   font-weight: 600;
@@ -423,57 +439,58 @@ a  { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: clamp(10px, 1.4vh, 13px) clamp(18px, 2.4vw, 26px);
-  border-radius: 7px;
-  font-size: clamp(.88rem, 1.6vw, .95rem);
+  padding: clamp(11px, 1.5vh, 14px) clamp(20px, 2.6vw, 30px);
+  border-radius: 0;
+  font-size: clamp(.74rem, 1.3vw, .8rem);
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .12em;
   border: none;
   cursor: pointer;
-  transition: background .15s ease, box-shadow .15s ease, transform .15s ease, opacity .15s ease;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease, opacity .15s ease;
   text-decoration: none;
 }
 .btn:hover  { transform: translateY(-2px); }
 .btn:active { transform: translateY(0); }
 
-/* Primary = Blush */
+/* Primary = ink black; blush is reserved for typographic accents */
 .btn-primary {
-  background: var(--blush);
+  background: #111;
   color: #fff;
 }
-.btn-primary:hover { background: var(--blush-dark); }
+.btn-primary:hover { background: var(--blush); }
 
 .btn-outline {
   background: transparent;
-  color: var(--text-mid);
-  border: 1.5px solid var(--border);
+  color: var(--text);
+  border: 1px solid #1a1a1a;
 }
-.btn-outline:hover { background: var(--surface2); color: var(--text); }
+.btn-outline:hover { background: #111; color: #fff; }
 
-/* Blue class = Blush (used on light backgrounds) */
 .btn-blue {
-  background: var(--blush);
+  background: #111;
   color: white;
 }
-.btn-blue:hover { background: var(--blush-dark); }
+.btn-blue:hover { background: var(--blush); }
 
 .btn-navy {
   background: var(--navy);
   color: white;
 }
-.btn-navy:hover { background: #111111; }
+.btn-navy:hover { background: var(--blush); }
 
 .btn-ghost {
   background: transparent;
   color: var(--text-mid);
-  border: 1px solid var(--border);
+  border: 1px solid #1a1a1a;
 }
-.btn-ghost:hover { background: var(--surface2); }
+.btn-ghost:hover { background: #111; color: #fff; }
 
 .btn-teal {
-  background: var(--blush);
+  background: #111;
   color: white;
 }
-.btn-teal:hover { background: var(--blush-dark); }
+.btn-teal:hover { background: var(--blush); }
 
 /* ============================================================
    SECTIONS
@@ -481,9 +498,12 @@ a  { color: inherit; text-decoration: none; }
 .section { padding: clamp(44px, 6vw, 72px) clamp(16px, 3vw, 32px); }
 .section-alt  { background: var(--surface2); }
 .section-dark {
-  background: var(--blush-bg);
-  color: var(--text);
+  background: #111;
+  color: rgba(255,255,255,.85);
 }
+/* Cards inside a dark section keep their normal solid-white/black-text look
+   — only the section's own copy (labels, titles) should read white. */
+.section-dark .card { color: var(--text); }
 
 .container    { max-width: 1400px; margin: 0 auto; }
 .container-sm { max-width: 820px;  margin: 0 auto; }
@@ -531,7 +551,10 @@ a  { color: inherit; text-decoration: none; }
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  padding: 10px 0;
+  /* Left padding matches the -90px overlap margin below, so the first
+     card in every row stays inside the container instead of bleeding
+     off the left edge (and under the fixed sidenav). */
+  padding: 10px 0 10px 90px;
 }
 .overlap > * {
   --sy: 0px;
@@ -544,6 +567,15 @@ a  { color: inherit; text-decoration: none; }
 }
 .overlap > .value-card   { flex-basis: 380px; max-width: 440px; }
 .overlap > .support-tier { flex-basis: 300px; max-width: 360px; }
+/* `.card`'s own `transition` (below) has equal specificity to `.overlap > *`
+   and comes later in the file, so it was silently winning and cutting the
+   intended .4s cascade-smooth motion down to .2s for every overlap card.
+   This rule outranks both (two classes) to actually restore it, with a
+   gentler ease-out curve so the diagonal lift settles smoothly instead of
+   snapping. */
+.overlap > .card {
+  transition: transform .7s cubic-bezier(.22,1,.36,1), box-shadow .7s cubic-bezier(.22,1,.36,1);
+}
 .overlap > *:nth-child(3n+2) { --sy: -32px; }
 .overlap > *:nth-child(3n)   { --sy: 24px; }
 .overlap > *:hover,
@@ -571,6 +603,11 @@ a  { color: inherit; text-decoration: none; }
 .points-grid > .card p { margin-top: auto; }
 
 @media (max-width: 760px) {
+  .grid-2.overlap,
+  .grid-3.overlap,
+  .grid-4.overlap {
+    padding-left: 0;
+  }
   .overlap > *,
   .overlap > .value-card {
     flex-basis: 100%;
@@ -603,6 +640,36 @@ a  { color: inherit; text-decoration: none; }
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .card:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
+
+/* Clickable-card hint — small hover/focus-revealed label so cards that open
+   a modal (why-card, unit-card) read as clickable without permanently
+   cluttering the resting card. Mirrors the .donation-card treatment
+   already used on the support page, so the whole site has one hover-hint
+   language instead of several. */
+.why-card,
+.unit-card {
+  position: relative;
+  padding-bottom: 46px;
+}
+.why-card::after,
+.unit-card::after {
+  content: 'Click to read more';
+  position: absolute;
+  bottom: 16px; left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--blush);
+  opacity: 0;
+  transition: opacity .2s, transform .2s;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.why-card:hover::after,   .why-card:focus-visible::after,
+.unit-card:hover::after,  .unit-card:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 
 .card-icon {
   width: 36px; height: 36px;
@@ -740,6 +807,7 @@ img[src*="placeholder"] {
   outline: none;
 }
 .team-photo {
+  position: relative;
   width: 100%;
   aspect-ratio: 3 / 4;
   overflow: hidden;
@@ -749,6 +817,30 @@ img[src*="placeholder"] {
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
+}
+/* Same "clickable" affordance as .why-card/.unit-card, adapted for a photo
+   tile: a dark scrim + "View Bio" fades in over the image instead of text
+   floating below the card, since the label box already occupies that space. */
+.team-photo::after {
+  content: 'View Bio';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17,17,17,.55);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  opacity: 0;
+  transition: opacity .25s ease;
+  pointer-events: none;
+}
+.team-card:hover .team-photo::after,
+.team-card:focus-visible .team-photo::after {
+  opacity: 1;
 }
 .team-label {
   position: absolute;
@@ -842,11 +934,11 @@ body:has(#sponsor-modal.open) {
 }
 .team-modal-avatar {
   width: 140px; height: 140px;
-  border-radius: 50%;
+  border-radius: 0;
   margin: 0 auto 20px;
   overflow: hidden;
-  border: 4px solid var(--blush-bg);
-  background: var(--blush-bg);
+  border: 1px solid #1a1a1a;
+  background: var(--surface2);
 }
 .team-modal-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .team-modal-name {
@@ -925,16 +1017,18 @@ body:has(#sponsor-modal.open) {
 .upload-button {
   display: inline-block;
   padding: 11px 22px;
-  background: var(--blush-bg);
-  border: 1.5px solid var(--blush);
-  border-radius: 10px;
-  font-size: .92rem;
-  font-weight: 700;
-  color: var(--blush-dark);
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
+  font-size: .8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text);
   cursor: pointer;
   transition: background .15s, color .15s;
 }
-.upload-button:hover { background: var(--blush); color: white; }
+.upload-button:hover { background: #111; color: white; }
 .upload-button:active { opacity: .85; }
 #team-modal-upload-status {
   font-size: .85rem;
@@ -949,17 +1043,19 @@ body:has(#sponsor-modal.open) {
   gap: 8px;
   margin-top: 12px;
   padding: 10px 18px;
-  background: var(--blush-bg);
-  border: 1.5px solid var(--blush);
-  border-radius: 10px;
-  font-size: .9rem;
-  font-weight: 700;
-  color: var(--blush-dark);
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  border-radius: 0;
+  font-size: .8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text);
   text-decoration: none;
   transition: background .15s, color .15s, transform .12s;
 }
 .transcript-download:hover {
-  background: var(--blush);
+  background: #111;
   color: white;
   transform: translateY(-1px);
 }
@@ -1080,9 +1176,9 @@ body:has(#sponsor-modal.open) {
   border-bottom: 1px solid var(--border);
 }
 .tier-header.gold-bg {
-  background: var(--blush);
+  background: #111;
   color: white;
-  border-bottom-color: var(--blush-dark);
+  border-bottom-color: #000;
 }
 .tier-badge {
   font-size: .72rem; font-weight: 700; text-transform: uppercase;
@@ -1090,7 +1186,7 @@ body:has(#sponsor-modal.open) {
   background: var(--blush); color: white;
   display: inline-block; margin-bottom: 10px;
 }
-.tier-header.gold-bg .tier-badge { background: var(--blush-dark); color: white; }
+.tier-header.gold-bg .tier-badge { background: var(--blush); color: white; }
 .tier-name   { font-size: 1.25rem; font-weight: 800; margin-bottom: 4px; }
 .tier-amount { font-size: 2rem; font-weight: 900; letter-spacing: -.04em; }
 .tier-amount span { font-size: 1rem; font-weight: 500; opacity: .7; }
@@ -1100,7 +1196,7 @@ body:has(#sponsor-modal.open) {
   display: flex; align-items: flex-start; gap: 10px;
   font-size: .9rem; color: var(--text-mid);
 }
-.tier-perks li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+.tier-perks li::before { content: '✓'; color: #111; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
 
 /* ============================================================
    REGISTRATION FORM
@@ -1213,13 +1309,18 @@ body:has(#sponsor-modal.open) {
 }
 .highlight-band h2 { font-size: clamp(1.5rem,3.2vw,2.2rem); font-weight: 700; margin-bottom: 12px; color: #fff; }
 .highlight-band p  { color: rgba(255,255,255,.6); max-width: 480px; margin: 0 auto 32px; }
+.highlight-band .btn-primary {
+  background: #fff;
+  color: #111;
+}
+.highlight-band .btn-primary:hover { background: var(--blush); color: #fff; }
 .highlight-band .btn-outline {
-  border-color: rgba(255,255,255,.25) !important;
-  color: rgba(255,255,255,.8) !important;
+  border-color: rgba(255,255,255,.35) !important;
+  color: rgba(255,255,255,.85) !important;
 }
 .highlight-band .btn-outline:hover {
-  background: rgba(255,255,255,.08) !important;
-  color: #fff !important;
+  background: #fff !important;
+  color: #111 !important;
 }
 
 /* ============================================================
@@ -1241,9 +1342,9 @@ body:has(#sponsor-modal.open) {
    FOOTER
    ============================================================ */
 footer {
-  background: var(--surface2);
-  color: var(--text-mid);
-  border-top: 1px solid var(--border);
+  background: #111;
+  color: rgba(255,255,255,.6);
+  border-top: none;
   padding: 56px 24px 32px;
 }
 .footer-inner { max-width: 1400px; margin: 0 auto; }
@@ -1254,19 +1355,19 @@ footer {
   margin-bottom: 48px;
 }
 .footer-brand .logo-text {
-  font-size: 1.1rem; font-weight: 800; color: var(--text); margin-bottom: 10px;
+  font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: 10px;
 }
 .footer-brand p { font-size: .85rem; line-height: 1.6; max-width: 240px; }
 .footer-col h4 {
   font-size: .82rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .08em;
-  color: var(--text); margin-bottom: 14px;
+  text-transform: uppercase; letter-spacing: .12em;
+  color: #fff; margin-bottom: 14px;
 }
 .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .footer-col ul a { font-size: .88rem; transition: color .15s; }
-.footer-col ul a:hover { color: var(--text); }
+.footer-col ul a:hover { color: #fff; }
 .footer-bottom {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255,255,255,.14);
   padding-top: 28px;
   display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 12px; font-size: .82rem;
@@ -1279,11 +1380,12 @@ footer {
 
 .footer-tag {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(232,128,138,.1);
-  border: 1px solid rgba(232,128,138,.25);
-  color: var(--blush-dark);
-  font-size: .75rem; font-weight: 600;
-  padding: 4px 10px; border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.25);
+  color: rgba(255,255,255,.85);
+  font-size: .72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: 4px 12px; border-radius: 0;
 }
 
 /* ============================================================
@@ -1300,7 +1402,7 @@ footer {
 .flex  { display: flex; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; }
 .items-center { align-items: center; } .flex-wrap { flex-wrap: wrap; }
 
-.pill         { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+.pill         { display: inline-block; padding: 4px 12px; border-radius: 0; font-size: .78rem; font-weight: 600; }
 .pill-blue    { background: rgba(232,128,138,.12); color: var(--blush-dark); }
 .pill-gold    { background: rgba(232,128,138,.12); color: var(--blush-dark); }
 .pill-green   { background: rgba(232,128,138,.08); color: var(--blush-dark); }
@@ -1309,12 +1411,12 @@ footer {
 .topics-wrap   { display: flex; flex-wrap: wrap; gap: 10px; }
 .topic-pill {
   display: inline-flex; align-items: center; gap: 7px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 999px; padding: 7px 16px;
-  font-size: .88rem; font-weight: 500; color: var(--text-mid);
-  transition: border-color .15s, background .15s;
+  background: var(--surface); border: 1px solid #1a1a1a;
+  border-radius: 0; padding: 7px 16px;
+  font-size: .88rem; font-weight: 500; color: var(--text);
+  transition: border-color .15s, background .15s, color .15s;
 }
-.topic-pill:hover { border-color: var(--blush); background: var(--blush-bg); }
+.topic-pill:hover { border-color: #111; background: #111; color: #fff; }
 
 /* ============================================================
    RESPONSIVE
