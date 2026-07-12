@@ -3150,6 +3150,12 @@ if __name__ == "__main__":
     #    which would make sign-in appear to "work" then instantly log out).
     SECURE_COOKIE = False
     _register_static(app)
-    print("HigherGrade dev server → http://localhost:5000/index.html")
+    # Default to 5001, not 5000: on macOS the AirPlay Receiver (Control
+    # Center) squats on port 5000 and answers every request with 403, which
+    # silently breaks the whole API in local dev. Override with PORT=… if you
+    # want a different one. Production is unaffected (gunicorn binds 5000 on
+    # the VM, where there's no AirPlay).
+    port = int(os.environ.get("PORT", "5001"))
+    print(f"HigherGrade dev server → http://localhost:{port}/index.html")
     print(f"  DB: {os.environ.get('HIGHERGRADE_DB', '(local dev.db)')}")
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=port, debug=True)
