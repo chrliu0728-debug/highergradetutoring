@@ -996,6 +996,27 @@
             </p>
           </div>
 
+          <!-- ── Pay at a sponsor location (extra 5% off) ── -->
+          <div id="sponsor-pay-block" style="background:#F5F3FF;border:1.5px dashed #C4B5FD;border-radius:var(--radius-sm);padding:16px 20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#4C1D95;">
+            <div style="font-weight:800;font-size:.95rem;margin-bottom:6px;display:flex;align-items:center;gap:8px;"><i data-icon="gift"></i> Pay in person at a sponsor — save an extra 5%</div>
+            <p style="margin:0 0 12px;font-size:.85rem;color:var(--text-mid);line-height:1.5;">
+              Pay your fee at one of our sponsor stores and take an <strong>additional 5% off</strong> (on top of any discount you already have). Checking out their shops is pretty cool. Pick where you'll pay:
+            </p>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+              <label style="display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;"><input type="radio" name="sponsor-loc" value="planet_lazer" style="accent-color:#7C3AED;"> Planet Lazer <a href="https://www.google.com/maps/place/Planet+Laser/@43.4408761,-79.7103892,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5da7ed1bb023:0x53a2b92da358175b!8m2!3d43.4408761!4d-79.7078143!16s%2Fg%2F1tk8crnl" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.78rem;font-weight:600;color:#7C3AED;text-decoration:underline;"><i data-icon="map-pin"></i> map</a></label>
+              <label style="display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;"><input type="radio" name="sponsor-loc" value="game_time" style="accent-color:#7C3AED;"> Game Time Collectibles <a href="https://www.google.com/maps/place/Game+Time+Collectibles/@43.51261,-79.6439848,17z/data=!3m1!4b1!4m6!3m5!1s0x882b452c1180140b:0x839ae84e50cf34be!8m2!3d43.51261!4d-79.6414099!16s%2Fg%2F11h7cqqv2m" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.78rem;font-weight:600;color:#7C3AED;text-decoration:underline;"><i data-icon="map-pin"></i> map</a></label>
+              <label style="display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;"><input type="radio" name="sponsor-loc" value="max_faucets" style="accent-color:#7C3AED;"> Max Faucets <a href="https://www.google.com/maps/place/MAX+Faucets/@43.4339484,-79.7028398,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5f148535c175:0x75750f162da469d9!8m2!3d43.4339484!4d-79.7002649!16s%2Fg%2F11jcl6xs9r" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.78rem;font-weight:600;color:#7C3AED;text-decoration:underline;"><i data-icon="map-pin"></i> map</a></label>
+            </div>
+            <button type="button" id="sponsor-pay-btn" class="btn btn-ghost" style="font-size:.85rem;">Pay at this sponsor — 5% off →</button>
+            <div id="sponsor-pay-msg" style="font-size:.82rem;margin-top:8px;min-height:1.1em;"></div>
+          </div>
+          <div id="sponsor-confirmed-block" style="display:none;background:#F5F3FF;border:2px solid #C4B5FD;border-radius:var(--radius-sm);padding:20px;margin:0 auto 20px;max-width:520px;text-align:left;color:#4C1D95;line-height:1.55;">
+            <div style="font-weight:800;font-size:1rem;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><i data-icon="check-circle"></i> Pay $<span id="sponsor-final-amount">—</span> CAD at <span id="sponsor-loc-name">the sponsor</span></div>
+            <p style="margin:0;font-size:.9rem;">
+              Your extra <strong>5% off is already applied</strong>. Head to the store, pay in person, and mention your camper's <strong>full name</strong>. Your camper's account stays <strong>frozen</strong> until the sponsor confirms your payment with us — then we'll unfreeze it and they can sign in to the student portal.
+            </p>
+          </div>
+
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:20px;margin:0 auto 24px;max-width:520px;text-align:left;font-size:.88rem;color:var(--text-mid);">
             <div style="margin-bottom:8px;"><i data-icon="calendar" style="color:var(--blush);"></i> <strong>Camp Dates:</strong> August 4–15, 2026</div>
             <div style="margin-bottom:8px;"><i data-icon="mail" style="color:var(--blush);"></i> <strong>Confirmation:</strong> Check your email (and spam)</div>
@@ -1635,40 +1656,82 @@
     }
   });
 
-  /* ─────────── "Pay in cash instead" — flips the registration's
-     paymentMethod so staff can tell cash payers apart from e-Transfer
-     payers in the admin table. ─────────── */
+  /* ─────────── Alternate payment methods (cash on Day 1, or pay at a
+     sponsor store for an extra 5% off) — flips the registration's
+     paymentMethod so staff can tell payers apart in the admin table. ─────────── */
   (function () {
-    const btn      = document.getElementById('cash-pay-btn');
-    const msg      = document.getElementById('cash-pay-msg');
-    const etransfer= document.getElementById('etransfer-block');
-    const cashBlock= document.getElementById('cash-pay-block');
-    const confirmed= document.getElementById('cash-confirmed-block');
-    if (!btn) return;
-    btn.addEventListener('click', async function () {
-      if (!window.__hgRegId) {
-        msg.style.color = '#c0392b';
-        msg.textContent = "Couldn't find your registration — please refresh and try again.";
+    const money = n => Number.isInteger(n) ? '$' + n : '$' + Number(n).toFixed(2);
+    const etransfer   = document.getElementById('etransfer-block');
+    const cashBlock    = document.getElementById('cash-pay-block');
+    const cashConfirm  = document.getElementById('cash-confirmed-block');
+    const spBlock      = document.getElementById('sponsor-pay-block');
+    const spConfirm    = document.getElementById('sponsor-confirmed-block');
+
+    async function setMethod(body) {
+      if (!window.__hgRegId) throw new Error("Couldn't find your registration — please refresh and try again.");
+      const r = await fetch(API_BASE + '/camp/register/' + encodeURIComponent(window.__hgRegId) + '/payment-method', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'Please try again.');
+      return j;
+    }
+    function hideAllOptions() {
+      if (etransfer) etransfer.style.display = 'none';
+      if (cashBlock) cashBlock.style.display = 'none';
+      if (spBlock)   spBlock.style.display = 'none';
+    }
+
+    // ── Pay in cash on Day 1 ──
+    const cashBtn = document.getElementById('cash-pay-btn');
+    const cashMsg = document.getElementById('cash-pay-msg');
+    if (cashBtn) cashBtn.addEventListener('click', async function () {
+      cashBtn.disabled = true;
+      cashMsg.style.color = 'var(--muted)';
+      cashMsg.textContent = 'Saving…';
+      try {
+        await setMethod({ method: 'cash' });
+        hideAllOptions();
+        if (cashConfirm) cashConfirm.style.display = 'block';
+      } catch (err) {
+        cashBtn.disabled = false;
+        cashMsg.style.color = '#c0392b';
+        cashMsg.textContent = err.message || 'Something went wrong — please try again.';
+      }
+    });
+
+    // ── Pay at a sponsor store (extra 5% off) ──
+    const spBtn = document.getElementById('sponsor-pay-btn');
+    const spMsg = document.getElementById('sponsor-pay-msg');
+    if (spBtn) spBtn.addEventListener('click', async function () {
+      const picked = document.querySelector('input[name="sponsor-loc"]:checked');
+      if (!picked) {
+        spMsg.style.color = '#c0392b';
+        spMsg.textContent = 'Pick which sponsor store you\'ll pay at first.';
         return;
       }
-      btn.disabled = true;
-      msg.style.color = 'var(--muted)';
-      msg.textContent = 'Saving…';
+      spBtn.disabled = true;
+      spMsg.style.color = 'var(--muted)';
+      spMsg.textContent = 'Saving…';
       try {
-        const r = await fetch(API_BASE + '/camp/register/' + encodeURIComponent(window.__hgRegId) + '/payment-method', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ method: 'cash' }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok || !j.ok) throw new Error(j.error || 'Please try again.');
-        if (etransfer) etransfer.style.display = 'none';
-        if (cashBlock) cashBlock.style.display = 'none';
-        if (confirmed) confirmed.style.display = 'block';
+        const j = await setMethod({ method: 'sponsor', sponsorLocation: picked.value });
+        hideAllOptions();
+        if (cashConfirm) cashConfirm.style.display = 'none';
+        const amtEl = document.getElementById('sponsor-final-amount');
+        const nameEl = document.getElementById('sponsor-loc-name');
+        if (amtEl && j.amount != null) amtEl.textContent = money(Number(j.amount)).replace('$', '');
+        if (nameEl && j.sponsorLocationName) {
+          nameEl.innerHTML = j.sponsorLocationUrl
+            ? '<a href="' + j.sponsorLocationUrl + '" target="_blank" rel="noopener" style="color:#5B21B6;text-decoration:underline;">' + j.sponsorLocationName + '</a>'
+            : j.sponsorLocationName;
+        }
+        if (spConfirm) spConfirm.style.display = 'block';
       } catch (err) {
-        btn.disabled = false;
-        msg.style.color = '#c0392b';
-        msg.textContent = err.message || 'Something went wrong — please try again.';
+        spBtn.disabled = false;
+        spMsg.style.color = '#c0392b';
+        spMsg.textContent = err.message || 'Something went wrong — please try again.';
       }
     });
   })();

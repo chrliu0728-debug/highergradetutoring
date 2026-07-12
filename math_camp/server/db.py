@@ -162,6 +162,9 @@ def _migrate(conn):
         # entered (referredByCode). Pre-existing rows stay NULL.
         ("referralCode",   "TEXT"),
         ("referredByCode", "TEXT"),
+        # Sponsor-location payment (extra compounding 5% off when paid at a
+        # partner store). Pre-existing rows stay NULL.
+        ("sponsorLocation", "TEXT"),
     ):
         try:
             if _has_column("registrations", "id") and not _has_column("registrations", _col):

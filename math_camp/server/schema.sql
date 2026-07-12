@@ -234,6 +234,7 @@ CREATE TABLE IF NOT EXISTS registrations (
   referrerEmail       TEXT,                         -- legacy: email of the referrer (superseded by referredByCode); NULL if none
   referralCode        TEXT,                         -- this camper's OWN 6-digit code to share; never expires; unique
   referredByCode      TEXT,                         -- the 6-digit code they entered at registration (whoever referred them), NULL if none
+  sponsorLocation     TEXT,                         -- if paymentMethod='sponsor', which sponsor store they'll pay at (extra 5% off)
   emailIndex          TEXT                          -- blind index of studentEmail for lookups when encrypted (see crypto.blind())
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);

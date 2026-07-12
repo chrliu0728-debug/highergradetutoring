@@ -73,6 +73,36 @@ CRANE_GLOBAL_LIMIT     = None    # unlimited — any student who completes the c
 DOOR_MAZE_LENGTH       = 310
 MONEY_TREE_COST        = 6000
 
+# ── Pay-at-a-sponsor-location option ─────────────────────────────────
+# Families can pay their registration fee in person at one of these partner
+# stores. Doing so earns an EXTRA 5% off, compounded on top of any discount
+# already applied (i.e. 5% of the remaining amount, not +5 percentage points).
+SPONSOR_PAY_LOCATIONS = {
+    "planet_lazer": {
+        "name": "Planet Lazer",
+        "url": "https://www.google.com/maps/place/Planet+Laser/@43.4408761,-79.7103892,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5da7ed1bb023:0x53a2b92da358175b!8m2!3d43.4408761!4d-79.7078143!16s%2Fg%2F1tk8crnl",
+    },
+    "game_time": {
+        "name": "Game Time Collectibles",
+        "url": "https://www.google.com/maps/place/Game+Time+Collectibles/@43.51261,-79.6439848,17z/data=!3m1!4b1!4m6!3m5!1s0x882b452c1180140b:0x839ae84e50cf34be!8m2!3d43.51261!4d-79.6414099!16s%2Fg%2F11h7cqqv2m",
+    },
+    "max_faucets": {
+        "name": "Max Faucets",
+        "url": "https://www.google.com/maps/place/MAX+Faucets/@43.4339484,-79.7028398,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5f148535c175:0x75750f162da469d9!8m2!3d43.4339484!4d-79.7002649!16s%2Fg%2F11jcl6xs9r",
+    },
+}
+SPONSOR_PAY_DISCOUNT = 0.05
+
+
+def _sponsor_loc_name(loc):
+    e = SPONSOR_PAY_LOCATIONS.get(loc or "")
+    return e["name"] if e else None
+
+
+def _sponsor_loc_url(loc):
+    e = SPONSOR_PAY_LOCATIONS.get(loc or "")
+    return e["url"] if e else None
+
 # Tiered reward for completing the 300-door math maze. The pct is
 # (correct / scoredDoors) * 100. The scored-door count is MAZE_LENGTH-1
 # because the first floor is a freebie. Each tier is the previous
@@ -2345,18 +2375,35 @@ def register_routes(app):
         method on a row that already exists."""
         d = request.get_json(silent=True) or {}
         method = (d.get("method") or "").strip().lower()
-        if method not in ("cash", "e_transfer"):
+        if method not in ("cash", "e_transfer", "sponsor"):
             return jsonify(ok=False, error="Invalid payment method."), 400
+        # Paying at a sponsor store requires picking which one, and grants the
+        # extra compounding 5% off. Any other method clears the sponsor field.
+        sponsor_loc = None
+        if method == "sponsor":
+            sponsor_loc = (d.get("sponsorLocation") or d.get("sponsor_location") or "").strip().lower()
+            if sponsor_loc not in SPONSOR_PAY_LOCATIONS:
+                return jsonify(ok=False, error="Please choose one of our sponsor locations."), 400
         reg = g.db.execute(
-            "SELECT id FROM registrations WHERE id = ?", (rid,)
+            "SELECT id, amountDue FROM registrations WHERE id = ?", (rid,)
         ).fetchone()
         if not reg:
             return jsonify(ok=False, error="Registration not found."), 404
         g.db.execute(
-            "UPDATE registrations SET paymentMethod = ? WHERE id = ?",
-            (method, rid),
+            "UPDATE registrations SET paymentMethod = ?, sponsorLocation = ? WHERE id = ?",
+            (method, sponsor_loc, rid),
         )
-        return jsonify(ok=True, paymentMethod=method)
+        # amountDue stays the canonical post-registration-discount amount; the
+        # sponsor 5% is derived so toggling methods can't compound repeatedly.
+        base = reg["amountDue"]
+        final = base
+        if method == "sponsor" and base is not None:
+            final = round(base * (1.0 - SPONSOR_PAY_DISCOUNT), 2)
+        return jsonify(ok=True, paymentMethod=method,
+                       sponsorLocation=sponsor_loc,
+                       sponsorLocationName=_sponsor_loc_name(sponsor_loc),
+                       sponsorLocationUrl=_sponsor_loc_url(sponsor_loc),
+                       amount=final)
 
     @app.route("/api/settings/student-cap", methods=["GET"])
     def settings_student_cap():
@@ -2696,6 +2743,15 @@ def register_routes(app):
             ref = _resolve_referral_code(g.db, d.get("referredByCode"))
             d["referredByName"] = ref["name"] if ref else None
             d["referredByType"] = ref["type"] if ref else None
+            # Sponsor-location payment: resolve the store name and the actual
+            # amount the family pays (base − 5%).
+            loc = d.get("sponsorLocation")
+            d["sponsorLocationName"] = _sponsor_loc_name(loc)
+            d["sponsorLocationUrl"] = _sponsor_loc_url(loc)
+            if d.get("paymentMethod") == "sponsor" and d.get("amountDue") is not None:
+                d["sponsorAmount"] = round(d["amountDue"] * (1.0 - SPONSOR_PAY_DISCOUNT), 2)
+            else:
+                d["sponsorAmount"] = None
             out.append(d)
         return jsonify(ok=True, data=out)
 

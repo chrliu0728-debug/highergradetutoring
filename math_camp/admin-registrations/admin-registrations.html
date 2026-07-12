@@ -481,9 +481,13 @@ function render() {
       <td>${r.deliveryMode === 'online' ? '💻 Online' : r.deliveryMode === 'in_person' ? '🏫 In person' : NA}</td>
       <td class="wrap">${na(r.medicalInfo)}</td>
       <td>${na(r.discountCode)}</td>
-      <td>${r.amountDue != null ? '$' + r.amountDue : NA}</td>
+      <td>${r.paymentMethod === 'sponsor' && r.sponsorAmount != null
+            ? '$' + r.sponsorAmount + ' <span style="color:var(--muted); font-size:.72rem;">(was $' + r.amountDue + ', −5%)</span>'
+            : (r.amountDue != null ? '$' + r.amountDue : NA)}</td>
       <td>${r.paymentMethod === 'cash'
             ? '<span style="background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💵 Cash</span>'
+            : r.paymentMethod === 'sponsor'
+            ? '<span style="background:#EDE9FE; color:#5B21B6; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">🏬 ' + (r.sponsorLocationUrl ? '<a href="' + esc(r.sponsorLocationUrl) + '" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline;">' + esc(r.sponsorLocationName || 'Sponsor') + '</a>' : esc(r.sponsorLocationName || 'Sponsor')) + '</span>'
             : '<span style="background:#DBEAFE; color:#1E40AF; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💳 e-Transfer</span>'}</td>
       <td style="font-family:'JetBrains Mono', monospace; font-size:.82rem; letter-spacing:.06em;">${na(r.referralCode)}</td>
       <td>${r.referredByName
