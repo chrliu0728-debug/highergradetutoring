@@ -273,6 +273,40 @@ contact-form HTTP responses still succeed, but no email goes out.
 To rotate the Gmail app password later, just edit `/etc/highergrade.env`
 and `sudo systemctl restart highergrade-api`. No code change required.
 
+### Encrypting student data at rest
+
+Student and registration PII (names, emails, password, phone, DOB, school,
+parent + emergency contacts, medical notes, hobbies) is encrypted in the
+SQLite file when — and only when — an encryption key is configured. Points,
+roles, stats, and referral codes are left in the clear. The app decrypts
+transparently on read, so the site behaves exactly the same; the protection
+is that a stolen `app.db` or backup is unreadable without the key.
+
+```bash
+# 1. Make sure the cryptography library is installed in the venv:
+cd /var/www/highergrade/math_camp/server
+sudo -u ubuntu .venv/bin/pip install -r requirements.txt
+
+# 2. Generate ONE strong key and keep a copy somewhere safe (a password
+#    manager). If this key is ever lost, the encrypted data is GONE — there
+#    is no recovery.
+.venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# 3. Add it to the env file (alongside the SMTP vars) and restart:
+#      HIGHERGRADE_ENC_KEY=<the key you just generated>
+sudo nano /etc/highergrade.env      # add the HIGHERGRADE_ENC_KEY=... line
+sudo systemctl restart highergrade-api
+```
+
+On restart the API runs a one-time, idempotent pass that encrypts any
+existing plaintext rows and backfills the email lookup index — no manual
+migration needed. **Before enabling on the live DB, take a backup**
+(`deploy/backup-db.sh`) so you can roll back if the key was mis-copied.
+
+Without `HIGHERGRADE_ENC_KEY` the data is stored in plaintext exactly as
+before, so nothing breaks if the key isn't set. Do **not** change the key
+after data has been encrypted with it — a new key can't read the old data.
+
 ### Database backups → private GitHub repo
 
 A nightly cron snapshots the DB and pushes it to a **private**

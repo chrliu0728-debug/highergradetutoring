@@ -18,10 +18,12 @@ from functools import wraps
 
 from flask import Flask, g, jsonify, request, make_response
 
+import crypto
 from db import (
     connect, init_db,
     row_to_student, row_to_class, row_to_role,
     row_to_basestat, row_to_tx, row_to_staff,
+    STUDENT_ENC_FIELDS, REGISTRATION_ENC_FIELDS,
 )
 
 ADMIN_PASSCODE = os.environ.get("HIGHERGRADE_ADMIN_PASSCODE", "HigherGrade Tutoring")
@@ -361,7 +363,9 @@ def _resolve_referral_code(db, code):
         "SELECT firstName, lastName FROM registrations WHERE referralCode = ?", (code,)
     ).fetchone()
     if r:
-        name = f"{(r['firstName'] or '').strip()} {(r['lastName'] or '').strip()}".strip()
+        fn = (crypto.dec(r["firstName"]) or "").strip()
+        ln = (crypto.dec(r["lastName"]) or "").strip()
+        name = f"{fn} {ln}".strip()
         return {"type": "camper", "name": name or "A camper", "code": code}
     s = db.execute("SELECT name FROM staff WHERE referralCode = ?", (code,)).fetchone()
     if s:
@@ -774,11 +778,13 @@ def register_routes(app):
         # bedroom-door client check on /student-portal.html handles them.
         if _is_reserved_email(email):
             return jsonify(ok=False, error="No matching account"), 401
+        # Look up by email (blind index when encrypted), then check the
+        # password in the app since it's stored encrypted, not queryable.
+        clause, param = _email_clause(email)
         row = g.db.execute(
-            "SELECT * FROM students WHERE LOWER(TRIM(studentEmail)) = ? AND password = ?",
-            (email, pwd),
+            f"SELECT * FROM students WHERE {clause}", (param,),
         ).fetchone()
-        if not row:
+        if not row or not hmac.compare_digest(str(crypto.dec(row["password"]) or ""), str(pwd)):
             return jsonify(ok=False, error="No matching account"), 401
         # Frozen accounts CAN sign in — the portal renders a blocking
         # overlay that locks out all actions until staff unfreezes them,
@@ -1941,8 +1947,9 @@ def register_routes(app):
         # mail hiccup must never block the unfreeze itself.
         elif was_frozen:
             try:
-                name = ((row["firstName"] or "") + " " + (row["lastName"] or "")).strip()
-                _send_camp_welcome(row["studentEmail"], name, row["parentEmail"] or None)
+                name = _full_name(row)
+                _send_camp_welcome(crypto.dec(row["studentEmail"]), name,
+                                   crypto.dec(row["parentEmail"]) or None)
             except Exception:  # noqa: BLE001
                 pass
         return jsonify(ok=True, frozen=bool(frozen))
@@ -2032,15 +2039,16 @@ def register_routes(app):
         email = (email or "").strip().lower()
         if not email:
             return 0
+        clause, param = _email_clause(email)
         reg_count = g.db.execute(
-            "SELECT COUNT(*) AS n FROM registrations WHERE LOWER(TRIM(studentEmail)) = ?",
-            (email,),
+            f"SELECT COUNT(*) AS n FROM registrations WHERE {clause}",
+            (param,),
         ).fetchone()["n"]
         # Oldest first, so students[0] is the established account to keep.
         students = g.db.execute(
-            "SELECT id FROM students WHERE LOWER(TRIM(studentEmail)) = ? "
+            f"SELECT id FROM students WHERE {clause} "
             "ORDER BY CAST(COALESCE(registeredAt, '0') AS INTEGER) ASC, id ASC",
-            (email,),
+            (param,),
         ).fetchall()
         # No registration backs this email → every matching camper is an
         # orphan. Otherwise keep the oldest and drop the duplicates.
@@ -2145,11 +2153,12 @@ def register_routes(app):
         # keeps one stable code per person; otherwise mint a fresh unique one
         # (unique across campers + teachers). Computed here (SELECT/random only,
         # no DB writes) so it can go into the confirmation email sent just below.
+        _pc_clause, _pc_param = _email_clause(student_email)
         prior_code_row = g.db.execute(
-            "SELECT referralCode FROM registrations "
-            "WHERE LOWER(TRIM(studentEmail)) = ? AND referralCode IS NOT NULL "
+            f"SELECT referralCode FROM registrations "
+            f"WHERE {_pc_clause} AND referralCode IS NOT NULL "
             "ORDER BY createdAt ASC LIMIT 1",
-            (student_email.lower(),),
+            (_pc_param,),
         ).fetchone()
         own_referral_code = (
             (prior_code_row["referralCode"] if prior_code_row else None)
@@ -2222,35 +2231,45 @@ def register_routes(app):
                 hobbies, whyJoin, consentPhoto, campusRoaming,
                 deliveryMode, medicalInfo, discountCode, amountDue,
                 password, waitlisted, pickupPeople, referrerEmail,
-                referralCode, referredByCode)
+                referralCode, referredByCode, emailIndex)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                rid, int(time.time()),
-                first, last,
-                (d.get("dob") or "").strip() or None,
-                (d.get("student_email") or "").strip() or None,
-                (d.get("school") or "").strip() or None,
-                (d.get("parent_first") or "").strip() or None,
-                (d.get("parent_last")  or "").strip() or None,
-                (d.get("relationship") or "").strip() or None,
-                (d.get("parent_phone") or "").strip() or None,
-                (d.get("parent_email") or "").strip() or None,
-                (d.get("emerg1_name") or "").strip() or None,
-                (d.get("emerg1_phone") or "").strip() or None,
-                (d.get("emerg1_relationship") or "").strip() or None,
-                (d.get("hobbies") or None),
-                (d.get("why_join") or None),
-                1 if d.get("consent_photo") else 0,
-                roaming,
-                mode, medical, (discount_code or None), amount_due,
-                password,
-                waitlisted,
-                pickup_json,
-                referrer_email,
-                own_referral_code,
-                (referrer["code"] if referrer else None),
-            ),
+               (:id, :createdAt, :firstName, :lastName, :dob, :studentEmail, :school,
+                :parentFirst, :parentLast, :relationship, :parentPhone, :parentEmail,
+                :emerg1Name, :emerg1Phone, :emerg1Relationship,
+                :hobbies, :whyJoin, :consentPhoto, :campusRoaming,
+                :deliveryMode, :medicalInfo, :discountCode, :amountDue,
+                :password, :waitlisted, :pickupPeople, :referrerEmail,
+                :referralCode, :referredByCode, :emailIndex)""",
+            _encrypt_registration({
+                "id": rid, "createdAt": int(time.time()),
+                "firstName": first, "lastName": last,
+                "dob": (d.get("dob") or "").strip() or None,
+                "studentEmail": (d.get("student_email") or "").strip() or None,
+                "school": (d.get("school") or "").strip() or None,
+                "parentFirst": (d.get("parent_first") or "").strip() or None,
+                "parentLast": (d.get("parent_last") or "").strip() or None,
+                "relationship": (d.get("relationship") or "").strip() or None,
+                "parentPhone": (d.get("parent_phone") or "").strip() or None,
+                "parentEmail": (d.get("parent_email") or "").strip() or None,
+                "emerg1Name": (d.get("emerg1_name") or "").strip() or None,
+                "emerg1Phone": (d.get("emerg1_phone") or "").strip() or None,
+                "emerg1Relationship": (d.get("emerg1_relationship") or "").strip() or None,
+                "hobbies": (d.get("hobbies") or None),
+                "whyJoin": (d.get("why_join") or None),
+                "consentPhoto": 1 if d.get("consent_photo") else 0,
+                "campusRoaming": roaming,
+                "deliveryMode": mode,
+                "medicalInfo": medical,
+                "discountCode": (discount_code or None),
+                "amountDue": amount_due,
+                "password": password,
+                "waitlisted": waitlisted,
+                "pickupPeople": pickup_json,
+                "referrerEmail": referrer_email,
+                "referralCode": own_referral_code,
+                "referredByCode": (referrer["code"] if referrer else None),
+                "emailIndex": crypto.blind(student_email) if crypto.enabled() else None,
+            }),
         )
         # Auto-provision a frozen student account so the camper can attempt
         # to sign in once staff confirms the e-Transfer. Skip silently
@@ -2259,9 +2278,10 @@ def register_routes(app):
         try:
             normalized_email = (d.get("student_email") or "").strip()
             if normalized_email:
+                _ap_clause, _ap_param = _email_clause(normalized_email)
                 already = g.db.execute(
-                    "SELECT id FROM students WHERE LOWER(TRIM(studentEmail)) = ?",
-                    (normalized_email.lower(),),
+                    f"SELECT id FROM students WHERE {_ap_clause}",
+                    (_ap_param,),
                 ).fetchone()
                 if not already:
                     _insert_student(_normalize_student({
@@ -2665,7 +2685,7 @@ def register_routes(app):
         ).fetchall()
         out = []
         for r in rows:
-            d = dict(r)
+            d = _decrypt_registration(dict(r))
             d["consentPhoto"] = bool(d.get("consentPhoto"))
             try:
                 d["pickupPeople"] = json.loads(d.get("pickupPeople") or "[]")
@@ -2699,7 +2719,7 @@ def register_routes(app):
             return jsonify(ok=False, error="Registration not found"), 404
 
         keep_account = request.args.get("keepAccount") in ("1", "true", "yes")
-        email = (reg["studentEmail"] or "").strip().lower()
+        email = (crypto.dec(reg["studentEmail"]) or "").strip().lower()
         removed_account = False
         promoted = 0
         with g.db:
@@ -2759,11 +2779,11 @@ def register_routes(app):
             return jsonify(ok=False, error="discordId, email, and password are required."), 400
         if _is_reserved_email(email):
             return jsonify(ok=False, error="That email isn't a real camp account."), 401
+        clause, param = _email_clause(email)
         row = g.db.execute(
-            "SELECT * FROM students WHERE LOWER(TRIM(studentEmail)) = ? AND password = ?",
-            (email, pwd),
+            f"SELECT * FROM students WHERE {clause}", (param,),
         ).fetchone()
-        if not row:
+        if not row or not hmac.compare_digest(str(crypto.dec(row["password"]) or ""), str(pwd)):
             return jsonify(ok=False, error="No matching camp account."), 401
         sid = row["id"]
         # Refuse to silently overwrite an existing claim. If a different
@@ -3198,22 +3218,55 @@ def _normalize_student(raw):
 
 
 def _insert_student(s):
+    s = dict(s)  # never mutate the caller's dict
+    # Blind index from the plaintext email BEFORE we encrypt it.
+    s["emailIndex"] = crypto.blind(s.get("studentEmail")) if crypto.enabled() else None
+    for f in STUDENT_ENC_FIELDS:
+        if f in s:
+            s[f] = crypto.enc(s[f])
     g.db.execute(
         """INSERT OR REPLACE INTO students
            (id, firstName, lastName, studentEmail, password, parentEmail, phone,
             school, grade, classId, className, registeredAt,
-            stats, roles, baseStats, extras, frozen)
+            stats, roles, baseStats, extras, emailIndex, frozen)
            VALUES
            (:id, :firstName, :lastName, :studentEmail, :password, :parentEmail, :phone,
             :school, :grade, :classId, :className, :registeredAt,
-            :stats, :roles, :baseStats, :extras, :frozen)""",
+            :stats, :roles, :baseStats, :extras, :emailIndex, :frozen)""",
         s,
     )
 
 
+def _email_clause(email):
+    """(where_fragment, param) to match a students/registrations row by email.
+    Uses the keyed blind index when encryption is on (studentEmail is then
+    ciphertext and can't be SQL-normalized), else the plaintext column."""
+    if crypto.enabled():
+        return "emailIndex = ?", crypto.blind(email)
+    return "LOWER(TRIM(studentEmail)) = ?", (email or "").strip().lower()
+
+
+def _encrypt_registration(reg):
+    """Encrypt the PII columns of a registration dict in place, then return it."""
+    for f in REGISTRATION_ENC_FIELDS:
+        if reg.get(f) is not None:
+            reg[f] = crypto.enc(reg[f])
+    return reg
+
+
+def _decrypt_registration(d):
+    """Decrypt the PII columns of a registration dict (built from dict(row))."""
+    for f in REGISTRATION_ENC_FIELDS:
+        if d.get(f) is not None:
+            d[f] = crypto.dec(d[f])
+    return d
+
+
 def _full_name(row):
-    fn = (row["firstName"] or "").strip()
-    ln = (row["lastName"]  or "").strip()
+    # firstName/lastName may be encrypted at rest — decrypt before use so
+    # transaction logs etc. never capture ciphertext.
+    fn = (crypto.dec(row["firstName"]) or "").strip()
+    ln = (crypto.dec(row["lastName"])  or "").strip()
     full = (fn + " " + ln).strip()
     return full or "(no name)"
 

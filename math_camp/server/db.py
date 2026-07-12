@@ -5,6 +5,26 @@ import os
 import sqlite3
 from pathlib import Path
 
+import crypto
+
+# ── At-rest-encrypted PII columns ─────────────────────────────────────
+# These student/registration columns are stored encrypted when an
+# encryption key is configured (see crypto.py) and decrypted transparently
+# on read. Deliberately EXCLUDED: points/roles/stats/baseStats (gamification,
+# per requirement), functional identifiers (id, classId, className,
+# registeredAt, frozen, emailIndex), and referral/discount/payment fields.
+STUDENT_ENC_FIELDS = (
+    "firstName", "lastName", "studentEmail", "password",
+    "parentEmail", "phone", "school", "grade",
+)
+REGISTRATION_ENC_FIELDS = (
+    "firstName", "lastName", "dob", "studentEmail", "school",
+    "parentFirst", "parentLast", "relationship", "parentPhone", "parentEmail",
+    "emerg1Name", "emerg1Phone", "emerg1Relationship",
+    "hobbies", "whyJoin", "medicalInfo", "password", "pickupPeople",
+    "referrerEmail",
+)
+
 # On the production VM the DB lives outside the git checkout at
 # /var/lib/highergrade/app.db — the systemd unit sets HIGHERGRADE_DB to
 # that path explicitly (see deploy/highergrade-api.service). When you run
@@ -41,8 +61,52 @@ def init_db():
         conn.executescript(SCHEMA_PATH.read_text())
         _migrate(conn)
         _seed(conn)
+        _encrypt_existing(conn)
     finally:
         conn.close()
+
+
+def _encrypt_existing(conn):
+    """One-time, idempotent pass that encrypts pre-existing plaintext PII and
+    backfills the email blind index. Only runs when an encryption key is
+    configured; safe to run on every startup (already-encrypted rows and
+    already-indexed rows are skipped). Never raises — a failure here must not
+    stop the server from booting."""
+    if not crypto.enabled():
+        return
+    try:
+        _encrypt_table(conn, "students", STUDENT_ENC_FIELDS)
+        _encrypt_table(conn, "registrations", REGISTRATION_ENC_FIELDS)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _encrypt_table(conn, table, fields):
+    cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if "id" not in cols:
+        return
+    has_index = "emailIndex" in cols
+    has_email = "studentEmail" in cols
+    present = [f for f in fields if f in cols]
+    sel = ["id"] + present + (["emailIndex"] if has_index else []) \
+        + (["studentEmail"] if (has_email and "studentEmail" not in present) else [])
+    for row in conn.execute(f"SELECT {', '.join(sel)} FROM {table}").fetchall():
+        sets, params = [], []
+        for f in present:
+            val = row[f]
+            if val is not None and not crypto.is_encrypted(val):
+                sets.append(f"{f} = ?")
+                params.append(crypto.enc(val))
+        if has_index and not row["emailIndex"] and has_email:
+            # studentEmail may already be encrypted from a prior partial run.
+            plain_email = crypto.dec(row["studentEmail"])
+            idx = crypto.blind(plain_email)
+            if idx:
+                sets.append("emailIndex = ?")
+                params.append(idx)
+        if sets:
+            params.append(row["id"])
+            conn.execute(f"UPDATE {table} SET {', '.join(sets)} WHERE id = ?", params)
 
 
 def _migrate(conn):
@@ -132,6 +196,16 @@ def _migrate(conn):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_staff_refcode ON staff(referralCode)")
     except sqlite3.OperationalError:
         pass
+    # Blind-index columns for email lookups once PII is encrypted at rest.
+    for _tbl in ("students", "registrations"):
+        try:
+            if _has_column(_tbl, "id") and not _has_column(_tbl, "emailIndex"):
+                conn.execute(f"ALTER TABLE {_tbl} ADD COLUMN emailIndex TEXT")
+                conn.execute(
+                    f"CREATE INDEX IF NOT EXISTS idx_{_tbl}_emailidx ON {_tbl}(emailIndex)"
+                )
+        except sqlite3.OperationalError:
+            pass
     # `frozen` column on students. Added after launch — existing students
     # were already paid up so they are grandfathered in as unfrozen
     # (DEFAULT 0). Newly created students default to frozen=1 via the
@@ -311,6 +385,10 @@ def row_to_student(r):
     if r is None:
         return None
     d = dict(r)
+    # Decrypt PII columns transparently (no-op on plaintext / when no key).
+    for k in STUDENT_ENC_FIELDS:
+        if k in d:
+            d[k] = crypto.dec(d[k])
     for k in ("stats", "roles", "baseStats", "extras"):
         try:
             d[k] = json.loads(d.get(k) or ("[]" if k == "roles" else "{}"))

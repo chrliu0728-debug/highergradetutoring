@@ -28,12 +28,17 @@ CREATE TABLE IF NOT EXISTS students (
   roles           TEXT NOT NULL DEFAULT '[]',
   baseStats       TEXT NOT NULL DEFAULT '{}',
   extras          TEXT NOT NULL DEFAULT '{}',
+  -- Blind index (keyed HMAC of the normalized email) for looking a student
+  -- up by email when studentEmail itself is stored encrypted. NULL when
+  -- encryption is off. See crypto.blind().
+  emailIndex      TEXT,
   -- Accounts start frozen on fresh installs. Admins unfreeze a student
   -- from the staff/admin-students.html page once the $75 e-Transfer
   -- payment for the camp has been confirmed.
   frozen          INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_students_email ON students(studentEmail);
+CREATE INDEX IF NOT EXISTS idx_students_emailidx ON students(emailIndex);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(classId);
 
 CREATE TABLE IF NOT EXISTS base_stat_categories (
@@ -228,9 +233,11 @@ CREATE TABLE IF NOT EXISTS registrations (
   paymentMethod       TEXT,                         -- 'cash' | 'e_transfer' | NULL (not yet chosen — treated as e-Transfer)
   referrerEmail       TEXT,                         -- legacy: email of the referrer (superseded by referredByCode); NULL if none
   referralCode        TEXT,                         -- this camper's OWN 6-digit code to share; never expires; unique
-  referredByCode      TEXT                          -- the 6-digit code they entered at registration (whoever referred them), NULL if none
+  referredByCode      TEXT,                         -- the 6-digit code they entered at registration (whoever referred them), NULL if none
+  emailIndex          TEXT                          -- blind index of studentEmail for lookups when encrypted (see crypto.blind())
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
+CREATE INDEX IF NOT EXISTS idx_reg_emailidx ON registrations(emailIndex);
 CREATE INDEX IF NOT EXISTS idx_reg_refcode ON registrations(referralCode);
 CREATE INDEX IF NOT EXISTS idx_reg_referredby ON registrations(referredByCode);
 
