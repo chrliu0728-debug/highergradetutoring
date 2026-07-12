@@ -739,8 +739,12 @@ def register_routes(app):
     @app.route("/api/auth/admin/unlock", methods=["POST"])
     def auth_admin_unlock():
         data = request.get_json(silent=True) or {}
-        passcode = (data.get("passcode") or "").strip().lower()
-        expected = ADMIN_PASSCODE.strip().lower()
+        # Ignore capitalization AND all whitespace, matching the promise the
+        # passcode gate shows the user ("capitalization and spaces are
+        # ignored"). Previously only leading/trailing space was stripped, so a
+        # correct passcode typed with different internal spacing was rejected.
+        passcode = "".join((data.get("passcode") or "").split()).lower()
+        expected = "".join(ADMIN_PASSCODE.split()).lower()
         if passcode != expected:
             return jsonify(ok=False, error="Invalid passcode"), 401
         token = _new_token()
