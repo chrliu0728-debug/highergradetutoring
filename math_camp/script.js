@@ -331,3 +331,182 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   tick();
   setInterval(tick, 1000);
 })();
+
+// ── Title sponsors in the sidebar nav (under Contact), site-wide ──────
+// Injects the title-sponsor slots into the vertical sidenav (below the nav
+// links, above Sign In / Register) and a themed detail modal into the body,
+// on every page that loads this script. Asset paths are absolute so they
+// resolve the same from pages nested in sub-folders (/about/, /support/, …).
+(function () {
+  const SPONSORS = [
+    {
+      id: 'staples',
+      name: 'Staples',
+      tagline: 'Work. Learn. Grow.',
+      brandColor: '#CC0000',
+      logo: '/Staples_Canada_logo_2018.png',
+      description:
+        'Staples Canada is one of the country’s largest retailers for office, '
+        + 'technology, and school essentials, with locations from coast to coast. '
+        + 'Reimagined as “The Working and Learning Company,” Staples has grown '
+        + 'beyond supplies into a community hub — its stores feature coworking '
+        + 'spaces, classrooms, and event areas built to help people work, learn, and '
+        + 'grow. Staples Canada is proud to invest in students, educators, and local '
+        + 'communities, championing programs that make learning more accessible for the '
+        + 'next generation.',
+      location: {
+        label: 'Oakville, Ontario',
+        url: 'https://www.google.com/maps/dir//Staples,+320+North+Service+Rd+W,+Oakville,+ON+L6M+0H4/data=!4m6!4m5!1m1!4e2!1m2!1m1!1s0x882b5d067a689397:0x1c9e4d6912c2bda7?sa=X&ved=1t:57443&ictx=111',
+      },
+      images: [
+        '/Staples_Oakville_storefront.jpg',
+        '/3.jpg',
+        '/1.jpg',
+        '/download.webp',
+      ],
+      people: [
+        { name: 'Terry Carson',   role: 'Vice Chair, Staples Canada — Oakville', photo: '' },
+        { name: 'Elsa Abikhalil', role: 'Vice Chair, Staples Canada — Oakville', photo: '' },
+      ],
+    },
+    // Add up to 3 more sponsor objects here when you have them.
+  ];
+
+  if (!SPONSORS.length) return;
+  const nav = document.querySelector('.sidenav .sidenav-inner');
+  if (!nav || document.getElementById('title-sponsors')) return;
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0] || '').slice(0,2).join('').toUpperCase();
+
+  // Slots block → sidebar, placed under the nav links (i.e. under Contact).
+  const wrap = document.createElement('div');
+  wrap.className = 'sidenav-sponsors';
+  wrap.innerHTML = '<div class="sidenav-sponsors-label">Title Sponsors</div>'
+                 + '<div class="title-sponsors" id="title-sponsors"></div>';
+  const bottom = nav.querySelector('.sidenav-bottom');
+  if (bottom) nav.insertBefore(wrap, bottom); else nav.appendChild(wrap);
+
+  // Detail modal → body (once).
+  let modal = document.getElementById('sponsor-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'sponsor-modal';
+    modal.id = 'sponsor-modal';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Sponsor details');
+    modal.innerHTML =
+      '<div class="sponsor-modal-backdrop" data-sponsor-close></div>' +
+      '<div class="sponsor-modal-card" role="document">' +
+        '<button class="sponsor-modal-close" data-sponsor-close aria-label="Close">×</button>' +
+        '<div class="sponsor-modal-head">' +
+          '<img class="sponsor-modal-logo" id="sm-logo" alt="" />' +
+          '<div><div class="sponsor-modal-eyebrow">Title Sponsor</div>' +
+          '<h2 class="sponsor-modal-name" id="sm-name"></h2>' +
+          '<p class="sponsor-modal-tagline" id="sm-tagline"></p></div>' +
+        '</div>' +
+        '<div class="sponsor-carousel">' +
+          '<button class="sponsor-carousel-arrow prev" id="sm-prev" aria-label="Previous image">‹</button>' +
+          '<div class="sponsor-carousel-viewport"><div class="sponsor-carousel-track" id="sm-track"></div></div>' +
+          '<button class="sponsor-carousel-arrow next" id="sm-next" aria-label="Next image">›</button>' +
+        '</div>' +
+        '<div class="sponsor-carousel-dots" id="sm-dots"></div>' +
+        '<div class="sponsor-location" id="sm-location"></div>' +
+        '<div class="sponsor-modal-desc" id="sm-desc"></div>' +
+        '<div class="sponsor-people-label">In partnership with</div>' +
+        '<div class="sponsor-people" id="sm-people"></div>' +
+      '</div>';
+    document.body.appendChild(modal);
+  }
+
+  const slotsWrap = document.getElementById('title-sponsors');
+  const elCard  = modal.querySelector('.sponsor-modal-card');
+  const elLogo  = document.getElementById('sm-logo');
+  const elName  = document.getElementById('sm-name');
+  const elTag   = document.getElementById('sm-tagline');
+  const elTrack = document.getElementById('sm-track');
+  const elDots  = document.getElementById('sm-dots');
+  const elLoc   = document.getElementById('sm-location');
+  const elDesc  = document.getElementById('sm-desc');
+  const elPeople= document.getElementById('sm-people');
+  const elPrev  = document.getElementById('sm-prev');
+  const elNext  = document.getElementById('sm-next');
+
+  let slide = 0;
+
+  slotsWrap.innerHTML = SPONSORS.map(s => `
+    <button class="sponsor-slot" data-id="${esc(s.id)}" title="${esc(s.name)} — click for details">
+      ${s.logo
+        ? `<img src="${esc(s.logo)}" alt="${esc(s.name)}" class="sponsor-slot-img" />`
+        : `<span class="sponsor-slot-wordmark" style="color:${esc(s.brandColor || 'var(--text)')}">${esc(s.name)}</span>`}
+    </button>`).join('');
+
+  function renderCarousel(s) {
+    const imgs = (s.images || []).slice(0, 4);
+    if (!imgs.length) imgs.push('');
+    elTrack.innerHTML = imgs.map((src, i) =>
+      `<div class="sponsor-slide">${src
+        ? `<img src="${esc(src)}" alt="${esc(s.name)} photo ${i+1}" />`
+        : `<div class="sponsor-slide-placeholder">Image ${i+1}<br><small>add a photo</small></div>`}</div>`).join('');
+    elDots.innerHTML = imgs.map((_, i) =>
+      `<button class="sponsor-dot" data-i="${i}" aria-label="Go to image ${i+1}"></button>`).join('');
+    slide = 0; update();
+  }
+  function update() {
+    elTrack.style.transform = `translateX(-${slide * 100}%)`;
+    [...elDots.children].forEach((d, i) => d.classList.toggle('active', i === slide));
+  }
+  function go(n) { const c = elTrack.children.length || 1; slide = (n + c) % c; update(); }
+  elPrev.addEventListener('click', () => go(slide - 1));
+  elNext.addEventListener('click', () => go(slide + 1));
+  elDots.addEventListener('click', e => { const d = e.target.closest('.sponsor-dot'); if (d) go(+d.dataset.i); });
+
+  function open(s) {
+    elCard.style.setProperty('--sponsor-accent', s.brandColor || 'var(--blush)');
+    if (s.logo) {
+      elLogo.src = s.logo; elLogo.style.display = '';
+      elName.style.display = 'none'; elTag.style.display = 'none';
+    } else {
+      elLogo.style.display = 'none'; elName.style.display = ''; elTag.style.display = '';
+      elName.style.color = s.brandColor || '';
+    }
+    elName.textContent = s.name || '';
+    elTag.textContent  = s.tagline || '';
+    elDesc.textContent = s.description || '';
+    if (s.location && s.location.label) {
+      elLoc.innerHTML = `<a href="${esc(s.location.url)}" target="_blank" rel="noopener">${window.Icons ? Icons.svg('map-pin') : ''} ${esc(s.location.label)}</a>`;
+      elLoc.style.display = '';
+    } else { elLoc.style.display = 'none'; }
+    elPeople.innerHTML = (s.people || []).slice(0, 2).map(p =>
+      `<div class="sponsor-person">${p.photo
+        ? `<img class="sponsor-person-photo" src="${esc(p.photo)}" alt="${esc(p.name)}" />`
+        : `<div class="sponsor-person-photo placeholder">${esc(initials(p.name))}</div>`}` +
+      `<div class="sponsor-person-name">${esc(p.name)}</div>` +
+      `<div class="sponsor-person-role">${esc(p.role)}</div></div>`).join('');
+    renderCarousel(s);
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  slotsWrap.addEventListener('click', e => {
+    const btn = e.target.closest('.sponsor-slot'); if (!btn) return;
+    const s = SPONSORS.find(x => x.id === btn.dataset.id);
+    if (s) open(s);
+  });
+  modal.querySelectorAll('[data-sponsor-close]').forEach(el => el.addEventListener('click', close));
+  document.addEventListener('keydown', e => {
+    if (!modal.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowLeft') go(slide - 1);
+    if (e.key === 'ArrowRight') go(slide + 1);
+  });
+})();

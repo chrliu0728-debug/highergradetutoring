@@ -1533,6 +1533,24 @@ footer {
 /* hide sponsor slots on small screens — the navbar is too tight there */
 @media (max-width: 900px) { .title-sponsors { display: none; } }
 
+/* ── Title sponsors inside the vertical sidebar nav (under Contact) ── */
+.sidenav-sponsors {
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.sidenav-sponsors-label {
+  font-size: .66rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--muted);
+  margin: 0 0 10px 4px;
+}
+.sidenav-sponsors .title-sponsors {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.sidenav-sponsors .sponsor-slot { width: 100%; max-width: none; height: 48px; }
+/* Keep them visible inside the sidebar drawer even on small screens (the
+   drawer itself hides on mobile, so this only shows when it's open). */
+@media (max-width: 900px) { .sidenav-sponsors .title-sponsors { display: flex; } }
+
 /* ── Modal ── */
 .sponsor-modal {
   position: fixed; inset: 0; z-index: 2000;
