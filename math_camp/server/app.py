@@ -34,6 +34,12 @@ ADMIN_PASSCODE = os.environ.get("HIGHERGRADE_ADMIN_PASSCODE", "HigherGrade Tutor
 # the same value into the bot's environment.
 BOT_API_TOKEN = os.environ.get("HIGHERGRADE_BOT_TOKEN", "")
 
+# Passphrase gate for the bulk registration CSV export — the high-risk
+# "download everyone's data incl. camp passwords" action, and the one place
+# encrypted PII is decrypted in bulk. On top of the admin session, the export
+# refuses to run unless this matches. Set HG_EXPORT_PASSPHRASE in the VM env.
+EXPORT_PASSPHRASE = os.environ.get("HG_EXPORT_PASSPHRASE", "")
+
 # ── SMTP / email config ─────────────────────────────────────────────
 # All four are pulled from the systemd EnvironmentFile (/etc/highergrade.env)
 # on the VM so the Gmail app password never lands in git. Gmail SMTP defaults.
@@ -2754,6 +2760,96 @@ def register_routes(app):
                 d["sponsorAmount"] = None
             out.append(d)
         return jsonify(ok=True, data=out)
+
+    @app.route("/api/admin/registrations/export", methods=["POST"])
+    @require_admin
+    def admin_export_registrations():
+        """Bulk CSV export of every registration, decrypted server-side — the
+        "pull" in encrypt-until-we-pull. High-risk (a portable file with all
+        PII + camp passwords), so on top of the admin session it is gated
+        behind HG_EXPORT_PASSPHRASE. Without the passphrase, no file."""
+        import csv as _csv
+        import io as _io
+        import datetime as _dt
+
+        body = request.get_json(silent=True) or {}
+        supplied = (body.get("passphrase") or "").strip()
+        if not EXPORT_PASSPHRASE:
+            return jsonify(ok=False,
+                           error="Export passphrase is not configured on the server."), 503
+        if not supplied or not hmac.compare_digest(supplied, EXPORT_PASSPHRASE):
+            return jsonify(ok=False, error="Incorrect export passphrase."), 403
+
+        cols = [
+            ("createdAt", "Submitted (UTC)"), ("waitlisted", "Status"),
+            ("firstName", "First name"), ("lastName", "Last name"), ("dob", "DOB"),
+            ("studentEmail", "Student email"), ("password", "Camp password"),
+            ("school", "School"), ("parentFirst", "Parent first"),
+            ("parentLast", "Parent last"), ("relationship", "Relationship"),
+            ("parentPhone", "Parent phone"), ("parentEmail", "Parent email"),
+            ("emerg1Name", "Emergency contact"),
+            ("emerg1Relationship", "Emergency relationship"),
+            ("emerg1Phone", "Emergency phone"), ("pickupPeople", "Authorized pickup"),
+            ("consentPhoto", "Photo consent"), ("campusRoaming", "Campus breaks"),
+            ("deliveryMode", "Attends"), ("medicalInfo", "Medical"),
+            ("discountCode", "Discount"), ("amountDue", "Amount due"),
+            ("paymentMethod", "Payment"), ("sponsorLocation", "Sponsor store"),
+            ("referralCode", "Referral code"), ("referredByCode", "Referred-by code"),
+            ("hobbies", "Hobbies"), ("whyJoin", "Why join"),
+        ]
+
+        def _fmt_pickup(raw):
+            try:
+                items = json.loads(raw or "[]")
+            except (TypeError, ValueError):
+                return ""
+            parts = []
+            for it in (items or []):
+                bits = []
+                if it.get("name"):         bits.append(it["name"])
+                if it.get("relationship"): bits.append("(" + it["relationship"] + ")")
+                if it.get("phone"):        bits.append(it["phone"])
+                parts.append(" ".join(bits))
+            return " | ".join(p for p in parts if p)
+
+        rows = g.db.execute(
+            "SELECT * FROM registrations ORDER BY createdAt DESC"
+        ).fetchall()
+        buf = _io.StringIO()
+        w = _csv.writer(buf)
+        w.writerow([label for _, label in cols])
+        for r in rows:
+            d = _decrypt_registration(dict(r))   # decrypt PII for the export
+            line = []
+            for key, _ in cols:
+                v = d.get(key)
+                if key == "createdAt":
+                    v = (_dt.datetime.utcfromtimestamp(v).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                         if v else "")
+                elif key == "consentPhoto":
+                    v = "yes" if v else "no"
+                elif key == "campusRoaming":
+                    v = "free roam" if v == "allow" else ("supervised" if v == "no" else "")
+                elif key == "deliveryMode":
+                    v = {"online": "online", "in_person": "in person"}.get(v, "")
+                elif key == "waitlisted":
+                    v = "waitlist" if v else "active"
+                elif key == "paymentMethod":
+                    v = (_sponsor_loc_name(d.get("sponsorLocation")) if v == "sponsor"
+                         else (v or "e_transfer"))
+                elif key == "sponsorLocation":
+                    v = _sponsor_loc_name(v)
+                elif key == "pickupPeople":
+                    v = _fmt_pickup(d.get("pickupPeople"))
+                line.append("" if v is None else v)
+            w.writerow(line)
+
+        ts = _dt.datetime.utcnow().strftime("%Y-%m-%d")
+        resp = make_response(buf.getvalue())
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = \
+            f'attachment; filename="highergrade-registrations-{ts}.csv"'
+        return resp
 
     @app.route("/api/admin/registrations/<rid>", methods=["DELETE"])
     @require_admin
