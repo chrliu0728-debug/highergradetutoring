@@ -168,11 +168,10 @@ a  { color: inherit; text-decoration: none; }
   line-height: 0;
 }
 .sidenav-logo img {
-  height: 48px;
+  height: 52px;
   width: auto;
   object-fit: contain;
-  filter: brightness(0) invert(1);
-  opacity: .9;
+  opacity: 1;
 }
 
 .sidenav-links {
