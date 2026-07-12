@@ -835,8 +835,12 @@ form.addEventListener('submit', e => {
 
   if (editingId) {
     const idx = staff.findIndex(s => s.id === editingId);
-    if (idx >= 0) staff[idx] = entry;
-    else staff.push(entry);
+    if (idx >= 0) {
+      // Carry the server-assigned referral code through the edit so it stays
+      // visible and stable (the server also preserves it by id as a backstop).
+      entry.referralCode = staff[idx].referralCode;
+      staff[idx] = entry;
+    } else staff.push(entry);
     showToast('Profile updated');
   } else {
     // Dedupe: if a generated id collides, append timestamp
@@ -906,6 +910,7 @@ function render() {
         <div class="staff-row-info">
           <div class="staff-row-name">${escapeHtml(s.name || '—')}</div>
           <div class="staff-row-meta"><span class="staff-row-cat">${cat.label}</span>${escapeHtml(s.role || '')} · ${escapeHtml(s.school || '')}</div>
+          <div class="staff-row-meta" style="margin-top:2px;"><i data-icon="gift"></i> Referral code: <strong>${s.referralCode ? escapeHtml(s.referralCode) : '<span style="color:var(--muted);">assigned after you save</span>'}</strong></div>
         </div>
         <div class="staff-row-actions">
           <button class="icon-btn" data-edit="${s.id}">Edit</button>

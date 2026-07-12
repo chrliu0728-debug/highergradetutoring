@@ -317,6 +317,58 @@ def _gen_crane_code(db):
     return None
 
 
+# ── Referral codes ──────────────────────────────────────────────────────────
+# Every camper gets a permanent, never-expiring 6-digit code to share; every
+# teacher gets one too (admin-only). Codes are unique across BOTH the
+# registrations and staff tables so a single code someone enters at
+# registration resolves unambiguously to exactly one referrer.
+REFERRAL_CODE_LEN = 6
+
+
+def _referral_code_taken(db, code):
+    return bool(
+        db.execute("SELECT 1 FROM registrations WHERE referralCode = ?", (code,)).fetchone()
+        or db.execute("SELECT 1 FROM staff WHERE referralCode = ?", (code,)).fetchone()
+    )
+
+
+def _gen_referral_code(db, avoid=None):
+    """Mint a fresh unique 6-digit referral code (zero-padded, e.g. '004217').
+    `avoid` is an optional set of codes already handed out in the current
+    batch but not yet committed (used when re-seeding all staff at once)."""
+    avoid = avoid or set()
+    for _ in range(60):
+        code = f"{secrets.randbelow(10 ** REFERRAL_CODE_LEN):0{REFERRAL_CODE_LEN}d}"
+        if code in avoid or _referral_code_taken(db, code):
+            continue
+        return code
+    return None
+
+
+def _normalize_referral_input(code):
+    """A user-entered referral code: strip whitespace and any stray non-digits
+    (people paste '004-217' or '004 217'), keep digits only."""
+    return "".join(ch for ch in (code or "") if ch.isdigit())
+
+
+def _resolve_referral_code(db, code):
+    """Resolve an entered code to its owner, or None if it matches nobody.
+    Returns {'type': 'camper'|'teacher', 'name': str, 'code': str}."""
+    code = _normalize_referral_input(code)
+    if len(code) != REFERRAL_CODE_LEN:
+        return None
+    r = db.execute(
+        "SELECT firstName, lastName FROM registrations WHERE referralCode = ?", (code,)
+    ).fetchone()
+    if r:
+        name = f"{(r['firstName'] or '').strip()} {(r['lastName'] or '').strip()}".strip()
+        return {"type": "camper", "name": name or "A camper", "code": code}
+    s = db.execute("SELECT name FROM staff WHERE referralCode = ?", (code,)).fetchone()
+    if s:
+        return {"type": "teacher", "name": (s["name"] or "").strip() or "A teacher", "code": code}
+    return None
+
+
 def _fmt_amount(amount):
     """Money string: '$135 CAD' for whole dollars, '$114.75 CAD' with cents,
     or a generic phrase when the amount is unknown."""
@@ -325,7 +377,8 @@ def _fmt_amount(amount):
     return f"${int(amount)} CAD" if float(amount).is_integer() else f"${amount:.2f} CAD"
 
 
-def _send_registration_confirm(student_email, name, parent_email=None, amount=None):
+def _send_registration_confirm(student_email, name, parent_email=None, amount=None,
+                               referral_code=None):
     """Sent right after registration. Thanks the family and asks for the
     e-Transfer — the account stays frozen until payment is confirmed, at
     which point _send_camp_welcome() goes out with the full camp details.
@@ -333,6 +386,14 @@ def _send_registration_confirm(student_email, name, parent_email=None, amount=No
     "refused", "no_config", "error") so the caller can detect a bad email."""
     amount_str = _fmt_amount(amount)
     subject = "Thanks for registering — one step left to hold your spot"
+    referral_block = ""
+    if referral_code:
+        referral_block = (
+            f"🎁 Your referral code: {referral_code}\n"
+            f"This code is yours and never expires. Share it with friends — when\n"
+            f"they enter it while registering, they get 10% off and you earn a $20\n"
+            f"reward once they're paid up.\n\n"
+        )
     body = (
         f"Hi {name or 'there'},\n\n"
         f"Thank you for registering for HigherGrade Tutoring's Summer Camp 2026!\n"
@@ -346,6 +407,7 @@ def _send_registration_confirm(student_email, name, parent_email=None, amount=No
         f"   2. The HIGH SCHOOL they will be attending\n\n"
         f"That's how we match your payment to your registration, so please don't\n"
         f"skip it.\n\n"
+        f"{referral_block}"
         f"Until we receive and confirm your e-Transfer, your camper's account stays\n"
         f"FROZEN — they won't be able to sign in to the student portal yet. As soon\n"
         f"as our staff confirms the payment (usually within 24 hours), we'll unfreeze\n"
@@ -1560,20 +1622,39 @@ def register_routes(app):
         data = request.get_json(silent=True) or {}
         arr = data.get("staff") or []
         with g.db:
+            # Preserve each teacher's existing referral code across the
+            # delete/re-insert (students may already hold it), and mint a fresh
+            # unique one for any staff member who doesn't have a valid code yet.
+            existing = {
+                r["id"]: r["referralCode"]
+                for r in g.db.execute("SELECT id, referralCode FROM staff").fetchall()
+            }
+            used = set()          # codes spoken for in this batch
+            codes = []            # settled code per staff member, by index
+            for s in arr:
+                code = _normalize_referral_input(s.get("referralCode")) \
+                    or _normalize_referral_input(existing.get(s.get("id")))
+                if len(code) != REFERRAL_CODE_LEN or code in used:
+                    # missing/invalid or a within-batch collision → mint fresh,
+                    # avoiding both this batch and every code already in the DB.
+                    code = _gen_referral_code(g.db, avoid=used) or ""
+                if code:
+                    used.add(code)
+                codes.append(code or None)
             g.db.execute("DELETE FROM staff")
             for i, s in enumerate(arr):
                 tf = s.get("transcriptFile")
                 tf_json = json.dumps(tf) if isinstance(tf, dict) and tf.get("data") else None
                 g.db.execute(
                     """INSERT INTO staff
-                       (id, category, name, role, image, quote, age, school, gender, pronouns, interests, bio, transcript, transcriptFile, position)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (id, category, name, role, image, quote, age, school, gender, pronouns, interests, bio, transcript, transcriptFile, referralCode, position)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (s["id"], s.get("category") or "", s.get("name") or "",
                      s.get("role") or "", s.get("image") or "", s.get("quote") or "",
                      s.get("age") or "", s.get("school") or "",
                      s.get("gender") or "", s.get("pronouns") or "",
                      s.get("interests") or "", s.get("bio") or "",
-                     s.get("transcript") or "", tf_json, i),
+                     s.get("transcript") or "", tf_json, codes[i], i),
                 )
         return jsonify(ok=True, count=len(arr))
 
@@ -2030,13 +2111,50 @@ def register_routes(app):
         # stop here and ask them to re-register BEFORE we persist anything, so
         # no orphan registration is left behind. Any other send failure is our
         # side (SMTP down, etc.) and must NOT block the registration.
-        # Apply any discount code to the tier price; this is the amount we ask
-        # for in the confirmation email and store on the registration.
+        # Referral program v2 — the 6-digit code they entered (whoever referred
+        # them). Must resolve to a real camper/teacher; a valid code auto-applies
+        # 10% off. Reject a non-blank code that matches nobody rather than
+        # silently dropping it, so the family isn't surprised by the price. A
+        # self-referral is impossible: the camper's own code doesn't exist yet.
+        referred_by_code = _normalize_referral_input(d.get("referred_by_code"))
+        referrer = None
+        if referred_by_code:
+            referrer = _resolve_referral_code(g.db, referred_by_code)
+            if not referrer:
+                return jsonify(
+                    ok=False,
+                    error="That referral code isn't valid. Double-check it, or "
+                          "leave the field blank if no one referred you.",
+                ), 400
+        referral_pct = 0.10 if referrer else 0.0
+        # Apply the best available discount to the tier price; this is the amount
+        # we ask for in the confirmation email and store on the registration.
+        # Discounts don't stack — a discount code and a referral both give a
+        # percentage off, so we honour whichever is larger.
         discount_code = (d.get("discount_code") or "").strip()
         disc_row = _lookup_discount(g.db, discount_code) if discount_code else None
+        disc_pct = disc_row["percent"] if disc_row else 0.0
+        best_pct = max(disc_pct, referral_pct)
         _base_price = REG_TIERS[_reg_tier()]["price"]
-        amount_due = (round(_base_price * (1.0 - (disc_row["percent"] if disc_row else 0.0)), 2)
+        amount_due = (round(_base_price * (1.0 - best_pct), 2)
                       if _base_price else _base_price)
+
+        # This camper's OWN permanent referral code (never expires) — shown on
+        # the success screen, emailed, and surfaced in their portal. Reuse the
+        # code from a prior registration under the same email so a re-register
+        # keeps one stable code per person; otherwise mint a fresh unique one
+        # (unique across campers + teachers). Computed here (SELECT/random only,
+        # no DB writes) so it can go into the confirmation email sent just below.
+        prior_code_row = g.db.execute(
+            "SELECT referralCode FROM registrations "
+            "WHERE LOWER(TRIM(studentEmail)) = ? AND referralCode IS NOT NULL "
+            "ORDER BY createdAt ASC LIMIT 1",
+            (student_email.lower(),),
+        ).fetchone()
+        own_referral_code = (
+            (prior_code_row["referralCode"] if prior_code_row else None)
+            or _gen_referral_code(g.db)
+        )
         # Delivery mode decides capacity below: online seats are unlimited,
         # in-person seats are capped.
         mode = (d.get("delivery_mode") or "").strip().lower()
@@ -2049,6 +2167,7 @@ def register_routes(app):
                 f"{first} {last}".strip(),
                 parent_email or None,
                 amount=amount_due or None,
+                referral_code=own_referral_code,
             )
         except Exception:  # noqa: BLE001
             confirm_status = "error"
@@ -2092,14 +2211,9 @@ def register_routes(app):
             roaming = None
         # Medical notes the family wants staff to know about (mode computed up top).
         medical = (d.get("medical_info") or "").strip() or None
-        # Referral program: the email of whoever referred this camper. Stored so
-        # staff can pay the referrer their $20 and apply the referred camper's
-        # 10% off. Kept only when it looks like an email and isn't the camper's
-        # own address (no self-referrals).
-        referrer_email = (d.get("referrer_email") or "").strip()
-        if (not _looks_like_email(referrer_email)
-                or referrer_email.lower() == student_email.lower()):
-            referrer_email = None
+        # Legacy referrerEmail is no longer collected (the field is code-only
+        # now); keep the column NULL. Who referred them lives in referredByCode.
+        referrer_email = None
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
@@ -2107,9 +2221,10 @@ def register_routes(app):
                 emerg1Name, emerg1Phone, emerg1Relationship,
                 hobbies, whyJoin, consentPhoto, campusRoaming,
                 deliveryMode, medicalInfo, discountCode, amountDue,
-                password, waitlisted, pickupPeople, referrerEmail)
+                password, waitlisted, pickupPeople, referrerEmail,
+                referralCode, referredByCode)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
                 first, last,
@@ -2133,6 +2248,8 @@ def register_routes(app):
                 waitlisted,
                 pickup_json,
                 referrer_email,
+                own_referral_code,
+                (referrer["code"] if referrer else None),
             ),
         )
         # Auto-provision a frozen student account so the camper can attempt
@@ -2157,7 +2274,23 @@ def register_routes(app):
                         "school":       (d.get("school") or "").strip() or None,
                         "registeredAt": str(int(time.time())),
                         "frozen":       1,
+                        "referralCode": own_referral_code,   # → extras, shown in portal
                     }))
+                else:
+                    # Existing student (re-register / already provisioned): make
+                    # sure their portal shows the same code the registration row
+                    # carries, without disturbing points/roles/stats.
+                    ex_row = g.db.execute(
+                        "SELECT extras FROM students WHERE id = ?", (already["id"],)
+                    ).fetchone()
+                    try:
+                        ex = json.loads((ex_row["extras"] if ex_row else None) or "{}")
+                    except Exception:  # noqa: BLE001
+                        ex = {}
+                    if ex.get("referralCode") != own_referral_code:
+                        ex["referralCode"] = own_referral_code
+                        g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                                     (json.dumps(ex), already["id"]))
         except Exception:  # noqa: BLE001
             pass
         # Keep campers in sync with registrations for this email: drop any
@@ -2178,7 +2311,10 @@ def register_routes(app):
         # near the top of this handler (before any DB writes) so we could
         # reject undeliverable addresses up front.
         return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted),
-                       amountDue=amount_due)
+                       amountDue=amount_due,
+                       referralCode=own_referral_code,
+                       referralApplied=bool(referrer),
+                       referredByName=(referrer["name"] if referrer else None))
 
     @app.route("/api/camp/register/<rid>/payment-method", methods=["POST"])
     def camp_register_payment_method(rid):
@@ -2535,6 +2671,11 @@ def register_routes(app):
                 d["pickupPeople"] = json.loads(d.get("pickupPeople") or "[]")
             except (TypeError, ValueError):
                 d["pickupPeople"] = []
+            # Resolve who referred this camper (camper or teacher) so the admin
+            # table can show a name, not just the raw code.
+            ref = _resolve_referral_code(g.db, d.get("referredByCode"))
+            d["referredByName"] = ref["name"] if ref else None
+            d["referredByType"] = ref["type"] if ref else None
             out.append(d)
         return jsonify(ok=True, data=out)
 

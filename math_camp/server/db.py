@@ -93,12 +93,22 @@ def _migrate(conn):
         ("amountDue",      "REAL"),
         ("paymentMethod",  "TEXT"),
         ("referrerEmail",  "TEXT"),
+        # Referral program v2 — each camper gets their own permanent 6-digit
+        # code (referralCode) and, if they were referred, the code they
+        # entered (referredByCode). Pre-existing rows stay NULL.
+        ("referralCode",   "TEXT"),
+        ("referredByCode", "TEXT"),
     ):
         try:
             if _has_column("registrations", "id") and not _has_column("registrations", _col):
                 conn.execute(f"ALTER TABLE registrations ADD COLUMN {_col} {_type}")
         except sqlite3.OperationalError:
             pass
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_refcode ON registrations(referralCode)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_referredby ON registrations(referredByCode)")
+    except sqlite3.OperationalError:
+        pass
     # Chests gained imageUrl + channelId + messageId for the public-message
     # button flow. Add them to existing tables that pre-date the change.
     for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT")):
@@ -111,6 +121,15 @@ def _migrate(conn):
     try:
         if _has_column("staff", "id") and not _has_column("staff", "transcriptFile"):
             conn.execute("ALTER TABLE staff ADD COLUMN transcriptFile TEXT")
+    except sqlite3.OperationalError:
+        pass
+    # Per-teacher referral code (admin-only) — links recruited campers back to
+    # the teacher. Added after launch; existing staff get one minted lazily on
+    # the next admin save (see replace_staff).
+    try:
+        if _has_column("staff", "id") and not _has_column("staff", "referralCode"):
+            conn.execute("ALTER TABLE staff ADD COLUMN referralCode TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_staff_refcode ON staff(referralCode)")
     except sqlite3.OperationalError:
         pass
     # `frozen` column on students. Added after launch — existing students

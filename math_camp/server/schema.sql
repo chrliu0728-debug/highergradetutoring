@@ -82,8 +82,10 @@ CREATE TABLE IF NOT EXISTS staff (
   bio             TEXT,
   transcript      TEXT,
   transcriptFile  TEXT,           -- JSON: { data, name, type, size }
+  referralCode    TEXT,           -- 6-digit code linking students they recruited back to this teacher (admin-only)
   position        INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS idx_staff_refcode ON staff(referralCode);
 
 CREATE TABLE IF NOT EXISTS sessions (
   token           TEXT PRIMARY KEY,
@@ -224,9 +226,13 @@ CREATE TABLE IF NOT EXISTS registrations (
   waitlisted          INTEGER NOT NULL DEFAULT 0,
   pickupPeople        TEXT NOT NULL DEFAULT '[]',  -- JSON: [{name, phone, relationship}]
   paymentMethod       TEXT,                         -- 'cash' | 'e_transfer' | NULL (not yet chosen — treated as e-Transfer)
-  referrerEmail       TEXT                          -- email of the camper/family who referred them (referral program), NULL if none
+  referrerEmail       TEXT,                         -- legacy: email of the referrer (superseded by referredByCode); NULL if none
+  referralCode        TEXT,                         -- this camper's OWN 6-digit code to share; never expires; unique
+  referredByCode      TEXT                          -- the 6-digit code they entered at registration (whoever referred them), NULL if none
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
+CREATE INDEX IF NOT EXISTS idx_reg_refcode ON registrations(referralCode);
+CREATE INDEX IF NOT EXISTS idx_reg_referredby ON registrations(referredByCode);
 
 -- Discount codes for camp registration. Evergreen codes (multiUse = 1) always
 -- work; single-use codes (e.g. the per-visitor crane codes) are consumed on
