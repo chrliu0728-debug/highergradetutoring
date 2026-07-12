@@ -3103,5 +3103,49 @@ def _log_tx(**entry):
 app = create_app()
 
 
+def _register_static(app):
+    """LOCAL-DEV ONLY — serve the static site from the same origin as the API.
+
+    In production Caddy serves the HTML/CSS/JS itself and reverse-proxies only
+    /api/* to this app (see deploy/Caddyfile), so these routes are never hit.
+    But when you run this file directly for local testing there is no Caddy, so
+    the browser loads the pages from wherever you opened them and their
+    ``fetch('/api/...')`` calls resolve against THAT origin — never reaching
+    Flask. The symptom is the whole API silently failing: registration shows
+    "closed" (the reg-tier fetch falls back to closed), sign-in never
+    authenticates, and staff profiles come up empty. Serving the pages from
+    this same process fixes all three at once."""
+    from flask import send_from_directory
+
+    site_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def _static_site(path):
+        # A real /api/* 404 that fell through to here — keep it JSON.
+        if path.startswith("api/"):
+            return jsonify(ok=False, error="Not found"), 404
+        # Never serve dot-files/dot-dirs (.git, .env, …) or traversal.
+        if any(seg.startswith(".") for seg in path.split("/") if seg):
+            return jsonify(ok=False, error="Not found"), 404
+        candidate = os.path.normpath(os.path.join(site_root, path))
+        if candidate != site_root and not candidate.startswith(site_root + os.sep):
+            return jsonify(ok=False, error="Not found"), 404
+        if path and os.path.isfile(candidate):
+            return send_from_directory(site_root, path)
+        if path and os.path.isdir(candidate) and os.path.isfile(os.path.join(candidate, "index.html")):
+            return send_from_directory(candidate, "index.html")
+        return send_from_directory(site_root, "index.html")
+
+
 if __name__ == "__main__":
+    # ── Local development convenience (never runs under gunicorn/prod) ──
+    # 1. Serve the static pages same-origin so browser /api/* calls reach us.
+    # 2. Drop the Secure flag on the session cookie so login persists over
+    #    plain http://localhost (a Secure cookie is silently dropped on HTTP,
+    #    which would make sign-in appear to "work" then instantly log out).
+    SECURE_COOKIE = False
+    _register_static(app)
+    print("HigherGrade dev server → http://localhost:5000/index.html")
+    print(f"  DB: {os.environ.get('HIGHERGRADE_DB', '(local dev.db)')}")
     app.run(host="127.0.0.1", port=5000, debug=True)

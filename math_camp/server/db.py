@@ -5,10 +5,15 @@ import os
 import sqlite3
 from pathlib import Path
 
-# DB file lives outside the git repo on the production VM.
+# On the production VM the DB lives outside the git checkout at
+# /var/lib/highergrade/app.db — the systemd unit sets HIGHERGRADE_DB to
+# that path explicitly (see deploy/highergrade-api.service). When you run
+# the server directly for local development and don't set HIGHERGRADE_DB,
+# fall back to a writable file next to this module so `python app.py`
+# works out of the box instead of failing on the un-writable /var path.
 DB_PATH = os.environ.get(
     "HIGHERGRADE_DB",
-    "/var/lib/highergrade/app.db",
+    str(Path(__file__).parent / "dev.db"),
 )
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
