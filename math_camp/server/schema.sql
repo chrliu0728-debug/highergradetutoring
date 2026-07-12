@@ -38,8 +38,11 @@ CREATE TABLE IF NOT EXISTS students (
   frozen          INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_students_email ON students(studentEmail);
-CREATE INDEX IF NOT EXISTS idx_students_emailidx ON students(emailIndex);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(classId);
+-- Indexes on columns added after launch (emailIndex, referralCode, …) are
+-- created in db._migrate AFTER the column is added, NOT here: CREATE TABLE IF
+-- NOT EXISTS is a no-op on an already-deployed table, so an index on a new
+-- column would reference a column that doesn't exist yet and crash startup.
 
 CREATE TABLE IF NOT EXISTS base_stat_categories (
   id              TEXT PRIMARY KEY,
@@ -90,7 +93,6 @@ CREATE TABLE IF NOT EXISTS staff (
   referralCode    TEXT,           -- 6-digit code linking students they recruited back to this teacher (admin-only)
   position        INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_staff_refcode ON staff(referralCode);
 
 CREATE TABLE IF NOT EXISTS sessions (
   token           TEXT PRIMARY KEY,
@@ -238,9 +240,6 @@ CREATE TABLE IF NOT EXISTS registrations (
   emailIndex          TEXT                          -- blind index of studentEmail for lookups when encrypted (see crypto.blind())
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
-CREATE INDEX IF NOT EXISTS idx_reg_emailidx ON registrations(emailIndex);
-CREATE INDEX IF NOT EXISTS idx_reg_refcode ON registrations(referralCode);
-CREATE INDEX IF NOT EXISTS idx_reg_referredby ON registrations(referredByCode);
 
 -- Discount codes for camp registration. Evergreen codes (multiUse = 1) always
 -- work; single-use codes (e.g. the per-visitor crane codes) are consumed on

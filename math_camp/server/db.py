@@ -220,6 +220,22 @@ def _migrate(conn):
             )
     except sqlite3.OperationalError:
         pass
+    # Indexes for post-launch columns — created HERE (not in schema.sql) and
+    # unconditionally, now that every column above is guaranteed to exist on
+    # both fresh and already-deployed databases. Doing this in schema.sql would
+    # crash startup on an existing DB, because CREATE TABLE IF NOT EXISTS is a
+    # no-op there and the index would reference a not-yet-added column.
+    for _stmt in (
+        "CREATE INDEX IF NOT EXISTS idx_students_emailidx ON students(emailIndex)",
+        "CREATE INDEX IF NOT EXISTS idx_reg_emailidx ON registrations(emailIndex)",
+        "CREATE INDEX IF NOT EXISTS idx_reg_refcode ON registrations(referralCode)",
+        "CREATE INDEX IF NOT EXISTS idx_reg_referredby ON registrations(referredByCode)",
+        "CREATE INDEX IF NOT EXISTS idx_staff_refcode ON staff(referralCode)",
+    ):
+        try:
+            conn.execute(_stmt)
+        except sqlite3.OperationalError:
+            pass
 
 
 # ── Seed defaults ─────────────────────────────────────────────────────
