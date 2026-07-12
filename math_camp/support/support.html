@@ -117,6 +117,12 @@
     .sp-inner::before { content:''; position:absolute; top:11%; left:17%; width:27%; height:18%; background:rgba(255,255,255,.9); border-radius:50%; filter:blur(1px); }
     .sp-bubble.popped .sp-inner { animation: sp-pop .34s ease-out forwards; }
     @keyframes sp-pop { 0%{transform:scale(1);opacity:1} 40%{transform:scale(1.25);opacity:.9} 100%{transform:scale(.1);opacity:0} }
+    /* The site-wide `*{border-radius:0!important}` reset in style.css would
+       square these off — re-assert the round shapes the showcase needs. */
+    .sp-inner, .sp-inner::before,
+    .sp-circle, .sp-circle::after,
+    .sp-splat .sp-ring, .sp-splat .sp-drop { border-radius: 50% !important; }
+    .sp-tube { border-radius: 36px 36px 0 0 !important; }
 
     /* ── Whole page = frosted glass; CLEARLY see-through buttons + fields ── */
     body.sp-glass .section, body.sp-glass .support-tier, body.sp-glass .donation-card,
