@@ -2088,6 +2088,14 @@ def register_routes(app):
             roaming = None
         # Medical notes the family wants staff to know about (mode computed up top).
         medical = (d.get("medical_info") or "").strip() or None
+        # Referral program: the email of whoever referred this camper. Stored so
+        # staff can pay the referrer their $20 and apply the referred camper's
+        # 10% off. Kept only when it looks like an email and isn't the camper's
+        # own address (no self-referrals).
+        referrer_email = (d.get("referrer_email") or "").strip()
+        if (not _looks_like_email(referrer_email)
+                or referrer_email.lower() == student_email.lower()):
+            referrer_email = None
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
@@ -2095,9 +2103,9 @@ def register_routes(app):
                 emerg1Name, emerg1Phone, emerg1Relationship,
                 hobbies, whyJoin, consentPhoto, campusRoaming,
                 deliveryMode, medicalInfo, discountCode, amountDue,
-                password, waitlisted, pickupPeople)
+                password, waitlisted, pickupPeople, referrerEmail)
                VALUES
-               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
                 first, last,
@@ -2120,6 +2128,7 @@ def register_routes(app):
                 password,
                 waitlisted,
                 pickup_json,
+                referrer_email,
             ),
         )
         # Auto-provision a frozen student account so the camper can attempt

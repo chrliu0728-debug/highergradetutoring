@@ -57,6 +57,57 @@
       letter-spacing: .08em; margin-top: 4px;
     }
 
+    /* ── Hero referral card (fills the right column of the hero split) ── */
+    .hero-referral {
+      justify-self: end;
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid #1a1a1a;
+      padding: clamp(24px, 2.6vw, 34px);
+      box-shadow: var(--shadow);
+    }
+    .hr-label {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .14em; color: var(--blush); margin-bottom: 14px;
+    }
+    .hr-label [data-icon] { font-size: .95rem; }
+    .hr-title {
+      font-size: clamp(1.5rem, 2.6vw, 2rem);
+      line-height: 1.12; letter-spacing: -.01em;
+      color: var(--text); margin-bottom: 6px;
+    }
+    .hr-title .accent { color: var(--blush); font-style: italic; }
+    .hr-rewards { margin-top: 18px; border-top: 1px solid var(--border); }
+    .hr-reward {
+      display: flex; align-items: baseline; gap: 18px;
+      padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    .hr-amount {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-weight: 800; color: var(--blush);
+      line-height: 1; flex-shrink: 0;
+      min-width: 92px; text-align: left;
+    }
+    .hr-amount .hr-pct { font-size: .55em; font-weight: 700; margin-left: 1px; }
+    .hr-desc { font-size: .9rem; color: var(--text-mid); line-height: 1.5; }
+    .hr-desc strong { color: var(--text); font-weight: 700; }
+    .hr-note {
+      font-size: .9rem; color: var(--text-mid); line-height: 1.55; margin: 18px 0 0;
+    }
+    .hr-note strong { color: var(--blush-dark); }
+    .hr-how {
+      display: flex; align-items: flex-start; gap: 9px;
+      margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
+      font-size: .82rem; color: var(--muted); line-height: 1.5;
+    }
+    .hr-how [data-icon] { color: var(--blush); flex-shrink: 0; margin-top: 2px; }
+    @media (max-width: 1024px) {
+      .hero-referral { justify-self: center; margin: 0 auto; max-width: 520px; }
+    }
+
     /* Clickable unit / why cards — inherit .card styling but drop native button chrome */
     .unit-card,
     button.why-card {
@@ -171,25 +222,45 @@
 <!-- ─────────────────── HERO ─────────────────── -->
 <section class="hero">
   <div class="hero-content">
-    <div class="hero-text">
-      <p class="hero-eyebrow">MTH1W · Grade 9 Math · Summer 2026</p>
-      <h1>Grade 9 Math,<br><span class="accent"> Mastered </span><br>in 10 days.</h1>
-      <p class="hero-sub">
-        Full MTH1W curriculum — 5 units, 10 intensive days, final exam.
-        In person or online. HDSB and all boards welcome.
-      </p>
-      <div class="hero-meta">
-        <span><i data-icon="calendar"></i> Aug 4 – 15, 2026</span>
-        <span class="hero-meta-sep">·</span>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><i data-icon="map-pin"></i> Sheridan College, Oakville</a>
-        <span class="hero-meta-sep">·</span>
-        <span><i data-icon="dollar"></i> 135 flat</span>
+    <div class="hero-split">
+      <div class="hero-text">
+        <p class="hero-eyebrow">MTH1W · Grade 9 Math · Summer 2026</p>
+        <h1>Grade 9 Math,<br><span class="accent"> Mastered </span><br>in 10 days.</h1>
+        <p class="hero-sub">
+          Full MTH1W curriculum — 5 units, 10 intensive days, final exam.
+          In person or online. HDSB and all boards welcome.
+        </p>
+        <div class="hero-meta">
+          <span><i data-icon="calendar"></i> Aug 4 – 15, 2026</span>
+          <span class="hero-meta-sep">·</span>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><i data-icon="map-pin"></i> Sheridan College, Oakville</a>
+          <span class="hero-meta-sep">·</span>
+          <span><i data-icon="dollar"></i> 135 flat</span>
+        </div>
+        <div id="countdown" aria-label="Countdown to camp start"></div>
+        <div class="hero-buttons" style="margin-top: clamp(20px, 3vh, 36px);">
+          <a href="/register/register.html" class="btn btn-primary">Register Now →</a>
+          <a href="/about/about.html" class="btn btn-outline">Learn More</a>
+        </div>
       </div>
-      <div id="countdown" aria-label="Countdown to camp start"></div>
-      <div class="hero-buttons" style="margin-top: clamp(20px, 3vh, 36px);">
-        <a href="/register/register.html" class="btn btn-primary">Register Now →</a>
-        <a href="/about/about.html" class="btn btn-outline">Learn More</a>
-      </div>
+
+      <!-- Referral program -->
+      <aside class="hero-referral" aria-label="Referral program">
+        <div class="hr-label"><i data-icon="gift"></i> Referral Program</div>
+        <h2 class="hr-title">Refer a friend.<br><span class="accent">Everyone wins.</span></h2>
+        <div class="hr-rewards">
+          <div class="hr-reward">
+            <div class="hr-amount">$20</div>
+            <div class="hr-desc"><strong>You earn</strong>, e-Transferred to you for every friend or family member who registers.</div>
+          </div>
+          <div class="hr-reward">
+            <div class="hr-amount">10<span class="hr-pct">%</span></div>
+            <div class="hr-desc"><strong>They save</strong> on their registration fee — our thanks for joining through you.</div>
+          </div>
+        </div>
+        <p class="hr-note">Already a camper yourself? You take <strong>10% off too</strong> — so refer a few friends and your spot more than pays for itself.</p>
+        <div class="hr-how"><i data-icon="mail"></i> They simply enter your email when they register, and we send your reward straight to you.</div>
+      </aside>
     </div>
   </div>
 </section>

@@ -87,6 +87,7 @@ def _migrate(conn):
         ("discountCode",   "TEXT"),
         ("amountDue",      "REAL"),
         ("paymentMethod",  "TEXT"),
+        ("referrerEmail",  "TEXT"),
     ):
         try:
             if _has_column("registrations", "id") and not _has_column("registrations", _col):

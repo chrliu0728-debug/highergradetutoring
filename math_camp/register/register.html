@@ -762,7 +762,7 @@
             </div>
 
             <!-- Discount code -->
-            <div style="background:var(--mint-bg); border:1px solid rgba(107,191,160,.35); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
+            <div style="background:var(--mint-bg); border:1px solid rgba(107,191,160,.35); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:16px;">
               <label style="display:block; font-weight:700; font-size:.9rem; margin-bottom:8px;"><i data-icon="ticket" style="color:var(--mint-dark);"></i> Have a discount code?</label>
               <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
                 <input type="text" id="discount-code" name="discount_code" placeholder="Enter your code" autocomplete="off"
@@ -770,6 +770,17 @@
                 <button type="button" class="btn btn-blue" id="apply-discount" style="font-size:.85rem;">Apply</button>
               </div>
               <div id="discount-msg" style="margin-top:8px; font-size:.85rem; font-weight:600; display:none;"></div>
+            </div>
+
+            <!-- Referral -->
+            <div style="background:var(--blush-bg); border:1px solid var(--blush-light); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
+              <label for="referrer-email" style="display:block; font-weight:700; font-size:.9rem; margin-bottom:6px;"><i data-icon="gift" style="color:var(--blush);"></i> Were you referred by a friend?</label>
+              <p style="font-size:.82rem; color:var(--text-mid); margin:0 0 8px; line-height:1.5;">
+                Enter the email of the camper or family who referred you. They'll receive a <strong>$20 reward</strong> and you'll get <strong>10% off</strong> your fee — our team applies both before your payment. Leave blank if no one referred you.
+              </p>
+              <input type="email" id="referrer-email" name="referrer_email" placeholder="friend@example.com" autocomplete="off"
+                style="width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-family:inherit;" />
+              <div class="field-error" id="err-referrer-email">Please enter a valid email address, or leave this blank.</div>
             </div>
 
             <hr class="form-divider" style="margin-top:0;" />
@@ -1490,6 +1501,30 @@
       return;
     }
 
+    // Referral email is optional, but if they typed something it must be a
+    // valid email (and not their own address).
+    const referrerInput = document.getElementById('referrer-email');
+    const referrerErr   = document.getElementById('err-referrer-email');
+    const referrerVal   = (referrerInput?.value || '').trim();
+    referrerErr && referrerErr.classList.remove('show');
+    referrerInput && referrerInput.classList.remove('error');
+    if (referrerVal) {
+      const studentVal = get('student-email');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(referrerVal) ||
+          referrerVal.toLowerCase() === String(studentVal).toLowerCase()) {
+        if (referrerErr) {
+          referrerErr.textContent = referrerVal.toLowerCase() === String(studentVal).toLowerCase()
+            ? "That's your own email — enter the email of the person who referred you, or leave it blank."
+            : 'Please enter a valid email address, or leave this blank.';
+          referrerErr.classList.add('show');
+        }
+        referrerInput && referrerInput.classList.add('error');
+        referrerInput && referrerInput.focus();
+        referrerInput && referrerInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+    }
+
     const payload = {
       first_name:          get('first-name'),
       last_name:           get('last-name'),
@@ -1511,6 +1546,7 @@
       delivery_mode:       (document.querySelector('input[name="delivery_mode"]:checked') || {}).value || null,
       medical_info:        document.getElementById('medical-info')?.value?.trim() || null,
       discount_code:       document.getElementById('discount-code')?.value?.trim() || null,
+      referrer_email:      referrerVal || null,
       password:            pwdVal,
       pickup_people:       collectPickupPeople(),
     };

@@ -223,7 +223,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   password            TEXT,
   waitlisted          INTEGER NOT NULL DEFAULT 0,
   pickupPeople        TEXT NOT NULL DEFAULT '[]',  -- JSON: [{name, phone, relationship}]
-  paymentMethod       TEXT                          -- 'cash' | 'e_transfer' | NULL (not yet chosen — treated as e-Transfer)
+  paymentMethod       TEXT,                         -- 'cash' | 'e_transfer' | NULL (not yet chosen — treated as e-Transfer)
+  referrerEmail       TEXT                          -- email of the camper/family who referred them (referral program), NULL if none
 );
 CREATE INDEX IF NOT EXISTS idx_reg_at ON registrations(createdAt);
 
