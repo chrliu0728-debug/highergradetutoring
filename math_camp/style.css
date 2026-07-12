@@ -177,7 +177,7 @@ a  { color: inherit; text-decoration: none; }
 
 .sidenav-links {
   list-style: none;
-  flex: 1;
+  flex: 0 0 auto;
   overflow-y: auto;
   padding: 0;
 }
@@ -220,6 +220,7 @@ a  { color: inherit; text-decoration: none; }
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
+  margin-top: auto;   /* pin to the bottom; keeps title sponsors up top */
 }
 
 /* The .nav-signin class is kept on this element for the JS login-aware update */
