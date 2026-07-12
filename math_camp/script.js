@@ -116,7 +116,13 @@ sessionStorage.removeItem('highergrade_admin_unlocked');
     { threshold: 0.08 }
   );
 
+  const vh = window.innerHeight || document.documentElement.clientHeight;
   document.querySelectorAll('.card, .timeline-item, .support-tier, .faq-item, .reveal').forEach(el => {
+    // Elements already on-screen at load must NOT be hidden here: this script
+    // runs a beat after first paint on a cold load, so blanking already-painted
+    // content makes it blink out and fade back in (looks broken on first load,
+    // fine on cached nav). Only set up the reveal for below-the-fold elements.
+    if (el.getBoundingClientRect().top < vh) return;
     el.style.opacity = '0';
     el.style.transition = 'opacity .5s ease';
     observer.observe(el);
