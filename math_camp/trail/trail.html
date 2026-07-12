@@ -1732,7 +1732,7 @@ function renderHiddenCrane(letter, spot) {
   el.style.top  = spot.y + '%';
   el.style.setProperty('--tilt', spot.tilt + 'deg');
   el.style.transform = `rotate(${spot.tilt}deg)`;
-  el.innerHTML = `<img src="paper-crane.jpg" alt="paper crane ${letter}" />`;
+  el.innerHTML = `<img src="/papercrane.png" alt="paper crane ${letter}" />`;
   el.addEventListener('click', () => claimHiddenCrane(letter, el), { once: true });
   section.appendChild(el);
 }
@@ -1751,7 +1751,7 @@ function claimHiddenCrane(letter, el) {
   flyer.style.top  = (rect.top  + rect.height / 2 - 22) + 'px';
   flyer.style.setProperty('--dx', (targetX - (rect.left + rect.width / 2 - 26)) + 'px');
   flyer.style.setProperty('--dy', (targetY - (rect.top  + rect.height / 2 - 22)) + 'px');
-  flyer.innerHTML = `<img src="paper-crane.jpg" alt="paper crane ${letter}" />`;
+  flyer.innerHTML = `<img src="/papercrane.png" alt="paper crane ${letter}" />`;
   flyer.style.animation = 'crane-fly-path 1.1s cubic-bezier(.34,1.06,.64,1) forwards';
   document.body.appendChild(flyer);
   el.remove();
@@ -1775,7 +1775,7 @@ function appendEndSection() {
   section.innerHTML = `
     <h3>The woods open up. Something is waiting.</h3>
     <div class="end-crane" id="end-crane">
-      <img src="paper-crane.jpg" alt="paper crane" />
+      <img src="/papercrane.png" alt="paper crane" />
     </div>
     <div class="end-note" id="end-note" aria-live="polite">
       <div class="creases"></div>
@@ -1887,7 +1887,7 @@ function paintDock() {
     c.dataset.letter = letter;
     c.innerHTML = `
       <div class="face front">
-        <img src="paper-crane.jpg" alt="paper crane ${letter}" />
+        <img src="/papercrane.png" alt="paper crane ${letter}" />
         <span class="letter">${letter}</span>
       </div>
       <div class="face back">${V[letter]}</div>
