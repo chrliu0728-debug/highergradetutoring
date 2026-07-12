@@ -281,6 +281,20 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   });
 
   renderAll();
+
+  // The staff grid renders asynchronously (once the staff data has loaded),
+  // which grows the page height above every section below it. If we arrived
+  // via a deep link with a URL hash — e.g. /about/about.html#online from the
+  // register form's "How online works" link — the browser already scrolled to
+  // where that target sat BEFORE the grid rendered, so it lands short of the
+  // real block. Re-scroll to the hash target now that the grid has expanded.
+  if (location.hash.length > 1) {
+    const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target) {
+      // rAF so the browser has flushed layout from the innerHTML writes above.
+      requestAnimationFrame(() => target.scrollIntoView());
+    }
+  }
 })();
 
 // ── Countdown timer (home page) ───────────────────────────────
