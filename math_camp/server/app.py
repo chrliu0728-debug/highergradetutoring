@@ -47,6 +47,99 @@ COOKIE_NAME    = "hg_session"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 SECURE_COOKIE  = os.environ.get("HIGHERGRADE_SECURE_COOKIE", "1") != "0"
 
+# ── Field-level encryption for registration PII (at rest) ────────────
+# The registrations table holds sensitive customer PII (names, DOB, phones,
+# emergency contacts, medical notes, pickup people, camp passwords). Those
+# columns are encrypted at rest with a Fernet key (AES-128-CBC + HMAC) held
+# ONLY in the server environment (HG_DATA_KEY in /etc/highergrade.env), so a
+# stolen DB file — or the nightly GitHub DB backup — is useless without it.
+#
+# Hybrid model: the admin table auto-decrypts for a logged-in admin; the bulk
+# CSV export ADDITIONALLY requires HG_EXPORT_PASSPHRASE (see the export route).
+#
+# `studentEmail` is deliberately NOT encrypted — it's the login identifier,
+# looked up by equality in many places. The gamified `students` table is a
+# separate store and is intentionally left untouched here.
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+except Exception:  # noqa: BLE001 — library absent (e.g. local dev) → encryption off
+    Fernet = None
+    InvalidToken = Exception
+
+_ENC_PREFIX = "enc:v1:"
+_DATA_KEY = os.environ.get("HG_DATA_KEY", "").strip()
+_fernet = None
+if Fernet and _DATA_KEY:
+    try:
+        _fernet = Fernet(_DATA_KEY.encode("ascii"))
+    except Exception:  # noqa: BLE001 — bad key → fail safe (plaintext), never crash
+        _fernet = None
+
+# PII columns in `registrations` encrypted at rest.
+REG_ENC_COLS = [
+    "firstName", "lastName", "dob",
+    "parentFirst", "parentLast", "parentPhone", "parentEmail",
+    "emerg1Name", "emerg1Phone", "emerg1Relationship",
+    "hobbies", "whyJoin", "medicalInfo", "password", "pickupPeople",
+]
+
+# Passphrase gate for the bulk CSV export (the high-risk "download everyone's
+# data incl. passwords" action). The export refuses to run without a match.
+EXPORT_PASSPHRASE = os.environ.get("HG_EXPORT_PASSPHRASE", "")
+
+
+def enc_field(value):
+    """Encrypt a value for at-rest storage. No-op if encryption is off, the
+    value is empty/None, or it is already an encrypted token."""
+    if value is None or not _fernet:
+        return value
+    s = value if isinstance(value, str) else str(value)
+    if s == "" or s.startswith(_ENC_PREFIX):
+        return value
+    return _ENC_PREFIX + _fernet.encrypt(s.encode("utf-8")).decode("ascii")
+
+
+def dec_field(value):
+    """Decrypt a stored value. Pass-through if it isn't an encrypted token or
+    the key is unavailable, so mixed plaintext/ciphertext rows both work."""
+    if not isinstance(value, str) or not value.startswith(_ENC_PREFIX):
+        return value
+    if not _fernet:
+        return value
+    try:
+        return _fernet.decrypt(value[len(_ENC_PREFIX):].encode("ascii")).decode("utf-8")
+    except Exception:  # noqa: BLE001 — tampered/rotated token → return as-is
+        return value
+
+
+def encryption_active():
+    return _fernet is not None
+
+
+def encrypt_existing_registrations(db):
+    """One-time, idempotent migration: encrypt any still-plaintext PII in the
+    registrations table. Safe to call on every startup — rows already carrying
+    the enc: prefix are skipped, and it no-ops entirely when no key is set."""
+    if not _fernet:
+        return 0
+    rows = db.execute("SELECT id, %s FROM registrations" %
+                      ", ".join(REG_ENC_COLS)).fetchall()
+    changed = 0
+    for r in rows:
+        updates, params = [], []
+        for col in REG_ENC_COLS:
+            v = r[col]
+            if isinstance(v, str) and v and not v.startswith(_ENC_PREFIX):
+                updates.append(f"{col} = ?")
+                params.append(enc_field(v))
+        if updates:
+            params.append(r["id"])
+            db.execute(f"UPDATE registrations SET {', '.join(updates)} WHERE id = ?", params)
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
 # Field constants ported from students-data.js
 STAT_FIELD_KEYS = [
     "privatePoints", "totalPointsEarned", "luck", "perfectScores",
@@ -166,6 +259,17 @@ def default_stats():
 def create_app():
     app = Flask(__name__)
     init_db()
+    # One-time, idempotent: encrypt any registration PII still stored in
+    # plaintext. No-ops when HG_DATA_KEY is unset; skips already-encrypted rows.
+    if encryption_active():
+        try:
+            _db = connect()
+            _n = encrypt_existing_registrations(_db)
+            _db.close()
+            if _n:
+                app.logger.info("Encrypted PII for %d existing registration(s).", _n)
+        except Exception:  # noqa: BLE001
+            app.logger.exception("registration PII encryption migration failed")
 
     @app.before_request
     def _open_db():
@@ -2099,26 +2203,29 @@ def register_routes(app):
                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rid, int(time.time()),
-                first, last,
-                (d.get("dob") or "").strip() or None,
+                # PII columns are encrypted at rest (see REG_ENC_COLS). Columns
+                # left bare below (studentEmail, school, relationship, mode…) are
+                # lookup keys or non-sensitive and stay queryable in plaintext.
+                enc_field(first), enc_field(last),
+                enc_field((d.get("dob") or "").strip() or None),
                 (d.get("student_email") or "").strip() or None,
                 (d.get("school") or "").strip() or None,
-                (d.get("parent_first") or "").strip() or None,
-                (d.get("parent_last")  or "").strip() or None,
+                enc_field((d.get("parent_first") or "").strip() or None),
+                enc_field((d.get("parent_last")  or "").strip() or None),
                 (d.get("relationship") or "").strip() or None,
-                (d.get("parent_phone") or "").strip() or None,
-                (d.get("parent_email") or "").strip() or None,
-                (d.get("emerg1_name") or "").strip() or None,
-                (d.get("emerg1_phone") or "").strip() or None,
-                (d.get("emerg1_relationship") or "").strip() or None,
-                (d.get("hobbies") or None),
-                (d.get("why_join") or None),
+                enc_field((d.get("parent_phone") or "").strip() or None),
+                enc_field((d.get("parent_email") or "").strip() or None),
+                enc_field((d.get("emerg1_name") or "").strip() or None),
+                enc_field((d.get("emerg1_phone") or "").strip() or None),
+                enc_field((d.get("emerg1_relationship") or "").strip() or None),
+                enc_field((d.get("hobbies") or None)),
+                enc_field((d.get("why_join") or None)),
                 1 if d.get("consent_photo") else 0,
                 roaming,
-                mode, medical, (discount_code or None), amount_due,
-                password,
+                mode, enc_field(medical), (discount_code or None), amount_due,
+                enc_field(password),
                 waitlisted,
-                pickup_json,
+                enc_field(pickup_json),
             ),
         )
         # Auto-provision a frozen student account so the camper can attempt
@@ -2494,6 +2601,10 @@ def register_routes(app):
         out = []
         for r in rows:
             d = dict(r)
+            # Decrypt PII for the authenticated admin (table stays readable).
+            for col in REG_ENC_COLS:
+                if col in d:
+                    d[col] = dec_field(d[col])
             d["consentPhoto"] = bool(d.get("consentPhoto"))
             try:
                 d["pickupPeople"] = json.loads(d.get("pickupPeople") or "[]")
@@ -2501,6 +2612,88 @@ def register_routes(app):
                 d["pickupPeople"] = []
             out.append(d)
         return jsonify(ok=True, data=out)
+
+    @app.route("/api/admin/registrations/export", methods=["POST"])
+    @require_admin
+    def admin_export_registrations():
+        """Bulk CSV export of every registration, decrypted server-side. This
+        is the high-risk action — a portable file with all PII + camp
+        passwords — so on top of the admin session it is gated behind
+        HG_EXPORT_PASSPHRASE. Without the passphrase, no file is produced."""
+        import csv as _csv
+        import io as _io
+        import datetime as _dt
+
+        body = request.get_json(silent=True) or {}
+        supplied = (body.get("passphrase") or "").strip()
+        if not EXPORT_PASSPHRASE:
+            return jsonify(ok=False,
+                           error="Export passphrase is not configured on the server."), 503
+        if not supplied or not hmac.compare_digest(supplied, EXPORT_PASSPHRASE):
+            return jsonify(ok=False, error="Incorrect export passphrase."), 403
+
+        cols = [
+            ("createdAt", "Submitted (UTC)"), ("waitlisted", "Status"),
+            ("firstName", "First name"), ("lastName", "Last name"), ("dob", "DOB"),
+            ("studentEmail", "Student email"), ("password", "Camp password"),
+            ("school", "School"), ("parentFirst", "Parent first"),
+            ("parentLast", "Parent last"), ("relationship", "Relationship"),
+            ("parentPhone", "Parent phone"), ("parentEmail", "Parent email"),
+            ("emerg1Name", "Emergency contact"),
+            ("emerg1Relationship", "Emergency relationship"),
+            ("emerg1Phone", "Emergency phone"), ("pickupPeople", "Authorized pickup"),
+            ("consentPhoto", "Photo consent"), ("campusRoaming", "Campus breaks"),
+            ("hobbies", "Hobbies"), ("whyJoin", "Why join"),
+        ]
+
+        def _fmt_pickup(raw):
+            try:
+                items = json.loads(dec_field(raw) or "[]")
+            except (TypeError, ValueError):
+                return ""
+            parts = []
+            for it in (items or []):
+                bits = []
+                if it.get("name"):         bits.append(it["name"])
+                if it.get("relationship"): bits.append("(" + it["relationship"] + ")")
+                if it.get("phone"):        bits.append(it["phone"])
+                parts.append(" ".join(bits))
+            return " | ".join(p for p in parts if p)
+
+        rows = g.db.execute(
+            "SELECT * FROM registrations ORDER BY createdAt DESC"
+        ).fetchall()
+        buf = _io.StringIO()
+        w = _csv.writer(buf)
+        w.writerow([label for _, label in cols])
+        for r in rows:
+            d = dict(r)
+            for c in REG_ENC_COLS:
+                if c in d:
+                    d[c] = dec_field(d[c])
+            line = []
+            for key, _ in cols:
+                v = d.get(key)
+                if key == "createdAt":
+                    v = (_dt.datetime.utcfromtimestamp(v).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                         if v else "")
+                elif key == "consentPhoto":
+                    v = "yes" if v else "no"
+                elif key == "campusRoaming":
+                    v = "free roam" if v == "allow" else ("supervised" if v == "no" else "")
+                elif key == "waitlisted":
+                    v = "waitlist" if v else "active"
+                elif key == "pickupPeople":
+                    v = _fmt_pickup(d.get("pickupPeople"))
+                line.append("" if v is None else v)
+            w.writerow(line)
+
+        ts = _dt.datetime.utcnow().strftime("%Y-%m-%d")
+        resp = make_response(buf.getvalue())
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = \
+            f'attachment; filename="highergrade-registrations-{ts}.csv"'
+        return resp
 
     @app.route("/api/admin/registrations/<rid>", methods=["DELETE"])
     @require_admin

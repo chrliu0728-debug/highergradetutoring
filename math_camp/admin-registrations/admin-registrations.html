@@ -670,55 +670,44 @@ loadCap();
   loadTier();
 })();
 
-exportBtn.addEventListener('click', () => {
-  const cols = [
-    ['createdAt',   'Submitted (UTC)'],
-    ['waitlisted',  'Status'],
-    ['firstName',   'First name'],
-    ['lastName',    'Last name'],
-    ['dob',         'DOB'],
-    ['studentEmail','Student email'],
-    ['password',    'Camp password'],
-    ['school',      'School'],
-    ['parentFirst', 'Parent first'],
-    ['parentLast',  'Parent last'],
-    ['relationship','Relationship'],
-    ['parentPhone', 'Parent phone'],
-    ['parentEmail', 'Parent email'],
-    ['emerg1Name',         'Emergency contact'],
-    ['emerg1Relationship', 'Emergency relationship'],
-    ['emerg1Phone',        'Emergency phone'],
-    ['pickupPeople',       'Authorized pickup'],
-    ['consentPhoto',       'Photo consent'],
-    ['campusRoaming',      'Campus breaks'],
-    ['hobbies',     'Hobbies'],
-    ['whyJoin',     'Why join'],
-  ];
-  const escCsv = (s) => {
-    const v = s == null ? '' : String(s);
-    if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
-    return v;
-  };
-  const lines = [cols.map(c => c[1]).join(',')];
-  DATA.forEach(r => {
-    lines.push(cols.map(([k]) => {
-      let v = r[k];
-      if (k === 'createdAt')    v = v ? new Date(v * 1000).toISOString() : '';
-      if (k === 'consentPhoto') v = v ? 'yes' : 'no';
-      if (k === 'campusRoaming') v = v === 'allow' ? 'free roam' : v === 'no' ? 'supervised' : '';
-      if (k === 'waitlisted')   v = v ? 'waitlist' : 'active';
-      if (k === 'pickupPeople') v = pickupCsv(v);
-      return escCsv(v);
-    }).join(','));
-  });
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const ts = new Date().toISOString().slice(0, 10);
-  a.href = url;
-  a.download = `highergrade-registrations-${ts}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+// The registration PII is encrypted at rest. The CSV export is a gated
+// server endpoint: it decrypts + builds the file only when the correct
+// export passphrase is supplied. The passphrase never travels with the
+// stored data — it just unlocks this bulk download.
+exportBtn.addEventListener('click', async () => {
+  const pass = prompt('Enter the CSV decryption passphrase to export all registrations (includes camp passwords):');
+  if (pass == null) return;                    // cancelled
+  if (!pass.trim()) { alert('A passphrase is required to export.'); return; }
+  const orig = exportBtn.textContent;
+  exportBtn.disabled = true;
+  exportBtn.textContent = '🔓 Decrypting…';
+  try {
+    const r = await fetch('/api/admin/registrations/export', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passphrase: pass }),
+    });
+    if (!r.ok) {
+      let msg = `Export failed (HTTP ${r.status}).`;
+      try { const j = await r.json(); if (j && j.error) msg = j.error; } catch (_) {}
+      alert(msg);
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `highergrade-registrations-${ts}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (_) {
+    alert('Network error during export — please try again.');
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = orig;
+  }
 });
 </script>
 </body>
