@@ -375,7 +375,40 @@ document.querySelectorAll('.faq-q').forEach(btn => {
         { name: 'Elsa Abikhalil', role: 'Vice Chair, Staples Canada — Oakville', photo: '' },
       ],
     },
-    // Add up to 3 more sponsor objects here when you have them.
+    {
+      id: 'gametime',
+      name: 'Game Time Collectibles',
+      tagline: 'Home of the Goats',
+      brandColor: '#EF9F00',
+      logo: '/gametime-logo.jpg',
+      description:
+        'A one-stop shop for gamers, by gamers — trading cards (Pokémon, '
+        + 'Magic, One Piece), Gunpla and model kits, figures, video games, and '
+        + 'tabletop favourites, plus the tournaments and trade nights that turn '
+        + 'the shop into a community hangout. Proud to help local students get '
+        + 'a strong start.',
+      location: {
+        label: 'Game Time Collectibles — Mississauga',
+        url: 'https://www.google.com/maps/place/Game+Time+Collectibles/@43.51261,-79.6414099,17z/data=!3m1!4b1!4m6!3m5!1s0x882b452c1180140b:0x839ae84e50cf34be!8m2!3d43.51261!4d-79.6414099!16s%2Fg%2F11h7cqqv2m',
+      },
+    },
+    {
+      id: 'maplestaple',
+      name: 'The Maple Staple',
+      tagline: 'Toronto indie bookstore',
+      brandColor: '#CB4623',
+      logo: '/maplestaple-logo.png',
+      description:
+        'A Toronto-based independent bookstore and community hub championing '
+        + 'indie authors and a love of literature. Proud to invest in students’ '
+        + 'academic confidence and problem-solving skills — building the '
+        + 'creative leaders of tomorrow.',
+      location: {
+        label: 'The Maple Staple — Toronto',
+        url: 'https://maps.app.goo.gl/vStM7ALktDi61aNE9',
+      },
+    },
+    // Add up to 1 more sponsor object here when you have them.
   ];
 
   if (!SPONSORS.length) return;
@@ -414,15 +447,17 @@ document.querySelectorAll('.faq-q').forEach(btn => {
           '<h2 class="sponsor-modal-name" id="sm-name"></h2>' +
           '<p class="sponsor-modal-tagline" id="sm-tagline"></p></div>' +
         '</div>' +
-        '<div class="sponsor-carousel">' +
-          '<button class="sponsor-carousel-arrow prev" id="sm-prev" aria-label="Previous image">‹</button>' +
-          '<div class="sponsor-carousel-viewport"><div class="sponsor-carousel-track" id="sm-track"></div></div>' +
-          '<button class="sponsor-carousel-arrow next" id="sm-next" aria-label="Next image">›</button>' +
+        '<div id="sm-carousel">' +
+          '<div class="sponsor-carousel">' +
+            '<button class="sponsor-carousel-arrow prev" id="sm-prev" aria-label="Previous image">‹</button>' +
+            '<div class="sponsor-carousel-viewport"><div class="sponsor-carousel-track" id="sm-track"></div></div>' +
+            '<button class="sponsor-carousel-arrow next" id="sm-next" aria-label="Next image">›</button>' +
+          '</div>' +
+          '<div class="sponsor-carousel-dots" id="sm-dots"></div>' +
         '</div>' +
-        '<div class="sponsor-carousel-dots" id="sm-dots"></div>' +
         '<div class="sponsor-location" id="sm-location"></div>' +
         '<div class="sponsor-modal-desc" id="sm-desc"></div>' +
-        '<div class="sponsor-people-label">In partnership with</div>' +
+        '<div class="sponsor-people-label" id="sm-people-label">In partnership with</div>' +
         '<div class="sponsor-people" id="sm-people"></div>' +
       '</div>';
     document.body.appendChild(modal);
@@ -438,6 +473,8 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   const elLoc   = document.getElementById('sm-location');
   const elDesc  = document.getElementById('sm-desc');
   const elPeople= document.getElementById('sm-people');
+  const elCarousel = document.getElementById('sm-carousel');
+  const elPeopleLabel = document.getElementById('sm-people-label');
   const elPrev  = document.getElementById('sm-prev');
   const elNext  = document.getElementById('sm-next');
 
@@ -486,13 +523,20 @@ document.querySelectorAll('.faq-q').forEach(btn => {
       elLoc.innerHTML = `<a href="${esc(s.location.url)}" target="_blank" rel="noopener">${window.Icons ? Icons.svg('map-pin') : ''} ${esc(s.location.label)}</a>`;
       elLoc.style.display = '';
     } else { elLoc.style.display = 'none'; }
-    elPeople.innerHTML = (s.people || []).slice(0, 2).map(p =>
+    // Carousel + people only show when the sponsor actually has them, so the
+    // simpler entries get a clean logo/description card, no empty placeholders.
+    const imgs = (s.images || []).filter(Boolean);
+    if (elCarousel) elCarousel.style.display = imgs.length ? '' : 'none';
+    if (imgs.length) renderCarousel(s);
+    const ppl = (s.people || []).filter(p => p && (p.name || p.photo)).slice(0, 2);
+    if (elPeopleLabel) elPeopleLabel.style.display = ppl.length ? '' : 'none';
+    elPeople.style.display = ppl.length ? '' : 'none';
+    elPeople.innerHTML = ppl.map(p =>
       `<div class="sponsor-person">${p.photo
         ? `<img class="sponsor-person-photo" src="${esc(p.photo)}" alt="${esc(p.name)}" />`
         : `<div class="sponsor-person-photo placeholder">${esc(initials(p.name))}</div>`}` +
       `<div class="sponsor-person-name">${esc(p.name)}</div>` +
       `<div class="sponsor-person-role">${esc(p.role)}</div></div>`).join('');
-    renderCarousel(s);
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';

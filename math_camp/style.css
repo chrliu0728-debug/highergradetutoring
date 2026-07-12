@@ -1535,18 +1535,38 @@ footer {
 
 /* ── Title sponsors inside the vertical sidebar nav (under Contact) ── */
 .sidenav-sponsors {
-  margin-top: 16px; padding-top: 16px;
-  border-top: 1px solid var(--border);
+  margin-top: 20px; padding: 16px 16px 4px;
+  border-top: 1px solid rgba(255,255,255,.08);
 }
 .sidenav-sponsors-label {
-  font-size: .66rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .12em; color: var(--muted);
-  margin: 0 0 10px 4px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: .6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .16em; color: rgba(255,255,255,.4);
+  margin: 0 0 12px 2px;
+}
+.sidenav-sponsors-label::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,.14), transparent);
 }
 .sidenav-sponsors .title-sponsors {
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 9px;
 }
-.sidenav-sponsors .sponsor-slot { width: 100%; max-width: none; height: 48px; }
+/* Clean white logo tile per sponsor; subtle lift + brand-tinted edge on hover */
+.sidenav-sponsors .sponsor-slot {
+  width: 100%; max-width: none; height: 52px;
+  padding: 9px 16px;
+  background: #fff;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.sidenav-sponsors .sponsor-slot:hover {
+  transform: translateY(-2px);
+  border-color: var(--blush);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.sidenav-sponsors .sponsor-slot-img { max-height: 100%; max-width: 100%; object-fit: contain; }
+.sidenav-sponsors .sponsor-slot-wordmark { font-size: 1.05rem; font-weight: 800; }
 /* Keep them visible inside the sidebar drawer even on small screens (the
    drawer itself hides on mobile, so this only shows when it's open). */
 @media (max-width: 900px) { .sidenav-sponsors .title-sponsors { display: flex; } }
