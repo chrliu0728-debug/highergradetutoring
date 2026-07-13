@@ -2155,51 +2155,24 @@ def register_routes(app):
         # stop here and ask them to re-register BEFORE we persist anything, so
         # no orphan registration is left behind. Any other send failure is our
         # side (SMTP down, etc.) and must NOT block the registration.
-        # Referral program v2 — the 6-digit code they entered (whoever referred
-        # them). Must resolve to a real camper/teacher; a valid code auto-applies
-        # 10% off. Reject a non-blank code that matches nobody rather than
-        # silently dropping it, so the family isn't surprised by the price. A
-        # self-referral is impossible: the camper's own code doesn't exist yet.
-        referred_by_code = _normalize_referral_input(d.get("referred_by_code"))
-        referrer = None
-        if referred_by_code:
-            referrer = _resolve_referral_code(g.db, referred_by_code)
-            if not referrer:
-                return jsonify(
-                    ok=False,
-                    error="That referral code isn't valid. Double-check it, or "
-                          "leave the field blank if no one referred you.",
-                ), 400
-        referral_pct = 0.10 if referrer else 0.0
-        # Apply the best available discount to the tier price; this is the amount
-        # we ask for in the confirmation email and store on the registration.
-        # Discounts don't stack — a discount code and a referral both give a
-        # percentage off, so we honour whichever is larger.
+        # Referral program (email-based): the family enters the EMAIL of whoever
+        # referred them. We keep it so staff can email that person to verify the
+        # referral really happened and send them their $20 reward by e-Transfer.
+        # Kept only when it looks like an email and isn't the camper's own.
+        referrer_email = (d.get("referrer_email") or "").strip()
+        if (not _looks_like_email(referrer_email)
+                or referrer_email.lower() == student_email.lower()):
+            referrer_email = None
+        # Apply any discount code to the tier price — this is the amount we ask
+        # for in the confirmation email. (The referral's 10% off is applied
+        # manually by staff once they've verified the referral.)
         discount_code = (d.get("discount_code") or "").strip()
         disc_row = _lookup_discount(g.db, discount_code) if discount_code else None
         disc_pct = disc_row["percent"] if disc_row else 0.0
-        best_pct = max(disc_pct, referral_pct)
         _base_price = REG_TIERS[_reg_tier()]["price"]
-        amount_due = (round(_base_price * (1.0 - best_pct), 2)
+        amount_due = (round(_base_price * (1.0 - disc_pct), 2)
                       if _base_price else _base_price)
 
-        # This camper's OWN permanent referral code (never expires) — shown on
-        # the success screen, emailed, and surfaced in their portal. Reuse the
-        # code from a prior registration under the same email so a re-register
-        # keeps one stable code per person; otherwise mint a fresh unique one
-        # (unique across campers + teachers). Computed here (SELECT/random only,
-        # no DB writes) so it can go into the confirmation email sent just below.
-        _pc_clause, _pc_param = _email_clause(student_email)
-        prior_code_row = g.db.execute(
-            f"SELECT referralCode FROM registrations "
-            f"WHERE {_pc_clause} AND referralCode IS NOT NULL "
-            "ORDER BY createdAt ASC LIMIT 1",
-            (_pc_param,),
-        ).fetchone()
-        own_referral_code = (
-            (prior_code_row["referralCode"] if prior_code_row else None)
-            or _gen_referral_code(g.db)
-        )
         # Delivery mode decides capacity below: online seats are unlimited,
         # in-person seats are capped.
         mode = (d.get("delivery_mode") or "").strip().lower()
@@ -2212,7 +2185,6 @@ def register_routes(app):
                 f"{first} {last}".strip(),
                 parent_email or None,
                 amount=amount_due or None,
-                referral_code=own_referral_code,
             )
         except Exception:  # noqa: BLE001
             confirm_status = "error"
@@ -2256,9 +2228,6 @@ def register_routes(app):
             roaming = None
         # Medical notes the family wants staff to know about (mode computed up top).
         medical = (d.get("medical_info") or "").strip() or None
-        # Legacy referrerEmail is no longer collected (the field is code-only
-        # now); keep the column NULL. Who referred them lives in referredByCode.
-        referrer_email = None
         g.db.execute(
             """INSERT INTO registrations
                (id, createdAt, firstName, lastName, dob, studentEmail, school,
@@ -2302,8 +2271,8 @@ def register_routes(app):
                 "waitlisted": waitlisted,
                 "pickupPeople": pickup_json,
                 "referrerEmail": referrer_email,
-                "referralCode": own_referral_code,
-                "referredByCode": (referrer["code"] if referrer else None),
+                "referralCode": None,
+                "referredByCode": None,
                 "emailIndex": crypto.blind(student_email) if crypto.enabled() else None,
             }),
         )
@@ -2330,23 +2299,7 @@ def register_routes(app):
                         "school":       (d.get("school") or "").strip() or None,
                         "registeredAt": str(int(time.time())),
                         "frozen":       1,
-                        "referralCode": own_referral_code,   # → extras, shown in portal
                     }))
-                else:
-                    # Existing student (re-register / already provisioned): make
-                    # sure their portal shows the same code the registration row
-                    # carries, without disturbing points/roles/stats.
-                    ex_row = g.db.execute(
-                        "SELECT extras FROM students WHERE id = ?", (already["id"],)
-                    ).fetchone()
-                    try:
-                        ex = json.loads((ex_row["extras"] if ex_row else None) or "{}")
-                    except Exception:  # noqa: BLE001
-                        ex = {}
-                    if ex.get("referralCode") != own_referral_code:
-                        ex["referralCode"] = own_referral_code
-                        g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
-                                     (json.dumps(ex), already["id"]))
         except Exception:  # noqa: BLE001
             pass
         # Keep campers in sync with registrations for this email: drop any
@@ -2367,10 +2320,7 @@ def register_routes(app):
         # near the top of this handler (before any DB writes) so we could
         # reject undeliverable addresses up front.
         return jsonify(ok=True, id=rid, waitlisted=bool(waitlisted),
-                       amountDue=amount_due,
-                       referralCode=own_referral_code,
-                       referralApplied=bool(referrer),
-                       referredByName=(referrer["name"] if referrer else None))
+                       amountDue=amount_due)
 
     @app.route("/api/camp/register/<rid>/payment-method", methods=["POST"])
     def camp_register_payment_method(rid):
@@ -2754,11 +2704,6 @@ def register_routes(app):
                 d["pickupPeople"] = json.loads(d.get("pickupPeople") or "[]")
             except (TypeError, ValueError):
                 d["pickupPeople"] = []
-            # Resolve who referred this camper (camper or teacher) so the admin
-            # table can show a name, not just the raw code.
-            ref = _resolve_referral_code(g.db, d.get("referredByCode"))
-            d["referredByName"] = ref["name"] if ref else None
-            d["referredByType"] = ref["type"] if ref else None
             # Sponsor-location payment: resolve the store name and the actual
             # amount the family pays (base − 5%).
             loc = d.get("sponsorLocation")
@@ -2804,7 +2749,7 @@ def register_routes(app):
             ("deliveryMode", "Attends"), ("medicalInfo", "Medical"),
             ("discountCode", "Discount"), ("amountDue", "Amount due"),
             ("paymentMethod", "Payment"), ("sponsorLocation", "Sponsor store"),
-            ("referralCode", "Referral code"), ("referredByCode", "Referred-by code"),
+            ("referrerEmail", "Referred by (email)"),
             ("hobbies", "Hobbies"), ("whyJoin", "Why join"),
         ]
 

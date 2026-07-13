@@ -657,22 +657,6 @@
     <!-- Filled by JS -->
   </div>
 
-  <!-- My referral code (never expires) -->
-  <div class="roles-panel" id="referral-panel" style="display:none;">
-    <div class="roles-panel-head">
-      <div>
-        <div class="label">Refer a friend</div>
-        <div class="name">Your referral code</div>
-      </div>
-    </div>
-    <p style="font-size:.88rem;color:var(--text-mid);margin:6px 0 12px;line-height:1.5;">
-      Share this code with friends. When they enter it while registering, they get <strong>10% off</strong> and you earn <strong>$20</strong> for each one who registers and pays. It never expires.
-    </p>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-      <span id="referral-panel-code" style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:1.5rem;letter-spacing:.22em;background:var(--surface2);border:1.5px dashed var(--blush);border-radius:10px;padding:8px 18px;color:var(--blush-dark);">000000</span>
-      <button type="button" id="referral-panel-copy" class="btn btn-blue" style="font-size:.82rem;">Copy</button>
-    </div>
-  </div>
 
   <!-- Action cards -->
   <div class="actions-grid">
@@ -1020,7 +1004,6 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
 
     renderClassPanel(s);
     renderRolesPanel(s);
-    renderReferralPanel(s);
     renderLuckCard(s);
     renderTransferCard(s);
     renderClickerCard(s);
@@ -1028,28 +1011,6 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderCraneHintsCard(s);
     renderInfinityCard(s);
     renderContribCard(s);
-  }
-
-  /* ─── Referral-code panel — the camper's own permanent code ─── */
-  function renderReferralPanel(s) {
-    const panel = document.getElementById('referral-panel');
-    if (!panel) return;
-    const code = s && s.referralCode;
-    if (!code) { panel.style.display = 'none'; return; }
-    panel.style.display = '';
-    const codeEl = document.getElementById('referral-panel-code');
-    if (codeEl) codeEl.textContent = code;
-    const copyBtn = document.getElementById('referral-panel-copy');
-    if (copyBtn && !copyBtn.dataset.wired) {
-      copyBtn.dataset.wired = '1';
-      copyBtn.addEventListener('click', () => {
-        if (!navigator.clipboard) return;
-        navigator.clipboard.writeText(code).then(() => {
-          copyBtn.textContent = 'Copied!';
-          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-        }).catch(() => {});
-      });
-    }
   }
 
   /* ─── Infinity Mode card — visible after beating the dungeon ─── */

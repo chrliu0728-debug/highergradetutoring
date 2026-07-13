@@ -774,14 +774,13 @@
 
             <!-- Referral -->
             <div style="background:var(--blush-bg); border:1px solid var(--blush-light); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
-              <label for="referral-code" style="display:block; font-weight:700; font-size:.9rem; margin-bottom:6px;"><i data-icon="gift" style="color:var(--blush);"></i> Were you referred by a friend?</label>
+              <label for="referrer-email" style="display:block; font-weight:700; font-size:.9rem; margin-bottom:6px;"><i data-icon="gift" style="color:var(--blush);"></i> Were you referred by a friend?</label>
               <p style="font-size:.82rem; color:var(--text-mid); margin:0 0 8px; line-height:1.5;">
-                Enter the <strong>6-digit referral code</strong> the person who referred you shared. Your <strong>10% off</strong> is applied automatically, and they'll receive a <strong>$20 reward</strong>. Leave blank if no one referred you.
+                Enter <strong>their email</strong>. We'll email them to confirm they referred you — and it's where we e-Transfer their <strong>$20 reward</strong>. Leave blank if no one referred you.
               </p>
-              <input type="text" id="referral-code" name="referred_by_code" placeholder="e.g. 004217" autocomplete="off"
-                inputmode="numeric" maxlength="7"
-                style="width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-family:inherit; letter-spacing:.12em;" />
-              <div class="field-error" id="err-referral-code">Please enter the 6-digit code exactly, or leave this blank.</div>
+              <input type="email" id="referrer-email" name="referrer_email" placeholder="friend@example.com" autocomplete="off"
+                style="width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-family:inherit;" />
+              <div class="field-error" id="err-referrer-email">Please enter a valid email address, or leave this blank.</div>
             </div>
 
             <hr class="form-divider" style="margin-top:0;" />
@@ -942,21 +941,6 @@
           <p>
             Congratulations, and thank you for registering for HigherGrade Tutoring's Summer Camp 2026! We'll send a confirmation to your parent/guardian's email within 24 hours, along with everything you need to know before August 4. There's just one quick step left to lock in your spot.
           </p>
-
-          <!-- ── Referral-applied confirmation (only when a valid code was used) ── -->
-          <div id="referral-applied-block" style="display:none;background:#ECFDF3;border:2px solid #6EE7B7;border-radius:var(--radius-sm);padding:14px 18px;margin:0 auto 16px;max-width:520px;text-align:left;color:#065F46;line-height:1.5;font-size:.9rem;">
-            <i data-icon="check-circle"></i> <strong>10% off applied</strong> — referred by <span id="referral-by-name">a friend</span>. Thanks for spreading the word!
-          </div>
-
-          <!-- ── Your own referral code (never expires) ── -->
-          <div id="referral-code-block" style="display:none;background:#FDF2F8;border:2px solid var(--blush-light);border-radius:var(--radius-sm);padding:18px 20px;margin:0 auto 20px;max-width:520px;text-align:center;color:#7A2E4E;line-height:1.5;">
-            <div style="font-weight:800;font-size:1rem;margin-bottom:4px;display:flex;align-items:center;gap:8px;justify-content:center;"><i data-icon="gift"></i> Your referral code</div>
-            <p style="margin:0 0 10px;font-size:.86rem;color:var(--text-mid);">Share this with friends — they get <strong>10% off</strong> and you earn <strong>$20</strong> for each one who registers and pays. It never expires.</p>
-            <div style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;">
-              <span id="referral-code-value" style="font-family:'JetBrains Mono',monospace;font-weight:800;font-size:1.5rem;letter-spacing:.22em;background:#fff;border:1.5px dashed var(--blush);border-radius:10px;padding:8px 18px;color:#B03A6B;">000000</span>
-              <button type="button" id="referral-code-copy" class="btn btn-blue" style="font-size:.82rem;">Copy</button>
-            </div>
-          </div>
 
           <!-- ── Spam-folder reminder ── -->
           <div style="background:#EAF4FF;border:2px solid #93C5FD;border-radius:var(--radius-sm);padding:16px 18px;margin:0 auto 20px;max-width:520px;text-align:left;color:#1E3A5F;line-height:1.55;display:flex;gap:12px;align-items:flex-start;">
@@ -1538,23 +1522,29 @@
       return;
     }
 
-    // Referral code is optional, but if they typed something it must be
-    // exactly 6 digits. The server does the real check (does it match a
-    // camper/teacher?) and returns a clear error if not.
-    const referralInput = document.getElementById('referral-code');
-    const referralErr    = document.getElementById('err-referral-code');
-    const referralDigits = (referralInput?.value || '').replace(/\D/g, '');
-    referralErr && referralErr.classList.remove('show');
-    referralInput && referralInput.classList.remove('error');
-    if (referralInput && referralInput.value.trim() && referralDigits.length !== 6) {
-      if (referralErr) {
-        referralErr.textContent = 'A referral code is exactly 6 digits. Re-check it, or leave this blank.';
-        referralErr.classList.add('show');
+    // Referrer email is optional, but if they typed something it must be a
+    // valid email (and not their own address).
+    const referrerInput = document.getElementById('referrer-email');
+    const referrerErr    = document.getElementById('err-referrer-email');
+    const referrerVal    = (referrerInput?.value || '').trim();
+    referrerErr && referrerErr.classList.remove('show');
+    referrerInput && referrerInput.classList.remove('error');
+    if (referrerVal) {
+      const studentVal = get('student-email');
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(referrerVal);
+      const isSelf  = referrerVal.toLowerCase() === String(studentVal || '').toLowerCase();
+      if (!isEmail || isSelf) {
+        if (referrerErr) {
+          referrerErr.textContent = isSelf
+            ? "That's your own email — enter the email of the person who referred you, or leave it blank."
+            : 'Please enter a valid email address, or leave this blank.';
+          referrerErr.classList.add('show');
+        }
+        referrerInput.classList.add('error');
+        referrerInput.focus();
+        referrerInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
       }
-      referralInput.classList.add('error');
-      referralInput.focus();
-      referralInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
     }
 
     const payload = {
@@ -1578,7 +1568,7 @@
       delivery_mode:       (document.querySelector('input[name="delivery_mode"]:checked') || {}).value || null,
       medical_info:        document.getElementById('medical-info')?.value?.trim() || null,
       discount_code:       document.getElementById('discount-code')?.value?.trim() || null,
-      referred_by_code:    referralDigits || null,
+      referrer_email:      referrerVal || null,
       password:            pwdVal,
       pickup_people:       collectPickupPeople(),
     };
@@ -1623,27 +1613,6 @@
         if (p)  p.textContent  = "Camp is at capacity right now. We'll email you the moment a spot opens up — your registration is saved exactly as submitted.";
         const circle = successEl.querySelector('.check-circle');
         if (circle) { circle.textContent = '⏳'; circle.style.background = '#FCD34D'; circle.style.color = '#78350F'; }
-      }
-      // Referral: show the applied-discount note and this camper's own code.
-      if (respData && respData.referralApplied) {
-        const nameEl = document.getElementById('referral-by-name');
-        if (nameEl && respData.referredByName) nameEl.textContent = respData.referredByName;
-        const ab = document.getElementById('referral-applied-block');
-        if (ab) ab.style.display = 'block';
-      }
-      if (respData && respData.referralCode) {
-        const codeEl = document.getElementById('referral-code-value');
-        if (codeEl) codeEl.textContent = respData.referralCode;
-        const block = document.getElementById('referral-code-block');
-        if (block) block.style.display = 'block';
-        const copyBtn = document.getElementById('referral-code-copy');
-        if (copyBtn) copyBtn.addEventListener('click', () => {
-          if (!navigator.clipboard) return;
-          navigator.clipboard.writeText(respData.referralCode).then(() => {
-            copyBtn.textContent = 'Copied!';
-            setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-          }).catch(() => {});
-        });
       }
       document.getElementById('reg-form').style.display = 'none';
       successEl.style.display = 'block';

@@ -289,8 +289,7 @@
             <th>Discount</th>
             <th>Amount due</th>
             <th>Payment</th>
-            <th>Referral code</th>
-            <th>Referred by</th>
+            <th>Referred by (email)</th>
             <th class="wrap">Hobbies</th>
             <th class="wrap">Why join</th>
             <th></th>
@@ -451,7 +450,7 @@ function render() {
     : DATA;
   countEl.textContent = `${rows.length} registration${rows.length === 1 ? '' : 's'}`;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="28" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="27" class="empty">No registrations${q ? ' match your search' : ' yet'}.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r, i) => {
@@ -489,9 +488,8 @@ function render() {
             : r.paymentMethod === 'sponsor'
             ? '<span style="background:#EDE9FE; color:#5B21B6; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">🏬 ' + (r.sponsorLocationUrl ? '<a href="' + esc(r.sponsorLocationUrl) + '" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline;">' + esc(r.sponsorLocationName || 'Sponsor') + '</a>' : esc(r.sponsorLocationName || 'Sponsor')) + '</span>'
             : '<span style="background:#DBEAFE; color:#1E40AF; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💳 e-Transfer</span>'}</td>
-      <td style="font-family:'JetBrains Mono', monospace; font-size:.82rem; letter-spacing:.06em;">${na(r.referralCode)}</td>
-      <td>${r.referredByName
-            ? '🎁 ' + esc(r.referredByName) + (r.referredByType === 'teacher' ? ' <span style="color:var(--muted);">(teacher)</span>' : '') + '<br><span style="color:var(--muted); font-size:.72rem;">code ' + esc(r.referredByCode || '') + '</span>'
+      <td>${r.referrerEmail
+            ? '🎁 ' + esc(r.referrerEmail)
             : NA}</td>
       <td class="wrap">${na(r.hobbies)}</td>
       <td class="wrap">${na(r.whyJoin)}</td>
