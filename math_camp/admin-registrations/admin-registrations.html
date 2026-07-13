@@ -490,6 +490,8 @@ function render() {
             : '<span style="background:#DBEAFE; color:#1E40AF; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💳 e-Transfer</span>'}</td>
       <td>${r.referrerEmail
             ? '🎁 ' + esc(r.referrerEmail)
+            : r.referredByCode
+            ? '👤 ' + esc(r.referredByStaff || 'Staff') + '<br><span style="color:var(--muted); font-size:.72rem;">staff · 25% off · ' + esc(r.referredByCode) + '</span>'
             : NA}</td>
       <td class="wrap">${na(r.hobbies)}</td>
       <td class="wrap">${na(r.whyJoin)}</td>

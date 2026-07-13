@@ -770,17 +770,20 @@
                 <button type="button" class="btn btn-blue" id="apply-discount" style="font-size:.85rem;">Apply</button>
               </div>
               <div id="discount-msg" style="margin-top:8px; font-size:.85rem; font-weight:600; display:none;"></div>
+              <p style="margin:8px 0 0; font-size:.78rem; color:var(--text-mid); line-height:1.5;">
+                <i data-icon="star" style="color:var(--mint-dark);"></i> Only your <strong>best single discount</strong> applies — a discount code and a staff referral code <strong>don't stack</strong>. The one exception: paying at a sponsor location takes an <strong>extra 5% off</strong> on top.
+              </p>
             </div>
 
             <!-- Referral -->
             <div style="background:var(--blush-bg); border:1px solid var(--blush-light); border-radius:var(--radius-sm); padding:16px 18px; margin-bottom:24px;">
-              <label for="referrer-email" style="display:block; font-weight:700; font-size:.9rem; margin-bottom:6px;"><i data-icon="gift" style="color:var(--blush);"></i> Were you referred by a friend?</label>
+              <label for="referred-by" style="display:block; font-weight:700; font-size:.9rem; margin-bottom:6px;"><i data-icon="gift" style="color:var(--blush);"></i> Were you referred by a friend or staff member?</label>
               <p style="font-size:.82rem; color:var(--text-mid); margin:0 0 8px; line-height:1.5;">
-                Enter <strong>their email</strong>. We'll email them to confirm they referred you — and it's where we e-Transfer their <strong>$20 reward</strong>. Leave blank if no one referred you.
+                Referred by a <strong>friend</strong>? Enter their <strong>email</strong> — we'll confirm it and e-Transfer them a <strong>$20 reward</strong>. Referred by <strong>staff</strong>? Enter their <strong>referral code</strong> for <strong>25% off</strong>. Leave blank if neither.
               </p>
-              <input type="email" id="referrer-email" name="referrer_email" placeholder="friend@example.com" autocomplete="off"
+              <input type="text" id="referred-by" name="referred_by" placeholder="friend@example.com   ·   or a staff code" autocomplete="off"
                 style="width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.92rem; font-family:inherit;" />
-              <div class="field-error" id="err-referrer-email">Please enter a valid email address, or leave this blank.</div>
+              <div class="field-error" id="err-referred-by">Enter a valid email or a staff referral code, or leave this blank.</div>
             </div>
 
             <hr class="form-divider" style="margin-top:0;" />
@@ -987,7 +990,6 @@
               Pay your fee at one of our sponsor stores and take an <strong>additional 5% off</strong> (on top of any discount you already have). Checking out their shops is pretty cool. Pick where you'll pay:
             </p>
             <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-              <label style="display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;"><input type="radio" name="sponsor-loc" value="planet_lazer" style="accent-color:#7C3AED;"> Planet Lazer <a href="https://www.google.com/maps/place/Planet+Laser/@43.4408761,-79.7103892,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5da7ed1bb023:0x53a2b92da358175b!8m2!3d43.4408761!4d-79.7078143!16s%2Fg%2F1tk8crnl" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.78rem;font-weight:600;color:#7C3AED;text-decoration:underline;"><i data-icon="map-pin"></i> map</a></label>
               <label style="display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;"><input type="radio" name="sponsor-loc" value="game_time" style="accent-color:#7C3AED;"> Game Time Collectibles <a href="https://www.google.com/maps/place/Game+Time+Collectibles/@43.51261,-79.6439848,17z/data=!3m1!4b1!4m6!3m5!1s0x882b452c1180140b:0x839ae84e50cf34be!8m2!3d43.51261!4d-79.6414099!16s%2Fg%2F11h7cqqv2m" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.78rem;font-weight:600;color:#7C3AED;text-decoration:underline;"><i data-icon="map-pin"></i> map</a></label>
               <label style="display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;"><input type="radio" name="sponsor-loc" value="max_faucets" style="accent-color:#7C3AED;"> Max Faucets <a href="https://www.google.com/maps/place/MAX+Faucets/@43.4339484,-79.7028398,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5f148535c175:0x75750f162da469d9!8m2!3d43.4339484!4d-79.7002649!16s%2Fg%2F11jcl6xs9r" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.78rem;font-weight:600;color:#7C3AED;text-decoration:underline;"><i data-icon="map-pin"></i> map</a></label>
             </div>
@@ -1522,22 +1524,24 @@
       return;
     }
 
-    // Referrer email is optional, but if they typed something it must be a
-    // valid email (and not their own address).
-    const referrerInput = document.getElementById('referrer-email');
-    const referrerErr    = document.getElementById('err-referrer-email');
+    // "Referred by" is optional; if filled it must be a valid EMAIL (friend
+    // referral) or a numeric STAFF CODE. The server validates that a code
+    // actually matches a staff member and returns a clear error if not.
+    const referrerInput = document.getElementById('referred-by');
+    const referrerErr    = document.getElementById('err-referred-by');
     const referrerVal    = (referrerInput?.value || '').trim();
     referrerErr && referrerErr.classList.remove('show');
     referrerInput && referrerInput.classList.remove('error');
     if (referrerVal) {
       const studentVal = get('student-email');
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(referrerVal);
-      const isSelf  = referrerVal.toLowerCase() === String(studentVal || '').toLowerCase();
-      if (!isEmail || isSelf) {
+      const isEmail   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(referrerVal);
+      const isCode    = /^\d[\d\s-]{3,}$/.test(referrerVal);   // digits (a staff code)
+      const isSelf    = isEmail && referrerVal.toLowerCase() === String(studentVal || '').toLowerCase();
+      if ((!isEmail && !isCode) || isSelf) {
         if (referrerErr) {
           referrerErr.textContent = isSelf
-            ? "That's your own email — enter the email of the person who referred you, or leave it blank."
-            : 'Please enter a valid email address, or leave this blank.';
+            ? "That's your own email — enter the person who referred you, or leave it blank."
+            : 'Enter a valid email or a staff referral code, or leave this blank.';
           referrerErr.classList.add('show');
         }
         referrerInput.classList.add('error');
@@ -1568,7 +1572,7 @@
       delivery_mode:       (document.querySelector('input[name="delivery_mode"]:checked') || {}).value || null,
       medical_info:        document.getElementById('medical-info')?.value?.trim() || null,
       discount_code:       document.getElementById('discount-code')?.value?.trim() || null,
-      referrer_email:      referrerVal || null,
+      referred_by:         referrerVal || null,
       password:            pwdVal,
       pickup_people:       collectPickupPeople(),
     };

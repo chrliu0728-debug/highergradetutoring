@@ -84,10 +84,6 @@ MONEY_TREE_COST        = 6000
 # stores. Doing so earns an EXTRA 5% off, compounded on top of any discount
 # already applied (i.e. 5% of the remaining amount, not +5 percentage points).
 SPONSOR_PAY_LOCATIONS = {
-    "planet_lazer": {
-        "name": "Planet Lazer",
-        "url": "https://www.google.com/maps/place/Planet+Laser/@43.4408761,-79.7103892,17z/data=!3m1!4b1!4m6!3m5!1s0x882b5da7ed1bb023:0x53a2b92da358175b!8m2!3d43.4408761!4d-79.7078143!16s%2Fg%2F1tk8crnl",
-    },
     "game_time": {
         "name": "Game Time Collectibles",
         "url": "https://www.google.com/maps/place/Game+Time+Collectibles/@43.51261,-79.6439848,17z/data=!3m1!4b1!4m6!3m5!1s0x882b452c1180140b:0x839ae84e50cf34be!8m2!3d43.51261!4d-79.6414099!16s%2Fg%2F11h7cqqv2m",
@@ -2155,22 +2151,42 @@ def register_routes(app):
         # stop here and ask them to re-register BEFORE we persist anything, so
         # no orphan registration is left behind. Any other send failure is our
         # side (SMTP down, etc.) and must NOT block the registration.
-        # Referral program (email-based): the family enters the EMAIL of whoever
-        # referred them. We keep it so staff can email that person to verify the
-        # referral really happened and send them their $20 reward by e-Transfer.
-        # Kept only when it looks like an email and isn't the camper's own.
-        referrer_email = (d.get("referrer_email") or "").strip()
-        if (not _looks_like_email(referrer_email)
-                or referrer_email.lower() == student_email.lower()):
-            referrer_email = None
-        # Apply any discount code to the tier price — this is the amount we ask
-        # for in the confirmation email. (The referral's 10% off is applied
-        # manually by staff once they've verified the referral.)
+        # "Were you referred?" accepts EITHER a friend's email or a staff
+        # referral code:
+        #   • A friend's EMAIL is stored so staff can verify the referral and
+        #     e-Transfer that person their $20 reward.
+        #   • A staff CODE instead grants the CAMPER 25% off — staff are never
+        #     paid for their code, it's purely a discount for the family.
+        # A non-blank value that's neither a valid email nor a real staff code
+        # is rejected so the family isn't silently charged full price.
+        referred_by = (d.get("referred_by") or d.get("referrer_email") or "").strip()
+        referrer_email = None
+        staff_code = None
+        staff_pct = 0.0
+        if referred_by:
+            if _looks_like_email(referred_by):
+                if referred_by.lower() != student_email.lower():
+                    referrer_email = referred_by
+            else:
+                code = _normalize_referral_input(referred_by)
+                row = (g.db.execute("SELECT name FROM staff WHERE referralCode = ?",
+                                    (code,)).fetchone() if code else None)
+                if not row:
+                    return jsonify(ok=False, error="That doesn't look like a valid "
+                                   "email or staff referral code. Double-check it, or "
+                                   "leave the field blank."), 400
+                staff_code = code
+                staff_pct = 0.25
+        # Discounts DON'T stack: a discount code and a staff referral code both
+        # give a percentage off, so we honour whichever is larger. (The only
+        # discount that stacks is the 5% sponsor-location payment, applied later
+        # on top of this amount.)
         discount_code = (d.get("discount_code") or "").strip()
         disc_row = _lookup_discount(g.db, discount_code) if discount_code else None
         disc_pct = disc_row["percent"] if disc_row else 0.0
+        best_pct = max(disc_pct, staff_pct)
         _base_price = REG_TIERS[_reg_tier()]["price"]
-        amount_due = (round(_base_price * (1.0 - disc_pct), 2)
+        amount_due = (round(_base_price * (1.0 - best_pct), 2)
                       if _base_price else _base_price)
 
         # Delivery mode decides capacity below: online seats are unlimited,
@@ -2272,7 +2288,7 @@ def register_routes(app):
                 "pickupPeople": pickup_json,
                 "referrerEmail": referrer_email,
                 "referralCode": None,
-                "referredByCode": None,
+                "referredByCode": staff_code,   # staff referral code used (25% off), if any
                 "emailIndex": crypto.blind(student_email) if crypto.enabled() else None,
             }),
         )
@@ -2704,6 +2720,13 @@ def register_routes(app):
                 d["pickupPeople"] = json.loads(d.get("pickupPeople") or "[]")
             except (TypeError, ValueError):
                 d["pickupPeople"] = []
+            # Staff referral code used (25% off): resolve to the staff name.
+            if d.get("referredByCode"):
+                srow = g.db.execute("SELECT name FROM staff WHERE referralCode = ?",
+                                    (d["referredByCode"],)).fetchone()
+                d["referredByStaff"] = srow["name"] if srow else None
+            else:
+                d["referredByStaff"] = None
             # Sponsor-location payment: resolve the store name and the actual
             # amount the family pays (base − 5%).
             loc = d.get("sponsorLocation")

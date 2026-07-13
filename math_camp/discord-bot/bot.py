@@ -122,14 +122,27 @@ class CampAPI:
     async def _post(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
         s = await self.session()
         async with s.post(self.base + path, json=body) as r:
-            data = await r.json(content_type=None)
+            try:
+                data = await r.json(content_type=None)
+            except Exception:  # noqa: BLE001
+                data = None
+            # A restarting API (or a Caddy 502) can return an empty/non-JSON
+            # body — r.json() then yields None. Never index None; hand back a
+            # well-formed dict so the caller just sees a failed request.
+            if not isinstance(data, dict):
+                data = {"ok": False, "raw": data}
             data["_status"] = r.status
             return data
 
     async def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         s = await self.session()
         async with s.get(self.base + path, params=params or {}) as r:
-            data = await r.json(content_type=None)
+            try:
+                data = await r.json(content_type=None)
+            except Exception:  # noqa: BLE001
+                data = None
+            if not isinstance(data, dict):
+                data = {"ok": False, "raw": data}
             data["_status"] = r.status
             return data
 
