@@ -391,6 +391,12 @@ document.querySelectorAll('.faq-q').forEach(btn => {
         label: 'Game Time Collectibles — Mississauga',
         url: 'https://www.google.com/maps/place/Game+Time+Collectibles/@43.51261,-79.6414099,17z/data=!3m1!4b1!4m6!3m5!1s0x882b452c1180140b:0x839ae84e50cf34be!8m2!3d43.51261!4d-79.6414099!16s%2Fg%2F11h7cqqv2m',
       },
+      images: [
+        '/gametime-store.jpg',
+        '/gametime-pokemon.jpg',
+        '/gametime-gundam.jpg',
+        '/gametime-mtg.jpg',
+      ],
     },
     {
       id: 'maplestaple',
@@ -407,6 +413,11 @@ document.querySelectorAll('.faq-q').forEach(btn => {
         label: 'The Maple Staple — Toronto',
         url: 'https://maps.app.goo.gl/vStM7ALktDi61aNE9',
       },
+      images: [
+        '/maplestaple-store.jpg',
+        '/maplestaple-building.jpg',
+        '/maplestaple-covers.jpg',
+      ],
     },
     // Add up to 1 more sponsor object here when you have them.
   ];
