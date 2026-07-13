@@ -2623,6 +2623,16 @@ def register_routes(app):
             cfg = {}
         if not isinstance(cfg.get("sponsors"), list):
             cfg["sponsors"] = []
+        # Light mode (?light=1): drop the heavy base64 carousel images + staff
+        # photos so the floating-bubble field loads fast even on weak devices.
+        # Only the logo + colours (what a bubble needs) are kept; the full
+        # record is fetched lazily when a sponsor is actually opened.
+        if request.args.get("light"):
+            keep = ("id", "name", "tagline", "logo",
+                    "signature", "border", "board", "background", "bubbleBg")
+            slim = [{k: s.get(k) for k in keep}
+                    for s in cfg["sponsors"] if isinstance(s, dict)]
+            return jsonify(ok=True, config={"sponsors": slim})
         return jsonify(ok=True, config=cfg)
 
     @app.route("/api/admin/sponsors", methods=["PUT"])

@@ -144,30 +144,30 @@
     </div>
 
     <div class="grid-3 overlap points-grid" style="gap:20px;">
-      <div class="card reveal">
+      <div class="card reveal point-card" role="button" tabindex="0" data-point="earning">
         <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="money"></div>
         <h3>Earning private points</h3>
-        <p>Points for correct answers, attempts, and others.</p>
+        <p>Easy / Medium / Hard questions pay 1× / 3× / 5× — plus a perfect-run bonus.</p>
       </div>
-      <div class="card reveal">
+      <div class="card reveal point-card" role="button" tabindex="0" data-point="showing-up">
         <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="clock"></div>
         <h3>Showing up</h3>
-        <p>Bonus points for arriving, more for arriving on time.</p>
+        <p>Big points for arriving on time — penalties for late arrivals and pickups.</p>
       </div>
-      <div class="card reveal">
+      <div class="card reveal point-card" role="button" tabindex="0" data-point="class-points">
         <div class="card-icon mint" style="background:rgba(107,191,160,.15);" data-icon="school"></div>
         <h3>Class points</h3>
-        <p>Won as a class, converted into private points per student.</p>
+        <p>Won as a class, then converted to private points — or banked to grow.</p>
       </div>
-      <div class="card reveal">
+      <div class="card reveal point-card" role="button" tabindex="0" data-point="trading">
         <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="refresh"></div>
         <h3>Trading &amp; gifting</h3>
-        <p>Transfer points to a friend — half is lost in the trade.</p>
+        <p>Pool points with friends — but half is kept as a transfer fee.</p>
       </div>
-      <div class="card reveal">
+      <div class="card reveal point-card" role="button" tabindex="0" data-point="penalties">
         <div class="card-icon" style="background:rgba(232,128,138,.12);" data-icon="alert"></div>
         <h3>Penalties</h3>
-        <p>Points deducted for bad language or other misbehavior.</p>
+        <p>Lose points for misbehavior; earn a cut for reporting serious incidents.</p>
       </div>
     </div>
 
@@ -181,6 +181,143 @@
       </ul>
     </div>
   </div>
+
+  <!-- ── Point-system detail modal ── -->
+  <style>
+    .point-card { cursor: pointer; }
+    .point-card:focus-visible { outline: 3px solid var(--blush); outline-offset: 3px; }
+    .point-modal { position: fixed; inset: 0; z-index: 800; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .point-modal.open { display: flex; }
+    .point-modal-backdrop { position: absolute; inset: 0; background: rgba(20,10,25,.5); animation: pointFade .15s ease; }
+    @keyframes pointFade { from { opacity: 0; } to { opacity: 1; } }
+    .point-modal-content { position: relative; background: var(--surface); border: 1px solid #1a1a1a; padding: 38px 38px 32px; max-width: 600px; width: 100%; max-height: 86vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: pointPop .18s ease-out; }
+    @keyframes pointPop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+    .point-modal-close { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; background: var(--surface2); border: none; cursor: pointer; color: var(--text-mid); display: flex; align-items: center; justify-content: center; transition: background .15s, transform .3s, color .15s; }
+    .point-modal-close:hover { background: var(--blush); color: #fff; transform: rotate(90deg); }
+    .point-modal-icon { font-size: 2.2rem; color: var(--blush); line-height: 1; margin-bottom: 12px; }
+    .point-modal-title { font-size: 1.6rem; letter-spacing: -.02em; margin-bottom: 8px; }
+    .point-modal-lede { font-size: 1rem; color: var(--text-mid); line-height: 1.6; margin-bottom: 4px; }
+    .point-modal-body h4 { font-size: .74rem; font-weight: 700; color: var(--mint-dark); text-transform: uppercase; letter-spacing: .08em; margin: 20px 0 6px; }
+    .point-modal-body p  { font-size: .94rem; color: var(--text-mid); line-height: 1.65; margin: 0 0 10px; }
+    .point-modal-body ul { margin: 0 0 10px; padding-left: 1.2rem; }
+    .point-modal-body li { font-size: .94rem; color: var(--text-mid); line-height: 1.7; }
+    .point-modal-body strong { color: var(--text); font-weight: 700; }
+  </style>
+  <div class="point-modal" id="point-modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="point-modal-backdrop" id="point-modal-backdrop"></div>
+    <div class="point-modal-content">
+      <button class="point-modal-close" id="point-modal-close" aria-label="Close" data-icon="x"></button>
+      <div class="point-modal-icon" id="point-modal-icon"></div>
+      <h2 class="point-modal-title" id="point-modal-title"></h2>
+      <p class="point-modal-lede" id="point-modal-lede"></p>
+      <div class="point-modal-body" id="point-modal-body"></div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    const POINTS = {
+      earning: {
+        icon: 'money', title: 'Earning private points',
+        lede: 'Do the work and do good — both earn private points, the currency that runs the whole camp.',
+        body: `
+          <h4>Points by question difficulty</h4>
+          <p>In-class evaluations and take-home sets are where most points come from. Every point you earn on a question is multiplied by its difficulty: <strong>Easy ×1</strong>, <strong>Medium ×3</strong>, and <strong>Hard ×5</strong> private points.</p>
+          <h4>Perfect-run bonus</h4>
+          <p>Finish an entire quiz or homework set with <strong>zero errors</strong> and you get a flat <strong>+20 bonus</strong>, plus an extra <strong>50% of everything you earned</strong> on it.</p>
+          <h4>Everyday good</h4>
+          <p>Points aren't just for math — counselors award them all camp long for genuine acts of kindness and good behaviour. Their eyes are peeled, so do nice things if you want more.</p>
+        `
+      },
+      'showing-up': {
+        icon: 'clock', title: 'Showing up',
+        lede: 'Being present and on time is one of the easiest ways to rack up points — and being late is one of the easiest ways to lose them.',
+        body: `
+          <h4>Arriving</h4>
+          <ul>
+            <li>Arrive before <strong>8:45 AM</strong> to attend class → <strong>+200 points</strong> for the day.</li>
+            <li>Show up right at <strong>8:30 AM</strong> → an extra <strong>+25</strong> on top of the 200.</li>
+            <li>Late with <strong>no notice at least 9 hours ahead</strong> → <strong>−50 points</strong>.</li>
+          </ul>
+          <h4>Pickup</h4>
+          <ul>
+            <li>Picked up after <strong>5:00 PM</strong> → <strong>−10 points per minute</strong> late, up to a maximum of <strong>−200</strong> per day.</li>
+            <li>Picked up before <strong>4:55 PM</strong> → <strong>+25 bonus</strong>.</li>
+          </ul>
+        `
+      },
+      'class-points': {
+        icon: 'school', title: 'Class points',
+        lede: 'Some points are won together. Class-vs-class battles earn points for your whole class — and your class decides what to do with them.',
+        body: `
+          <h4>How they're earned</h4>
+          <p>Throughout camp, classes go head-to-head in <strong>class-vs-class battles</strong>, and the winners bank class points.</p>
+          <h4>Cash out or let it grow</h4>
+          <p>Your class votes on the payoff: <strong>convert</strong> the points into private points shared among everyone, or <strong>keep them in the class vault</strong> — which grows by <strong>15% every camp day</strong>. Hold the line and the pot gets a lot bigger by Day 10.</p>
+        `
+      },
+      trading: {
+        icon: 'refresh', title: 'Trading & gifting',
+        lede: 'You can pool points with other campers to unlock clearances you could not reach on your own.',
+        body: `
+          <h4>Combining points</h4>
+          <p>Students can move private points into a joint account, stacking them together to clear things a single balance couldn't.</p>
+          <h4>The transfer fee</h4>
+          <p>To keep it fair to campers who earned their points the hard way, transfers aren't free: <strong>50% of the points you send are kept as a fee</strong>, and only the other half lands in the joint account. Gift generously — just plan for the cut.</p>
+        `
+      },
+      penalties: {
+        icon: 'alert', title: 'Penalties',
+        lede: 'Points come off, anytime and anywhere, for behaviour that makes camp worse for everyone — and reporting serious incidents is rewarded.',
+        body: `
+          <h4>What costs you points</h4>
+          <p>Disrespecting a teacher, being rude to classmates, littering, or leaving chairs untucked on your way out — penalties exist to nudge everyone toward being respectful, considerate campers.</p>
+          <h4>Reporting serious incidents</h4>
+          <p>Catch a peer doing something serious? If they're penalized off your report, you earn <strong>40% of the deducted points</strong>.</p>
+          <h4>Keeping reports honest</h4>
+          <ul>
+            <li>Each report costs <strong>5 private points</strong> to file.</li>
+            <li>Anything smaller than a <strong>20-point</strong> penalty won't be processed — and filing it penalizes <em>you</em>.</li>
+            <li>Reports without enough proof are dismissed and cost the reporter <strong>30 private points</strong> for wasting everyone's time.</li>
+          </ul>
+        `
+      },
+    };
+    const modal   = document.getElementById('point-modal');
+    if (!modal) return;
+    const iconEl  = document.getElementById('point-modal-icon');
+    const titleEl = document.getElementById('point-modal-title');
+    const ledeEl  = document.getElementById('point-modal-lede');
+    const bodyEl  = document.getElementById('point-modal-body');
+    const closeBtn= document.getElementById('point-modal-close');
+    const backdrop= document.getElementById('point-modal-backdrop');
+
+    function openModal(p) {
+      if (!p) return;
+      iconEl.innerHTML  = window.Icons ? Icons.svg(p.icon) : '';
+      titleEl.textContent = p.title;
+      ledeEl.textContent  = p.lede;
+      bodyEl.innerHTML    = p.body;
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      closeBtn.focus();
+    }
+    function closeModal() {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+    document.querySelectorAll('.point-card').forEach(card => {
+      card.addEventListener('click', () => openModal(POINTS[card.dataset.point]));
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(POINTS[card.dataset.point]); }
+      });
+    });
+    closeBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('open')) closeModal(); });
+  })();
+  </script>
 </section>
 
 <!-- ─────────────────── TEAM ─────────────────── -->

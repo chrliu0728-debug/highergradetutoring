@@ -945,8 +945,12 @@ Your donation to this category covers the printed certificates, the medals and s
     setTimeout(() => { tint.style.opacity = '0'; }, 1500);
     document.body.style.setProperty('--glass-tint', sig + '2b');
     lastInk = sig;
+    const fullP = ensureFull();   // lazy-load the heavy record for the modal
     setTimeout(() => formCircle(s, sig), 950);
-    setTimeout(() => { openModal(s); popping = false; }, 1650);
+    setTimeout(async () => {
+      const full = (await fullP).find(x => x && x.id === s.id) || s;
+      openModal(full); popping = false;
+    }, 1650);
   }
 
   function docHeight() {
@@ -971,7 +975,13 @@ Your donation to this category covers the printed certificates, the medals and s
     emptyEl.style.display = 'none';
     const H = docHeight();
     field.style.height = H + 'px';
-    const TOTAL = Math.min(60, Math.max(20, Math.round(H / 100)));
+    // Scale bubble count to the device: fewer on low-core CPUs, far fewer when
+    // the user asks for reduced motion. Each bubble is an always-animating
+    // element, so this is the biggest lever for weak machines.
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cores  = navigator.hardwareConcurrency || 4;
+    const capMax = reduce ? 8 : (cores <= 4 ? 16 : 28);
+    const TOTAL  = Math.min(capMax, Math.max(10, Math.round(H / 150)));
     for (let i = 0; i < TOTAL; i++) {
       const s = SPONSORS[i % SPONSORS.length];
       const size = Math.round(rnd(74, 138));
@@ -1020,28 +1030,60 @@ Your donation to this category covers the printed certificates, the medals and s
   }
 
   /* warp bubbles to the FRONT while they're inside the top box's screen band */
+  // Bring bubbles in FRONT of the glass only while they pass through the top
+  // box's band. The old version polled getBoundingClientRect() on every bubble
+  // every 90ms (dozens of forced reflows/sec, forever) — the main CPU drain on
+  // weak machines. Now: throttled via rAF, paused when the tab is hidden, and
+  // — crucially — it does zero per-bubble reads once you've scrolled past the
+  // box (which is most of the page), just clearing any lingering 'front'.
   function startWarp() {
-    setInterval(() => {
-      if (!field.children.length) return;
+    let scheduled = false, hadFront = false;
+    function tick() {
+      scheduled = false;
+      const kids = field.children;
+      if (!kids.length) return;
       const br = box.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight;
-      const onScreen = br.bottom > 0 && br.top < vh;
-      const reads = [];
-      for (const b of field.children) reads.push([b, b.getBoundingClientRect()]);
-      for (const [b, r] of reads) {
-        const cy = r.top + r.height / 2;
-        b.classList.toggle('front', onScreen && r.width > 0 && cy > br.top && cy < br.bottom);
+      if (br.bottom <= 0 || br.top >= vh) {           // box off-screen — cheap exit
+        if (hadFront) { for (const b of kids) b.classList.remove('front'); hadFront = false; }
+        return;
       }
-    }, 90);
+      hadFront = false;
+      for (const b of kids) {
+        const r = b.getBoundingClientRect();
+        const cy = r.top + r.height / 2;
+        const on = r.width > 0 && cy > br.top && cy < br.bottom;
+        b.classList.toggle('front', on);
+        if (on) hadFront = true;
+      }
+    }
+    setInterval(() => {
+      if (!scheduled && !document.hidden) { scheduled = true; requestAnimationFrame(tick); }
+    }, 140);
   }
 
   let resizeT;
   window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(sizeField, 200); });
   window.addEventListener('load', sizeField);
 
+  // Lazy-load the FULL sponsor records (heavy base64 carousel + staff photos)
+  // only the first time a sponsor is opened — so the initial page just pulls
+  // the light logos/colours payload.
+  let fullCache = null, fullInflight = null;
+  function ensureFull() {
+    if (fullCache) return Promise.resolve(fullCache);
+    if (fullInflight) return fullInflight;
+    fullInflight = fetch('/api/sponsors', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(j => (fullCache = (j && j.ok && j.config && Array.isArray(j.config.sponsors)) ? j.config.sponsors : []))
+      .catch(() => (fullCache = SPONSORS));   // fall back to the light data
+    return fullInflight;
+  }
+
   (async function load() {
     try {
-      const r = await fetch('/api/sponsors', { credentials: 'same-origin' });
+      // Light payload: logos + colours only (fast even on a weak CPU).
+      const r = await fetch('/api/sponsors?light=1', { credentials: 'same-origin' });
       const j = await r.json();
       SPONSORS = (j && j.ok && j.config && Array.isArray(j.config.sponsors)) ? j.config.sponsors : [];
     } catch (_) { SPONSORS = []; }

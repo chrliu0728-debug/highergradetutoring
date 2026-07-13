@@ -1112,9 +1112,8 @@ body:has(#sponsor-modal.open) {
   background: var(--surface);
   border: 1px solid #1a1a1a;
   border-radius: 0;
-  transition: transform .2s ease, box-shadow .2s ease;
 }
-.value-card:hover { transform: translateY(-6px); box-shadow: var(--shadow); outline: none; }
+/* No hover lift: these are informational, not clickable — nothing to expand. */
 .value-icon { font-size: 1.75rem; color: var(--blush); flex-shrink: 0; margin-top: 4px; }
 .value-card h3 { font-weight: 700; margin-bottom: 5px; }
 .value-card p  { font-size: .88rem; color: var(--muted); }
