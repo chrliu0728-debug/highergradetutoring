@@ -483,7 +483,9 @@ function render() {
       <td>${r.paymentMethod === 'sponsor' && r.sponsorAmount != null
             ? '$' + r.sponsorAmount + ' <span style="color:var(--muted); font-size:.72rem;">(was $' + r.amountDue + ', −5%)</span>'
             : (r.amountDue != null ? '$' + r.amountDue : NA)}</td>
-      <td>${r.paymentMethod === 'cash'
+      <td>${r.paymentMethod === 'card'
+            ? '<span style="background:#DCFCE7; color:#166534; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;" title="' + (r.paymentRef ? 'Square payment ' + esc(r.paymentRef) : 'Paid by card') + '">✅ Card — paid</span>'
+            : r.paymentMethod === 'cash'
             ? '<span style="background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">💵 Cash</span>'
             : r.paymentMethod === 'sponsor'
             ? '<span style="background:#EDE9FE; color:#5B21B6; padding:2px 8px; border-radius:999px; font-size:.74rem; font-weight:700;">🏬 ' + (r.sponsorLocationUrl ? '<a href="' + esc(r.sponsorLocationUrl) + '" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline;">' + esc(r.sponsorLocationName || 'Sponsor') + '</a>' : esc(r.sponsorLocationName || 'Sponsor')) + '</span>'

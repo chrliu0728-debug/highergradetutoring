@@ -307,6 +307,46 @@ Without `HIGHERGRADE_ENC_KEY` the data is stored in plaintext exactly as
 before, so nothing breaks if the key isn't set. Do **not** change the key
 after data has been encrypted with it — a new key can't read the old data.
 
+### Card payments with Square
+
+Families can pay the camp fee **by card** on the registration success screen.
+The card is tokenized in the browser by Square's Web Payments SDK, so the card
+number never touches our server — we only receive a one-time token and charge
+it server-side. A successful card charge is confirmed instantly, so the
+camper's account is **auto-unfrozen** right away (unlike e-Transfer / cash,
+which stay frozen until staff confirm). This whole feature is **dormant** until
+the four Square variables below are set — with none of them, the card option
+simply never appears and everything else works as before.
+
+**One-time Square account setup:**
+
+1. Create/sign in to a Square account at <https://squareup.com>, then open the
+   developer dashboard at <https://developer.squareup.com/apps>.
+2. Click **+ Create app** (e.g. "HigherGrade Camp"). Open it.
+3. In the app, use the **Sandbox** side first (test with fake cards), then flip
+   to **Production** once it works. From **Credentials** copy:
+   - **Application ID** (starts `sandbox-sq0idb-…` in sandbox, `sq0idp-…` in prod) → `SQUARE_APP_ID`
+   - **Access token** (Sandbox test token, or the Production access token) → `SQUARE_ACCESS_TOKEN`
+4. From **Locations** copy a **Location ID** → `SQUARE_LOCATION_ID`.
+5. Set `SQUARE_ENV` to `sandbox` while testing, then `production` to go live.
+
+```bash
+sudo nano /etc/highergrade.env      # add these four lines:
+#   SQUARE_ENV=sandbox               # or: production
+#   SQUARE_ACCESS_TOKEN=<access token>
+#   SQUARE_APP_ID=<application id>
+#   SQUARE_LOCATION_ID=<location id>
+sudo systemctl restart highergrade-api
+```
+
+`SQUARE_APP_ID` and `SQUARE_LOCATION_ID` are public by design (the browser SDK
+needs them); only `SQUARE_ACCESS_TOKEN` is secret. Test end-to-end in sandbox
+with Square's test card `4111 1111 1111 1111`, any future expiry, any CVV, any
+postal code. When you switch `SQUARE_ENV` to `production`, also swap in the
+**production** Access Token + Application ID + Location ID (sandbox and prod
+credentials are different). Card payments show as **"✅ Card — paid"** in the
+admin registrations table, with the Square payment id on hover.
+
 ### Database backups → private GitHub repo
 
 A nightly cron snapshots the DB and pushes it to a **private**

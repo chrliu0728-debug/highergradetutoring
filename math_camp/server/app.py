@@ -19,6 +19,7 @@ from functools import wraps
 from flask import Flask, g, jsonify, request, make_response
 
 import crypto
+import square_pay
 from db import (
     connect, init_db,
     row_to_student, row_to_class, row_to_role,
@@ -2376,6 +2377,94 @@ def register_routes(app):
                        sponsorLocationName=_sponsor_loc_name(sponsor_loc),
                        sponsorLocationUrl=_sponsor_loc_url(sponsor_loc),
                        amount=final)
+
+    @app.route("/api/square/config", methods=["GET"])
+    def square_config():
+        """Public Square config the browser needs to render the card form.
+        Never includes the access token. `enabled` is False (and the frontend
+        hides the card option) until credentials are set in the VM env."""
+        return jsonify(ok=True, **square_pay.public_config())
+
+    @app.route("/api/camp/register/<rid>/pay-card", methods=["POST"])
+    def camp_register_pay_card(rid):
+        """Charge a registration's fee to a card via Square. The browser
+        tokenizes the card with Square's Web Payments SDK and sends only the
+        one-time `token` (source_id) — no card data touches us. On success we
+        record the payment and auto-unfreeze the camper's account, since the
+        card charge is confirmed instantly (unlike e-Transfer / cash).
+
+        Unauthenticated like the rest of the post-submit payment flow — `rid`
+        carries a random suffix so it isn't guessable, and this only ever acts
+        on a registration that already exists."""
+        if not square_pay.enabled():
+            return jsonify(ok=False, error="Card payments aren't set up yet. "
+                           "Please use another payment option."), 400
+        d = request.get_json(silent=True) or {}
+        token = (d.get("token") or d.get("source_id") or "").strip()
+        verification_token = (d.get("verificationToken")
+                              or d.get("verification_token") or "").strip() or None
+        if not token:
+            return jsonify(ok=False, error="The card form didn't return a "
+                           "payment token. Please re-enter your card."), 400
+
+        reg = g.db.execute("SELECT * FROM registrations WHERE id = ?", (rid,)).fetchone()
+        if not reg:
+            return jsonify(ok=False, error="Registration not found."), 404
+        reg = _decrypt_registration(dict(reg))
+        # Already paid by card? Don't charge twice.
+        if reg.get("paymentRef"):
+            return jsonify(ok=True, alreadyPaid=True,
+                           amount=reg.get("amountDue"),
+                           error="This registration has already been paid."), 200
+
+        # Card pays the canonical post-discount amount. The sponsor-location
+        # 5% is an in-person-only perk and never applies to a card charge.
+        amount_due = reg.get("amountDue")
+        if amount_due is None or amount_due <= 0:
+            return jsonify(ok=False, error="There's no amount due on this "
+                           "registration to charge."), 400
+        amount_cents = int(round(float(amount_due) * 100))
+
+        student_email = (reg.get("studentEmail") or "").strip() or None
+        camper_name = f"{reg.get('firstName') or ''} {reg.get('lastName') or ''}".strip()
+        try:
+            payment = square_pay.create_payment(
+                source_id=token,
+                amount_cents=amount_cents,
+                idempotency_key=secrets.token_hex(16),
+                reference_id=rid,
+                note=(f"Camp registration — {camper_name}" if camper_name
+                      else "Camp registration"),
+                verification_token=verification_token,
+                buyer_email=student_email,
+            )
+        except square_pay.SquareError as e:
+            return jsonify(ok=False, error=e.message), 402
+
+        now = int(time.time())
+        pay_id = payment.get("id")
+        g.db.execute(
+            "UPDATE registrations SET paymentMethod = 'card', sponsorLocation = NULL, "
+            "paymentRef = ?, paidAt = ? WHERE id = ?",
+            (pay_id, now, rid),
+        )
+        # Auto-unfreeze the camper's (already-provisioned) student account so
+        # they can sign in right away. Matched by email like everywhere else.
+        unfroze = False
+        if student_email:
+            try:
+                clause, param = _email_clause(student_email)
+                row = g.db.execute(
+                    f"SELECT id FROM students WHERE {clause}", (param,)
+                ).fetchone()
+                if row:
+                    g.db.execute("UPDATE students SET frozen = 0 WHERE id = ?",
+                                 (row["id"],))
+                    unfroze = True
+            except Exception:  # noqa: BLE001 — payment already succeeded; never fail here
+                pass
+        return jsonify(ok=True, paymentMethod="card", paymentId=pay_id,
+                       amount=amount_due, accountActive=unfroze)
 
     @app.route("/api/settings/student-cap", methods=["GET"])
     def settings_student_cap():

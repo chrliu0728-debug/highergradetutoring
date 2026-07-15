@@ -165,6 +165,10 @@ def _migrate(conn):
         # Sponsor-location payment (extra compounding 5% off when paid at a
         # partner store). Pre-existing rows stay NULL.
         ("sponsorLocation", "TEXT"),
+        # Square card payment: the Square payment id (for reconciliation) and
+        # the unix timestamp the card charge completed. NULL until paid by card.
+        ("paymentRef",      "TEXT"),
+        ("paidAt",          "INTEGER"),
     ):
         try:
             if _has_column("registrations", "id") and not _has_column("registrations", _col):
