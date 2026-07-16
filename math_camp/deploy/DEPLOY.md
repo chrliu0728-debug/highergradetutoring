@@ -307,45 +307,72 @@ Without `HIGHERGRADE_ENC_KEY` the data is stored in plaintext exactly as
 before, so nothing breaks if the key isn't set. Do **not** change the key
 after data has been encrypted with it — a new key can't read the old data.
 
-### Card payments with Square
+### Card payments with Stripe
 
 Families can pay the camp fee **by card** on the registration success screen.
-The card is tokenized in the browser by Square's Web Payments SDK, so the card
-number never touches our server — we only receive a one-time token and charge
-it server-side. A successful card charge is confirmed instantly, so the
-camper's account is **auto-unfrozen** right away (unlike e-Transfer / cash,
-which stay frozen until staff confirm). This whole feature is **dormant** until
-the four Square variables below are set — with none of them, the card option
-simply never appears and everything else works as before.
+The card is collected and confirmed in the browser by **Stripe.js** (the
+Payment Element), so the card number never touches our server. Our backend only
+creates a Stripe **PaymentIntent** for the exact amount and then verifies the
+result with Stripe server-side before acting on it. A successful card charge is
+confirmed instantly, so the camper's account is **auto-unfrozen** right away
+(unlike e-Transfer / cash, which stay frozen until staff confirm). This whole
+feature is **dormant** until the two Stripe keys below are set — with neither of
+them, the card option simply never appears and everything else works as before.
 
-**One-time Square account setup:**
+**How discounts work (important — you do NOT set anything up in Stripe):**
 
-1. Create/sign in to a Square account at <https://squareup.com>, then open the
-   developer dashboard at <https://developer.squareup.com/apps>.
-2. Click **+ Create app** (e.g. "HigherGrade Camp"). Open it.
-3. In the app, use the **Sandbox** side first (test with fake cards), then flip
-   to **Production** once it works. From **Credentials** copy:
-   - **Application ID** (starts `sandbox-sq0idb-…` in sandbox, `sq0idp-…` in prod) → `SQUARE_APP_ID`
-   - **Access token** (Sandbox test token, or the Production access token) → `SQUARE_ACCESS_TOKEN`
-4. From **Locations** copy a **Location ID** → `SQUARE_LOCATION_ID`.
-5. Set `SQUARE_ENV` to `sandbox` while testing, then `production` to go live.
+Our server already calculates the final price at registration time — the base
+fee minus whatever discount applies (a discount code, or a staff referral code
+= 25% off; only the single best one, they don't stack). That final number is
+stored on the registration as `amountDue`. When a family pays by card, we tell
+Stripe to charge **exactly that number**. So:
+
+- **No Stripe coupons.** Don't create coupons/promotion codes in Stripe — the
+  discount is already baked into the amount we charge.
+- **No 4 separate prices/products.** You don't need a product or Price object at
+  all. We create a one-off PaymentIntent for the exact cents each time, which
+  handles *any* discount percentage automatically — including future ones.
+- Stripe is purely the card processor here; all discount logic stays on our
+  side (in `app.py`), which keeps one source of truth and avoids the two systems
+  ever disagreeing. (The in-person "pay at a sponsor" 5% is deliberately **not**
+  applied to card payments — it's an in-store perk only.)
+
+**One-time Stripe account setup:**
+
+1. Create/sign in to a Stripe account at <https://dashboard.stripe.com>.
+2. Keep **Test mode** ON (top-right toggle) while you test.
+3. Go to **Developers → API keys** (<https://dashboard.stripe.com/test/apikeys>)
+   and copy:
+   - **Publishable key** (`pk_test_…`) → `STRIPE_PUBLISHABLE_KEY`
+   - **Secret key** (`sk_test_…`, click "Reveal") → `STRIPE_SECRET_KEY`
+4. Add them to the env file and restart:
 
 ```bash
-sudo nano /etc/highergrade.env      # add these four lines:
-#   SQUARE_ENV=sandbox               # or: production
-#   SQUARE_ACCESS_TOKEN=<access token>
-#   SQUARE_APP_ID=<application id>
-#   SQUARE_LOCATION_ID=<location id>
+sudo nano /etc/highergrade.env      # add these two lines:
+#   STRIPE_SECRET_KEY=<paste your sk_test_… secret key here>
+#   STRIPE_PUBLISHABLE_KEY=<paste your pk_test_… publishable key here>
 sudo systemctl restart highergrade-api
 ```
 
-`SQUARE_APP_ID` and `SQUARE_LOCATION_ID` are public by design (the browser SDK
-needs them); only `SQUARE_ACCESS_TOKEN` is secret. Test end-to-end in sandbox
-with Square's test card `4111 1111 1111 1111`, any future expiry, any CVV, any
-postal code. When you switch `SQUARE_ENV` to `production`, also swap in the
-**production** Access Token + Application ID + Location ID (sandbox and prod
-credentials are different). Card payments show as **"✅ Card — paid"** in the
-admin registrations table, with the Square payment id on hover.
+Only `STRIPE_SECRET_KEY` is secret; `STRIPE_PUBLISHABLE_KEY` is meant to be
+public (the browser needs it). Test vs live is decided by the key prefix
+(`sk_test_` / `sk_live_`) — there's no separate env var to flip.
+
+**Test it:** register a fake camper, choose "Pay now by card", and use Stripe's
+test card `4242 4242 4242 4242`, any future expiry, any CVC, any postal code.
+The account should unfreeze immediately and the payment should appear under
+**Payments** in your Stripe dashboard. Card payments show as **"✅ Card — paid"**
+in the admin registrations table, with the Stripe PaymentIntent id on hover.
+
+**Go live:** flip Stripe to **Live mode**, grab the **live** keys (`sk_live_…` /
+`pk_live_…`) from the same API-keys page, replace the two values in
+`/etc/highergrade.env`, and restart the API. (You'll need to have completed
+Stripe's business/bank-account activation first so payouts reach your account.)
+
+> Optional hardening (not required): the current flow verifies each payment by
+> re-fetching it from Stripe server-side, so it's safe without webhooks. If you
+> later want belt-and-suspenders reconciliation, add a Stripe webhook for
+> `payment_intent.succeeded`; ask and I'll wire it up.
 
 ### Database backups → private GitHub repo
 
