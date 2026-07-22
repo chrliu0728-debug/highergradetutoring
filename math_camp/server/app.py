@@ -423,14 +423,14 @@ def _send_registration_confirm(student_email, name, parent_email=None, amount=No
     "refused", "no_config", "error") so the caller can detect a bad email."""
     amount_str = _fmt_amount(amount)
     subject = "Thanks for registering — one step left to hold your spot"
-    referral_block = ""
-    if referral_code:
-        referral_block = (
-            f"🎁 Your referral code: {referral_code}\n"
-            f"This code is yours and never expires. Share it with friends — when\n"
-            f"they enter it while registering, they get 10% off and you earn a $20\n"
-            f"reward once they're paid up.\n\n"
-        )
+    # Referral program: whoever a new camper names as their referrer gets the
+    # $20 reward, so we encourage this family to refer their own friends.
+    referral_block = (
+        f"🎁 Earn $20 — refer your friends!\n"
+        f"Know someone who'd love camp? When a friend registers and enters YOUR\n"
+        f"email address in the \"Were you referred?\" field, we'll e-Transfer you a\n"
+        f"$20 reward once they've paid. Refer as many friends as you like.\n\n"
+    )
     body = (
         f"Hi {name or 'there'},\n\n"
         f"Thank you for registering for HigherGrade Tutoring's Summer Camp 2026!\n"
@@ -487,15 +487,10 @@ def _send_camp_welcome(student_email, name, parent_email=None):
         f"bring, and answer any questions you have. The meeting link will be emailed to\n"
         f"this address closer to the date — please mark your calendar.\n\n"
         f"A few things to know:\n"
-        f"• Please bring a device (laptop, tablet, or Chromebook) and your own lunch\n"
-        f"  each day. A water bottle is also a good idea. All math materials are\n"
-        f"  provided.\n"
-        f"• 🍱 Food partners (in progress): our team is currently in talks with\n"
-        f"  local restaurants and food spots about partnering with the camp. If\n"
-        f"  any food places confirm, we'll send a separate email with a link\n"
-        f"  where parents can pre-purchase lunches for their camper on specific\n"
-        f"  days — completely optional. If you'd rather just pack lunch, that's\n"
-        f"  perfectly fine and is what we expect by default.\n"
+        f"• 🍱 Lunch is NOT provided — every camper must bring their own lunch\n"
+        f"  each day. Please pack something they'll enjoy for the lunch break.\n"
+        f"• Please also bring a device (laptop, tablet, or Chromebook) and a water\n"
+        f"  bottle each day. All math materials are provided.\n"
         f"• Sign in to your dashboard at {SITE_URL}/student-portal/student-portal.html\n"
         f"  to track points, see your class, and find the hidden mini-game.\n"
         f"• Questions? Reply to this email — it goes straight to the organizers.\n\n"
