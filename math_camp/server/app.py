@@ -414,43 +414,70 @@ def _fmt_amount(amount):
     return f"${int(amount)} CAD" if float(amount).is_integer() else f"${amount:.2f} CAD"
 
 
+def _security_notice():
+    """Reusable reassurance about how card + personal data is protected. Added
+    to the registration and payment emails so families know their information
+    and card details are encrypted."""
+    return (
+        "🔒 How your information is protected\n"
+        "• Card payments are handled by Stripe, a PCI-DSS Level 1 certified\n"
+        "  processor (the highest security level in the industry). Your full card\n"
+        "  number is encrypted the instant you enter it and goes straight to\n"
+        "  Stripe — it never passes through or is stored on our servers, and our\n"
+        "  staff never see it.\n"
+        "• Everything you submit reaches us over an encrypted HTTPS/TLS\n"
+        "  connection, so it can't be read in transit.\n"
+        "• Your personal details — names, email, phone, date of birth, school,\n"
+        "  medical notes and emergency contacts — are encrypted at rest in our\n"
+        "  database with AES-based (Fernet) encryption, unreadable without our\n"
+        "  private key.\n"
+        "• We never sell or share your information; only camp staff who need it\n"
+        "  can access it.\n\n"
+    )
+
+
+def _referral_free_deal(amount_str):
+    """The "refer 4 → camp is free" deal, shown to families paying by e-Transfer
+    or in person (not to card payers, who've already paid in full)."""
+    return (
+        "🎉 Here's a deal — get camp for FREE!\n"
+        f"Refer 4 friends who register and pay, and we'll refund your entire\n"
+        f"{amount_str} fee — your camper attends completely free. Just have each\n"
+        "friend enter YOUR email address in the \"Were you referred?\" box when\n"
+        "they sign up. (You also earn $20 for every friend you refer along the\n"
+        "way, so there's a reward even before you hit 4.)\n\n"
+    )
+
+
 def _send_registration_confirm(student_email, name, parent_email=None, amount=None,
                                referral_code=None):
-    """Sent right after registration. Thanks the family and asks for the
-    e-Transfer — the account stays frozen until payment is confirmed, at
-    which point _send_camp_welcome() goes out with the full camp details.
-    Returns the send status for the registrant's address ("sent",
-    "refused", "no_config", "error") so the caller can detect a bad email."""
-    amount_str = _fmt_amount(amount)
-    subject = "Thanks for registering — one step left to hold your spot"
-    # Referral program: whoever a new camper names as their referrer gets the
-    # $20 reward, so we encourage this family to refer their own friends.
-    referral_block = (
-        f"🎁 Earn $20 — refer your friends!\n"
-        f"Know someone who'd love camp? When a friend registers and enters YOUR\n"
-        f"email address in the \"Were you referred?\" field, we'll e-Transfer you a\n"
-        f"$20 reward once they've paid. Refer as many friends as you like.\n\n"
-    )
+    """Sent right after registration — for EVERY registrant, so it must stay
+    payment-method-neutral (someone who pays instantly by card should not be
+    told to e-Transfer). It confirms the registration, points to the payment
+    options on the confirmation screen, and reassures on data security. The
+    method-specific instructions (with the referral deal) go out separately
+    from _send_payment_instructions() only once the family picks e-Transfer /
+    cash / in-person; card payers get _send_camp_welcome() instead.
+
+    Returns the send status for the registrant's address ("sent", "refused",
+    "no_config", "error") so the caller can detect a bad email."""
+    subject = "Thanks for registering — choose how to pay to hold your spot"
     body = (
         f"Hi {name or 'there'},\n\n"
         f"Thank you for registering for HigherGrade Tutoring's Summer Camp 2026!\n"
-        f"We've received your registration — but your camper's spot is NOT secured\n"
-        f"yet. There's one quick step left.\n\n"
-        f"💸 Please send {amount_str} by e-Transfer\n"
-        f"To hold the spot, send a {amount_str} Interac e-Transfer to:\n\n"
-        f"      {ORGANIZER_EMAIL}\n\n"
-        f"⚠️ IMPORTANT — in the e-Transfer message / comment field, please include:\n"
-        f"   1. Your child's FULL NAME\n"
-        f"   2. The HIGH SCHOOL they will be attending\n\n"
-        f"That's how we match your payment to your registration, so please don't\n"
-        f"skip it.\n\n"
-        f"{referral_block}"
-        f"Until we receive and confirm your e-Transfer, your camper's account stays\n"
-        f"FROZEN — they won't be able to sign in to the student portal yet. As soon\n"
-        f"as our staff confirms the payment (usually within 24 hours), we'll unfreeze\n"
-        f"the account and send you a second email with everything you need to know:\n"
+        f"We've received your camper's registration.\n\n"
+        f"Your spot is HELD but not fully secured until payment is complete. On\n"
+        f"the confirmation screen right after registering, you can:\n\n"
+        f"   💳 Pay instantly by card — your camper's account unlocks right away, or\n"
+        f"   📧 Choose e-Transfer, cash on Day 1, or paying in person at a sponsor —\n"
+        f"      pick one and we'll email you the full instructions (plus a deal to\n"
+        f"      get camp completely free!).\n\n"
+        f"Until payment is confirmed, your camper's account stays FROZEN — they\n"
+        f"won't be able to sign in to the student portal yet. As soon as you're\n"
+        f"paid up, we'll send a second email with everything you need to know:\n"
         f"camp dates, location, what to bring, the parent info session, and how to\n"
         f"log in.\n\n"
+        f"{_security_notice()}"
         f"Questions? Just reply to this email — it goes straight to the organizers.\n\n"
         f"Thanks again, and talk soon!\n"
         f"— The HigherGrade Tutoring team\n"
@@ -495,6 +522,61 @@ def _send_camp_welcome(student_email, name, parent_email=None):
         f"  to track points, see your class, and find the hidden mini-game.\n"
         f"• Questions? Reply to this email — it goes straight to the organizers.\n\n"
         f"See you August 4!\n"
+        f"— The HigherGrade Tutoring team\n"
+    )
+    if student_email:
+        send_email(student_email, subject, body, reply_to=ORGANIZER_EMAIL)
+    if parent_email and parent_email.lower() != (student_email or "").lower():
+        send_email(parent_email, subject, body, reply_to=ORGANIZER_EMAIL)
+
+
+def _send_payment_instructions(method, student_email, name, parent_email=None,
+                               amount=None, sponsor_name=None):
+    """Sent once a family SELECTS a non-card payment method (e-Transfer, cash on
+    Day 1, or paying in person at a sponsor). Carries the how-to-pay details,
+    the "refer 4 → free" deal, and the security notice. Card payers never get
+    this — they've already paid, and get _send_camp_welcome() instead."""
+    amount_str = _fmt_amount(amount)
+    if method == "e_transfer":
+        subject = "How to pay for HigherGrade Camp — e-Transfer instructions"
+        how = (
+            f"Thanks for choosing to pay by e-Transfer! To secure your camper's\n"
+            f"spot, please send {amount_str} by Interac e-Transfer to:\n\n"
+            f"      {ORGANIZER_EMAIL}\n\n"
+            f"⚠️ IMPORTANT — in the e-Transfer message / comment field, include:\n"
+            f"   1. Your child's FULL NAME\n"
+            f"   2. The HIGH SCHOOL they will be attending\n"
+            f"That's how we match your payment to your registration.\n\n"
+            f"Until we receive and confirm your e-Transfer (usually within 24\n"
+            f"hours), your camper's account stays FROZEN.\n\n"
+        )
+    elif method == "cash":
+        subject = "How to pay for HigherGrade Camp — cash on Day 1"
+        how = (
+            f"You're all set to pay {amount_str} in cash on Day 1 of camp. Please\n"
+            f"bring it to check-in on the first morning. Until our staff collect\n"
+            f"and confirm it, your camper's account stays FROZEN — once we do,\n"
+            f"we'll unlock the account right away.\n\n"
+        )
+    elif method == "sponsor":
+        where = sponsor_name or "our sponsor store"
+        subject = f"How to pay for HigherGrade Camp — pay in person at {where}"
+        how = (
+            f"You've chosen to pay in person at {where}, with your extra 5% off\n"
+            f"already applied — your total is {amount_str}. Head to the store, pay\n"
+            f"at the counter, and mention your camper's FULL NAME. Until the\n"
+            f"sponsor confirms your payment with us, your camper's account stays\n"
+            f"FROZEN — once confirmed, we'll unlock it right away.\n\n"
+        )
+    else:
+        return  # unknown method — nothing to send
+    body = (
+        f"Hi {name or 'there'},\n\n"
+        f"{how}"
+        f"{_referral_free_deal(amount_str)}"
+        f"{_security_notice()}"
+        f"Questions? Just reply to this email — it goes straight to the organizers.\n\n"
+        f"Thanks, and talk soon!\n"
         f"— The HigherGrade Tutoring team\n"
     )
     if student_email:
@@ -2352,21 +2434,46 @@ def register_routes(app):
             sponsor_loc = (d.get("sponsorLocation") or d.get("sponsor_location") or "").strip().lower()
             if sponsor_loc not in SPONSOR_PAY_LOCATIONS:
                 return jsonify(ok=False, error="Please choose one of our sponsor locations."), 400
-        reg = g.db.execute(
-            "SELECT id, amountDue FROM registrations WHERE id = ?", (rid,)
-        ).fetchone()
-        if not reg:
+        row = g.db.execute("SELECT * FROM registrations WHERE id = ?", (rid,)).fetchone()
+        if not row:
             return jsonify(ok=False, error="Registration not found."), 404
+        reg = _decrypt_registration(dict(row))
+        # A card-paid registration is already settled — don't let a stray
+        # payment-method call overwrite it or re-send instructions.
+        if reg.get("paidAt"):
+            return jsonify(ok=True, alreadyPaid=True, amount=reg.get("amountDue")), 200
+        # Only email when the selection actually CHANGES — so re-clicks, page
+        # reloads, or double-fires never re-send the instructions. (For sponsor,
+        # a different store counts as a change.)
+        prev_method = reg.get("paymentMethod")
+        prev_sponsor = reg.get("sponsorLocation")
+        selection_changed = (method != prev_method) or (
+            method == "sponsor" and sponsor_loc != prev_sponsor)
         g.db.execute(
             "UPDATE registrations SET paymentMethod = ?, sponsorLocation = ? WHERE id = ?",
             (method, sponsor_loc, rid),
         )
         # amountDue stays the canonical post-registration-discount amount; the
         # sponsor 5% is derived so toggling methods can't compound repeatedly.
-        base = reg["amountDue"]
+        base = reg.get("amountDue")
         final = base
         if method == "sponsor" and base is not None:
             final = round(base * (1.0 - SPONSOR_PAY_DISCOUNT), 2)
+        # Email the how-to-pay instructions + the "refer 4 → free" deal now that
+        # the family has committed to a non-card method — but only once per
+        # distinct choice. Best-effort — a mail hiccup must never fail selection.
+        if selection_changed:
+            try:
+                _send_payment_instructions(
+                    method,
+                    (reg.get("studentEmail") or "").strip() or None,
+                    f"{reg.get('firstName') or ''} {reg.get('lastName') or ''}".strip(),
+                    (reg.get("parentEmail") or "").strip() or None,
+                    amount=final,
+                    sponsor_name=_sponsor_loc_name(sponsor_loc),
+                )
+            except Exception:  # noqa: BLE001
+                pass
         return jsonify(ok=True, paymentMethod=method,
                        sponsorLocation=sponsor_loc,
                        sponsorLocationName=_sponsor_loc_name(sponsor_loc),
@@ -2490,6 +2597,14 @@ def register_routes(app):
                     unfroze = True
             except Exception:  # noqa: BLE001 — payment already captured; never fail here
                 pass
+        # Paid in full by card → send the "you're all set" welcome email (with
+        # all the camp logistics), NOT the payment-required email. Best-effort.
+        try:
+            camper_name = f"{reg.get('firstName') or ''} {reg.get('lastName') or ''}".strip()
+            _send_camp_welcome(student_email, camper_name,
+                               (reg.get("parentEmail") or "").strip() or None)
+        except Exception:  # noqa: BLE001
+            pass
         return jsonify(ok=True, paymentMethod="card", paymentId=pi.get("id"),
                        amount=amount_due, accountActive=unfroze)
 

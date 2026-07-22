@@ -965,9 +965,11 @@
             <p style="margin:0 0 6px;font-size:.85rem;">
               In the e-Transfer <strong>message</strong> field, please include the camper's <strong>first and last name</strong> and the <strong>high school they're going to</strong> so we can match the payment to your registration.
             </p>
-            <p style="margin:0;font-size:.85rem;">
+            <p style="margin:0 0 12px;font-size:.85rem;">
               <strong>Heads up:</strong> your camper's account will stay <strong>frozen</strong> until our staff confirms the e-Transfer. Once we see it, we'll unfreeze the account (usually within 24 hours) and the camper will be able to sign in to the student portal.
             </p>
+            <button type="button" id="etransfer-select-btn" class="btn btn-ghost" style="font-size:.85rem;">📧 Email me these instructions + my free-camp deal</button>
+            <div id="etransfer-select-msg" style="font-size:.82rem;margin-top:8px;min-height:1.1em;"></div>
           </div>
 
           <!-- ── Pay now by card (Stripe) — hidden until Stripe is configured on the server ── -->
@@ -1679,6 +1681,26 @@
       if (spBlock)   spBlock.style.display = 'none';
       if (cardBlock) cardBlock.style.display = 'none';
     }
+
+    // ── Pay by e-Transfer: email the instructions + the "refer 4 → free" deal ──
+    // Keeps the on-screen instructions visible (unlike cash/sponsor which swap
+    // to a confirmation block) since the family still needs the address on hand.
+    const etSelectBtn = document.getElementById('etransfer-select-btn');
+    const etSelectMsg = document.getElementById('etransfer-select-msg');
+    if (etSelectBtn) etSelectBtn.addEventListener('click', async function () {
+      etSelectBtn.disabled = true;
+      etSelectMsg.style.color = 'var(--muted)';
+      etSelectMsg.textContent = 'Sending…';
+      try {
+        await setMethod({ method: 'e_transfer' });
+        etSelectMsg.style.color = '#166534';
+        etSelectMsg.textContent = '✅ Sent! Check your inbox for the e-Transfer instructions and your free-camp referral deal.';
+      } catch (err) {
+        etSelectBtn.disabled = false;
+        etSelectMsg.style.color = '#c0392b';
+        etSelectMsg.textContent = err.message || 'Something went wrong — please try again.';
+      }
+    });
 
     /* ── Pay now by card via Stripe (instant, auto-activates the account) ──
        Dormant unless the server reports Stripe is configured. The card is
