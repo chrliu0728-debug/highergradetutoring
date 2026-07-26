@@ -431,6 +431,16 @@
     <button id="freeze-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:170px;">Loading…</button>
   </div>
 
+  <!-- ── Camp-wide controls: free vs paid ── -->
+  <div id="campfree-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm); display:flex; flex-wrap:wrap; align-items:center; gap:18px; justify-content:space-between;">
+    <div style="flex:1; min-width:260px;">
+      <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Camp-wide controls</div>
+      <h2 style="font-size:1.1rem; margin:0 0 4px;">💰 Registration price <span id="campfree-status" style="font-size:.85rem; font-weight:600; color:var(--mint-dark);">— loading…</span></h2>
+      <p style="font-size:.88rem; color:var(--muted); margin:0; line-height:1.5;">When set to FREE, registration costs $0 — the payment step disappears, new campers' accounts unlock immediately, they get a "you're all set" email, and the "$135" price copy across the website switches to "free". Switch back to PAID anytime to restore the normal fee and payment options.</p>
+    </div>
+    <button id="campfree-btn" type="button" class="btn-tidy" style="font-size:.9rem; min-width:170px;">Loading…</button>
+  </div>
+
   <!-- ── Daily call schedule ── -->
   <div id="callsched-card" style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin-bottom:22px; box-shadow:var(--shadow-sm);">
     <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--blush); margin-bottom:4px;">Camp-wide controls</div>
@@ -1140,6 +1150,72 @@ document.querySelectorAll('a[data-admin-logout]').forEach(a => {
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'failed');
       paint(!!j.frozen);
+    } catch (err) {
+      alert('Failed to update: ' + err.message);
+    } finally {
+      btnEl.disabled = false;
+    }
+  });
+
+  load();
+})();
+
+/* ── Registration free / paid toggle ── */
+(function () {
+  const statusEl = document.getElementById('campfree-status');
+  const btnEl    = document.getElementById('campfree-btn');
+  const cardEl   = document.getElementById('campfree-card');
+  if (!statusEl || !btnEl || !cardEl) return;
+
+  function paint(free) {
+    if (free) {
+      statusEl.textContent = '— FREE ($0)';
+      statusEl.style.color = '#0F8A56';
+      btnEl.textContent = 'Switch to PAID 💵';
+      btnEl.style.background = '#DC2626';
+      btnEl.style.color = 'white';
+      btnEl.style.borderColor = '#DC2626';
+      cardEl.style.background = 'rgba(16, 138, 86, .05)';
+      cardEl.style.borderColor = '#6EE7B7';
+    } else {
+      statusEl.textContent = '— PAID ($135)';
+      statusEl.style.color = 'var(--muted)';
+      btnEl.textContent = 'Make camp FREE 🎉';
+      btnEl.style.background = '#16A34A';
+      btnEl.style.color = 'white';
+      btnEl.style.borderColor = '#16A34A';
+      cardEl.style.background = 'var(--surface)';
+      cardEl.style.borderColor = 'var(--border)';
+    }
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/settings/camp-free', { credentials: 'same-origin' });
+      const j = await r.json();
+      paint(!!j.free);
+    } catch (_) {
+      statusEl.textContent = '— unavailable';
+    }
+  }
+
+  btnEl.addEventListener('click', async () => {
+    const wasFree = btnEl.textContent.startsWith('Switch to PAID');
+    const goingFree = !wasFree;
+    const msg = goingFree
+      ? 'Make the whole camp FREE?\n\nNew registrations will cost $0, skip payment, and unlock immediately. The website price copy switches to "free".'
+      : 'Switch registration back to PAID ($135)?\n\nNew campers will be asked to pay again (card / e-Transfer / cash / in person).';
+    if (!confirm(msg)) return;
+    btnEl.disabled = true;
+    try {
+      const r = await fetch('/api/admin/settings/camp-free', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ free: goingFree }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'failed');
+      paint(!!j.free);
     } catch (err) {
       alert('Failed to update: ' + err.message);
     } finally {

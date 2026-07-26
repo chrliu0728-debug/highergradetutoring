@@ -235,7 +235,7 @@
           <span class="hero-meta-sep">·</span>
           <a href="https://www.google.com/maps/dir/?api=1&destination=Sheridan+College+Trafalgar+Campus%2C+1430+Trafalgar+Road%2C+Oakville%2C+ON" target="_blank" rel="noopener"><i data-icon="map-pin"></i> Sheridan College, Oakville</a>
           <span class="hero-meta-sep">·</span>
-          <span><i data-icon="dollar"></i> 135 flat</span>
+          <span id="hero-price"><i data-icon="dollar"></i> 135 flat</span>
         </div>
         <div id="countdown" aria-label="Countdown to camp start"></div>
         <div class="hero-buttons" style="margin-top: clamp(20px, 3vh, 36px);">
@@ -408,7 +408,7 @@
 <!-- ─────────────────── CTA BAND ─────────────────── -->
 <div class="highlight-band">
   <h2>Think you have what it takes?</h2>
-  <p>$135 flat — in person or online. Discount codes available. Top math students, this is for you.</p>
+  <p id="band-price">$135 flat — in person or online. Discount codes available. Top math students, this is for you.</p>
   <div class="flex gap-12 items-center flex-wrap" style="justify-content:center;">
     <a href="/register/register.html" class="btn btn-primary">Register Now →</a>
     <a href="/support/support.html"  class="btn btn-outline">Support the Camp</a>
@@ -426,7 +426,7 @@
       <div>
         <div class="faq-item">
           <button class="faq-q">How much does camp cost? <span class="arrow">▼</span></button>
-          <div class="faq-a">Registration is a flat <strong>$135</strong> for every camper, whether you attend in person or online — and discount codes (like the 10% one hidden in the crane on our About Us page) can lower it. The fee is paid by Interac e-Transfer once you complete the registration form, and it helps cover materials, facilities, and refreshments across the 10 days.</div>
+          <div class="faq-a" id="faq-cost">Registration is a flat <strong>$135</strong> for every camper, whether you attend in person or online — and discount codes (like the 10% one hidden in the crane on our About Us page) can lower it. The fee is paid by Interac e-Transfer once you complete the registration form, and it helps cover materials, facilities, and refreshments across the 10 days.</div>
         </div>
         <div class="faq-item">
           <button class="faq-q">Is this camp for all skill levels? <span class="arrow">▼</span></button>
@@ -516,6 +516,28 @@
       if (d && d.ok) el.textContent = `${d.enrolled} / ${d.cap}`;
     })
     .catch(() => { /* leave the dash placeholder if the API is unreachable */ });
+})();
+
+/* ─── FREE-mode copy swap — when an admin flips camp to free, replace the
+   "it costs $135" text across the home page. No-op when camp is paid. ─── */
+(function () {
+  fetch('/api/settings/camp-free', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(d => {
+      if (!d || !d.ok || !d.free) return;
+      const hero = document.getElementById('hero-price');
+      if (hero) hero.innerHTML = '<i data-icon="gift"></i> FREE this year';
+      const band = document.getElementById('band-price');
+      if (band) band.textContent = 'Completely FREE this year — in person or online. Top math students, this is for you.';
+      const faq = document.getElementById('faq-cost');
+      if (faq) faq.innerHTML = 'Camp is <strong>completely free</strong> for every camper this year — there is <strong>no registration fee</strong>, whether you attend in person or online. Just fill out the registration form and your spot is confirmed.';
+      // Free camp → no fee to save and no reward to pay out, so hide the
+      // referral-program card entirely.
+      const refCard = document.querySelector('.hero-referral');
+      if (refCard) refCard.style.display = 'none';
+      if (window.Icons && Icons.render) Icons.render();
+    })
+    .catch(() => { /* leave paid copy if the API is unreachable */ });
 })();
 
 /* ─── Curriculum unit modal ─── */

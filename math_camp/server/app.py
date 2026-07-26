@@ -492,16 +492,28 @@ def _send_registration_confirm(student_email, name, parent_email=None, amount=No
     return status
 
 
-def _send_camp_welcome(student_email, name, parent_email=None):
-    """Sent when an admin unfreezes a camper's account (i.e. payment has
-    been confirmed). Carries all of the camp logistics that used to live
-    in the registration email."""
+def _send_camp_welcome(student_email, name, parent_email=None, free=False):
+    """Sent when a camper's account is unlocked — either an admin confirmed
+    payment, they paid by card, or (free=True) they registered while camp is
+    running FREE. Carries all of the camp logistics. Returns the send status
+    for the registrant's address so callers that need deliverability (the free
+    registration path) can detect a bad email."""
     subject = "You're all set for HigherGrade Tutoring Summer Camp 2026 🎉"
+    if free:
+        opening = (
+            f"Great news — your camper's spot is confirmed, and camp is completely\n"
+            f"FREE this year! No payment needed. Their student-portal account is\n"
+            f"already unlocked. Here's everything you need to know.\n\n"
+        )
+    else:
+        opening = (
+            f"Great news — we've confirmed your payment and your camper's spot is\n"
+            f"officially secured! Their student-portal account is now unlocked. Here's\n"
+            f"everything you need to know.\n\n"
+        )
     body = (
         f"Hi {name or 'there'},\n\n"
-        f"Great news — we've confirmed your payment and your camper's spot is\n"
-        f"officially secured! Their student-portal account is now unlocked. Here's\n"
-        f"everything you need to know.\n\n"
+        f"{opening}"
         f"📅 Camp dates: August 4 – August 15, 2026\n"
         f"   Week 1 (Tue–Fri): Aug 4, 5, 6, 7\n"
         f"   Week 2 (Mon–Sat): Aug 10, 11, 12, 13, 14, 15\n"
@@ -524,10 +536,14 @@ def _send_camp_welcome(student_email, name, parent_email=None):
         f"See you August 4!\n"
         f"— The HigherGrade Tutoring team\n"
     )
+    status = "no_config"
     if student_email:
-        send_email(student_email, subject, body, reply_to=ORGANIZER_EMAIL)
+        status = send_email(student_email, subject, body, reply_to=ORGANIZER_EMAIL)
     if parent_email and parent_email.lower() != (student_email or "").lower():
-        send_email(parent_email, subject, body, reply_to=ORGANIZER_EMAIL)
+        parent_status = send_email(parent_email, subject, body, reply_to=ORGANIZER_EMAIL)
+        if not student_email:
+            status = parent_status
+    return status
 
 
 def _send_payment_instructions(method, student_email, name, parent_email=None,
@@ -759,6 +775,13 @@ def _call_schedule_upsert(entries):
 
 def _points_frozen():
     return _meta_get("points_frozen", "0") == "1"
+
+
+def _camp_free():
+    """True when the camp is running in FREE mode — registration costs $0, no
+    payment step, and the camper's account unlocks immediately. Toggled by an
+    admin from the dashboard."""
+    return _meta_get("camp_free", "0") == "1"
 
 
 def block_when_frozen(fn):
@@ -2263,9 +2286,15 @@ def register_routes(app):
         disc_row = _lookup_discount(g.db, discount_code) if discount_code else None
         disc_pct = disc_row["percent"] if disc_row else 0.0
         best_pct = max(disc_pct, staff_pct)
-        _base_price = REG_TIERS[_reg_tier()]["price"]
-        amount_due = (round(_base_price * (1.0 - best_pct), 2)
-                      if _base_price else _base_price)
+        # FREE mode: camp costs nothing, so there's no payment step and the
+        # account unlocks immediately (see the student-provision block below).
+        free_mode = _camp_free()
+        if free_mode:
+            amount_due = 0
+        else:
+            _base_price = REG_TIERS[_reg_tier()]["price"]
+            amount_due = (round(_base_price * (1.0 - best_pct), 2)
+                          if _base_price else _base_price)
 
         # Delivery mode decides capacity below: online seats are unlimited,
         # in-person seats are capped.
@@ -2274,12 +2303,22 @@ def register_routes(app):
             mode = None
         is_online = (mode == "online")
         try:
-            confirm_status = _send_registration_confirm(
-                student_email,
-                f"{first} {last}".strip(),
-                parent_email or None,
-                amount=amount_due or None,
-            )
+            if free_mode:
+                # No payment needed — send the "you're all set" welcome email
+                # (which also verifies the address is deliverable).
+                confirm_status = _send_camp_welcome(
+                    student_email,
+                    f"{first} {last}".strip(),
+                    parent_email or None,
+                    free=True,
+                )
+            else:
+                confirm_status = _send_registration_confirm(
+                    student_email,
+                    f"{first} {last}".strip(),
+                    parent_email or None,
+                    amount=amount_due or None,
+                )
         except Exception:  # noqa: BLE001
             confirm_status = "error"
         if confirm_status == "refused":
@@ -2392,7 +2431,8 @@ def register_routes(app):
                         "phone":        (d.get("parent_phone") or "").strip() or None,
                         "school":       (d.get("school") or "").strip() or None,
                         "registeredAt": str(int(time.time())),
-                        "frozen":       1,
+                        # FREE mode has no payment gate, so unlock immediately.
+                        "frozen":       0 if free_mode else 1,
                     }))
         except Exception:  # noqa: BLE001
             pass
@@ -2724,8 +2764,30 @@ def register_routes(app):
     def settings_reg_tier():
         t = _reg_tier()
         info = REG_TIERS[t]
+        free = _camp_free()
+        # In FREE mode the effective price is $0 regardless of tier, and we
+        # surface `free` so the registration page can hide the payment step and
+        # swap its price copy.
         return jsonify(ok=True, tier=t, open=info["open"],
-                       price=info["price"], label=info["label"])
+                       price=0 if free else info["price"],
+                       label=("Free" if free else info["label"]),
+                       free=free)
+
+    @app.route("/api/settings/camp-free", methods=["GET"])
+    def settings_camp_free():
+        """Public: is camp free right now? Used to toggle price copy site-wide."""
+        free = _camp_free()
+        return jsonify(ok=True, free=free,
+                       price=0 if free else REG_TIERS["open"]["price"])
+
+    @app.route("/api/admin/settings/camp-free", methods=["POST"])
+    @require_admin
+    def settings_camp_free_set():
+        data = request.get_json(silent=True) or {}
+        free = bool(data.get("free"))
+        _meta_set("camp_free", "1" if free else "0")
+        return jsonify(ok=True, free=free,
+                       price=0 if free else REG_TIERS["open"]["price"])
 
     @app.route("/api/admin/settings/reg-tier", methods=["POST"])
     @require_admin
