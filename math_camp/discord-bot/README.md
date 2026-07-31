@@ -115,6 +115,67 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/chest-create code:<…> role:<@role> description:<…>` | Manage Roles | Places a chest. The code unlocks the role; the description shows when claimed. |
 | `/chest-list` | Manage Roles | Lists every chest in the server with its code, role, and claim count. |
 | `/chest-delete chest_id:<id>` | Manage Roles | Deletes a chest by ID (from `/chest-list`). |
+| `/onboard` | Anyone | Re-opens the onboarding questions. |
+| `/setup-verify` | Administrator | Posts the "Verify me" panel in the current channel. |
+| `/gate target:<#channel> access:<…>` | Administrator | Sets who can see a channel or category. |
+
+## 5b) Onboarding — locking the server to campers and staff
+
+The gate is: **verifying against a camp account is what grants the
+`Student` role, and `Student`/`Staff` are what make the channels
+visible.** Nobody who can't log in to highergradetutoring.ca gets past
+the front door.
+
+**One-time setup:**
+
+1. Invite the bot with **Manage Channels** in addition to the
+   permissions in step 1 (or tick it in Server Settings → Roles). `/gate`
+   can't edit permissions without it.
+2. Make a public landing channel — `#verify` is the conventional name so
+   the fallback finds it. Run `/gate target:#verify access:Public`.
+3. Run `/setup-verify` in that channel. It posts the panel with the
+   **Verify me** button. The button is persistent — it survives bot
+   restarts and redeploys, so you post it once and never again.
+4. Make a **staff-only** `#onboarding-answers` channel and
+   `/gate target:#onboarding-answers access:Staff only`.
+5. For every other category: `/gate target:<category>
+   access:Students + Staff`. With `apply_to_children` left on (the
+   default) every channel inside re-syncs to the category, so you do one
+   command per category rather than one per channel.
+6. Put the channel IDs in the bot env (`VERIFY_CHANNEL_ID`,
+   `ONBOARD_CHANNEL_ID`) and restart. Not strictly required — the bot
+   falls back to channel *names* — but the IDs are what survive a rename.
+
+**What a new member experiences:**
+
+1. They join. Every channel but `#verify` is invisible. The bot DMs them
+   a pointer to `#verify` (best-effort — many people have DMs off, which
+   is why the panel is also in a channel they can see).
+2. They tap **Verify me** and enter their camp email + password in a
+   modal. The password goes to `/api/bot/link` over the bot's private
+   API — it is never rendered as text in the server, which is why this
+   is better than the `/verify` slash command.
+3. On success: `Student` role, nickname set to their real camp name, and
+   any camp-game roles they'd already earned. The channels appear.
+4. They then get an **Answer a few questions** button. Their answers get
+   posted as an embed into `#onboarding-answers`, tagged with their
+   mention, their camp account name, and their user ID. They can redo it
+   any time with `/onboard`.
+
+**Staff** don't verify — there are no staff logins on the camp site (the
+`staff` table is bios and photos only). An admin hands out the `Staff`
+role by hand in Server Settings → Members. The bot creates that role but
+never assigns or removes it, and never mirrors it back to the camp site.
+
+**Frozen accounts** — registered but the payment isn't confirmed — are
+refused at `/api/bot/link` with an explanation, and get no roles. If you
+re-freeze somebody on the website later, the 2-minute sync loop strips
+their `Student` and camp roles, so the channels close again on their
+own.
+
+To change the onboarding questions, edit `ONBOARD_QUESTIONS` near the top
+of the verification section in `bot.py`. Discord allows at most 5
+questions per modal and caps each label at 45 characters.
 
 ## 6) About verification
 
@@ -141,7 +202,10 @@ guild and the bot will just work.
 The bot creates and **only ever modifies** these roles. Anything else
 in your server is left alone.
 
-- `Student` — granted on `/verify`, removed on `/unlink`.
+- `Student` — granted on `/verify` or the Verify panel, removed on
+  `/unlink` or when the camp account is frozen.
+- `Staff` — created so `/gate` can grant it channel access, but **never
+  assigned or removed by the bot**. Hand it out yourself.
 - `Camp · Maze Wizard`, `Camp · Money Tree`, `Camp · Clicker`,
   `Camp · Paper Crane` — mirrored from the camp's role table.
 - Any role you wire into a chest via `/chest-create`. The bot grants

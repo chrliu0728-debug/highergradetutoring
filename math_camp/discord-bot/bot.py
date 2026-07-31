@@ -7,6 +7,13 @@ camp roles + display name into Discord. Also implements:
   /whoami                  → shows the linked student's stats
   /unlink                  → removes the link
   /unlock code             → grants the role hidden behind a chest
+  /onboard                 → answer the onboarding questions
+
+Onboarding: new members land in a single public #verify channel holding a
+persistent "Verify me" panel. Verifying against the camp account is what
+grants the Student role, and the Student/Staff roles are what open every
+other channel (see /gate). Frozen accounts — registered but payment not
+confirmed — are refused, and lose their roles again if re-frozen later.
 
 Admin-only (Manage Roles permission):
 
@@ -14,12 +21,19 @@ Admin-only (Manage Roles permission):
   /chest-list
   /chest-delete chest_id
 
+Admin-only (Administrator):
+
+  /setup-verify            → post the Verify panel in the current channel
+  /gate channel access     → set who can see a channel or category
+
 Required environment variables:
   DISCORD_TOKEN     bot token from discord.com/developers
   CAMP_API_BASE     e.g. https://highergradetutoring.ca
   BOT_API_TOKEN     same secret you set in /etc/highergrade.env
   GUILD_ID          (optional) restrict slash commands to one server
                     for instant updates during development
+  VERIFY_CHANNEL_ID  (optional) the public channel with the Verify panel
+  ONBOARD_CHANNEL_ID (optional) staff-only channel for onboarding answers
 """
 
 from __future__ import annotations
@@ -56,10 +70,21 @@ REGISTER_POLL_SECONDS = int(os.environ.get("REGISTER_POLL_SECONDS") or 60)
 # the e-Transfer" pings go. Same channel the reply review uses.
 REVIEW_CHANNEL_ID = os.environ.get("REVIEW_CHANNEL_ID") or ""
 
+# Onboarding. VERIFY_CHANNEL_ID is the one public channel new members can see
+# — it holds the "Verify me" panel. ONBOARD_CHANNEL_ID is the staff-only
+# channel the bot posts each member's onboarding answers into. Both optional:
+# without them the bot falls back to channels named "verify"/"onboarding-answers".
+VERIFY_CHANNEL_ID = os.environ.get("VERIFY_CHANNEL_ID") or ""
+ONBOARD_CHANNEL_ID = os.environ.get("ONBOARD_CHANNEL_ID") or ""
+
 # Names the bot manages on Discord. The bot creates these if missing
 # and only ever adds/removes these specific roles — it never touches
 # user-defined roles outside this set.
 STUDENT_ROLE_NAME = "Student"
+# Staff is created (so /gate can reference it) but NEVER auto-assigned —
+# there are no staff logins on the camp site, so an admin hands it out by
+# hand in Server Settings → Members.
+STAFF_ROLE_NAME = "Staff"
 
 # Mapping of camp-side role IDs (from the `roles` table) to a friendly
 # Discord role name. Names match exactly so admins can also create roles
@@ -267,6 +292,10 @@ class HGBot(discord.Client):
         # button's custom_id encodes the chest_id and discord.py
         # reconstructs the handler from the regex template.
         self.add_dynamic_items(ChestUnlockButton)
+        # Persistent onboarding views — fixed custom_ids, so the Verify
+        # panel posted months ago still opens the modal after a redeploy.
+        self.add_view(VerifyPanelView())
+        self.add_view(OnboardingPromptView())
         # Sync slash commands. If GUILD_ID is set we sync to that guild
         # only (instant); otherwise the global sync that can take up
         # to an hour to propagate is used.
@@ -332,12 +361,20 @@ async def _sync_member(
     # 1. Camp → Discord: ensure the user has a Discord role for every
     #    standard camp role (Maze Wizard, Money Tree, Clicker, Paper
     #    Crane), plus the Student verify marker.
-    desired_camp_roles = {
-        CAMP_ROLE_NAMES[r]
-        for r in (summary.get("roles") or [])
-        if r in CAMP_ROLE_NAMES
-    }
-    desired_camp_roles.add(STUDENT_ROLE_NAME)
+    #
+    #    A frozen account (payment not confirmed, or re-frozen by an admin
+    #    after the fact) wants NO managed roles — the loop below then
+    #    removes whatever it currently has, so re-freezing on the website
+    #    revokes Discord access within one poll interval.
+    if summary.get("frozen"):
+        desired_camp_roles = set()
+    else:
+        desired_camp_roles = {
+            CAMP_ROLE_NAMES[r]
+            for r in (summary.get("roles") or [])
+            if r in CAMP_ROLE_NAMES
+        }
+        desired_camp_roles.add(STUDENT_ROLE_NAME)
 
     managed_names = set(_camp_discord_role_names()) | {STUDENT_ROLE_NAME}
 
@@ -376,7 +413,7 @@ async def _sync_member(
                 continue
             if r.managed:
                 continue
-            if r.name == STUDENT_ROLE_NAME:
+            if r.name in (STUDENT_ROLE_NAME, STAFF_ROLE_NAME):
                 continue
             norm = _normalize_role_name(r.name)
             if not norm or norm in blocklist_normalized or norm in seen_norm:
@@ -406,6 +443,9 @@ async def sync_loop() -> None:
         try:
             # Make sure the managed roles exist before we try to assign them.
             await ensure_role(guild, STUDENT_ROLE_NAME, color=discord.Color.blurple(), hoist=True)
+            # Never auto-assigned — created so /gate can grant it channel
+            # access and so admins have a role to hand out by hand.
+            await ensure_role(guild, STAFF_ROLE_NAME, color=discord.Color.green(), hoist=True)
             for camp_role_name in CAMP_ROLE_NAMES.values():
                 await ensure_role(guild, camp_role_name, color=discord.Color.gold())
             # Fetch the blocklist once per guild so _sync_member doesn't
@@ -963,27 +1003,28 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
     return e
 
 
-# ── Slash commands ───────────────────────────────────────────────────
-@bot.tree.command(name="verify", description="Link your Discord account to your camp account.")
-@app_commands.describe(
-    email="Your camp email (the one you registered with)",
-    password="Your camp account password",
-)
-async def cmd_verify(interaction: discord.Interaction, email: str, password: str) -> None:
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    if not interaction.guild:
-        await interaction.followup.send("Run this in a server, not a DM.", ephemeral=True)
-        return
-    res = await api.link(str(interaction.user.id), str(interaction.guild.id), email.strip(), password)
+# ── Verification & onboarding ────────────────────────────────────────
+async def _run_verify(interaction: discord.Interaction, email: str,
+                      password: str) -> tuple[bool, str]:
+    """Link a Discord user to their camp account and grant the roles that
+    open up the private channels. Shared by the /verify command and the
+    Verify-me button, so both paths behave identically.
+
+    The interaction must already be deferred (ephemeral). Returns
+    (succeeded, message-to-show)."""
+    guild = interaction.guild
+    if not guild:
+        return False, "Run this in the server, not a DM."
+    res = await api.link(str(interaction.user.id), str(guild.id), email.strip(), password)
     if not res.get("ok"):
-        await interaction.followup.send(f"❌ {res.get('error') or 'Verification failed.'}", ephemeral=True)
-        return
+        return False, f"❌ {res.get('error') or 'Verification failed.'}"
+
     summary = res.get("data") or {}
     full_name = (summary.get("fullName") or "").strip()
-    student_role = await ensure_role(interaction.guild, STUDENT_ROLE_NAME,
+    student_role = await ensure_role(guild, STUDENT_ROLE_NAME,
                                      color=discord.Color.blurple(), hoist=True)
     member = interaction.user if isinstance(interaction.user, discord.Member) else \
-             await interaction.guild.fetch_member(interaction.user.id)
+             await guild.fetch_member(interaction.user.id)
     role_warning = ""
     try:
         await member.add_roles(student_role, reason="HigherGrade verify")
@@ -991,19 +1032,19 @@ async def cmd_verify(interaction: discord.Interaction, email: str, password: str
         role_warning = "⚠️ Couldn't grant the **Student** role — ask an admin to put my role above it."
 
     # Also sync any camp-game roles the student already holds.
-    blocklist_normalized = await _fetch_blocklist_normalized(interaction.guild.id)
+    blocklist_normalized = await _fetch_blocklist_normalized(guild.id)
     await _sync_member(member, summary, blocklist_normalized)
 
     # Force a nickname update directly here (even if _sync_member skipped
     # it) so we can give the user a clear pass/fail reason.
     nick_status = ""
     if full_name:
-        if member.id == interaction.guild.owner_id:
+        if member.id == guild.owner_id:
             nick_status = (
                 f"\n\nℹ️ Discord doesn't let bots rename the **server owner** — "
                 f"please set your nickname to **{full_name}** manually."
             )
-        elif member.top_role >= (interaction.guild.me.top_role if interaction.guild.me else member.top_role):
+        elif member.top_role >= (guild.me.top_role if guild.me else member.top_role):
             nick_status = (
                 f"\n\nℹ️ Couldn't update your nickname because your top role is at-or-above mine. "
                 f"Set it to **{full_name}** manually, or ask an admin to move my role higher."
@@ -1019,12 +1060,187 @@ async def cmd_verify(interaction: discord.Interaction, email: str, password: str
 
     msg = (
         f"✅ Linked to **{full_name or 'your camp account'}** · "
-        f"{summary.get('privatePoints', 0)} pts. Welcome!"
+        f"{summary.get('privatePoints', 0)} pts. The camper channels are open to you now — welcome!"
     )
     if role_warning:
         msg += "\n\n" + role_warning
     msg += nick_status
-    await interaction.followup.send(msg, ephemeral=True)
+    return True, msg
+
+
+@bot.tree.command(name="verify", description="Link your Discord account to your camp account.")
+@app_commands.describe(
+    email="Your camp email (the one you registered with)",
+    password="Your camp account password",
+)
+async def cmd_verify(interaction: discord.Interaction, email: str, password: str) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not interaction.guild:
+        await interaction.followup.send("Run this in a server, not a DM.", ephemeral=True)
+        return
+    ok, msg = await _run_verify(interaction, email, password)
+    if ok:
+        # A modal can't be opened from a modal/command response, so the
+        # onboarding questions hang off a follow-up button instead.
+        await interaction.followup.send(msg, view=OnboardingPromptView(), ephemeral=True)
+    else:
+        await interaction.followup.send(msg, ephemeral=True)
+
+
+class VerifyModal(discord.ui.Modal, title="Verify your camp account"):
+    """Collects the camp login. A modal (rather than slash-command options)
+    means the password is never rendered as command text in the channel."""
+
+    email = discord.ui.TextInput(
+        label="Camp email",
+        placeholder="The email you registered with",
+        max_length=200, required=True,
+    )
+    password = discord.ui.TextInput(
+        label="Camp password",
+        placeholder="Your password on highergradetutoring.ca",
+        max_length=200, required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        ok, msg = await _run_verify(interaction, str(self.email.value), str(self.password.value))
+        if ok:
+            await interaction.followup.send(msg, view=OnboardingPromptView(), ephemeral=True)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
+
+
+class VerifyPanelView(discord.ui.View):
+    """The persistent panel that lives in the public #verify channel. The
+    fixed custom_id + timeout=None + bot.add_view() in setup_hook means the
+    button keeps working across restarts and redeploys."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Verify me ✅", style=discord.ButtonStyle.success,
+                       custom_id="hg_verify:panel")
+    async def verify(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.send_modal(VerifyModal())
+
+
+# ── Onboarding questions ─────────────────────────────────────────────
+# Edit this list to change what new campers are asked. Discord allows at
+# most 5 inputs per modal, and each label is capped at 45 characters.
+ONBOARD_QUESTIONS: List[Dict[str, Any]] = [
+    {"key": "What we should call you", "label": "What should we call you?",
+     "placeholder": "Preferred name / nickname", "long": False, "required": True},
+    {"key": "Grade this September", "label": "What grade are you going into?",
+     "placeholder": "e.g. 10", "long": False, "required": True},
+    {"key": "Hoping to get out of camp", "label": "What do you want out of camp?",
+     "placeholder": "Contest prep, catching up, meeting people…", "long": True, "required": True},
+    {"key": "Things we should know", "label": "Anything we should know?",
+     "placeholder": "Allergies, access needs, anything else", "long": True, "required": False},
+    {"key": "How they heard about us", "label": "How did you hear about us?",
+     "placeholder": "Friend, teacher, Instagram…", "long": False, "required": False},
+]
+
+
+def _onboard_channel(guild: discord.Guild) -> Optional[discord.abc.Messageable]:
+    """Where onboarding answers get posted: ONBOARD_CHANNEL_ID, else a
+    channel named 'onboarding-answers'/'onboarding'. None if neither exists
+    — the answers are then only echoed back to the member."""
+    if ONBOARD_CHANNEL_ID:
+        ch = bot.get_channel(int(ONBOARD_CHANNEL_ID))
+        if ch is not None:
+            return ch
+        log.warning("ONBOARD_CHANNEL_ID=%s not found — falling back", ONBOARD_CHANNEL_ID)
+    return (discord.utils.get(guild.text_channels, name="onboarding-answers")
+            or discord.utils.get(guild.text_channels, name="onboarding"))
+
+
+class OnboardingModal(discord.ui.Modal, title="A few quick questions"):
+    """Built dynamically from ONBOARD_QUESTIONS so the questions are one
+    edit away, rather than five hard-coded class attributes."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+        self.inputs: List[discord.ui.TextInput] = []
+        for q in ONBOARD_QUESTIONS[:5]:
+            item = discord.ui.TextInput(
+                label=str(q["label"])[:45],
+                placeholder=q.get("placeholder") or None,
+                style=discord.TextStyle.paragraph if q.get("long") else discord.TextStyle.short,
+                required=bool(q.get("required")),
+                max_length=1000 if q.get("long") else 200,
+            )
+            self.inputs.append(item)
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("Run this in the server, not a DM.", ephemeral=True)
+            return
+
+        # Pull the linked camp profile so staff see who the answers belong
+        # to even if the member later changes their Discord nickname.
+        camp_name = ""
+        try:
+            me = await api.me(str(interaction.user.id))
+            camp_name = ((me.get("data") or {}).get("fullName") or "").strip()
+        except Exception:  # noqa: BLE001
+            log.exception("onboarding: /me lookup failed for %s", interaction.user.id)
+
+        embed = discord.Embed(
+            title="📝 Onboarding answers",
+            description=f"{interaction.user.mention} · `{interaction.user}`"
+                        + (f"\nCamp account: **{camp_name}**" if camp_name else ""),
+            colour=0x22C55E,
+        )
+        for q, item in zip(ONBOARD_QUESTIONS, self.inputs):
+            value = (str(item.value) or "").strip()
+            embed.add_field(name=str(q["key"])[:256], value=(value or "*(skipped)*")[:1024],
+                            inline=False)
+        embed.set_footer(text=f"user id {interaction.user.id}")
+
+        channel = _onboard_channel(guild)
+        if channel is None:
+            await interaction.followup.send(
+                "✅ Thanks! (Heads up for staff: no onboarding channel is configured, "
+                "so these answers weren't filed anywhere — set `ONBOARD_CHANNEL_ID`.)",
+                ephemeral=True,
+            )
+            return
+        try:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "✅ Thanks! (I couldn't post these to the staff channel — "
+                "ask an admin to give me permission to post there.)",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send("✅ Thanks — that's you all set up!", ephemeral=True)
+
+
+class OnboardingPromptView(discord.ui.View):
+    """Follow-up button shown right after a successful verify. Persistent so
+    the button still works if the member comes back to it later."""
+
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Answer a few questions 📝", style=discord.ButtonStyle.primary,
+                       custom_id="hg_onboard:start")
+    async def onboard(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.send_modal(OnboardingModal())
+
+
+@bot.tree.command(name="onboard",
+                  description="Answer (or redo) the onboarding questions.")
+async def cmd_onboard(interaction: discord.Interaction) -> None:
+    if not interaction.guild:
+        await interaction.response.send_message("Run this in the server, not a DM.", ephemeral=True)
+        return
+    await interaction.response.send_modal(OnboardingModal())
 
 
 @bot.tree.command(name="whoami", description="Show your linked camp profile.")
@@ -1085,6 +1301,7 @@ async def cmd_help(interaction: discord.Interaction) -> None:
         ("whoami", "Show your linked camp profile."),
         ("unlink", "Remove the link between your Discord and camp account."),
         ("unlock", "Open a locked chest with its passcode."),
+        ("onboard", "Answer (or redo) the onboarding questions."),
     ]
     chest_tools = [
         ("chest-create", "Place a locked chest in this channel."),
@@ -1100,6 +1317,8 @@ async def cmd_help(interaction: discord.Interaction) -> None:
         ("queue-next", "Preview, edit, or skip the upcoming outreach emails."),
     ]
     server_admin = [
+        ("setup-verify", "Post the Verify panel in this channel."),
+        ("gate", "Lock a channel or category to verified members."),
         ("perms-grant", "Allow a role to run a restricted command."),
         ("perms-revoke", "Remove a role's access to a restricted command."),
         ("perms-list", "Show which roles can run which commands."),
@@ -1218,6 +1437,114 @@ async def _user_can_run(interaction: discord.Interaction, command: str) -> bool:
         return False
     user_role_ids = {str(r.id) for r in interaction.user.roles}
     return bool(allowed & user_role_ids)
+
+
+# ── Onboarding setup (admin) ─────────────────────────────────────────
+@bot.tree.command(name="setup-verify",
+                  description="Post the Verify panel in this channel.")
+async def cmd_setup_verify(interaction: discord.Interaction) -> None:
+    if not _is_server_admin(interaction) or not interaction.guild:
+        await interaction.response.send_message(
+            "🚫 Server Administrators only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    embed = discord.Embed(
+        title="👋 Welcome to HigherGrade Tutoring",
+        description=(
+            "The rest of this server is for **campers and staff only**, so it's "
+            "hidden until you prove you're one of us.\n\n"
+            "Tap **Verify me** below and sign in with the email and password you "
+            "use on [highergradetutoring.ca](https://highergradetutoring.ca). "
+            "That unlocks the camper channels, sets your nickname to your real "
+            "name, and carries over any camp roles you've already earned.\n\n"
+            "**Staff:** you don't verify here — ping an admin and they'll hand "
+            "you the Staff role directly."
+        ),
+        colour=0x5865F2,
+    )
+    embed.set_footer(text="Your password goes straight to the camp site over the "
+                          "bot's private API — nobody in the server can see it.")
+    try:
+        await interaction.channel.send(embed=embed, view=VerifyPanelView())
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "🚫 I can't post in this channel — check my permissions here.", ephemeral=True)
+        return
+    await interaction.followup.send(
+        "✅ Panel posted. Make sure this channel is the one channel `@everyone` "
+        "can still see (`/gate` this channel as **public**).", ephemeral=True)
+
+
+@bot.tree.command(name="gate",
+                  description="Lock a channel or category to verified members.")
+@app_commands.describe(
+    target="The channel or category to change",
+    access="Who should be able to see it",
+    apply_to_children="For a category: also re-sync every channel inside it",
+)
+@app_commands.choices(access=[
+    app_commands.Choice(name="Students + Staff (verified only)", value="members"),
+    app_commands.Choice(name="Staff only", value="staff"),
+    app_commands.Choice(name="Public (anyone, including unverified)", value="public"),
+])
+async def cmd_gate(
+    interaction: discord.Interaction,
+    target: discord.abc.GuildChannel,
+    access: app_commands.Choice[str],
+    apply_to_children: bool = True,
+) -> None:
+    """Sets the @everyone / Student / Staff view-channel overwrites so the
+    server's privacy model lives in one command instead of a lot of
+    hand-clicking. Everything else about the channel is left alone."""
+    if not _is_server_admin(interaction) or not interaction.guild:
+        await interaction.response.send_message(
+            "🚫 Server Administrators only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    guild = interaction.guild
+    everyone = guild.default_role
+    student = await ensure_role(guild, STUDENT_ROLE_NAME,
+                                color=discord.Color.blurple(), hoist=True)
+    staff = await ensure_role(guild, STAFF_ROLE_NAME,
+                              color=discord.Color.green(), hoist=True)
+
+    # None clears the overwrite (falls back to inherited/default) rather
+    # than writing an explicit allow — that's what "public" should mean.
+    if access.value == "members":
+        wanted = {everyone: False, student: True, staff: True}
+    elif access.value == "staff":
+        wanted = {everyone: False, student: False, staff: True}
+    else:
+        wanted = {everyone: None, student: None, staff: None}
+
+    try:
+        for role, view in wanted.items():
+            await target.set_permissions(
+                role, view_channel=view,
+                reason=f"HigherGrade /gate → {access.value}")
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "🚫 I need **Manage Channels** (and my role above Student/Staff) "
+            "to change permissions here.", ephemeral=True)
+        return
+
+    synced = 0
+    if apply_to_children and isinstance(target, discord.CategoryChannel):
+        for child in target.channels:
+            try:
+                await child.edit(sync_permissions=True,
+                                 reason="HigherGrade /gate — inherit from category")
+                synced += 1
+            except discord.Forbidden:
+                pass
+
+    msg = f"✅ **{target.name}** is now **{access.name}**."
+    if synced:
+        msg += f" Re-synced {synced} channel(s) inside it."
+    if access.value != "public" and VERIFY_CHANNEL_ID and str(target.id) == VERIFY_CHANNEL_ID:
+        msg += ("\n\n⚠️ That's your verify channel — new members can no longer see it, "
+                "so nobody can verify. Set it back to **public**.")
+    await interaction.followup.send(msg, ephemeral=True)
 
 
 @bot.tree.command(name="chest-create", description="Place a locked chest in this channel.")
@@ -1525,6 +1852,42 @@ async def cmd_role_mirror_list(interaction: discord.Interaction) -> None:
 
 
 # ── Lifecycle ────────────────────────────────────────────────────────
+def _verify_channel(guild: discord.Guild) -> Optional[discord.abc.GuildChannel]:
+    """The public channel holding the Verify panel: VERIFY_CHANNEL_ID, else
+    a channel named 'verify'/'start-here'/'welcome'."""
+    if VERIFY_CHANNEL_ID:
+        ch = bot.get_channel(int(VERIFY_CHANNEL_ID))
+        if ch is not None:
+            return ch
+        log.warning("VERIFY_CHANNEL_ID=%s not found — falling back", VERIFY_CHANNEL_ID)
+    for name in ("verify", "start-here", "welcome"):
+        ch = discord.utils.get(guild.text_channels, name=name)
+        if ch is not None:
+            return ch
+    return None
+
+
+@bot.event
+async def on_member_join(member: discord.Member) -> None:
+    """Point new arrivals at the verify panel. DMs are best-effort — plenty
+    of people have server DMs turned off, which is exactly why the panel
+    also lives in a channel they can see."""
+    if member.bot:
+        return
+    channel = _verify_channel(member.guild)
+    where = channel.mention if channel else "the verify channel"
+    try:
+        await member.send(
+            f"👋 Welcome to **{member.guild.name}**!\n\n"
+            f"Most of the server is camper- and staff-only, so it'll look pretty empty "
+            f"until you verify. Head to {where} and tap **Verify me**, then sign in with "
+            f"your highergradetutoring.ca email and password.\n\n"
+            f"Staff: ask an admin to give you the **Staff** role instead."
+        )
+    except (discord.Forbidden, discord.HTTPException):
+        log.info("couldn't DM welcome to %s (DMs closed)", member)
+
+
 _did_cmd_dedup = False
 
 

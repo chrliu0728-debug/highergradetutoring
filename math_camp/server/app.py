@@ -3188,6 +3188,10 @@ def register_routes(app):
             "privatePoints":     int(stats.get("privatePoints") or 0),
             "totalPointsEarned": int(stats.get("totalPointsEarned") or 0),
             "roles":       s.get("roles") or [],
+            # Payment not yet confirmed. The bot refuses to verify a frozen
+            # account and strips its managed roles on the next sync pass, so
+            # freezing on the website also revokes Discord access.
+            "frozen":      bool(s.get("frozen")),
         }
 
     @app.route("/api/bot/link", methods=["POST"])
@@ -3208,6 +3212,17 @@ def register_routes(app):
         ).fetchone()
         if not row or not hmac.compare_digest(str(crypto.dec(row["password"]) or ""), str(pwd)):
             return jsonify(ok=False, error="No matching camp account."), 401
+        # Frozen = registered but the payment hasn't been confirmed yet. Those
+        # accounts don't get Discord access at all — verification is the gate
+        # that unlocks the private channels, so it has to hold the same line
+        # the website does.
+        if row["frozen"]:
+            return jsonify(
+                ok=False,
+                frozen=True,
+                error=("Your camp account is still pending payment confirmation. "
+                       "Once our staff confirms your payment you'll be able to verify here."),
+            ), 403
         sid = row["id"]
         # Refuse to silently overwrite an existing claim. If a different
         # Discord user already linked this student, the bot must clear
