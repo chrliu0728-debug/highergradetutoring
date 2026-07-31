@@ -86,6 +86,10 @@ STUDENT_ROLE_NAME = "Student"
 # hand in Server Settings → Members.
 STAFF_ROLE_NAME = "Staff"
 
+# Points a chest pays out on a first-time unlock, when the admin doesn't
+# override it at creation time. 0 in the create modal disables the reward.
+DEFAULT_CHEST_POINTS = int(os.environ.get("DEFAULT_CHEST_POINTS") or 50)
+
 # Mapping of camp-side role IDs (from the `roles` table) to a friendly
 # Discord role name. Names match exactly so admins can also create roles
 # directly on Discord with the same name and have them mirror to camp.
@@ -210,11 +214,14 @@ class CampAPI:
     # — Chests —
     async def chest_create(self, guild_id: str, code: str, role_id: str, role_name: str,
                            description: str, created_by: str,
-                           image_url: Optional[str] = None) -> Dict[str, Any]:
+                           image_url: Optional[str] = None,
+                           points: int = DEFAULT_CHEST_POINTS,
+                           max_claims: Optional[int] = None) -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
             "imageUrl": image_url or "",
+            "points": points, "maxClaims": max_claims,
         })
 
     async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
@@ -903,6 +910,65 @@ async def _before_oncall_reminder() -> None:
 # code grants the role. Multi-claim is allowed — the chest message stays
 # in the channel so anyone with the code can keep opening it.
 
+async def _deliver_chest(interaction: discord.Interaction, payload: Dict[str, Any]) -> None:
+    """Grant the chest's role, report the points payout, and reveal the
+    description. Shared by the button and the /unlock command. The
+    interaction must already be deferred (ephemeral).
+
+    A description of any length is fine — it's split across as many
+    follow-up messages as it takes."""
+    guild = interaction.guild
+    role_id = payload.get("roleId")
+    description = payload.get("description") or "*(no description set)*"
+    already = bool(payload.get("alreadyClaimed"))
+    role = guild.get_role(int(role_id)) if (guild and role_id) else None
+    member = interaction.user if isinstance(interaction.user, discord.Member) else \
+             (await guild.fetch_member(interaction.user.id) if guild else None)
+
+    granted = False
+    if role and member and role not in member.roles:
+        try:
+            await member.add_roles(role, reason="HigherGrade chest unlock")
+            granted = True
+        except discord.Forbidden:
+            pass
+
+    lines = ["🗝 **Chest opened!**" if not already else "🗝 **You've already opened this chest.**"]
+    if granted and role:
+        lines.append(f"✅ Role granted: **{role.name}**")
+    elif already and role:
+        lines.append(f"(You already have **{role.name}**.)")
+    elif role and member and role in member.roles:
+        lines.append(f"(You already have **{role.name}**.)")
+    elif role:
+        lines.append("⚠️ Couldn't grant the role — ask an admin to put my role above it "
+                     "in Server Settings → Roles.")
+
+    awarded = int(payload.get("awarded") or 0)
+    points = int(payload.get("points") or 0)
+    skipped = payload.get("awardSkipped")
+    if awarded > 0:
+        lines.append(f"💰 **+{awarded} pts** added to your camp account.")
+    elif already and points > 0:
+        lines.append("💰 No points this time — a chest only pays out once per person.")
+    elif skipped == "unverified":
+        lines.append(f"💰 This chest pays **{points} pts**, but your Discord isn't linked "
+                     f"to a camp account yet — verify and the next one will pay out.")
+    elif skipped == "frozen":
+        lines.append(f"💰 This chest pays **{points} pts**, but your camp account is "
+                     f"pending payment confirmation, so it couldn't be credited.")
+
+    max_claims = payload.get("maxClaims")
+    if max_claims:
+        left = max(0, int(max_claims) - int(payload.get("claimedCount") or 0))
+        lines.append(f"📦 {left} of {int(max_claims)} opening(s) left.")
+
+    for i, part in enumerate(_chunk("\n".join(lines) + "\n\n" + description, MSG_LIMIT)):
+        await interaction.followup.send(part, ephemeral=True)
+        if i >= 9:   # sanity stop — 10 follow-ups is already a wall of text
+            break
+
+
 class ChestUnlockModal(discord.ui.Modal, title="🔒 Locked chest"):
     code = discord.ui.TextInput(
         label="Passcode",
@@ -928,28 +994,7 @@ class ChestUnlockModal(discord.ui.Modal, title="🔒 Locked chest"):
                 f"🔒 {res.get('error') or 'Wrong code.'}", ephemeral=True,
             )
             return
-        payload = res.get("data") or {}
-        role_id = payload.get("roleId")
-        description = payload.get("description") or "(no description set)"
-        role = interaction.guild.get_role(int(role_id)) if role_id else None
-        member = interaction.user if isinstance(interaction.user, discord.Member) else \
-                 await interaction.guild.fetch_member(interaction.user.id)
-        granted = False
-        already = bool(payload.get("alreadyClaimed"))
-        if role and member and role not in member.roles:
-            try:
-                await member.add_roles(role, reason="HigherGrade chest unlock")
-                granted = True
-            except discord.Forbidden:
-                pass
-        msg = f"🗝 **Chest opened!**\n\n{description}"
-        if granted and role:
-            msg += f"\n\n✅ Role granted: **{role.name}**"
-        elif already and role:
-            msg += f"\n\n(You already have **{role.name}** — opened previously.)"
-        elif role:
-            msg += "\n\n⚠️ Couldn't grant the role — ask an admin to put my role above it in Server Settings → Roles."
-        await interaction.followup.send(msg, ephemeral=True)
+        await _deliver_chest(interaction, res.get("data") or {})
 
 
 class ChestUnlockButton(
@@ -987,20 +1032,61 @@ def _chest_view(chest_id: str) -> discord.ui.View:
     return view
 
 
+# Discord's hard caps. Descriptions longer than this get split across
+# continuation embeds/messages rather than being cut off.
+EMBED_DESC_LIMIT = 4096
+MSG_LIMIT = 2000
+
+
+def _chunk(text: str, size: int) -> List[str]:
+    """Split text into <=size pieces, preferring to break at a paragraph or
+    line boundary so a long chest description doesn't get cut mid-sentence."""
+    text = text or ""
+    if len(text) <= size:
+        return [text] if text else []
+    out: List[str] = []
+    while len(text) > size:
+        window = text[:size]
+        cut = max(window.rfind("\n\n"), window.rfind("\n"))
+        if cut < size // 2:      # no sensible break point — hard split
+            cut = size
+        out.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    if text:
+        out.append(text)
+    return out
+
+
 def _chest_embed(description: str, image_url: Optional[str] = None,
-                 role_name: Optional[str] = None) -> discord.Embed:
+                 role_name: Optional[str] = None,
+                 points: int = 0, max_claims: Optional[int] = None) -> discord.Embed:
+    """First (or only) embed of a chest message. Long descriptions are
+    carried on by _chest_overflow_embeds."""
+    body = _chunk(description, EMBED_DESC_LIMIT)
     e = discord.Embed(
         title="🔒 Locked Chest",
-        description=description or "*(no description)*",
+        description=(body[0] if body else "*(no description)*"),
         color=discord.Color.purple(),
     )
     if image_url:
         e.set_image(url=image_url)
-    footer = "Tap the button below and enter the passcode to open."
+    bits = ["Tap the button below and enter the passcode to open."]
     if role_name:
-        footer += f" Unlocks: {role_name}."
-    e.set_footer(text=footer)
+        bits.append(f"Unlocks: {role_name}.")
+    if points > 0:
+        bits.append(f"Reward: +{points} pts.")
+    if max_claims:
+        bits.append(f"Limited to {max_claims} opener(s).")
+    else:
+        bits.append("Unlimited openers — but only once each.")
+    e.set_footer(text=" ".join(bits))
     return e
+
+
+def _chest_overflow_embeds(description: str) -> List[discord.Embed]:
+    """Continuation embeds for descriptions past the first 4096 characters."""
+    return [discord.Embed(description=part, color=discord.Color.purple())
+            for part in _chunk(description, EMBED_DESC_LIMIT)[1:]]
 
 
 # ── Verification & onboarding ────────────────────────────────────────
@@ -1375,27 +1461,7 @@ async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
     if not res.get("ok"):
         await interaction.followup.send(f"🔒 {res.get('error') or 'Wrong code.'}", ephemeral=True)
         return
-    payload = res.get("data") or {}
-    role_id = payload.get("roleId")
-    description = payload.get("description") or "(no description set)"
-    role = interaction.guild.get_role(int(role_id)) if role_id else None
-    member = interaction.user if isinstance(interaction.user, discord.Member) else \
-             await interaction.guild.fetch_member(interaction.user.id)
-    granted = False
-    if role and member:
-        try:
-            await member.add_roles(role, reason="HigherGrade chest unlock")
-            granted = True
-        except discord.Forbidden:
-            pass
-    msg = f"🗝 **Chest opened!** {description}"
-    if granted:
-        msg += f"\n\nRole granted: **{role.name}**"
-    elif payload.get("alreadyClaimed"):
-        msg += "\n\n(You'd already opened this one.)"
-    else:
-        msg += "\n\n⚠️ Couldn't grant the linked role — ask an admin to put me above it in the role list."
-    await interaction.followup.send(msg, ephemeral=True)
+    await _deliver_chest(interaction, res.get("data") or {})
 
 
 # ── Admin commands ───────────────────────────────────────────────────
@@ -1547,87 +1613,164 @@ async def cmd_gate(
     await interaction.followup.send(msg, ephemeral=True)
 
 
+class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
+    """The passcode, reveal text, reward and claim cap are collected in a
+    modal rather than as slash-command options — the paragraph field takes
+    far more text than the chat box will let you type into an option, which
+    is what makes long chest descriptions practical."""
+
+    code = discord.ui.TextInput(
+        label="Passcode", placeholder="What players must type to open it",
+        min_length=1, max_length=128, required=True,
+    )
+    description = discord.ui.TextInput(
+        label="Reveal text (shown on the chest + on open)",
+        style=discord.TextStyle.paragraph,
+        placeholder="Anything you like — lore, a riddle, the next clue…",
+        max_length=4000, required=True,
+    )
+    points = discord.ui.TextInput(
+        label="Points awarded (0 for none)",
+        default=str(DEFAULT_CHEST_POINTS),
+        max_length=6, required=False,
+    )
+    max_claims = discord.ui.TextInput(
+        label="Max openers (blank = unlimited)",
+        placeholder="Leave blank so everyone with the code can open it",
+        max_length=6, required=False,
+    )
+
+    def __init__(self, role: discord.Role, image_url: Optional[str]) -> None:
+        super().__init__()
+        self.role = role
+        self.image_url = image_url
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        # Authoritative permission check. It lives here rather than before
+        # send_modal because for a non-admin it costs a round-trip to the
+        # camp API, and a modal must be the first response to an
+        # interaction inside 3 seconds — no defer() is possible there.
+        if not await _user_can_run(interaction, "chest-create"):
+            await interaction.followup.send(
+                "🚫 You don't have permission to run **chest-create** in this server. "
+                "Ask a server admin to grant your role with `/perms-grant`.",
+                ephemeral=True,
+            )
+            return
+
+        raw_points = str(self.points.value or "").strip()
+        try:
+            pts = int(raw_points) if raw_points else DEFAULT_CHEST_POINTS
+        except ValueError:
+            await interaction.followup.send(
+                f"❌ Points must be a whole number — got `{raw_points}`.", ephemeral=True)
+            return
+        if pts < 0:
+            await interaction.followup.send("❌ Points can't be negative.", ephemeral=True)
+            return
+
+        raw_max = str(self.max_claims.value or "").strip()
+        cap: Optional[int] = None
+        if raw_max:
+            try:
+                cap = int(raw_max)
+            except ValueError:
+                await interaction.followup.send(
+                    f"❌ Max openers must be a whole number — got `{raw_max}`. "
+                    "Leave it blank for unlimited.", ephemeral=True)
+                return
+            if cap < 1:
+                await interaction.followup.send(
+                    "❌ Max openers must be at least 1 — leave it blank for unlimited.",
+                    ephemeral=True)
+                return
+
+        desc = str(self.description.value).strip()
+        res = await api.chest_create(
+            str(interaction.guild.id), str(self.code.value).strip(),
+            str(self.role.id), self.role.name, desc, str(interaction.user.id),
+            image_url=self.image_url, points=pts, max_claims=cap,
+        )
+        if not res.get("ok"):
+            await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+            return
+        chest_id = (res.get("data") or {}).get("id")
+        if not chest_id:
+            await interaction.followup.send("❌ Server didn't return a chest id.", ephemeral=True)
+            return
+
+        embeds = [_chest_embed(desc, image_url=self.image_url, role_name=self.role.name,
+                               points=pts, max_claims=cap)] + _chest_overflow_embeds(desc)
+
+        # Post the public chest message into the channel the command was run
+        # in. The button is persistent, so this message keeps working forever
+        # (until the chest is deleted). Discord caps a message at 6000 chars
+        # across all its embeds, so overflow goes into follow-up messages.
+        posted = None
+        try:
+            posted = await interaction.channel.send(embed=embeds[0], view=_chest_view(chest_id))
+            for extra in embeds[1:]:
+                await interaction.channel.send(embed=extra)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "❌ I can't send messages in this channel — give me Send Messages + "
+                "Embed Links permission and try again.", ephemeral=True)
+            # Roll back the chest record so we don't leave a phantom entry.
+            await api.chest_delete(chest_id)
+            return
+
+        if posted:
+            try:
+                await api.chest_set_message(chest_id, str(posted.channel.id), str(posted.id))
+            except Exception:  # noqa: BLE001
+                log.exception("failed to save chest message id")
+
+        summary = (
+            f"📦 Chest placed in {posted.channel.mention if posted else 'this channel'}.\n"
+            f"• Code: **{str(self.code.value).strip()}**\n"
+            f"• Unlocks: **{self.role.name}**\n"
+            f"• Reward: **{pts} pts**" + (" (no points)" if pts == 0 else "") + "\n"
+            f"• Openers: **{cap if cap else 'unlimited'}** — one open per person either way"
+        )
+        if len(embeds) > 1:
+            summary += f"\n• Description spans {len(embeds)} message blocks."
+        await interaction.followup.send(summary, ephemeral=True)
+
+
 @bot.tree.command(name="chest-create", description="Place a locked chest in this channel.")
 @app_commands.describe(
-    code="The passcode players must type to unlock",
     role="The role granted on unlock",
-    description="Reveal text shown when the chest is opened",
     image="Optional image to embed in the chest message",
 )
 async def cmd_chest_create(
     interaction: discord.Interaction,
-    code: str,
     role: discord.Role,
-    description: str,
     image: Optional[discord.Attachment] = None,
 ) -> None:
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    if not await _user_can_run(interaction, "chest-create"):
-        await interaction.followup.send(
-            "🚫 You don't have permission to run **chest-create** in this server. "
-            "Ask a server admin to grant your role with `/perms-grant`.",
-            ephemeral=True,
-        )
+    # No defer() here — a modal has to be the FIRST response to the
+    # interaction, so only cheap local checks can run before we reply.
+    # The permission check needs the network, so it runs in on_submit.
+    if not interaction.guild:
+        await interaction.response.send_message("Run this in a server.", ephemeral=True)
         return
-    me = interaction.guild.me if interaction.guild else None
+    me = interaction.guild.me
     if me and role >= me.top_role:
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"❌ I can't grant **{role.name}** — it's above my top role. "
             "Move my role above it in Server Settings → Roles.",
             ephemeral=True,
         )
         return
     if image is not None and not (image.content_type or "").startswith("image/"):
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ The `image` attachment doesn't look like an image file.",
             ephemeral=True,
         )
         return
-    image_url = image.url if image else None
-    res = await api.chest_create(
-        str(interaction.guild.id), code.strip(), str(role.id), role.name,
-        description.strip(), str(interaction.user.id),
-        image_url=image_url,
-    )
-    if not res.get("ok"):
-        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
-        return
-    chest_id = (res.get("data") or {}).get("id")
-    if not chest_id:
-        await interaction.followup.send("❌ Server didn't return a chest id.", ephemeral=True)
-        return
-
-    embed = _chest_embed(description.strip(), image_url=image_url, role_name=role.name)
-    view = _chest_view(chest_id)
-
-    # Post the public chest message into the same channel the admin ran
-    # the command in. The button is persistent, so this message keeps
-    # working forever (until the chest is deleted).
-    posted = None
-    try:
-        posted = await interaction.channel.send(embed=embed, view=view)
-    except discord.Forbidden:
-        await interaction.followup.send(
-            "❌ I can't send messages in this channel — give me Send Messages + Embed Links permission and try again.",
-            ephemeral=True,
-        )
-        # Roll back the chest record so we don't leave a phantom entry.
-        await api.chest_delete(chest_id)
-        return
-
-    # Save the channel + message id back to the chest record so admins
-    # can find / clean up old chests later.
-    if posted:
-        try:
-            await api.chest_set_message(chest_id, str(posted.channel.id), str(posted.id))
-        except Exception:  # noqa: BLE001
-            log.exception("failed to save chest message id")
-
-    await interaction.followup.send(
-        f"📦 Chest placed in {posted.channel.mention if posted else 'this channel'}. "
-        f"Code is **{code}** · unlocks **{role.name}**.",
-        ephemeral=True,
-    )
+    await interaction.response.send_modal(
+        ChestCreateModal(role, image.url if image else None))
 
 
 @bot.tree.command(name="chest-list", description="List every chest in this server.")
@@ -1650,9 +1793,13 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
         return
     lines = []
     for c in chests:
+        cap = c.get("maxClaims")
+        opens = f"{c.get('claimedCount', 0)}/{cap}" if cap else f"{c.get('claimedCount', 0)}/∞"
+        pts = int(c.get("points") or 0)
+        blurb = (c.get("description") or "(no description)").replace("\n", " ")
         lines.append(
             f"• `{c['id']}` · code **{c['code']}** → <@&{c['roleId']}> "
-            f"· {c.get('claimedCount', 0)} unlock(s) · {c.get('description') or '(no description)'}"
+            f"· {opens} opens · {pts} pts · {blurb[:80]}{'…' if len(blurb) > 80 else ''}"
         )
     await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
 

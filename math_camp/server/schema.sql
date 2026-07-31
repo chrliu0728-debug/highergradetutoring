@@ -169,7 +169,12 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   messageId    TEXT,
   createdBy    TEXT,
   createdAt    INTEGER NOT NULL,
-  claimedBy    TEXT NOT NULL DEFAULT '[]'
+  claimedBy    TEXT NOT NULL DEFAULT '[]',
+  -- Points awarded to the claimer's camp account on a first-time unlock.
+  -- 0 disables the reward for this chest.
+  points       INTEGER NOT NULL DEFAULT 50,
+  -- Cap on total distinct claimers. NULL = unlimited (the default).
+  maxClaims    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
 

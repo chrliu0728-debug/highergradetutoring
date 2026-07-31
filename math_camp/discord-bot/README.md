@@ -112,8 +112,8 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/whoami` | Anyone | Shows your linked profile + current points. |
 | `/unlink` | Anyone | Removes your link and revokes the bot-managed roles. |
 | `/unlock code:<passcode>` | Anyone | Opens the chest with that code and grants its hidden role. |
-| `/chest-create code:<…> role:<@role> description:<…>` | Manage Roles | Places a chest. The code unlocks the role; the description shows when claimed. |
-| `/chest-list` | Manage Roles | Lists every chest in the server with its code, role, and claim count. |
+| `/chest-create role:<@role> [image:<file>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. Posts the chest with an unlock button. |
+| `/chest-list` | Manage Roles | Lists every chest with its code, role, opens/cap, points, and description. |
 | `/chest-delete chest_id:<id>` | Manage Roles | Deletes a chest by ID (from `/chest-list`). |
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
 | `/setup-verify` | Administrator | Posts the "Verify me" panel in the current channel. |
@@ -176,6 +176,43 @@ own.
 To change the onboarding questions, edit `ONBOARD_QUESTIONS` near the top
 of the verification section in `bot.py`. Discord allows at most 5
 questions per modal and caps each label at 45 characters.
+
+## 5c) Chests
+
+`/chest-create role:<@role>` opens a form with four fields. Only the first
+two are required:
+
+| Field | Default | Notes |
+| --- | --- | --- |
+| Passcode | — | Must be unique per server. |
+| Reveal text | — | Up to 4000 characters. Shown on the chest message *and* on unlock. |
+| Points awarded | `50` | Paid on a first-time open. `0` disables the reward. |
+| Max openers | *blank* | Blank = unlimited. Any number caps total distinct openers. |
+
+The `role` and optional `image` stay as slash-command options because
+Discord forms can't hold a role picker or a file upload.
+
+**The rules, by default:** anyone who knows the passcode can open a chest,
+there's no limit on how many different people open it, and **each person
+can only open a given chest once**. A repeat open is a no-op — it re-shows
+the reveal text but grants no second role and, importantly, pays no second
+reward. Set *Max openers* to make a chest first-come-first-served.
+
+**Points** land in the camp account linked to that Discord user and show
+up in the transaction log as `🗝 Chest unlocked`. Two cases where the role
+is still granted but the points aren't:
+
+- **Not verified** — no camp account to pay into. They're told to verify.
+- **Frozen** — payment not confirmed, so the account can't be credited.
+
+**Reveal text length.** The form takes 4000 characters, which is roughly
+700 words. The bot splits anything past Discord's 4096-character embed
+limit across continuation embeds when it posts the chest, and across
+multiple ephemeral follow-ups when someone opens it. Splits prefer
+paragraph then line boundaries, so text never breaks mid-sentence.
+
+Both `/unlock code:<passcode>` and the button on the chest message run the
+same code path, so they behave identically.
 
 ## 6) About verification
 

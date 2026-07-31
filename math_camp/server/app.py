@@ -3312,12 +3312,31 @@ def register_routes(app):
         ).fetchone()
         if existing:
             return jsonify(ok=False, error="A chest with that code already exists in this server."), 409
+        # points: 0 disables the reward. maxClaims: None/0/blank = unlimited.
+        try:
+            points = int(d.get("points") if d.get("points") is not None else 50)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="points must be a whole number."), 400
+        if points < 0:
+            return jsonify(ok=False, error="points can't be negative."), 400
+        if points > 100000:
+            return jsonify(ok=False, error="points looks suspiciously large."), 400
+        raw_max = d.get("maxClaims")
+        max_claims = None
+        if raw_max not in (None, "", 0, "0"):
+            try:
+                max_claims = int(raw_max)
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="maxClaims must be a whole number."), 400
+            if max_claims < 1:
+                return jsonify(ok=False, error="maxClaims must be at least 1 (leave blank for unlimited)."), 400
         cid = "chest-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         g.db.execute(
             """INSERT INTO discord_chests
                (id, code, description, imageUrl, roleId, roleName, guildId,
-                channelId, messageId, createdBy, createdAt, claimedBy)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]')""",
+                channelId, messageId, createdBy, createdAt, claimedBy,
+                points, maxClaims)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?)""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
@@ -3329,9 +3348,10 @@ def register_routes(app):
                 (d.get("messageId") or "").strip() or None,
                 (d.get("createdBy") or "").strip() or None,
                 int(time.time()),
+                points, max_claims,
             ),
         )
-        return jsonify(ok=True, data={"id": cid})
+        return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims})
 
     @app.route("/api/bot/chests/<cid>/message", methods=["POST"])
     @require_bot
@@ -3366,6 +3386,9 @@ def register_routes(app):
                 claimed = []
             d["claimedBy"]    = claimed
             d["claimedCount"] = len(claimed)
+            # None when uncapped, so the bot can render "3 / ∞" vs "3 / 10".
+            d["remaining"] = (None if d.get("maxClaims") is None
+                              else max(0, int(d["maxClaims"]) - len(claimed)))
             out.append(d)
         return jsonify(ok=True, data=out)
 
@@ -3567,19 +3590,82 @@ def register_routes(app):
                 claimed = json.loads(chest["claimedBy"] or "[]")
             except Exception:  # noqa: BLE001
                 claimed = []
+
+            # A chest is open to everyone who knows the code — the only two
+            # limits are "once per person" and the optional total-claims cap.
             already = discord_id in claimed
-            if not already:
-                claimed.append(discord_id)
-                g.db.execute(
-                    "UPDATE discord_chests SET claimedBy = ? WHERE id = ?",
-                    (json.dumps(claimed), chest["id"]),
-                )
+            max_claims = chest["maxClaims"]
+            awarded = 0
+            award_skipped = None   # why points weren't given, for the bot's message
+
+            if already:
+                # Re-opening is a no-op: no second role grant side effects,
+                # and crucially no second points payout.
+                return jsonify(ok=True, data={
+                    "chestId":     chest["id"],
+                    "roleId":      chest["roleId"],
+                    "roleName":    chest["roleName"],
+                    "description": chest["description"],
+                    "alreadyClaimed": True,
+                    "points":      int(chest["points"] or 0),
+                    "awarded":     0,
+                    "claimedCount": len(claimed),
+                    "maxClaims":   max_claims,
+                })
+
+            if max_claims is not None and len(claimed) >= int(max_claims):
+                return jsonify(
+                    ok=False, exhausted=True,
+                    error=("This chest is empty — it's already been opened the maximum "
+                           f"{int(max_claims)} time(s)."),
+                ), 409
+
+            claimed.append(discord_id)
+            g.db.execute(
+                "UPDATE discord_chests SET claimedBy = ? WHERE id = ?",
+                (json.dumps(claimed), chest["id"]),
+            )
+
+            # Points go to the camp account behind this Discord user. An
+            # unverified user still gets the role — they just can't be paid,
+            # since there's no account to pay into.
+            points = int(chest["points"] or 0)
+            if points > 0:
+                link = g.db.execute(
+                    "SELECT * FROM discord_links WHERE discordId = ?", (discord_id,)
+                ).fetchone()
+                if not link:
+                    award_skipped = "unverified"
+                else:
+                    srow = g.db.execute(
+                        "SELECT * FROM students WHERE id = ?", (link["studentId"],)
+                    ).fetchone()
+                    if not srow:
+                        award_skipped = "unverified"
+                    elif srow["frozen"]:
+                        award_skipped = "frozen"
+                    else:
+                        stats = {**default_stats(), **json.loads(srow["stats"] or "{}")}
+                        stats["privatePoints"]     = stats.get("privatePoints", 0) + points
+                        stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + points
+                        g.db.execute("UPDATE students SET stats = ? WHERE id = ?",
+                                     (json.dumps(stats), srow["id"]))
+                        awarded = points
+                        _log_tx(type="earn", scope="student", subjectId=srow["id"],
+                                subjectName=_full_name(srow), amount=points,
+                                description=f"🗝 Chest unlocked (`{chest['code']}`) · +{points} pts")
+
         return jsonify(ok=True, data={
             "chestId":     chest["id"],
             "roleId":      chest["roleId"],
             "roleName":    chest["roleName"],
             "description": chest["description"],
-            "alreadyClaimed": already,
+            "alreadyClaimed": False,
+            "points":      int(chest["points"] or 0),
+            "awarded":     awarded,
+            "awardSkipped": award_skipped,
+            "claimedCount": len(claimed),
+            "maxClaims":   max_claims,
         })
 
     # ── Camp reset (scoped) ────────────────────────────────────────
