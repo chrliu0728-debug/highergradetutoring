@@ -118,6 +118,9 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
 | `/setup-verify` | Administrator | Posts the "Verify me" panel in the current channel. |
 | `/gate target:<#channel> access:<…>` | Administrator | Sets who can see a channel or category. |
+| `/perms-lock command:<…> role:<@role> field:<…> value:<…>` | Administrator | Pins a command's parameter to a fixed value for a role. |
+| `/perms-unlock command:<…> role:<@role> field:<…>` | Administrator | Removes a parameter lock. |
+| `/perms-locks` | Administrator | Shows every parameter lock in the server. |
 
 ## 5b) Onboarding — locking the server to campers and staff
 
@@ -213,6 +216,48 @@ paragraph then line boundaries, so text never breaks mid-sentence.
 
 Both `/unlock code:<passcode>` and the button on the chest message run the
 same code path, so they behave identically.
+
+## 5d) Locking parameters per role
+
+`/perms-grant` decides *who can run* a command. Parameter locks decide
+*what they're allowed to put in it*. A lock pins one parameter of one
+command to a fixed value for holders of one role — they can still run the
+command, but that field is decided for them.
+
+```
+/perms-lock command:chest-create role:@Counsellor field:points value:50
+```
+
+Counsellors can now place chests, but every chest they place awards
+exactly 50 points no matter what they type. The field shows up pre-filled
+and relabelled *"(locked by your role)"*, and anything they change is
+discarded on submit.
+
+| Command | Lockable fields |
+| --- | --- |
+| `chest-create` | `points`, `maxClaims` (a number or `unlimited`), `role` (which role the chest grants) |
+| `gate` | `access` (`members`/`staff`/`public`), `apply_to_children` (`true`/`false`) |
+
+- `/perms-lock command role field value` — set a lock
+- `/perms-unlock command role field` — remove one
+- `/perms-locks` — show every lock in the server
+
+All three are **server owner / Administrator only**, and admins are never
+subject to locks themselves — they're the only ones who can change them,
+so enforcing them there would just be a way to lock yourself out.
+
+If a member has several roles that lock the same field, the **highest
+role wins**, matching Discord's own hierarchy intuition.
+
+Only the fields in the table above can be locked. `/perms-lock` refuses
+anything else rather than storing a rule that would silently do nothing.
+Making a new field lockable is two lines in `bot.py`: add it to
+`LOCKABLE_FIELDS`, then read the resolved value via `_locks_for()` in the
+command itself.
+
+Enforcement is always re-checked against the server at submit time, so a
+lock takes effect immediately — the cached copy exists only to pre-fill
+the form, which has to render before there's time for a network call.
 
 ## 6) About verification
 

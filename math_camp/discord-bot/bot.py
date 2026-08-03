@@ -280,6 +280,24 @@ class CampAPI:
             "guildId": guild_id, "command": command, "roleId": role_id,
         })
 
+    # — Per-role parameter locks —
+    async def locks_list(self, guild_id: str) -> Dict[str, Any]:
+        return await self._get("/api/bot/locks", {"guildId": guild_id})
+
+    async def lock_set(self, guild_id: str, command: str, role_id: str, role_name: str,
+                       field: str, value: str, created_by: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/locks", {
+            "guildId": guild_id, "command": command, "roleId": role_id,
+            "roleName": role_name, "field": field, "value": value,
+            "createdBy": created_by,
+        })
+
+    async def lock_remove(self, guild_id: str, command: str, role_id: str,
+                          field: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/locks/remove", {
+            "guildId": guild_id, "command": command, "roleId": role_id, "field": field,
+        })
+
 
 api = CampAPI(CAMP_API_BASE, BOT_API_TOKEN)
 
@@ -458,6 +476,9 @@ async def sync_loop() -> None:
             # Fetch the blocklist once per guild so _sync_member doesn't
             # round-trip the API for every member.
             blocklist_normalized = await _fetch_blocklist_normalized(guild.id)
+            # Keep the parameter-lock cache warm so /chest-create can
+            # pre-fill locked fields without a round trip.
+            await _refresh_locks(guild.id)
             data = await api.students(str(guild.id))
             if not data.get("ok"):
                 log.warning("Skipping guild %s — students fetch failed: %s", guild.id, data)
@@ -1408,6 +1429,9 @@ async def cmd_help(interaction: discord.Interaction) -> None:
         ("perms-grant", "Allow a role to run a restricted command."),
         ("perms-revoke", "Remove a role's access to a restricted command."),
         ("perms-list", "Show which roles can run which commands."),
+        ("perms-lock", "Pin a command's parameter to a fixed value for a role."),
+        ("perms-unlock", "Remove a parameter lock from a role."),
+        ("perms-locks", "Show every parameter lock in this server."),
         ("role-mirror-block", "Stop a Discord role from mirroring to the camp website."),
         ("role-mirror-unblock", "Allow a Discord role to mirror to the website again."),
         ("role-mirror-list", "Show every Discord role currently blocked from mirroring."),
@@ -1505,6 +1529,258 @@ async def _user_can_run(interaction: discord.Interaction, command: str) -> bool:
     return bool(allowed & user_role_ids)
 
 
+# ── Per-role parameter locks ─────────────────────────────────────────
+# A lock pins one parameter of one command to a fixed value for holders of
+# a role: they can still run the command, but that field is decided for
+# them. Only fields listed here can be locked — anything else would be a
+# rule that silently does nothing, which is worse than refusing to set it.
+#
+# To make a new field lockable: add it here and read the resolved value in
+# the command via _locks_for().
+LOCKABLE_FIELDS: Dict[str, Dict[str, Dict[str, Any]]] = {
+    "chest-create": {
+        "points":    {"kind": "int",     "label": "Points awarded on unlock"},
+        "maxClaims": {"kind": "int_opt", "label": "Max openers ('unlimited' for no cap)"},
+        "role":      {"kind": "role",    "label": "The role a chest grants"},
+    },
+    "gate": {
+        "access":            {"kind": "choice", "label": "Access level",
+                              "choices": ["members", "staff", "public"]},
+        "apply_to_children": {"kind": "bool",   "label": "Re-sync a category's channels"},
+    },
+}
+
+# Last-known locks per guild. Refreshed by the sync loop and written
+# through on every /perms-lock, so a modal can be pre-filled without
+# paying for a round trip. Authoritative checks always re-fetch.
+_LOCK_CACHE: Dict[str, List[Dict[str, Any]]] = {}
+
+
+async def _refresh_locks(guild_id: Any) -> List[Dict[str, Any]]:
+    try:
+        res = await api.locks_list(str(guild_id))
+        if res.get("ok"):
+            _LOCK_CACHE[str(guild_id)] = res.get("data") or []
+    except Exception:  # noqa: BLE001
+        log.exception("lock fetch failed for guild %s", guild_id)
+    return _LOCK_CACHE.get(str(guild_id), [])
+
+
+def _resolve_locks(member: Optional[discord.Member], command: str,
+                   locks: List[Dict[str, Any]]) -> Dict[str, str]:
+    """field -> locked value for this member. When several of the member's
+    roles lock the same field, the highest role wins — same intuition as
+    Discord's own role hierarchy."""
+    if member is None:
+        return {}
+    held = {str(r.id): r for r in member.roles}
+    best: Dict[str, Any] = {}   # field -> (role position, value)
+    for row in locks:
+        if row.get("command") != command:
+            continue
+        role = held.get(str(row.get("roleId")))
+        if role is None:
+            continue
+        field = row.get("field")
+        if field not in best or role.position > best[field][0]:
+            best[field] = (role.position, row.get("value"))
+    return {f: v for f, (_pos, v) in best.items()}
+
+
+def _member_of(interaction: discord.Interaction) -> Optional[discord.Member]:
+    return interaction.user if isinstance(interaction.user, discord.Member) else None
+
+
+async def _locks_for(interaction: discord.Interaction, command: str) -> Dict[str, str]:
+    """Authoritative lock lookup — re-fetches before deciding. Server owners
+    and Administrators are exempt: they're the only ones who can set locks,
+    so subjecting them to their own would just be a trap."""
+    if not interaction.guild or _is_server_admin(interaction):
+        return {}
+    locks = await _refresh_locks(interaction.guild.id)
+    return _resolve_locks(_member_of(interaction), command, locks)
+
+
+def _locks_cached(interaction: discord.Interaction, command: str) -> Dict[str, str]:
+    """Zero-latency read of the last known locks. Used only to pre-fill a
+    modal, where a network round trip would blow the 3-second interaction
+    budget. Never trusted for enforcement."""
+    if not interaction.guild or _is_server_admin(interaction):
+        return {}
+    return _resolve_locks(_member_of(interaction), command,
+                          _LOCK_CACHE.get(str(interaction.guild.id), []))
+
+
+def _validate_lock_value(guild: discord.Guild, command: str, field: str,
+                         raw: str) -> tuple[bool, str, str]:
+    """Check a proposed lock value against the field's kind.
+    Returns (ok, stored_value, human_readable)."""
+    spec = LOCKABLE_FIELDS.get(command, {}).get(field)
+    if spec is None:
+        return False, "", f"`{field}` isn't a lockable field on `/{command}`."
+    kind = spec["kind"]
+    raw = (raw or "").strip()
+
+    if kind == "int":
+        try:
+            n = int(raw)
+        except ValueError:
+            return False, "", f"`{field}` needs a whole number — got `{raw}`."
+        if n < 0:
+            return False, "", f"`{field}` can't be negative."
+        return True, str(n), str(n)
+
+    if kind == "int_opt":
+        if raw.lower() in ("", "unlimited", "none", "blank"):
+            return True, "", "unlimited"
+        try:
+            n = int(raw)
+        except ValueError:
+            return False, "", f"`{field}` needs a whole number or `unlimited` — got `{raw}`."
+        if n < 1:
+            return False, "", f"`{field}` must be at least 1, or `unlimited`."
+        return True, str(n), str(n)
+
+    if kind == "bool":
+        if raw.lower() in ("true", "yes", "on", "1"):
+            return True, "true", "true"
+        if raw.lower() in ("false", "no", "off", "0"):
+            return True, "false", "false"
+        return False, "", f"`{field}` needs true or false — got `{raw}`."
+
+    if kind == "choice":
+        choices = spec.get("choices") or []
+        if raw.lower() not in choices:
+            return False, "", f"`{field}` must be one of: {', '.join(f'`{c}`' for c in choices)}."
+        return True, raw.lower(), raw.lower()
+
+    if kind == "role":
+        rid = raw.strip("<@&>")
+        role = None
+        if rid.isdigit():
+            role = guild.get_role(int(rid))
+        if role is None:
+            role = discord.utils.get(guild.roles, name=raw)
+        if role is None:
+            return False, "", f"No role matches `{raw}` — paste its ID or exact name."
+        return True, str(role.id), f"@{role.name}"
+
+    return False, "", f"Don't know how to validate `{field}`."
+
+
+async def _lock_command_choices(interaction: discord.Interaction,
+                                current: str) -> List[app_commands.Choice[str]]:
+    return [app_commands.Choice(name=c, value=c)
+            for c in LOCKABLE_FIELDS if current.lower() in c][:25]
+
+
+async def _lock_field_choices(interaction: discord.Interaction,
+                              current: str) -> List[app_commands.Choice[str]]:
+    cmd = getattr(interaction.namespace, "command", None) or ""
+    fields = LOCKABLE_FIELDS.get(cmd, {})
+    return [app_commands.Choice(name=f"{f} — {spec['label']}"[:100], value=f)
+            for f, spec in fields.items() if current.lower() in f][:25]
+
+
+@bot.tree.command(name="perms-lock",
+                  description="Pin a command's parameter to a fixed value for a role.")
+@app_commands.describe(
+    command="Which command to constrain",
+    role="Members of this role get the locked value",
+    field="Which parameter to pin",
+    value="The value they're locked to",
+)
+@app_commands.autocomplete(command=_lock_command_choices, field=_lock_field_choices)
+async def cmd_perms_lock(interaction: discord.Interaction, command: str,
+                         role: discord.Role, field: str, value: str) -> None:
+    if not _is_server_admin(interaction) or not interaction.guild:
+        await interaction.response.send_message("🚫 Server Administrators only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    command = command.strip()
+    field = field.strip()
+    if command not in LOCKABLE_FIELDS:
+        await interaction.followup.send(
+            f"❌ `/{command}` has no lockable parameters. Lockable commands: "
+            + ", ".join(f"`{c}`" for c in LOCKABLE_FIELDS), ephemeral=True)
+        return
+    ok, stored, human = _validate_lock_value(interaction.guild, command, field, value)
+    if not ok:
+        await interaction.followup.send(f"❌ {human}", ephemeral=True)
+        return
+    res = await api.lock_set(str(interaction.guild.id), command, str(role.id), role.name,
+                             field, stored, str(interaction.user.id))
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    await _refresh_locks(interaction.guild.id)
+    await interaction.followup.send(
+        f"🔒 **{role.name}** running `/{command}` now always gets **{field} = {human}**, "
+        f"whatever they type.\n"
+        f"Administrators and the server owner are never affected by locks.",
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name="perms-unlock",
+                  description="Remove a parameter lock from a role.")
+@app_commands.describe(command="The command", role="The role", field="The parameter to release")
+@app_commands.autocomplete(command=_lock_command_choices, field=_lock_field_choices)
+async def cmd_perms_unlock(interaction: discord.Interaction, command: str,
+                           role: discord.Role, field: str) -> None:
+    if not _is_server_admin(interaction) or not interaction.guild:
+        await interaction.response.send_message("🚫 Server Administrators only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    res = await api.lock_remove(str(interaction.guild.id), command.strip(),
+                                str(role.id), field.strip())
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    await _refresh_locks(interaction.guild.id)
+    removed = (res.get("data") or {}).get("removed", 0)
+    if not removed:
+        await interaction.followup.send(
+            f"Nothing to remove — **{role.name}** had no lock on `{field}` for `/{command}`.",
+            ephemeral=True)
+        return
+    await interaction.followup.send(
+        f"🔓 **{role.name}** can set `{field}` on `/{command}` freely again.", ephemeral=True)
+
+
+@bot.tree.command(name="perms-locks",
+                  description="Show every parameter lock in this server.")
+async def cmd_perms_locks(interaction: discord.Interaction) -> None:
+    if not _is_server_admin(interaction) or not interaction.guild:
+        await interaction.response.send_message("🚫 Server Administrators only.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    locks = await _refresh_locks(interaction.guild.id)
+    if not locks:
+        await interaction.followup.send(
+            "No parameter locks set. Use `/perms-lock` to pin a parameter for a role.\n"
+            "Lockable: " + " · ".join(
+                f"`/{c}` ({', '.join(f)})" for c, f in LOCKABLE_FIELDS.items()),
+            ephemeral=True)
+        return
+    by_cmd: Dict[str, List[str]] = {}
+    for row in locks:
+        shown = row.get("value")
+        if row.get("field") == "role" and str(shown or "").isdigit():
+            r = interaction.guild.get_role(int(shown))
+            shown = f"@{r.name}" if r else f"(deleted role {shown})"
+        elif row.get("field") == "maxClaims" and not shown:
+            shown = "unlimited"
+        by_cmd.setdefault(row.get("command") or "?", []).append(
+            f"• <@&{row.get('roleId')}> → `{row.get('field')}` = **{shown}**")
+    embed = discord.Embed(title="🔒 Parameter locks", colour=0xF59E0B)
+    for cmd, rows in by_cmd.items():
+        embed.add_field(name=f"/{cmd}", value="\n".join(rows)[:1024], inline=False)
+    embed.set_footer(text="Highest role wins when a member has several locks on one field. "
+                          "Administrators and the server owner are exempt.")
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+
 # ── Onboarding setup (admin) ─────────────────────────────────────────
 @bot.tree.command(name="setup-verify",
                   description="Post the Verify panel in this channel.")
@@ -1568,6 +1844,26 @@ async def cmd_gate(
         return
     await interaction.response.defer(ephemeral=True, thinking=True)
     guild = interaction.guild
+
+    # Parameter locks (no-op for admins, who are the only ones that can
+    # currently reach this command anyway — kept so that stays true if
+    # /gate is ever opened up via /perms-grant).
+    locks = await _locks_for(interaction, "gate")
+    overridden: List[str] = []
+    if "access" in locks and locks["access"] != access.value:
+        for choice in (("members", "Students + Staff (verified only)"),
+                       ("staff", "Staff only"),
+                       ("public", "Public (anyone, including unverified)")):
+            if choice[0] == locks["access"]:
+                access = app_commands.Choice(name=choice[1], value=choice[0])
+                overridden.append(f"access → **{choice[1]}**")
+                break
+    if "apply_to_children" in locks:
+        forced = locks["apply_to_children"] == "true"
+        if forced != apply_to_children:
+            apply_to_children = forced
+            overridden.append(f"re-sync children → **{forced}**")
+
     everyone = guild.default_role
     student = await ensure_role(guild, STUDENT_ROLE_NAME,
                                 color=discord.Color.blurple(), hoist=True)
@@ -1610,6 +1906,8 @@ async def cmd_gate(
     if access.value != "public" and VERIFY_CHANNEL_ID and str(target.id) == VERIFY_CHANNEL_ID:
         msg += ("\n\n⚠️ That's your verify channel — new members can no longer see it, "
                 "so nobody can verify. Set it back to **public**.")
+    if overridden:
+        msg += "\n\n🔒 Locked by your role: " + ", ".join(overridden) + "."
     await interaction.followup.send(msg, ephemeral=True)
 
 
@@ -1640,10 +1938,21 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         max_length=6, required=False,
     )
 
-    def __init__(self, role: discord.Role, image_url: Optional[str]) -> None:
+    def __init__(self, role: discord.Role, image_url: Optional[str],
+                 locks: Optional[Dict[str, str]] = None) -> None:
         super().__init__()
         self.role = role
         self.image_url = image_url
+        # Pre-fill and relabel any locked field so the creator can see the
+        # value is not theirs to set. Enforcement still happens on submit
+        # against a fresh fetch — this is presentation only.
+        locks = locks or {}
+        if "points" in locks:
+            self.points.default = str(locks["points"])
+            self.points.label = "Points awarded (locked by your role)"[:45]
+        if "maxClaims" in locks:
+            self.max_claims.default = str(locks["maxClaims"] or "")
+            self.max_claims.label = "Max openers (locked by your role)"[:45]
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -1660,20 +1969,36 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             )
             return
 
+        # Authoritative lock lookup — whatever they typed into a locked
+        # field is discarded here, including a hand-crafted submission that
+        # never went through the pre-filled modal.
+        locks = await _locks_for(interaction, "chest-create")
+        overridden: List[str] = []
+
         raw_points = str(self.points.value or "").strip()
-        try:
-            pts = int(raw_points) if raw_points else DEFAULT_CHEST_POINTS
-        except ValueError:
-            await interaction.followup.send(
-                f"❌ Points must be a whole number — got `{raw_points}`.", ephemeral=True)
-            return
-        if pts < 0:
-            await interaction.followup.send("❌ Points can't be negative.", ephemeral=True)
-            return
+        if "points" in locks:
+            pts = int(locks["points"])
+            if raw_points and raw_points != str(pts):
+                overridden.append(f"points → **{pts}**")
+        else:
+            try:
+                pts = int(raw_points) if raw_points else DEFAULT_CHEST_POINTS
+            except ValueError:
+                await interaction.followup.send(
+                    f"❌ Points must be a whole number — got `{raw_points}`.", ephemeral=True)
+                return
+            if pts < 0:
+                await interaction.followup.send("❌ Points can't be negative.", ephemeral=True)
+                return
 
         raw_max = str(self.max_claims.value or "").strip()
         cap: Optional[int] = None
-        if raw_max:
+        if "maxClaims" in locks:
+            locked_max = str(locks["maxClaims"] or "").strip()
+            cap = int(locked_max) if locked_max else None
+            if raw_max != locked_max:
+                overridden.append(f"max openers → **{cap if cap else 'unlimited'}**")
+        elif raw_max:
             try:
                 cap = int(raw_max)
             except ValueError:
@@ -1687,10 +2012,20 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                     ephemeral=True)
                 return
 
+        # The granted role is picked before the modal opens, so re-apply its
+        # lock here too rather than trusting what came in.
+        role = self.role
+        if "role" in locks:
+            locked_role = interaction.guild.get_role(int(locks["role"])) if str(
+                locks["role"]).isdigit() else None
+            if locked_role and locked_role.id != role.id:
+                overridden.append(f"role → **{locked_role.name}**")
+                role = locked_role
+
         desc = str(self.description.value).strip()
         res = await api.chest_create(
             str(interaction.guild.id), str(self.code.value).strip(),
-            str(self.role.id), self.role.name, desc, str(interaction.user.id),
+            str(role.id), role.name, desc, str(interaction.user.id),
             image_url=self.image_url, points=pts, max_claims=cap,
         )
         if not res.get("ok"):
@@ -1701,7 +2036,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             await interaction.followup.send("❌ Server didn't return a chest id.", ephemeral=True)
             return
 
-        embeds = [_chest_embed(desc, image_url=self.image_url, role_name=self.role.name,
+        embeds = [_chest_embed(desc, image_url=self.image_url, role_name=role.name,
                                points=pts, max_claims=cap)] + _chest_overflow_embeds(desc)
 
         # Post the public chest message into the channel the command was run
@@ -1730,12 +2065,15 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         summary = (
             f"📦 Chest placed in {posted.channel.mention if posted else 'this channel'}.\n"
             f"• Code: **{str(self.code.value).strip()}**\n"
-            f"• Unlocks: **{self.role.name}**\n"
+            f"• Unlocks: **{role.name}**\n"
             f"• Reward: **{pts} pts**" + (" (no points)" if pts == 0 else "") + "\n"
             f"• Openers: **{cap if cap else 'unlimited'}** — one open per person either way"
         )
         if len(embeds) > 1:
             summary += f"\n• Description spans {len(embeds)} message blocks."
+        if overridden:
+            summary += ("\n\n🔒 Your role locks some of these — applied instead of what "
+                        "you entered: " + ", ".join(overridden) + ".")
         await interaction.followup.send(summary, ephemeral=True)
 
 
@@ -1769,8 +2107,11 @@ async def cmd_chest_create(
             ephemeral=True,
         )
         return
+    # Cached locks only — there's no time for a fetch before a modal, and
+    # these are used purely to pre-fill. on_submit re-checks for real.
     await interaction.response.send_modal(
-        ChestCreateModal(role, image.url if image else None))
+        ChestCreateModal(role, image.url if image else None,
+                         locks=_locks_cached(interaction, "chest-create")))
 
 
 @bot.tree.command(name="chest-list", description="List every chest in this server.")

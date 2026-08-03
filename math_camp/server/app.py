@@ -3436,6 +3436,70 @@ def register_routes(app):
         )
         return jsonify(ok=True, data={"id": pid, "alreadyExisted": False})
 
+    # — Per-role command parameter locks —
+    # A lock pins one parameter of one command to a fixed value for holders
+    # of one role. The bot owns the notion of which command/field pairs are
+    # lockable and how ties between roles are broken; the server just stores
+    # the rows.
+    @app.route("/api/bot/locks", methods=["GET"])
+    @require_bot
+    def bot_locks_list():
+        guild_id = (request.args.get("guildId") or "").strip()
+        if not guild_id:
+            return jsonify(ok=False, error="guildId is required."), 400
+        rows = g.db.execute(
+            "SELECT * FROM discord_command_locks WHERE guildId = ? ORDER BY command, field, createdAt",
+            (guild_id,),
+        ).fetchall()
+        return jsonify(ok=True, data=[dict(r) for r in rows])
+
+    @app.route("/api/bot/locks", methods=["POST"])
+    @require_bot
+    def bot_lock_set():
+        d = request.get_json(silent=True) or {}
+        guild_id = (d.get("guildId") or "").strip()
+        command  = (d.get("command") or "").strip()
+        role_id  = (d.get("roleId") or "").strip()
+        field    = (d.get("field") or "").strip()
+        if not guild_id or not command or not role_id or not field:
+            return jsonify(ok=False, error="guildId, command, roleId, and field are required."), 400
+        value = d.get("value")
+        value = None if value is None else str(value)
+        lid = "lock-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            """INSERT INTO discord_command_locks
+               (id, guildId, command, roleId, roleName, field, value, createdBy, createdAt)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(guildId, command, roleId, field) DO UPDATE SET
+                 value    = excluded.value,
+                 roleName = excluded.roleName,
+                 createdBy = excluded.createdBy,
+                 createdAt = excluded.createdAt""",
+            (lid, guild_id, command, role_id,
+             (d.get("roleName") or "").strip() or None,
+             field, value,
+             (d.get("createdBy") or "").strip() or None,
+             int(time.time())),
+        )
+        return jsonify(ok=True)
+
+    @app.route("/api/bot/locks/remove", methods=["POST"])
+    @require_bot
+    def bot_lock_remove():
+        d = request.get_json(silent=True) or {}
+        guild_id = (d.get("guildId") or "").strip()
+        command  = (d.get("command") or "").strip()
+        role_id  = (d.get("roleId") or "").strip()
+        field    = (d.get("field") or "").strip()
+        if not guild_id or not command or not role_id or not field:
+            return jsonify(ok=False, error="guildId, command, roleId, and field are required."), 400
+        cur = g.db.execute(
+            """DELETE FROM discord_command_locks
+               WHERE guildId = ? AND command = ? AND roleId = ? AND field = ?""",
+            (guild_id, command, role_id, field),
+        )
+        return jsonify(ok=True, data={"removed": cur.rowcount})
+
     # — Role-mirror blocklist (Discord roles that should NOT propagate
     #   to the website's per-student role list) —
     @app.route("/api/bot/role-mirror/blocklist", methods=["GET"])

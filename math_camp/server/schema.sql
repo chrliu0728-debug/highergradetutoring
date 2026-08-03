@@ -209,6 +209,27 @@ CREATE TABLE IF NOT EXISTS discord_role_blocklist (
 );
 CREATE INDEX IF NOT EXISTS idx_drb_guild ON discord_role_blocklist(guildId);
 
+-- Per-role parameter locks. A row pins one parameter of one command to a
+-- fixed value for members of one role: they may still run the command, but
+-- whatever they type into that field is ignored in favour of `value`.
+-- Server owners and Administrators are never subject to locks — they're the
+-- only ones who can set them, so locking them out would be a trap.
+-- When a member holds several locking roles, the highest role wins (resolved
+-- bot-side, where role positions are known).
+CREATE TABLE IF NOT EXISTS discord_command_locks (
+  id          TEXT PRIMARY KEY,
+  guildId     TEXT NOT NULL,
+  command     TEXT NOT NULL,
+  roleId      TEXT NOT NULL,
+  roleName    TEXT,
+  field       TEXT NOT NULL,
+  value       TEXT,
+  createdBy   TEXT,
+  createdAt   INTEGER NOT NULL,
+  UNIQUE (guildId, command, roleId, field)
+);
+CREATE INDEX IF NOT EXISTS idx_dcl_guild ON discord_command_locks(guildId, command);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,
