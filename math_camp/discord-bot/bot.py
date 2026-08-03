@@ -41,6 +41,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import aiohttp
@@ -2149,6 +2150,9 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                 await api.chest_set_message(chest_id, str(posted.channel.id), str(posted.id))
             except Exception:  # noqa: BLE001
                 log.exception("failed to save chest message id")
+        # Drop the cached list so the new chest shows up in the delete
+        # picker immediately rather than up to CHEST_CACHE_TTL later.
+        _CHEST_CACHE.pop(str(interaction.guild.id), None)
 
         summary = (
             f"📦 Chest placed in {posted.channel.mention if posted else 'this channel'}.\n"
@@ -2220,22 +2224,88 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
     if not chests:
         await interaction.followup.send("No chests in this server yet.", ephemeral=True)
         return
-    lines = []
+    lines = ["**Chests in this server** — newest first. "
+             "Use `/chest-delete` and pick from the dropdown; you don't need these IDs.\n"]
     for c in chests:
         cap = c.get("maxClaims")
         opens = f"{c.get('claimedCount', 0)}/{cap}" if cap else f"{c.get('claimedCount', 0)}/∞"
         pts = int(c.get("points") or 0)
         blurb = (c.get("description") or "(no description)").replace("\n", " ")
+        # <t:unix:R> renders as "2 hours ago" in each viewer's own timezone.
+        when = f" · placed <t:{int(c['createdAt'])}:R>" if c.get("createdAt") else ""
         lines.append(
-            f"• `{c['id']}` · code **{c['code']}** → <@&{c['roleId']}> "
-            f"· {opens} opens · {pts} pts · {blurb[:80]}{'…' if len(blurb) > 80 else ''}"
+            f"• code **{c['code']}** → <@&{c['roleId']}> "
+            f"· {opens} opens · {pts} pts{when}\n"
+            f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
         )
     await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
 
 
-@bot.tree.command(name="chest-delete", description="Remove a chest by id.")
-@app_commands.describe(chest_id="ID shown by /chest-list")
-async def cmd_chest_delete(interaction: discord.Interaction, chest_id: str) -> None:
+# Autocomplete fires on every keystroke and has to answer within 3
+# seconds, so the chest list is cached briefly rather than re-fetched per
+# character. Invalidated whenever a chest is created or deleted.
+_CHEST_CACHE: Dict[str, Any] = {}
+CHEST_CACHE_TTL = 10.0
+
+
+async def _chests_cached(guild_id: Any) -> List[Dict[str, Any]]:
+    key = str(guild_id)
+    now = time.time()
+    hit = _CHEST_CACHE.get(key)
+    if hit and (now - hit[0]) < CHEST_CACHE_TTL:
+        return hit[1]
+    try:
+        res = await api.chest_list(key)
+        if res.get("ok"):
+            data = res.get("data") or []
+            _CHEST_CACHE[key] = (now, data)
+            return data
+    except Exception:  # noqa: BLE001
+        log.exception("chest list fetch failed for guild %s", guild_id)
+    return hit[1] if hit else []
+
+
+def _chest_label(c: Dict[str, Any]) -> str:
+    """One-line description of a chest for the delete picker. Discord caps
+    a choice name at 100 characters."""
+    cap = c.get("maxClaims")
+    opens = f"{c.get('claimedCount', 0)}/{cap}" if cap else f"{c.get('claimedCount', 0)}"
+    when = ""
+    ts = c.get("createdAt")
+    if ts:
+        try:
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+            when = " · " + datetime.fromtimestamp(int(ts),
+                                                  ZoneInfo("America/Toronto")).strftime("%b %-d, %-I:%M %p")
+        except Exception:  # noqa: BLE001
+            when = ""
+    label = f"{c.get('code')} → {c.get('roleName') or 'role'} · {opens} opens{when}"
+    return label[:100]
+
+
+async def _chest_delete_choices(interaction: discord.Interaction,
+                                current: str) -> List[app_commands.Choice[str]]:
+    """Newest chest first — the server already returns them createdAt DESC."""
+    if not interaction.guild:
+        return []
+    chests = await _chests_cached(interaction.guild.id)
+    cur = (current or "").lower()
+    out = []
+    for c in chests:
+        hay = f"{c.get('code','')} {c.get('roleName','')} {c.get('id','')} {c.get('description','')}".lower()
+        if cur and cur not in hay:
+            continue
+        out.append(app_commands.Choice(name=_chest_label(c), value=str(c.get("id"))))
+        if len(out) >= 25:      # Discord's hard cap on autocomplete options
+            break
+    return out
+
+
+@bot.tree.command(name="chest-delete", description="Remove a chest — pick it from the list.")
+@app_commands.describe(chest="Newest first. Start typing to filter by code, role, or text.")
+@app_commands.autocomplete(chest=_chest_delete_choices)
+async def cmd_chest_delete(interaction: discord.Interaction, chest: str) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
     if not await _user_can_run(interaction, "chest-delete"):
         await interaction.followup.send(
@@ -2244,8 +2314,33 @@ async def cmd_chest_delete(interaction: discord.Interaction, chest_id: str) -> N
             ephemeral=True,
         )
         return
-    await api.chest_delete(chest_id.strip())
-    await interaction.followup.send(f"🗑 Chest `{chest_id}` deleted.", ephemeral=True)
+    chest_id = chest.strip()
+    # Resolve what we're about to delete so the confirmation names it —
+    # and so a typed-but-unpicked value fails loudly instead of silently
+    # deleting nothing.
+    chests = await _chests_cached(interaction.guild.id) if interaction.guild else []
+    match = next((c for c in chests if str(c.get("id")) == chest_id), None)
+    if match is None:
+        match = next((c for c in chests if str(c.get("code", "")).lower() == chest_id.lower()), None)
+    if match is None:
+        await interaction.followup.send(
+            f"❌ No chest matching `{chest_id}` in this server. Pick one from the "
+            "dropdown, or run `/chest-list` to see what's there.", ephemeral=True)
+        return
+
+    res = await api.chest_delete(str(match["id"]))
+    _CHEST_CACHE.pop(str(interaction.guild.id), None)
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Delete failed.'}",
+                                        ephemeral=True)
+        return
+    await interaction.followup.send(
+        f"🗑 Deleted chest **{match.get('code')}** → **{match.get('roleName') or 'role'}** "
+        f"· {match.get('claimedCount', 0)} open(s).\n"
+        f"The chest message stays in the channel — its button now says the code "
+        f"doesn't open anything. Delete the message yourself if you want it gone.",
+        ephemeral=True,
+    )
 
 
 # ── Permission management (admin/owner only) ────────────────────────

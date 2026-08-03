@@ -114,7 +114,7 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/unlock code:<passcode>` | Anyone | Opens the chest with that code and grants its hidden role. |
 | `/chest-create role:<@role> [image:<file>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. Posts the chest with an unlock button. |
 | `/chest-list` | Manage Roles | Lists every chest with its code, role, opens/cap, points, and description. |
-| `/chest-delete chest_id:<id>` | Manage Roles | Deletes a chest by ID (from `/chest-list`). |
+| `/chest-delete chest:<pick>` | Manage Roles | Pick a chest from a dropdown, newest first. No IDs to copy. |
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
 | `/setup-verify` | Administrator | Posts the "Verify me" panel in the current channel. |
 | `/gate target:<#channel> access:<…>` | Administrator | Sets who can see a channel or category. |
@@ -216,6 +216,16 @@ paragraph then line boundaries, so text never breaks mid-sentence.
 
 Both `/unlock code:<passcode>` and the button on the chest message run the
 same code path, so they behave identically.
+
+**Deleting a chest.** `/chest-delete` gives you a dropdown of every chest
+in the server, **newest first**, each shown as
+`CODE → Role · 4/10 opens · Aug 3, 1:12 AM`. Start typing to filter by
+code, role name, or description text. You never need to handle a chest ID
+— `/chest-list` still prints them, but only as a fallback.
+
+Deleting a chest removes the record, not the message. The posted embed
+stays in the channel and its button will report that the code doesn't
+open anything; delete the message yourself if you want it gone.
 
 ## 5d) Locking parameters per role
 
