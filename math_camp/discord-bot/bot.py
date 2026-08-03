@@ -352,6 +352,58 @@ except Exception:
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
+# ── Permission preflight ─────────────────────────────────────────────
+# Every background task checks it can actually do the thing before it
+# tries, and skips that task if not. The bot lives in more than one
+# server (the camp server and the staff server) with deliberately
+# different permissions in each, so "can't do X here" is a normal state
+# to be skipped quietly — not an error to retry forever.
+_WARNED: set = set()
+
+
+def _warn_once(key: str, msg: str, *args: Any) -> None:
+    """Log a permission gap once per process rather than every loop tick."""
+    if key in _WARNED:
+        return
+    _WARNED.add(key)
+    log.warning(msg, *args)
+
+
+def _missing_guild_perms(guild: discord.Guild, *names: str) -> List[str]:
+    """Which of the named guild-wide permissions the bot lacks here."""
+    me = guild.me
+    if me is None:
+        return list(names)     # not cached yet — treat as "can't", don't warn
+    perms = me.guild_permissions
+    return [n for n in names if not getattr(perms, n, False)]
+
+
+def _missing_channel_perms(channel: Any, *names: str) -> List[str]:
+    """Which of the named permissions the bot lacks *in this channel*.
+    Channel overwrites mean guild-wide perms aren't the whole story."""
+    guild = getattr(channel, "guild", None)
+    if guild is None:
+        return []              # DM channel — nothing to check
+    me = guild.me
+    if me is None:
+        return list(names)
+    perms = channel.permissions_for(me)
+    return [n for n in names if not getattr(perms, n, False)]
+
+
+def _can_post(channel: Any, where: str, *, embeds: bool = False) -> bool:
+    """Preflight for anything that posts a message. Warns once and returns
+    False when the bot can't see or speak in the channel."""
+    need = ["view_channel", "send_messages"] + (["embed_links"] if embeds else [])
+    missing = _missing_channel_perms(channel, *need)
+    if missing:
+        _warn_once(f"post:{getattr(channel, 'id', '?')}:{','.join(missing)}",
+                   "Skipping %s in channel %s — missing %s.",
+                   where, getattr(channel, "id", "?"), ", ".join(missing))
+        return False
+    return True
+
+
 async def ensure_role(guild: discord.Guild, name: str, *, color: discord.Color = discord.Color.default(),
                       hoist: bool = False) -> discord.Role:
     """Look up a role by exact name, creating it if missing. The bot's
@@ -450,13 +502,20 @@ async def _sync_member(
         except Exception:  # noqa: BLE001
             log.exception("mirror_discord_roles failed for %s", student_id)
 
-    # 3. Nickname.
+    # 3. Nickname. Separate permission from role management, so check it on
+    #    its own rather than letting a missing Manage Nicknames kill the
+    #    role sync that already succeeded above.
     if full_name and member.display_name != full_name:
-        try:
-            await member.edit(nick=full_name[:32], reason="HigherGrade sync")
-        except discord.Forbidden:
-            # Server owner can't be renamed — silent skip.
-            pass
+        if _missing_guild_perms(member.guild, "manage_nicknames"):
+            _warn_once(f"nick:{member.guild.id}",
+                       "Not syncing nicknames in '%s' (%s) — missing Manage Nicknames.",
+                       member.guild.name, member.guild.id)
+        else:
+            try:
+                await member.edit(nick=full_name[:32], reason="HigherGrade sync")
+            except discord.Forbidden:
+                # Server owner / higher-role member can't be renamed — silent skip.
+                pass
 
 
 # ── Polling ──────────────────────────────────────────────────────────
@@ -466,6 +525,16 @@ async def sync_loop() -> None:
         return
     for guild in bot.guilds:
         try:
+            # Role syncing needs Manage Roles. A server where the bot is only
+            # there to post (the staff server) legitimately won't have it —
+            # skip the role work there and leave its posting tasks alone.
+            missing = _missing_guild_perms(guild, "manage_roles")
+            if missing:
+                _warn_once(f"sync:{guild.id}",
+                           "Skipping role sync in '%s' (%s) — missing %s. "
+                           "Posting tasks in this server are unaffected.",
+                           guild.name, guild.id, ", ".join(missing))
+                continue
             # Make sure the managed roles exist before we try to assign them.
             await ensure_role(guild, STUDENT_ROLE_NAME, color=discord.Color.blurple(), hoist=True)
             # Never auto-assigned — created so /gate can grant it channel
@@ -581,6 +650,14 @@ async def enrolled_announce_loop() -> None:
             log.warning("%s new registration(s) but no channel to announce in "
                         "— set REGISTER_CHANNEL_ID", gained)
             return
+        if not _can_post(channel, "the enrolled announcement"):
+            return
+        # Missing Mention Everyone doesn't fail the send, it just silently
+        # drops the ping — worth saying once, not worth skipping the post.
+        if _missing_channel_perms(channel, "mention_everyone"):
+            _warn_once(f"ping:{getattr(channel, 'id', '?')}",
+                       "Channel %s: no Mention Everyone — announcements post "
+                       "but won't actually ping.", getattr(channel, "id", "?"))
         noun = "camper" if gained == 1 else "campers"
         cap_str = f" / {cap}" if cap else ""
         msg = (f"@everyone 🎉 **{gained} new {noun} just registered!** "
@@ -646,6 +723,12 @@ async def registration_announce_loop() -> None:
             log.warning("registration ping: staff channel %s not found",
                         REVIEW_CHANNEL_ID)
             return
+        if not _can_post(channel, "the registration ping"):
+            return
+        if _missing_channel_perms(channel, "mention_everyone"):
+            _warn_once(f"ping:{getattr(channel, 'id', '?')}",
+                       "Channel %s: no Mention Everyone — the registration ping "
+                       "posts but won't ping.", getattr(channel, "id", "?"))
         noun = "registration" if gained == 1 else "registrations"
         try:
             await channel.send(
@@ -890,7 +973,12 @@ async def oncall_reminder_loop() -> None:
 
     # 1) Reliable: @mention them in a channel so it actually pings.
     channel = _oncall_channel()
-    if channel is not None:
+    if channel is not None and not _can_post(channel, "the on-call reminder"):
+        # _can_post already logged the specific permission that's missing;
+        # blank it so we don't also print the misleading "set
+        # ONCALL_CHANNEL_ID" advice below. The DM still goes out.
+        channel = False
+    if channel:
         who = f"<@{did}>" if did else f"**{name}**"
         msg = (f"📞 {who} — **call-window reminder!** You're on call today from "
                f"**5:00–8:00 PM**. Callers may reach **{num}** during that "
@@ -903,7 +991,7 @@ async def oncall_reminder_loop() -> None:
             log.warning("on-call ping: missing perms in the on-call channel")
         except Exception:  # noqa: BLE001
             log.exception("on-call channel ping failed")
-    else:
+    elif channel is None:
         log.warning("on-call reminder: no channel to ping in "
                     "(set ONCALL_CHANNEL_ID or REVIEW_CHANNEL_ID)")
 

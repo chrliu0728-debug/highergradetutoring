@@ -309,3 +309,31 @@ duplicate.
 - **Bot is online but `/verify` says "Bot integration is disabled"** →
   the API can't see `HIGHERGRADE_BOT_TOKEN`. Check `/etc/highergrade.env`
   on the VM and `sudo systemctl restart highergrade-api`.
+
+### Running in more than one server
+
+The bot is in both the camp server and the staff server, on purpose and
+with different permissions in each. The staff server only grants View
+Channel + Send Messages, because the only thing the bot does there is
+post (`REVIEW_CHANNEL_ID` — the email-review channel — lives there).
+
+Every background task **checks it has the permissions for that specific
+job before attempting it**, and skips just that job where it doesn't:
+
+| Task | Needs | Where it's skipped |
+| --- | --- | --- |
+| Role sync | Manage Roles | staff server |
+| Nickname sync | Manage Nicknames | staff server |
+| Announcements / pings | View Channel + Send Messages *per channel* | anywhere it can't speak |
+
+So role syncing is skipped in the staff server while its posting tasks
+keep running normally. Skips are logged **once per process**, not once
+per loop — a permanent, intentional permission gap shouldn't produce a
+warning every two minutes and bury real problems.
+
+Missing **Mention Everyone** is treated separately: the announcement
+still posts, it just won't ping, so it warns rather than skipping.
+
+If you *want* the bot managing roles in a second server, grant it Manage
+Roles there — it'll start creating `Student`, `Staff`, and the camp-game
+roles on the next poll, and renaming members to their camp names.
