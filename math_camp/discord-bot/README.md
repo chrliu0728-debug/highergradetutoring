@@ -116,6 +116,8 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/chest-list` | Manage Roles | Lists every chest with its code, role, opens/cap, points, and description. |
 | `/chest-delete chest:<pick>` | Manage Roles | Pick a chest from a dropdown, newest first. No IDs to copy. |
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
+| `/submit title:<…> file:<…>` | Verified campers | Hands homework in for marking. |
+| `/submissions [show:<…>]` | Staff | Lists homework waiting to be marked. |
 | `/setup-verify` | Administrator | Posts the "Verify me" panel in the current channel. |
 | `/gate target:<#channel> access:<…>` | Administrator | Sets who can see a channel or category. |
 | `/perms-lock command:<…> role:<@role> field:<…> value:<…>` | Administrator | Pins a command's parameter to a fixed value for a role. |
@@ -293,6 +295,56 @@ command itself.
 Enforcement is always re-checked against the server at submit time, so a
 lock takes effect immediately — the cached copy exists only to pre-fill
 the form, which has to render before there's time for a network call.
+
+## 5e) Homework hand-in and marking
+
+Campers hand work in with `/submit`; it lands in a staff-only marking
+channel; staff press a button to write feedback; the bot DMs the feedback
+to the camper.
+
+**Camper side:**
+
+```
+/submit title:"Day 3 problem set" file:<photo> [file2] [file3] [notes]
+```
+
+Only **verified** campers can submit — the whole thing keys off the linked
+camp account, which is where the real name comes from and who the feedback
+gets sent to. An unverified user is told to verify first.
+
+**Staff side.** Each submission posts a card into the marking channel with
+the camper's real name, their Discord mention, the hand-in time (absolute
+*and* relative, in each reader's own timezone), their note, and the files
+themselves. Press **Mark & send feedback 📝**, fill in a grade (optional)
+and feedback (required), and the bot DMs it to the camper immediately.
+
+The card then re-renders green with the grade, the marker's name, the
+feedback, and — importantly — **whether the DM actually arrived**. If the
+camper has DMs closed you'll see ⚠️ *DM not delivered* and can chase it
+another way. You can press the button again to re-mark; the card replaces
+the previous result rather than stacking a second one.
+
+`/submissions` lists what's outstanding, newest first, with a jump link to
+each card. It defaults to unmarked work; `show:` switches to marked or
+everything.
+
+**Who can mark:** server Administrators, anyone holding **Staff**, or a
+role granted `mark-homework` via `/perms-grant`.
+
+**Files.** The bot re-uploads submitted files onto the marking-channel
+message rather than linking to them. Discord's own attachment URLs are
+short-lived signed links, so linking would leave staff with dead files a
+day later. Cap is `MAX_UPLOAD_BYTES` (25 MB, Discord's non-boosted limit);
+anything larger is refused up front with a clear message. Up to 3 files
+per submission.
+
+**Storage and privacy.** `homework_submissions` records the submission and
+is the audit trail; the files live on the Discord message. The camper's
+name is deliberately **not** duplicated into this table — it stores
+`studentId` and resolves the name from `students`, where it's already
+encrypted at rest. The student's note and the feedback are free text
+written about a minor, so both are encrypted with the same
+`HIGHERGRADE_ENC_KEY` as the rest of the PII.
 
 ## 6) About verification
 

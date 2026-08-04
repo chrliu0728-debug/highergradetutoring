@@ -3438,6 +3438,146 @@ def register_routes(app):
         )
         return jsonify(ok=True, data={"id": pid, "alreadyExisted": False})
 
+    # — Homework hand-in / marking —
+    def _hw_row(r, *, include_feedback=True):
+        """Shape a submission for the bot. Decrypts the free-text fields and
+        resolves the student's name from the students table rather than
+        keeping a second plaintext copy of it here."""
+        if r is None:
+            return None
+        d = dict(r)
+        d["notes"] = crypto.dec(d.get("notes")) or ""
+        if include_feedback:
+            d["feedback"] = crypto.dec(d.get("feedback")) or ""
+        else:
+            d.pop("feedback", None)
+        try:
+            d["attachments"] = json.loads(d.get("attachments") or "[]")
+        except Exception:  # noqa: BLE001
+            d["attachments"] = []
+        d["studentName"] = ""
+        if d.get("studentId"):
+            srow = g.db.execute("SELECT * FROM students WHERE id = ?",
+                                (d["studentId"],)).fetchone()
+            if srow:
+                d["studentName"] = _full_name(srow)
+        return d
+
+    @app.route("/api/bot/homework", methods=["POST"])
+    @require_bot
+    def bot_homework_create():
+        d = request.get_json(silent=True) or {}
+        guild_id   = (d.get("guildId") or "").strip()
+        discord_id = (d.get("discordId") or "").strip()
+        if not guild_id or not discord_id:
+            return jsonify(ok=False, error="guildId and discordId are required."), 400
+        # Only a verified camper can hand work in — otherwise there's no
+        # name to label the submission with and nobody to send feedback to.
+        link = g.db.execute("SELECT * FROM discord_links WHERE discordId = ?",
+                            (discord_id,)).fetchone()
+        if not link:
+            return jsonify(ok=False, unverified=True,
+                           error="Verify your camp account before handing work in."), 403
+        srow = g.db.execute("SELECT * FROM students WHERE id = ?",
+                            (link["studentId"],)).fetchone()
+        if not srow:
+            return jsonify(ok=False, unverified=True,
+                           error="Your linked camp account no longer exists."), 403
+        atts = d.get("attachments")
+        if not isinstance(atts, list):
+            atts = []
+        hid = "hw-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        now = int(time.time())
+        g.db.execute(
+            """INSERT INTO homework_submissions
+               (id, guildId, discordId, studentId, title, notes, attachments,
+                submittedAt, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
+            (hid, guild_id, discord_id, srow["id"],
+             (d.get("title") or "").strip()[:200] or None,
+             crypto.enc((d.get("notes") or "").strip()[:2000]) or None,
+             json.dumps(atts[:10]), now),
+        )
+        return jsonify(ok=True, data={
+            "id": hid, "studentId": srow["id"], "studentName": _full_name(srow),
+            "submittedAt": now,
+        })
+
+    @app.route("/api/bot/homework/<hid>/message", methods=["POST"])
+    @require_bot
+    def bot_homework_set_message(hid):
+        d = request.get_json(silent=True) or {}
+        g.db.execute(
+            "UPDATE homework_submissions SET channelId = ?, messageId = ? WHERE id = ?",
+            ((d.get("channelId") or "").strip() or None,
+             (d.get("messageId") or "").strip() or None, hid),
+        )
+        return jsonify(ok=True)
+
+    @app.route("/api/bot/homework/<hid>", methods=["GET"])
+    @require_bot
+    def bot_homework_get(hid):
+        row = g.db.execute("SELECT * FROM homework_submissions WHERE id = ?",
+                           (hid,)).fetchone()
+        if not row:
+            return jsonify(ok=False, error="No such submission."), 404
+        return jsonify(ok=True, data=_hw_row(row))
+
+    @app.route("/api/bot/homework/<hid>/mark", methods=["POST"])
+    @require_bot
+    def bot_homework_mark(hid):
+        d = request.get_json(silent=True) or {}
+        feedback = (d.get("feedback") or "").strip()
+        if not feedback:
+            return jsonify(ok=False, error="Feedback can't be empty."), 400
+        row = g.db.execute("SELECT * FROM homework_submissions WHERE id = ?",
+                           (hid,)).fetchone()
+        if not row:
+            return jsonify(ok=False, error="No such submission."), 404
+        g.db.execute(
+            """UPDATE homework_submissions
+               SET status = 'marked', grade = ?, feedback = ?, markedBy = ?,
+                   markedByName = ?, markedAt = ?
+               WHERE id = ?""",
+            ((d.get("grade") or "").strip()[:60] or None,
+             crypto.enc(feedback[:4000]),
+             (d.get("markedBy") or "").strip() or None,
+             (d.get("markedByName") or "").strip()[:100] or None,
+             int(time.time()), hid),
+        )
+        fresh = g.db.execute("SELECT * FROM homework_submissions WHERE id = ?",
+                             (hid,)).fetchone()
+        return jsonify(ok=True, data=_hw_row(fresh))
+
+    @app.route("/api/bot/homework/<hid>/dm", methods=["POST"])
+    @require_bot
+    def bot_homework_dm(hid):
+        """Record whether the feedback DM actually reached the student."""
+        d = request.get_json(silent=True) or {}
+        g.db.execute("UPDATE homework_submissions SET dmDelivered = ? WHERE id = ?",
+                     (1 if d.get("delivered") else 0, hid))
+        return jsonify(ok=True)
+
+    @app.route("/api/bot/homework", methods=["GET"])
+    @require_bot
+    def bot_homework_list():
+        guild_id = (request.args.get("guildId") or "").strip()
+        if not guild_id:
+            return jsonify(ok=False, error="guildId is required."), 400
+        status = (request.args.get("status") or "").strip()
+        discord_id = (request.args.get("discordId") or "").strip()
+        sql = "SELECT * FROM homework_submissions WHERE guildId = ?"
+        params = [guild_id]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        if discord_id:
+            sql += " AND discordId = ?"
+            params.append(discord_id)
+        sql += " ORDER BY submittedAt DESC LIMIT 100"
+        rows = g.db.execute(sql, tuple(params)).fetchall()
+        return jsonify(ok=True, data=[_hw_row(r) for r in rows])
+
     # — Per-role command parameter locks —
     # A lock pins one parameter of one command to a fixed value for holders
     # of one role. The bot owns the notion of which command/field pairs are

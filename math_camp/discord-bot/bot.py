@@ -39,6 +39,7 @@ Required environment variables:
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
 import time
@@ -77,6 +78,12 @@ REVIEW_CHANNEL_ID = os.environ.get("REVIEW_CHANNEL_ID") or ""
 # without them the bot falls back to channels named "verify"/"onboarding-answers".
 VERIFY_CHANNEL_ID = os.environ.get("VERIFY_CHANNEL_ID") or ""
 ONBOARD_CHANNEL_ID = os.environ.get("ONBOARD_CHANNEL_ID") or ""
+
+# Where handed-in homework lands for staff to mark. Falls back to a channel
+# named "marking-discussions"/"marking".
+MARKING_CHANNEL_ID = os.environ.get("MARKING_CHANNEL_ID") or ""
+# Discord's per-file upload ceiling on a non-boosted server is 25 MB.
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES") or 25 * 1024 * 1024)
 
 # Names the bot manages on Discord. The bot creates these if missing
 # and only ever adds/removes these specific roles — it never touches
@@ -285,6 +292,39 @@ class CampAPI:
             "guildId": guild_id, "command": command, "roleId": role_id,
         })
 
+    # — Homework hand-in / marking —
+    async def homework_create(self, guild_id: str, discord_id: str, title: str,
+                              notes: str, attachments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        return await self._post("/api/bot/homework", {
+            "guildId": guild_id, "discordId": discord_id, "title": title,
+            "notes": notes, "attachments": attachments,
+        })
+
+    async def homework_set_message(self, hid: str, channel_id: str,
+                                   message_id: str) -> Dict[str, Any]:
+        return await self._post(f"/api/bot/homework/{hid}/message", {
+            "channelId": channel_id, "messageId": message_id,
+        })
+
+    async def homework_get(self, hid: str) -> Dict[str, Any]:
+        return await self._get(f"/api/bot/homework/{hid}")
+
+    async def homework_mark(self, hid: str, grade: str, feedback: str,
+                            marked_by: str, marked_by_name: str) -> Dict[str, Any]:
+        return await self._post(f"/api/bot/homework/{hid}/mark", {
+            "grade": grade, "feedback": feedback,
+            "markedBy": marked_by, "markedByName": marked_by_name,
+        })
+
+    async def homework_dm(self, hid: str, delivered: bool) -> Dict[str, Any]:
+        return await self._post(f"/api/bot/homework/{hid}/dm", {"delivered": delivered})
+
+    async def homework_list(self, guild_id: str, status: str = "") -> Dict[str, Any]:
+        params = {"guildId": guild_id}
+        if status:
+            params["status"] = status
+        return await self._get("/api/bot/homework", params)
+
     # — Per-role parameter locks —
     async def locks_list(self, guild_id: str) -> Dict[str, Any]:
         return await self._get("/api/bot/locks", {"guildId": guild_id})
@@ -321,7 +361,7 @@ class HGBot(discord.Client):
         # Persistent chest buttons — survive bot restarts because the
         # button's custom_id encodes the chest_id and discord.py
         # reconstructs the handler from the regex template.
-        self.add_dynamic_items(ChestUnlockButton)
+        self.add_dynamic_items(ChestUnlockButton, MarkButton)
         # Persistent onboarding views — fixed custom_ids, so the Verify
         # panel posted months ago still opens the modal after a redeploy.
         self.add_view(VerifyPanelView())
@@ -1468,6 +1508,331 @@ async def cmd_onboard(interaction: discord.Interaction) -> None:
     await interaction.response.send_modal(OnboardingModal())
 
 
+# ── Homework hand-in & marking ───────────────────────────────────────
+def _marking_channel(guild: discord.Guild) -> Optional[discord.abc.Messageable]:
+    """Where handed-in work goes: MARKING_CHANNEL_ID, else a channel named
+    'marking-discussions'/'marking'."""
+    if MARKING_CHANNEL_ID:
+        ch = bot.get_channel(int(MARKING_CHANNEL_ID))
+        if ch is not None:
+            return ch
+        log.warning("MARKING_CHANNEL_ID=%s not found — falling back", MARKING_CHANNEL_ID)
+    return (discord.utils.get(guild.text_channels, name="marking-discussions")
+            or discord.utils.get(guild.text_channels, name="marking"))
+
+
+async def _can_mark(interaction: discord.Interaction) -> bool:
+    """Who may mark work: server admins, anyone holding Staff, or a role
+    granted `mark-homework` via /perms-grant."""
+    if _is_server_admin(interaction):
+        return True
+    member = _member_of(interaction)
+    if member and any(r.name == STAFF_ROLE_NAME for r in member.roles):
+        return True
+    return await _user_can_run(interaction, "mark-homework")
+
+
+def _submission_embed(data: Dict[str, Any], *, attachment_names: List[str]) -> discord.Embed:
+    """The card staff see in the marking channel."""
+    submitted = int(data.get("submittedAt") or time.time())
+    e = discord.Embed(
+        title=f"📥 {data.get('title') or 'Homework submission'}",
+        colour=0x3B82F6,
+    )
+    e.add_field(name="Student",
+                value=f"**{data.get('studentName') or 'Unknown'}**\n<@{data.get('discordId')}>",
+                inline=True)
+    # Both an absolute date and a relative one, each rendered in the
+    # reader's own timezone by Discord.
+    e.add_field(name="Handed in",
+                value=f"<t:{submitted}:f>\n<t:{submitted}:R>", inline=True)
+    if data.get("notes"):
+        e.add_field(name="Student's note", value=str(data["notes"])[:1024], inline=False)
+    if attachment_names:
+        e.add_field(name="Files", value="\n".join(f"• {n}" for n in attachment_names)[:1024],
+                    inline=False)
+    e.set_footer(text=f"Submission {data.get('id')} · press Mark to send feedback")
+    return e
+
+
+def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool) -> discord.Embed:
+    """Re-render a submission card once it's been marked. Rebuilt from the
+    original so re-marking replaces the result instead of stacking fields."""
+    e = discord.Embed(title=base.title, colour=0x22C55E)
+    for f in base.fields:
+        if f.name in ("Grade", "Feedback", "Marked by"):
+            continue
+        e.add_field(name=f.name, value=f.value, inline=f.inline)
+    if marked.get("grade"):
+        e.add_field(name="Grade", value=str(marked["grade"])[:1024], inline=True)
+    e.add_field(name="Marked by",
+                value=f"{marked.get('markedByName') or 'staff'}\n"
+                      + ("✅ DM delivered" if dm_ok else "⚠️ DM **not** delivered"),
+                inline=True)
+    e.add_field(name="Feedback", value=str(marked.get("feedback") or "")[:1024], inline=False)
+    e.set_footer(text=base.footer.text or "")
+    return e
+
+
+async def _dm_feedback(data: Dict[str, Any]) -> bool:
+    """Send the student their feedback. Returns whether it landed."""
+    try:
+        uid = int(data.get("discordId"))
+    except (TypeError, ValueError):
+        return False
+    e = discord.Embed(
+        title="📝 Your homework has been marked",
+        description=f"**{data.get('title') or 'Your submission'}**",
+        colour=0x22C55E,
+    )
+    if data.get("grade"):
+        e.add_field(name="Grade", value=str(data["grade"])[:1024], inline=False)
+    e.add_field(name="Feedback", value=str(data.get("feedback") or "")[:1024], inline=False)
+    e.set_footer(text=f"Marked by {data.get('markedByName') or 'HigherGrade staff'}")
+    try:
+        user = bot.get_user(uid) or await bot.fetch_user(uid)
+        await user.send(embed=e)
+        # Feedback longer than one embed field continues as plain messages.
+        rest = str(data.get("feedback") or "")[1024:]
+        for part in _chunk(rest, MSG_LIMIT):
+            await user.send(part)
+        return True
+    except (discord.Forbidden, discord.HTTPException, discord.NotFound):
+        log.info("feedback DM not delivered to %s (DMs closed?)", uid)
+        return False
+    except Exception:  # noqa: BLE001
+        log.exception("feedback DM failed for %s", uid)
+        return False
+
+
+class MarkModal(discord.ui.Modal, title="Mark this submission"):
+    grade = discord.ui.TextInput(
+        label="Grade / mark (optional)",
+        placeholder="e.g. 8/10, B+, Complete",
+        max_length=60, required=False,
+    )
+    feedback = discord.ui.TextInput(
+        label="Feedback for the student",
+        style=discord.TextStyle.paragraph,
+        placeholder="This is DMed to them word for word.",
+        max_length=4000, required=True,
+    )
+
+    def __init__(self, hid: str, source: Optional[discord.Message]) -> None:
+        super().__init__()
+        self.hid = hid
+        self.source = source
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        if not await _can_mark(interaction):
+            await interaction.followup.send(
+                "🚫 Only staff can mark work. Ask an admin for the **Staff** role, "
+                "or to grant your role `mark-homework` with `/perms-grant`.",
+                ephemeral=True)
+            return
+        marker = _member_of(interaction)
+        res = await api.homework_mark(
+            self.hid, str(self.grade.value or "").strip(),
+            str(self.feedback.value).strip(), str(interaction.user.id),
+            (marker.display_name if marker else str(interaction.user)),
+        )
+        if not res.get("ok"):
+            await interaction.followup.send(f"❌ {res.get('error') or 'Could not save.'}",
+                                            ephemeral=True)
+            return
+        data = res.get("data") or {}
+
+        dm_ok = await _dm_feedback(data)
+        try:
+            await api.homework_dm(self.hid, dm_ok)
+        except Exception:  # noqa: BLE001
+            log.exception("could not record DM status for %s", self.hid)
+
+        # Re-render the card in the marking channel so the thread of record
+        # shows the result without anyone having to re-open the modal.
+        if self.source and self.source.embeds:
+            try:
+                await self.source.edit(
+                    embed=_marked_embed(self.source.embeds[0], data, dm_ok),
+                    view=_mark_view(self.hid))
+            except (discord.Forbidden, discord.HTTPException):
+                log.info("couldn't update submission message for %s", self.hid)
+
+        who = data.get("studentName") or "the student"
+        if dm_ok:
+            await interaction.followup.send(
+                f"✅ Marked. **{who}** has been DMed your feedback.", ephemeral=True)
+        else:
+            await interaction.followup.send(
+                f"✅ Marked and saved — but I couldn't DM **{who}** (their DMs are "
+                f"closed or they've left). You'll need to pass the feedback on "
+                f"another way.", ephemeral=True)
+
+
+class MarkButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"hw_mark:(?P<hid>[A-Za-z0-9_\-]+)",
+):
+    """Persistent per-submission button — the submission id lives in the
+    custom_id, so old cards keep working after a redeploy."""
+
+    def __init__(self, hid: str) -> None:
+        super().__init__(
+            discord.ui.Button(
+                label="Mark & send feedback 📝",
+                style=discord.ButtonStyle.success,
+                custom_id=f"hw_mark:{hid}",
+            )
+        )
+        self.hid = hid
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction,
+                             item: discord.ui.Button, match):
+        return cls(match["hid"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await _can_mark(interaction):
+            await interaction.response.send_message(
+                "🚫 Only staff can mark work.", ephemeral=True)
+            return
+        await interaction.response.send_modal(MarkModal(self.hid, interaction.message))
+
+
+def _mark_view(hid: str) -> discord.ui.View:
+    view = discord.ui.View(timeout=None)
+    view.add_item(MarkButton(hid))
+    return view
+
+
+@bot.tree.command(name="submit", description="Hand in homework for marking.")
+@app_commands.describe(
+    title="What this is — e.g. 'Day 3 problem set'",
+    file="Your work: photo, PDF, whatever",
+    file2="Another file (optional)",
+    file3="Another file (optional)",
+    notes="Anything you want the marker to know (optional)",
+)
+async def cmd_submit(
+    interaction: discord.Interaction,
+    title: str,
+    file: discord.Attachment,
+    file2: Optional[discord.Attachment] = None,
+    file3: Optional[discord.Attachment] = None,
+    notes: Optional[str] = None,
+) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not interaction.guild:
+        await interaction.followup.send("Hand work in from the server, not a DM.",
+                                        ephemeral=True)
+        return
+
+    attachments = [a for a in (file, file2, file3) if a is not None]
+    too_big = [a.filename for a in attachments if a.size > MAX_UPLOAD_BYTES]
+    if too_big:
+        await interaction.followup.send(
+            f"❌ Too large to re-upload (limit {MAX_UPLOAD_BYTES // (1024*1024)} MB): "
+            + ", ".join(f"`{n}`" for n in too_big), ephemeral=True)
+        return
+
+    channel = _marking_channel(interaction.guild)
+    if channel is None:
+        await interaction.followup.send(
+            "❌ There's no marking channel set up yet — ask an admin to create "
+            "**#marking-discussions** or set `MARKING_CHANNEL_ID`.", ephemeral=True)
+        return
+    if not _can_post(channel, "a homework submission", embeds=True):
+        await interaction.followup.send(
+            "❌ I can't post in the marking channel — ask an admin to give me "
+            "Send Messages, Embed Links, and Attach Files there.", ephemeral=True)
+        return
+
+    res = await api.homework_create(
+        str(interaction.guild.id), str(interaction.user.id),
+        title.strip(), (notes or "").strip(),
+        [{"name": a.filename, "size": a.size} for a in attachments],
+    )
+    if not res.get("ok"):
+        await interaction.followup.send(
+            f"❌ {res.get('error') or 'Could not record your submission.'}", ephemeral=True)
+        return
+    data = dict(res.get("data") or {})
+    hid = data.get("id")
+    data.setdefault("title", title.strip())
+    data.setdefault("notes", (notes or "").strip())
+    data["discordId"] = str(interaction.user.id)
+
+    # Re-upload the files onto the marking-channel message. Discord's own
+    # attachment URLs are short-lived signed links, so pointing at them
+    # would leave staff with dead links a day later.
+    files: List[discord.File] = []
+    for a in attachments:
+        try:
+            files.append(discord.File(io.BytesIO(await a.read()), filename=a.filename))
+        except Exception:  # noqa: BLE001
+            log.exception("could not re-upload %s", a.filename)
+
+    embed = _submission_embed(data, attachment_names=[a.filename for a in attachments])
+    try:
+        posted = await channel.send(embed=embed, files=files, view=_mark_view(hid))
+    except discord.HTTPException as exc:
+        log.exception("submission post failed")
+        await interaction.followup.send(
+            f"❌ Couldn't post your work to the marking channel ({exc.status}). "
+            "Nothing was lost — try again, or tell a staff member.", ephemeral=True)
+        return
+
+    try:
+        await api.homework_set_message(hid, str(posted.channel.id), str(posted.id))
+    except Exception:  # noqa: BLE001
+        log.exception("could not save submission message id")
+
+    await interaction.followup.send(
+        f"✅ Handed in **{title.strip()}** with {len(attachments)} file(s).\n"
+        f"Your work is with the markers now — you'll get a DM with feedback when "
+        f"it's been looked at. Make sure your DMs are open for this server.",
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name="submissions", description="List homework waiting to be marked.")
+@app_commands.describe(show="Which submissions to list")
+@app_commands.choices(show=[
+    app_commands.Choice(name="Waiting to be marked", value="pending"),
+    app_commands.Choice(name="Already marked", value="marked"),
+    app_commands.Choice(name="Everything", value=""),
+])
+async def cmd_submissions(interaction: discord.Interaction,
+                          show: Optional[app_commands.Choice[str]] = None) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not await _can_mark(interaction):
+        await interaction.followup.send("🚫 Staff only.", ephemeral=True)
+        return
+    status = show.value if show else "pending"
+    res = await api.homework_list(str(interaction.guild.id), status)
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    rows = res.get("data") or []
+    if not rows:
+        await interaction.followup.send(
+            "Nothing here — everything's marked. 🎉" if status == "pending"
+            else "No submissions match that.", ephemeral=True)
+        return
+    lines = []
+    for r in rows[:25]:
+        link = ""
+        if r.get("channelId") and r.get("messageId"):
+            link = (f" · [jump](https://discord.com/channels/"
+                    f"{interaction.guild.id}/{r['channelId']}/{r['messageId']})")
+        tick = "✅" if r.get("status") == "marked" else "🕒"
+        lines.append(f"{tick} **{r.get('studentName') or '?'}** — {r.get('title') or 'untitled'} "
+                     f"· <t:{int(r.get('submittedAt') or 0)}:R>{link}")
+    await interaction.followup.send(
+        f"**{len(rows)} submission(s)**\n" + "\n".join(lines)[:1800], ephemeral=True)
+
+
 @bot.tree.command(name="whoami", description="Show your linked camp profile.")
 async def cmd_whoami(interaction: discord.Interaction) -> None:
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -1527,6 +1892,10 @@ async def cmd_help(interaction: discord.Interaction) -> None:
         ("unlink", "Remove the link between your Discord and camp account."),
         ("unlock", "Open a locked chest with its passcode."),
         ("onboard", "Answer (or redo) the onboarding questions."),
+        ("submit", "Hand in homework for marking."),
+    ]
+    staff_tools = [
+        ("submissions", "List homework waiting to be marked."),
     ]
     chest_tools = [
         ("chest-create", "Place a locked chest in this channel."),
@@ -1577,6 +1946,10 @@ async def cmd_help(interaction: discord.Interaction) -> None:
     if visible_chest:
         embed.add_field(name="🔐 Chest tools", value=fmt(visible_chest), inline=False)
 
+    # Marking — Staff role, admins, or a role granted `mark-homework`.
+    if await _can_mark(interaction):
+        embed.add_field(name="📝 Marking · Staff", value=fmt(staff_tools), inline=False)
+
     # Email campaign — needs Manage Server (or the configured control role).
     if campaign._is_admin(interaction):
         embed.add_field(name="📧 Email campaign · needs Manage Server",
@@ -1610,7 +1983,8 @@ async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
 # Commands whose access can be opened up to specific roles via
 # /perms-grant. Anything not in this list is implicitly admin/owner-only
 # (or open, depending on the command).
-RESTRICTABLE_COMMANDS: List[str] = ["chest-create", "chest-list", "chest-delete"]
+RESTRICTABLE_COMMANDS: List[str] = ["chest-create", "chest-list", "chest-delete",
+                                    "mark-homework"]
 
 
 def _is_server_admin(interaction: discord.Interaction) -> bool:

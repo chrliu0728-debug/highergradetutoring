@@ -234,6 +234,36 @@ CREATE TABLE IF NOT EXISTS discord_command_locks (
 );
 CREATE INDEX IF NOT EXISTS idx_dcl_guild ON discord_command_locks(guildId, command);
 
+-- Homework handed in through the Discord bot. The submitted files live on
+-- the marking-channel message (channelId/messageId) rather than here — this
+-- table is the record and the audit trail.
+--
+-- The student's NAME is deliberately not stored: studentId points at the
+-- students table, where the name is already encrypted at rest. `notes` and
+-- `feedback` are free text written about a minor, so they're encrypted the
+-- same way the rest of the PII is (see crypto.enc / crypto.dec).
+CREATE TABLE IF NOT EXISTS homework_submissions (
+  id            TEXT PRIMARY KEY,
+  guildId       TEXT NOT NULL,
+  discordId     TEXT NOT NULL,
+  studentId     TEXT,
+  title         TEXT,
+  notes         TEXT,
+  attachments   TEXT NOT NULL DEFAULT '[]',   -- JSON: [{name, size}]
+  channelId     TEXT,
+  messageId     TEXT,
+  submittedAt   INTEGER NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'pending',   -- pending | marked
+  grade         TEXT,
+  feedback      TEXT,
+  markedBy      TEXT,
+  markedByName  TEXT,
+  markedAt      INTEGER,
+  dmDelivered   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_hw_guild ON homework_submissions(guildId, status);
+CREATE INDEX IF NOT EXISTS idx_hw_student ON homework_submissions(discordId);
+
 -- Camp registrations submitted from /register.html.
 CREATE TABLE IF NOT EXISTS registrations (
   id                  TEXT PRIMARY KEY,
