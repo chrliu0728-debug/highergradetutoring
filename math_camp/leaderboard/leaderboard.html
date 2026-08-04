@@ -301,7 +301,9 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       <div class="podium-slot ${cls}">
         <div class="podium-medal">${medal}</div>
         <div class="podium-name">${esc(studentFullName(s))}</div>
+        <!-- Classes removed — everyone is in one class.
         <div class="podium-class">${esc(s.className || 'Unassigned')}</div>
+        -->
         <div class="podium-points">${(s.stats.totalPointsEarned || 0).toLocaleString()}<small>${label}</small></div>
       </div>
     `;
@@ -321,15 +323,20 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   // the total-pts cell, so no need to repeat them here).
   const pillCats = getBaseStatCategories();
 
+  // Only the top 3 are listed — the board shows the podium finishers,
+  // not the whole camp.
+  const RANKING_LIMIT = 3;
+  const ranked = students.slice(0, RANKING_LIMIT);
+
   html += `
     <div class="lb-list-wrap">
       <div class="lb-section-head">
-        <h2>Full Rankings</h2>
+        <h2>Top ${Math.min(RANKING_LIMIT, students.length)}</h2>
         <p>${students.length} student${students.length === 1 ? '' : 's'} registered</p>
       </div>
   `;
 
-  students.forEach((s, i) => {
+  ranked.forEach((s, i) => {
     const rank = i + 1;
     const rankClass = rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : '';
     const rankDisplay = rank <= 3 ? medalIcon(rank) : `<span class="rank-num">#${rank}</span>`;
@@ -342,7 +349,9 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
         <div class="lb-identity">
           <div class="lb-name">${esc(studentFullName(s))}</div>
           <div class="lb-meta-row">
+            <!-- Classes removed — everyone is in one class.
             <span class="lb-class-chip ${s.className ? '' : 'unassigned'}">${esc(s.className || 'Unassigned')}</span>
+            -->
             ${s.studentEmail ? `<span class="lb-email">${esc(s.studentEmail)}</span>` : ''}
           </div>
         </div>

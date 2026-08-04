@@ -994,7 +994,8 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
 
     greetingEl.textContent = `Welcome, ${studentFullName(s)}!`;
     dashSubEl.textContent = [
-      s.className ? 'Class ' + s.className : 'Class not assigned yet',
+      // Classes disabled — everyone is in one group.
+      // s.className ? 'Class ' + s.className : 'Class not assigned yet',
       s.school,
     ].filter(Boolean).join(' · ');
 
@@ -1026,9 +1027,14 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   function renderContribCard(s) {
     const card  = document.getElementById('class-contrib-card');
     if (!card) return;
+    // Classes are disabled — the camp is one group, so there's nothing to
+    // contribute to. Hidden unconditionally, including for students who
+    // still have an old classId on their record.
+    card.style.display = 'none';
+    return;
     // Only show it if the student has been assigned to a class.
-    card.style.display = s.classId ? '' : 'none';
-    if (!s.classId) return;
+    // card.style.display = s.classId ? '' : 'none';
+    // if (!s.classId) return;
     const bucket = (s.extras && Number(s.extras.classContribution || 0)) || 0;
     const progressText = document.getElementById('contrib-progress-text');
     const progressFill = document.getElementById('contrib-progress-fill');
@@ -1085,12 +1091,11 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const studentRoles = (Array.isArray(s.roles) ? s.roles : [])
       .map(id => byId[id]).filter(Boolean);
 
-    // Check if this student's class has a MazeWiz winner that is NOT this student
+    // Maze Wizard is now a single camp-wide title (classes are disabled),
+    // so the "taken" slot shows whenever anyone else holds it.
     let showEmptyMazeWizSlot = false;
-    if (s.classId) {
-      const winner = getMazeWizWinnerForClass(s.classId);
-      if (winner && winner.id !== s.id) showEmptyMazeWizSlot = true;
-    }
+    const mwWinner = getMazeWizWinnerForClass(null);
+    if (mwWinner && mwWinner.id !== s.id) showEmptyMazeWizSlot = true;
 
     // Hide the panel entirely if there are no roles AND no empty slot to show
     if (studentRoles.length === 0 && !showEmptyMazeWizSlot) {
@@ -1136,6 +1141,11 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   function renderClassPanel(s) {
     const panel = document.getElementById('class-panel');
     if (!panel) return;
+    // Classes are disabled — hide the panel outright rather than showing
+    // "you haven't been assigned to a class yet", which is now misleading.
+    panel.style.display = 'none';
+    return;
+    /* eslint-disable no-unreachable */
     if (!s.classId) {
       panel.className = 'class-panel class-panel-empty';
       panel.innerHTML = (window.Icons ? Icons.svg('users') : '') + ' You haven\'t been assigned to a class yet — ask your camp instructor!';

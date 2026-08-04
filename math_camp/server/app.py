@@ -1622,52 +1622,81 @@ def register_routes(app):
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row: return jsonify(ok=False, error="Student not found."), 404
-            class_id = row["classId"]
-            if not class_id:
-                return jsonify(ok=False, error="You need to be assigned to a class first — ask an admin."), 400
+            # Classes are gone — the camp is one group, so Maze Wizard is a
+            # single camp-wide title rather than one per class. The old
+            # per-class version is kept below for reference.
             roles = json.loads(row["roles"] or "[]")
             if MAZEWIZ_ROLE_ID in roles:
                 return jsonify(ok=False, error="You already hold the Maze Wizard title!"), 400
 
-            classmates = g.db.execute(
-                "SELECT * FROM students WHERE classId = ?", (class_id,),
-            ).fetchall()
-            for cm in classmates:
-                cm_roles = json.loads(cm["roles"] or "[]")
-                if MAZEWIZ_ROLE_ID in cm_roles:
-                    return jsonify(ok=False, error=f"Too late — {_full_name(cm)} already claimed Maze Wizard for your class."), 400
+            everyone = g.db.execute("SELECT * FROM students").fetchall()
+            for other in everyone:
+                if other["id"] == sid:
+                    continue
+                if MAZEWIZ_ROLE_ID in json.loads(other["roles"] or "[]"):
+                    return jsonify(ok=False, error=f"Too late — {_full_name(other)} already claimed Maze Wizard."), 400
+
+            # class_id = row["classId"]
+            # if not class_id:
+            #     return jsonify(ok=False, error="You need to be assigned to a class first — ask an admin."), 400
+            # classmates = g.db.execute(
+            #     "SELECT * FROM students WHERE classId = ?", (class_id,),
+            # ).fetchall()
+            # for cm in classmates:
+            #     cm_roles = json.loads(cm["roles"] or "[]")
+            #     if MAZEWIZ_ROLE_ID in cm_roles:
+            #         return jsonify(ok=False, error=f"Too late — {_full_name(cm)} already claimed Maze Wizard for your class."), 400
 
             roles.append(MAZEWIZ_ROLE_ID)
             g.db.execute("UPDATE students SET roles = ? WHERE id = ?", (json.dumps(roles), sid))
             _log_tx(type="role_assigned", scope="student", subjectId=sid,
                     subjectName=_full_name(row), amount=0,
-                    description="🧙 Claimed the Maze Wizard title for their class")
+                    description="🧙 Claimed the Maze Wizard title")
         return jsonify(ok=True)
 
     # ── Classes ────────────────────────────────────────────────────
+    # DISABLED: the camp runs as a single group, so classes are gone from
+    # the product. The `classes` table and students' classId/className
+    # columns are deliberately left in place so nothing is lost and this
+    # can be switched back on by un-commenting.
+    #
+    # GET still answers with an empty list rather than 404 so any page or
+    # cached script that asks for classes degrades quietly instead of
+    # erroring.
     @app.route("/api/classes", methods=["GET"])
     def list_classes():
-        rows = g.db.execute("SELECT * FROM classes").fetchall()
-        return jsonify(ok=True, data=[row_to_class(r) for r in rows])
+        return jsonify(ok=True, data=[])
+
+    # @app.route("/api/classes", methods=["GET"])
+    # def list_classes():
+    #     rows = g.db.execute("SELECT * FROM classes").fetchall()
+    #     return jsonify(ok=True, data=[row_to_class(r) for r in rows])
 
     @app.route("/api/classes", methods=["PUT"])
     @require_admin
     def replace_classes():
-        data = request.get_json(silent=True) or {}
-        arr = data.get("classes") or []
-        with g.db:
-            g.db.execute("DELETE FROM classes")
-            for c in arr:
-                g.db.execute(
-                    """INSERT INTO classes (id, name, classPoints, classBank, bankLastUpdate, createdAt)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (c["id"], c["name"],
-                     int(c.get("classPoints") or 0),
-                     float(c.get("classBank") or 0),
-                     int(c["bankLastUpdate"]) if c.get("bankLastUpdate") else None,
-                     c.get("createdAt") or ""),
-                )
-        return jsonify(ok=True, count=len(arr))
+        # DISABLED with the rest of classes — refuses rather than silently
+        # accepting writes that nothing reads any more.
+        return jsonify(ok=False, error="Classes are disabled — the camp runs as one group."), 410
+
+    # @app.route("/api/classes", methods=["PUT"])
+    # @require_admin
+    # def replace_classes():
+    #     data = request.get_json(silent=True) or {}
+    #     arr = data.get("classes") or []
+    #     with g.db:
+    #         g.db.execute("DELETE FROM classes")
+    #         for c in arr:
+    #             g.db.execute(
+    #                 """INSERT INTO classes (id, name, classPoints, classBank, bankLastUpdate, createdAt)
+    #                    VALUES (?, ?, ?, ?, ?, ?)""",
+    #                 (c["id"], c["name"],
+    #                  int(c.get("classPoints") or 0),
+    #                  float(c.get("classBank") or 0),
+    #                  int(c["bankLastUpdate"]) if c.get("bankLastUpdate") else None,
+    #                  c.get("createdAt") or ""),
+    #             )
+    #     return jsonify(ok=True, count=len(arr))
 
     # ── Roles ──────────────────────────────────────────────────────
     @app.route("/api/roles", methods=["GET"])
@@ -2938,66 +2967,76 @@ def register_routes(app):
     # ── Class-points contribution from a student's private points ──
     CLASS_CONTRIBUTION_THRESHOLD = 200
 
+    # DISABLED: class points have no meaning now the camp is a single
+    # group. The endpoint returns 410 so the old student-portal UI (if a
+    # cached copy is still live) fails loudly instead of silently eating
+    # a camper's points.
     @app.route("/api/students/me/contribute-class-points", methods=["POST"])
     @require_student
-    @block_when_frozen
     def contribute_class_points():
-        d = request.get_json(silent=True) or {}
-        try:
-            amount = int(d.get("amount") or 0)
-        except (TypeError, ValueError):
-            amount = 0
-        if amount <= 0:
-            return jsonify(ok=False, error="Enter a positive amount to contribute."), 400
-        sid = g.session["studentId"]
-        with g.db:
-            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
-            if not row:
-                return jsonify(ok=False, error="Student not found."), 404
-            if not row["classId"]:
-                return jsonify(ok=False, error="You're not assigned to a class yet."), 400
-            stats  = {**default_stats(), **json.loads(row["stats"] or "{}")}
-            extras = json.loads(row["extras"] or "{}")
-            cur_pp = stats.get("privatePoints", 0)
-            if cur_pp < amount:
-                return jsonify(ok=False, error=f"You only have {cur_pp} points."), 400
-            stats["privatePoints"] = cur_pp - amount
-            bucket = int(extras.get("classContribution") or 0) + amount
-            class_pts_to_bank = bucket // CLASS_CONTRIBUTION_THRESHOLD
-            extras["classContribution"] = bucket % CLASS_CONTRIBUTION_THRESHOLD
-            g.db.execute(
-                "UPDATE students SET stats = ?, extras = ? WHERE id = ?",
-                (json.dumps(stats), json.dumps(extras), sid),
-            )
-            from_name = _full_name(row)
-            cls_name = (row["className"] or "your class")
-            if class_pts_to_bank > 0:
-                cls_row = g.db.execute(
-                    "SELECT * FROM classes WHERE id = ?", (row["classId"],),
-                ).fetchone()
-                if cls_row:
-                    new_bank = float(cls_row["classBank"] or 0) + class_pts_to_bank
-                    g.db.execute(
-                        "UPDATE classes SET classBank = ?, bankLastUpdate = ? WHERE id = ?",
-                        (new_bank, int(time.time() * 1000), cls_row["id"]),
-                    )
-                    _log_tx(type="class_bank_deposit", scope="class",
-                            subjectId=cls_row["id"], subjectName=cls_row["name"],
-                            relatedId=sid, relatedName=from_name,
-                            amount=class_pts_to_bank,
-                            description=f"🔒 +{class_pts_to_bank} class pt from {from_name} contribution · locked until exams")
-            _log_tx(type="class_contribute", scope="student",
-                    subjectId=sid, subjectName=from_name,
-                    amount=-amount,
-                    description=f"Contributed {amount} pts toward class points · bucket {extras['classContribution']}/{CLASS_CONTRIBUTION_THRESHOLD}"
-                                + (f" · cashed out {class_pts_to_bank} class pt to {cls_name} bank" if class_pts_to_bank else ""))
-        return jsonify(ok=True, data={
-            "contributed": amount,
-            "bucket": extras["classContribution"],
-            "threshold": CLASS_CONTRIBUTION_THRESHOLD,
-            "classPointsBanked": class_pts_to_bank,
-            "newPrivatePoints": stats["privatePoints"],
-        })
+        return jsonify(ok=False, error="Class points are disabled — the camp runs as one group."), 410
+
+    # @app.route("/api/students/me/contribute-class-points", methods=["POST"])
+    # @require_student
+    # @block_when_frozen
+    # def contribute_class_points():
+    #     d = request.get_json(silent=True) or {}
+    #     try:
+    #         amount = int(d.get("amount") or 0)
+    #     except (TypeError, ValueError):
+    #         amount = 0
+    #     if amount <= 0:
+    #         return jsonify(ok=False, error="Enter a positive amount to contribute."), 400
+    #     sid = g.session["studentId"]
+    #     with g.db:
+    #         row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+    #         if not row:
+    #             return jsonify(ok=False, error="Student not found."), 404
+    #         if not row["classId"]:
+    #             return jsonify(ok=False, error="You're not assigned to a class yet."), 400
+    #         stats  = {**default_stats(), **json.loads(row["stats"] or "{}")}
+    #         extras = json.loads(row["extras"] or "{}")
+    #         cur_pp = stats.get("privatePoints", 0)
+    #         if cur_pp < amount:
+    #             return jsonify(ok=False, error=f"You only have {cur_pp} points."), 400
+    #         stats["privatePoints"] = cur_pp - amount
+    #         bucket = int(extras.get("classContribution") or 0) + amount
+    #         class_pts_to_bank = bucket // CLASS_CONTRIBUTION_THRESHOLD
+    #         extras["classContribution"] = bucket % CLASS_CONTRIBUTION_THRESHOLD
+    #         g.db.execute(
+    #             "UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+    #             (json.dumps(stats), json.dumps(extras), sid),
+    #         )
+    #         from_name = _full_name(row)
+    #         cls_name = (row["className"] or "your class")
+    #         if class_pts_to_bank > 0:
+    #             cls_row = g.db.execute(
+    #                 "SELECT * FROM classes WHERE id = ?", (row["classId"],),
+    #             ).fetchone()
+    #             if cls_row:
+    #                 new_bank = float(cls_row["classBank"] or 0) + class_pts_to_bank
+    #                 g.db.execute(
+    #                     "UPDATE classes SET classBank = ?, bankLastUpdate = ? WHERE id = ?",
+    #                     (new_bank, int(time.time() * 1000), cls_row["id"]),
+    #                 )
+    #                 _log_tx(type="class_bank_deposit", scope="class",
+    #                         subjectId=cls_row["id"], subjectName=cls_row["name"],
+    #                         relatedId=sid, relatedName=from_name,
+    #                         amount=class_pts_to_bank,
+    #                         description=f"🔒 +{class_pts_to_bank} class pt from {from_name} contribution · locked until exams")
+    #         _log_tx(type="class_contribute", scope="student",
+    #                 subjectId=sid, subjectName=from_name,
+    #                 amount=-amount,
+    #                 description=f"Contributed {amount} pts toward class points · bucket {extras['classContribution']}/{CLASS_CONTRIBUTION_THRESHOLD}"
+    #                             + (f" · cashed out {class_pts_to_bank} class pt to {cls_name} bank" if class_pts_to_bank else ""))
+    #     return jsonify(ok=True, data={
+    #         "contributed": amount,
+    #         "bucket": extras["classContribution"],
+    #         "threshold": CLASS_CONTRIBUTION_THRESHOLD,
+    #         "classPointsBanked": class_pts_to_bank,
+    #         "newPrivatePoints": stats["privatePoints"],
+    #     })
+
 
     @app.route("/api/admin/registrations", methods=["GET"])
     @require_admin
@@ -3184,7 +3223,8 @@ def register_routes(app):
             "fullName":    _full_name(row),
             "firstName":   s.get("firstName"),
             "lastName":    s.get("lastName"),
-            "className":   s.get("className"),
+            # "className":   s.get("className"),   # classes disabled
+            "className":   "",
             "privatePoints":     int(stats.get("privatePoints") or 0),
             "totalPointsEarned": int(stats.get("totalPointsEarned") or 0),
             "roles":       s.get("roles") or [],

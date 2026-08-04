@@ -523,11 +523,19 @@ function studentHasRole(student, roleId) {
   return !!(student && Array.isArray(student.roles) && student.roles.includes(roleId));
 }
 
+/* Classes are disabled — the camp is one group — so Maze Wizard is a
+   single camp-wide title. The classId argument is ignored and kept only so
+   existing callers don't need changing. */
+function getMazeWizWinnerForClass(_classId) {
+  return getStudents().find(s => studentHasRole(s, MAZEWIZ_ROLE_ID)) || null;
+}
+/* Per-class version, kept for when/if classes come back:
 function getMazeWizWinnerForClass(classId) {
   if (!classId) return null;
   const students = getStudents();
   return students.find(s => s.classId === classId && studentHasRole(s, MAZEWIZ_ROLE_ID)) || null;
 }
+*/
 
 async function claimMazeWiz(studentId) {
   // Server-side validated; current student must be logged in.
@@ -817,6 +825,15 @@ async function applyCursePenalty(studentId, amount) {
 /* ──────────────────────────────────────────────────────────────
    Classes
    ────────────────────────────────────────────────────────────── */
+/* ── Classes: DISABLED ────────────────────────────────────────────────
+   The camp runs as a single group, so /api/classes now answers with an
+   empty list and writes are refused server-side. The helpers below are
+   left in place as inert shims rather than deleted: every one of them
+   reads through getClasses(), which is now always empty, so they return
+   null / [] / "not found" instead of throwing. Removing them outright
+   would break any page that still calls one.
+   To bring classes back: re-enable the two /api/classes routes in
+   server/app.py and un-comment saveClasses + assignStudentToClass below. */
 const CLASS_POINT_TO_INDIVIDUAL = 10;
 const CLASS_BANK_DAILY_RATE = 0.05;
 
@@ -824,10 +841,18 @@ function getClasses() {
   return HG.cache.classes.slice();
 }
 
+/* Classes are disabled. Writes are a no-op rather than an error so any
+   still-open admin tab can't blow up; the server refuses them anyway. */
+async function saveClasses(arr) {
+  console.warn('[HG] Classes are disabled — saveClasses ignored.');
+  HG.cache.classes = [];
+}
+/*
 async function saveClasses(arr) {
   HG.cache.classes = arr;
   await _api('/classes', { method: 'PUT', body: { classes: arr } });
 }
+*/
 
 function newClassId() {
   return 'class-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
@@ -887,6 +912,13 @@ async function deleteClass(id) {
   if (changed) await saveStudents(students);
 }
 
+/* Classes are disabled — assignment is a no-op so nothing writes a
+   className back onto a student. */
+async function assignStudentToClass(_studentId, _classId) {
+  console.warn('[HG] Classes are disabled — assignStudentToClass ignored.');
+  return false;
+}
+/*
 async function assignStudentToClass(studentId, classId) {
   const students = getStudents();
   const s = students.find(x => x.id === studentId);
@@ -900,6 +932,7 @@ async function assignStudentToClass(studentId, classId) {
   await saveStudents(students);
   return true;
 }
+*/
 
 function refreshClassBank(cls) {
   if (!cls) return;
