@@ -294,10 +294,12 @@ class CampAPI:
 
     # — Homework hand-in / marking —
     async def homework_create(self, guild_id: str, discord_id: str, title: str,
-                              notes: str, attachments: List[Dict[str, Any]]) -> Dict[str, Any]:
+                              notes: str, attachments: List[Dict[str, Any]],
+                              origin_channel_id: str = "") -> Dict[str, Any]:
         return await self._post("/api/bot/homework", {
             "guildId": guild_id, "discordId": discord_id, "title": title,
             "notes": notes, "attachments": attachments,
+            "originChannelId": origin_channel_id,
         })
 
     async def homework_set_message(self, hid: str, channel_id: str,
@@ -1555,7 +1557,8 @@ def _submission_embed(data: Dict[str, Any], *, attachment_names: List[str]) -> d
     return e
 
 
-def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool) -> discord.Embed:
+def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool,
+                  fallback_channel: Optional[int] = None) -> discord.Embed:
     """Re-render a submission card once it's been marked. Rebuilt from the
     original so re-marking replaces the result instead of stacking fields."""
     e = discord.Embed(title=base.title, colour=0x22C55E)
@@ -1565,13 +1568,63 @@ def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool) -> d
         e.add_field(name=f.name, value=f.value, inline=f.inline)
     if marked.get("grade"):
         e.add_field(name="Grade", value=str(marked["grade"])[:1024], inline=True)
+    if dm_ok:
+        delivery = "✅ DM delivered"
+    elif fallback_channel:
+        delivery = f"📢 DMs closed — posted in <#{fallback_channel}>"
+    else:
+        delivery = "⚠️ **Not delivered** — pass it on manually"
     e.add_field(name="Marked by",
-                value=f"{marked.get('markedByName') or 'staff'}\n"
-                      + ("✅ DM delivered" if dm_ok else "⚠️ DM **not** delivered"),
+                value=f"{marked.get('markedByName') or 'staff'}\n{delivery}",
                 inline=True)
     e.add_field(name="Feedback", value=str(marked.get("feedback") or "")[:1024], inline=False)
     e.set_footer(text=base.footer.text or "")
     return e
+
+
+async def _post_feedback_fallback(data: Dict[str, Any]) -> Optional[int]:
+    """When a camper's DMs are shut, ping them with their feedback in the
+    channel they ran /submit in. Returns the channel id used, or None.
+
+    Note this makes the grade and feedback visible to everyone who can see
+    that channel — it's the trade for reaching a camper who can't be DMed.
+    """
+    cid = data.get("originChannelId")
+    if not cid:
+        return None
+    try:
+        channel = bot.get_channel(int(cid)) or await bot.fetch_channel(int(cid))
+    except (discord.NotFound, discord.Forbidden, ValueError, TypeError):
+        return None
+    except Exception:  # noqa: BLE001
+        log.exception("couldn't resolve origin channel %s", cid)
+        return None
+    if channel is None or not _can_post(channel, "feedback fallback", embeds=True):
+        return None
+
+    e = discord.Embed(
+        title="📝 Your homework has been marked",
+        description=f"**{data.get('title') or 'Your submission'}**",
+        colour=0x22C55E,
+    )
+    if data.get("grade"):
+        e.add_field(name="Grade", value=str(data["grade"])[:1024], inline=False)
+    e.add_field(name="Feedback", value=str(data.get("feedback") or "")[:1024], inline=False)
+    e.set_footer(text=f"Marked by {data.get('markedByName') or 'HigherGrade staff'} · "
+                      f"posted here because your DMs are closed")
+    try:
+        await channel.send(
+            content=f"<@{data.get('discordId')}> — I couldn't DM you, so here it is:",
+            embed=e,
+            allowed_mentions=discord.AllowedMentions(users=True, everyone=False, roles=False),
+        )
+        rest = str(data.get("feedback") or "")[1024:]
+        for part in _chunk(rest, MSG_LIMIT):
+            await channel.send(part)
+        return int(cid)
+    except (discord.Forbidden, discord.HTTPException):
+        log.info("feedback fallback post failed in channel %s", cid)
+        return None
 
 
 async def _dm_feedback(data: Dict[str, Any]) -> bool:
@@ -1644,8 +1697,13 @@ class MarkModal(discord.ui.Modal, title="Mark this submission"):
         data = res.get("data") or {}
 
         dm_ok = await _dm_feedback(data)
+        fallback_channel: Optional[int] = None
+        if not dm_ok:
+            # DMs shut — reach them where they handed the work in instead.
+            fallback_channel = await _post_feedback_fallback(data)
         try:
-            await api.homework_dm(self.hid, dm_ok)
+            # Delivered either way counts as delivered for the record.
+            await api.homework_dm(self.hid, dm_ok or fallback_channel is not None)
         except Exception:  # noqa: BLE001
             log.exception("could not record DM status for %s", self.hid)
 
@@ -1654,7 +1712,8 @@ class MarkModal(discord.ui.Modal, title="Mark this submission"):
         if self.source and self.source.embeds:
             try:
                 await self.source.edit(
-                    embed=_marked_embed(self.source.embeds[0], data, dm_ok),
+                    embed=_marked_embed(self.source.embeds[0], data, dm_ok,
+                                        fallback_channel=fallback_channel),
                     view=_mark_view(self.hid))
             except (discord.Forbidden, discord.HTTPException):
                 log.info("couldn't update submission message for %s", self.hid)
@@ -1663,11 +1722,16 @@ class MarkModal(discord.ui.Modal, title="Mark this submission"):
         if dm_ok:
             await interaction.followup.send(
                 f"✅ Marked. **{who}** has been DMed your feedback.", ephemeral=True)
+        elif fallback_channel:
+            await interaction.followup.send(
+                f"✅ Marked. **{who}**'s DMs are closed, so I posted the feedback in "
+                f"<#{fallback_channel}> and pinged them there — note that anyone who "
+                f"can see that channel can read it.", ephemeral=True)
         else:
             await interaction.followup.send(
-                f"✅ Marked and saved — but I couldn't DM **{who}** (their DMs are "
-                f"closed or they've left). You'll need to pass the feedback on "
-                f"another way.", ephemeral=True)
+                f"✅ Marked and saved — but I couldn't reach **{who}**: their DMs are "
+                f"closed and I couldn't post in the channel they submitted from. "
+                f"You'll need to pass the feedback on another way.", ephemeral=True)
 
 
 class MarkButton(
@@ -1752,6 +1816,7 @@ async def cmd_submit(
         str(interaction.guild.id), str(interaction.user.id),
         title.strip(), (notes or "").strip(),
         [{"name": a.filename, "size": a.size} for a in attachments],
+        origin_channel_id=str(interaction.channel_id or ""),
     )
     if not res.get("ok"):
         await interaction.followup.send(

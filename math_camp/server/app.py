@@ -3491,12 +3491,13 @@ def register_routes(app):
         g.db.execute(
             """INSERT INTO homework_submissions
                (id, guildId, discordId, studentId, title, notes, attachments,
-                submittedAt, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
+                originChannelId, submittedAt, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
             (hid, guild_id, discord_id, srow["id"],
              (d.get("title") or "").strip()[:200] or None,
              crypto.enc((d.get("notes") or "").strip()[:2000]) or None,
-             json.dumps(atts[:10]), now),
+             json.dumps(atts[:10]),
+             (d.get("originChannelId") or "").strip() or None, now),
         )
         return jsonify(ok=True, data={
             "id": hid, "studentId": srow["id"], "studentName": _full_name(srow),

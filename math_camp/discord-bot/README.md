@@ -319,10 +319,23 @@ themselves. Press **Mark & send feedback 📝**, fill in a grade (optional)
 and feedback (required), and the bot DMs it to the camper immediately.
 
 The card then re-renders green with the grade, the marker's name, the
-feedback, and — importantly — **whether the DM actually arrived**. If the
-camper has DMs closed you'll see ⚠️ *DM not delivered* and can chase it
-another way. You can press the button again to re-mark; the card replaces
-the previous result rather than stacking a second one.
+feedback, and **where the feedback actually went**. You can press the
+button again to re-mark; the card replaces the previous result rather than
+stacking a second one.
+
+**If the camper's DMs are closed**, the bot falls back to pinging them
+with the feedback in the channel they ran `/submit` in. The card shows
+📢 *DMs closed — posted in #channel* so you know it happened.
+
+> ⚠️ The fallback makes that camper's grade and feedback **visible to
+> everyone who can see that channel**. That's the trade for reaching
+> someone who can't be DMed. If you'd rather it stay private, either tell
+> campers to submit in a channel only they and staff can see, or ask for
+> the fallback to be changed to a bare "come see a staff member" ping.
+
+If the bot can't post there either (no permission, or an older submission
+from before the origin channel was recorded), the card shows ⚠️ *Not
+delivered* and you'll need to pass it on yourself.
 
 `/submissions` lists what's outstanding, newest first, with a jump link to
 each card. It defaults to unmarked work; `show:` switches to marked or

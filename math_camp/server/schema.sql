@@ -252,6 +252,9 @@ CREATE TABLE IF NOT EXISTS homework_submissions (
   attachments   TEXT NOT NULL DEFAULT '[]',   -- JSON: [{name, size}]
   channelId     TEXT,
   messageId     TEXT,
+  -- Where the camper ran /submit. Used as the fallback place to reach them
+  -- when their DMs are closed.
+  originChannelId TEXT,
   submittedAt   INTEGER NOT NULL,
   status        TEXT NOT NULL DEFAULT 'pending',   -- pending | marked
   grade         TEXT,

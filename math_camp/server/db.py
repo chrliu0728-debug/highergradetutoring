@@ -194,6 +194,14 @@ def _migrate(conn):
                 conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")
         except sqlite3.OperationalError:
             pass
+    # Homework: where the camper ran /submit, so feedback has somewhere to go
+    # when their DMs are shut. Added after the table shipped.
+    try:
+        if _has_column("homework_submissions", "id") and \
+                not _has_column("homework_submissions", "originChannelId"):
+            conn.execute("ALTER TABLE homework_submissions ADD COLUMN originChannelId TEXT")
+    except sqlite3.OperationalError:
+        pass
     # Staff transcript file uploads — added after launch.
     try:
         if _has_column("staff", "id") and not _has_column("staff", "transcriptFile"):
