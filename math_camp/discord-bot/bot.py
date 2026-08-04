@@ -2089,23 +2089,60 @@ async def _user_can_run(interaction: discord.Interaction, command: str) -> bool:
 # ── Per-role parameter locks ─────────────────────────────────────────
 # A lock pins one parameter of one command to a fixed value for holders of
 # a role: they can still run the command, but that field is decided for
-# them. Only fields listed here can be locked — anything else would be a
-# rule that silently does nothing, which is worse than refusing to set it.
+# them.
 #
-# To make a new field lockable: add it here and read the resolved value in
-# the command via _locks_for().
-LOCKABLE_FIELDS: Dict[str, Dict[str, Dict[str, Any]]] = {
+# Lockable fields are DISCOVERED from the live command tree rather than
+# curated, so every command and every one of its parameters can be locked
+# and a renamed parameter can't leave a stale entry behind.
+#
+# Fields collected in a modal rather than as a slash option are invisible
+# to the tree, so they're declared here and enforced by the command itself.
+EXTRA_LOCKABLE_FIELDS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "chest-create": {
         "points":    {"kind": "int",     "label": "Points awarded on unlock"},
         "maxClaims": {"kind": "int_opt", "label": "Max openers ('unlimited' for no cap)"},
-        "role":      {"kind": "role",    "label": "The role a chest grants"},
-    },
-    "gate": {
-        "access":            {"kind": "choice", "label": "Access level",
-                              "choices": ["members", "staff", "public"]},
-        "apply_to_children": {"kind": "bool",   "label": "Re-sync a category's channels"},
     },
 }
+
+# discord option type -> how we validate and rebuild the value
+_OPTION_KINDS: Dict[Any, str] = {
+    discord.AppCommandOptionType.string:      "str",
+    discord.AppCommandOptionType.integer:     "int",
+    discord.AppCommandOptionType.number:      "float",
+    discord.AppCommandOptionType.boolean:     "bool",
+    discord.AppCommandOptionType.role:        "role",
+    discord.AppCommandOptionType.channel:     "channel",
+    discord.AppCommandOptionType.user:        "user",
+    discord.AppCommandOptionType.mentionable: "user",
+    discord.AppCommandOptionType.attachment:  "attachment",
+}
+
+
+def _lockable_for(command: str) -> Dict[str, Dict[str, Any]]:
+    """Every lockable field of a command: its real slash parameters, read
+    off the command tree, plus any modal-only fields declared above."""
+    fields: Dict[str, Dict[str, Any]] = {}
+    for cmd in bot.tree.walk_commands():
+        if not isinstance(cmd, app_commands.Command) or cmd.qualified_name != command:
+            continue
+        for p in cmd.parameters:
+            kind = _OPTION_KINDS.get(p.type, "str")
+            spec: Dict[str, Any] = {"kind": kind, "label": (p.description or p.name)[:60]}
+            if p.choices:
+                spec["kind"] = "choice"
+                spec["choices"] = [str(c.value) for c in p.choices]
+            fields[p.name] = spec
+        break
+    for name, spec in EXTRA_LOCKABLE_FIELDS.get(command, {}).items():
+        fields.setdefault(name, spec)
+    return fields
+
+
+def _all_lockable_commands() -> List[str]:
+    names = {cmd.qualified_name for cmd in bot.tree.walk_commands()
+             if isinstance(cmd, app_commands.Command)}
+    names.update(EXTRA_LOCKABLE_FIELDS)
+    return sorted(names)
 
 # Last-known locks per guild. Refreshed by the sync loop and written
 # through on every /perms-lock, so a modal can be pre-filled without
@@ -2172,11 +2209,43 @@ def _validate_lock_value(guild: discord.Guild, command: str, field: str,
                          raw: str) -> tuple[bool, str, str]:
     """Check a proposed lock value against the field's kind.
     Returns (ok, stored_value, human_readable)."""
-    spec = LOCKABLE_FIELDS.get(command, {}).get(field)
+    spec = _lockable_for(command).get(field)
     if spec is None:
-        return False, "", f"`{field}` isn't a lockable field on `/{command}`."
+        known = ", ".join(f"`{f}`" for f in _lockable_for(command)) or "(none)"
+        return False, "", (f"`/{command}` has no parameter called `{field}`. "
+                           f"Its parameters: {known}")
     kind = spec["kind"]
     raw = (raw or "").strip()
+
+    if kind == "attachment":
+        return False, "", (f"`{field}` is a file upload — there's no fixed value to "
+                           f"pin it to, so it can't be locked.")
+
+    if kind == "str":
+        return True, raw, raw or "(empty)"
+
+    if kind == "float":
+        try:
+            n = float(raw)
+        except ValueError:
+            return False, "", f"`{field}` needs a number — got `{raw}`."
+        return True, str(n), str(n)
+
+    if kind == "channel":
+        cid = raw.strip("<#>")
+        ch = guild.get_channel(int(cid)) if cid.isdigit() else None
+        if ch is None:
+            ch = discord.utils.get(guild.channels, name=raw.lstrip("#"))
+        if ch is None:
+            return False, "", f"No channel matches `{raw}` — paste its ID or exact name."
+        return True, str(ch.id), f"#{ch.name}"
+
+    if kind == "user":
+        uid = raw.strip("<@!>")
+        if not uid.isdigit():
+            return False, "", f"`{field}` needs a user ID — got `{raw}`."
+        member = guild.get_member(int(uid))
+        return True, uid, (f"@{member.display_name}" if member else uid)
 
     if kind == "int":
         try:
@@ -2225,16 +2294,96 @@ def _validate_lock_value(guild: discord.Guild, command: str, field: str,
     return False, "", f"Don't know how to validate `{field}`."
 
 
+def _coerce_locked_value(guild: discord.Guild, kind: str, stored: str) -> Any:
+    """Rebuild a stored lock value as the runtime object a command expects.
+    Returns _UNSET when it can't be built, so the user's own value stands."""
+    if kind in ("str", "choice"):
+        return stored
+    if kind in ("int", "int_opt"):
+        return int(stored) if str(stored).strip() else None
+    if kind == "float":
+        return float(stored)
+    if kind == "bool":
+        return str(stored).lower() in ("true", "yes", "on", "1")
+    if kind == "role":
+        return guild.get_role(int(stored)) if str(stored).isdigit() else _UNSET
+    if kind == "channel":
+        return guild.get_channel(int(stored)) if str(stored).isdigit() else _UNSET
+    if kind == "user":
+        return guild.get_member(int(stored)) if str(stored).isdigit() else _UNSET
+    return _UNSET
+
+
+_UNSET = object()
+
+
+async def _apply_locks_to_namespace(command: app_commands.Command,
+                                    interaction: discord.Interaction,
+                                    namespace: Any) -> None:
+    """Overwrite locked slash parameters before a command runs.
+
+    This is what makes a lock apply to *any* command rather than only the
+    ones that were taught about locks. It edits the namespace that
+    discord.py is about to unpack into the command's arguments, so the
+    command sees the locked value and can't be written to bypass it.
+
+    Fields collected in a modal aren't in the namespace; those are still
+    enforced by the command itself (see _locks_for)."""
+    guild = interaction.guild
+    if guild is None or _is_server_admin(interaction):
+        return
+    locks = _resolve_locks(_member_of(interaction), command.qualified_name,
+                           _LOCK_CACHE.get(str(guild.id), []))
+    if not locks:
+        return
+    specs = _lockable_for(command.qualified_name)
+    applied: List[str] = []
+    for field, stored in locks.items():
+        spec = specs.get(field)
+        if spec is None or field not in namespace.__dict__:
+            continue           # modal-only field, or a parameter since removed
+        try:
+            value = _coerce_locked_value(guild, spec["kind"], stored)
+        except (ValueError, TypeError):
+            continue
+        if value is _UNSET:
+            continue
+        if namespace.__dict__.get(field) != value:
+            applied.append(field)
+        namespace.__dict__[field] = value
+    if applied:
+        # Left for the command to mention if it wants to; harmless if not.
+        interaction.extras["hg_locked"] = applied
+
+
+_orig_invoke_with_namespace = app_commands.Command._invoke_with_namespace
+
+
+async def _invoke_with_locks(self, interaction, namespace):
+    """Wrapper around discord.py's private invoke path. Locks have to be
+    applied after the namespace is built (interaction_check runs before it
+    exists) and before arguments are unpacked. Any failure here is
+    swallowed — a broken lock must never stop a command from running."""
+    try:
+        await _apply_locks_to_namespace(self, interaction, namespace)
+    except Exception:  # noqa: BLE001
+        log.exception("lock injection failed for /%s", getattr(self, "qualified_name", "?"))
+    return await _orig_invoke_with_namespace(self, interaction, namespace)
+
+
+app_commands.Command._invoke_with_namespace = _invoke_with_locks
+
+
 async def _lock_command_choices(interaction: discord.Interaction,
                                 current: str) -> List[app_commands.Choice[str]]:
     return [app_commands.Choice(name=c, value=c)
-            for c in LOCKABLE_FIELDS if current.lower() in c][:25]
+            for c in _all_lockable_commands() if current.lower() in c][:25]
 
 
 async def _lock_field_choices(interaction: discord.Interaction,
                               current: str) -> List[app_commands.Choice[str]]:
     cmd = getattr(interaction.namespace, "command", None) or ""
-    fields = LOCKABLE_FIELDS.get(cmd, {})
+    fields = _lockable_for(cmd)
     return [app_commands.Choice(name=f"{f} — {spec['label']}"[:100], value=f)
             for f, spec in fields.items() if current.lower() in f][:25]
 
@@ -2245,21 +2394,39 @@ async def _lock_field_choices(interaction: discord.Interaction,
     command="Which command to constrain",
     role="Members of this role get the locked value",
     field="Which parameter to pin",
-    value="The value they're locked to",
+    value="Leave blank to remove the lock and let them choose freely",
 )
 @app_commands.autocomplete(command=_lock_command_choices, field=_lock_field_choices)
 async def cmd_perms_lock(interaction: discord.Interaction, command: str,
-                         role: discord.Role, field: str, value: str) -> None:
+                         role: discord.Role, field: str,
+                         value: Optional[str] = None) -> None:
     if not _is_server_admin(interaction) or not interaction.guild:
         await interaction.response.send_message("🚫 Server Administrators only.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True, thinking=True)
-    command = command.strip()
+    command = command.strip().lstrip("/")
     field = field.strip()
-    if command not in LOCKABLE_FIELDS:
+
+    # Blank value means "don't pin this one" — releasing the field back to
+    # whatever the person running the command chooses.
+    if value is None or not value.strip():
+        res = await api.lock_remove(str(interaction.guild.id), command, str(role.id), field)
+        await _refresh_locks(interaction.guild.id)
+        if (res.get("data") or {}).get("removed"):
+            await interaction.followup.send(
+                f"🔓 Left `{field}` free on `/{command}` — **{role.name}** picks their own.",
+                ephemeral=True)
+        else:
+            await interaction.followup.send(
+                f"Nothing changed — **{role.name}** had no lock on `{field}` for "
+                f"`/{command}`, so it was already theirs to set.", ephemeral=True)
+        return
+
+    known = _lockable_for(command)
+    if not known:
         await interaction.followup.send(
-            f"❌ `/{command}` has no lockable parameters. Lockable commands: "
-            + ", ".join(f"`{c}`" for c in LOCKABLE_FIELDS), ephemeral=True)
+            f"❌ No command called `/{command}`. Available: "
+            + ", ".join(f"`{c}`" for c in _all_lockable_commands())[:1500], ephemeral=True)
         return
     ok, stored, human = _validate_lock_value(interaction.guild, command, field, value)
     if not ok:
@@ -2315,9 +2482,9 @@ async def cmd_perms_locks(interaction: discord.Interaction) -> None:
     locks = await _refresh_locks(interaction.guild.id)
     if not locks:
         await interaction.followup.send(
-            "No parameter locks set. Use `/perms-lock` to pin a parameter for a role.\n"
-            "Lockable: " + " · ".join(
-                f"`/{c}` ({', '.join(f)})" for c, f in LOCKABLE_FIELDS.items()),
+            "No parameter locks set. Use `/perms-lock` to pin a parameter for a role — "
+            "any command, any of its parameters.\n\nCommands you can lock: "
+            + ", ".join(f"`/{c}`" for c in _all_lockable_commands())[:1500],
             ephemeral=True)
         return
     by_cmd: Dict[str, List[str]] = {}
@@ -2402,24 +2569,10 @@ async def cmd_gate(
     await interaction.response.defer(ephemeral=True, thinking=True)
     guild = interaction.guild
 
-    # Parameter locks (no-op for admins, who are the only ones that can
-    # currently reach this command anyway — kept so that stays true if
-    # /gate is ever opened up via /perms-grant).
-    locks = await _locks_for(interaction, "gate")
-    overridden: List[str] = []
-    if "access" in locks and locks["access"] != access.value:
-        for choice in (("members", "Students + Staff (verified only)"),
-                       ("staff", "Staff only"),
-                       ("public", "Public (anyone, including unverified)")):
-            if choice[0] == locks["access"]:
-                access = app_commands.Choice(name=choice[1], value=choice[0])
-                overridden.append(f"access → **{choice[1]}**")
-                break
-    if "apply_to_children" in locks:
-        forced = locks["apply_to_children"] == "true"
-        if forced != apply_to_children:
-            apply_to_children = forced
-            overridden.append(f"re-sync children → **{forced}**")
+    # `access` and `apply_to_children` are real slash parameters, so any
+    # lock on them was already applied to the arguments this function
+    # received. Nothing to enforce here — just say what was changed.
+    overridden = list(interaction.extras.get("hg_locked") or [])
 
     everyone = guild.default_role
     student = await ensure_role(guild, STUDENT_ROLE_NAME,

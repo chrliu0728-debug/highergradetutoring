@@ -270,14 +270,25 @@ exactly 50 points no matter what they type. The field shows up pre-filled
 and relabelled *"(locked by your role)"*, and anything they change is
 discarded on submit.
 
-| Command | Lockable fields |
-| --- | --- |
-| `chest-create` | `points`, `maxClaims` (a number or `unlimited`), `role` (which role the chest grants) |
-| `gate` | `access` (`members`/`staff`/`public`), `apply_to_children` (`true`/`false`) |
+**Any command, any parameter.** The lockable fields are read off the live
+command tree, so every command and every one of its parameters can be
+locked — and a renamed parameter can't leave a stale rule behind. Both
+`command` and `field` autocomplete from what actually exists.
 
 - `/perms-lock command role field value` — set a lock
-- `/perms-unlock command role field` — remove one
+- `/perms-lock command role field` with **`value` left blank** — removes
+  the lock, leaving that parameter free for the role to set
+- `/perms-unlock command role field` — same thing, explicitly
 - `/perms-locks` — show every lock in the server
+
+Because blank means "leave it free", locking max openers to *unlimited*
+takes the literal word `unlimited`.
+
+Values are checked against the parameter's real type when you set the
+lock, so you can't pin an integer parameter to `abc`, a choice parameter
+to a value that isn't offered, or a role parameter to a role that doesn't
+exist. File-upload parameters can't be locked — there's no fixed value to
+pin them to — and `/perms-lock` says so rather than storing a dead rule.
 
 All three are **server owner / Administrator only**, and admins are never
 subject to locks themselves — they're the only ones who can change them,
@@ -286,15 +297,20 @@ so enforcing them there would just be a way to lock yourself out.
 If a member has several roles that lock the same field, the **highest
 role wins**, matching Discord's own hierarchy intuition.
 
-Only the fields in the table above can be locked. `/perms-lock` refuses
-anything else rather than storing a rule that would silently do nothing.
-Making a new field lockable is two lines in `bot.py`: add it to
-`LOCKABLE_FIELDS`, then read the resolved value via `_locks_for()` in the
-command itself.
+**How enforcement works.** Locked slash parameters are rewritten in the
+argument namespace *before* the command function is called, so a command
+sees only the locked value and can't be written to bypass it — no
+per-command code needed. This hooks a private discord.py method
+(`Command._invoke_with_namespace`), because locks have to be applied after
+the argument namespace exists and before arguments are unpacked, and
+`interaction_check` runs too early. It's wrapped in a catch-all: a broken
+lock logs and is skipped, never blocking a command. Worth re-testing after
+a discord.py major upgrade.
 
-Enforcement is always re-checked against the server at submit time, so a
-lock takes effect immediately — the cached copy exists only to pre-fill
-the form, which has to render before there's time for a network call.
+Fields collected in a **modal** rather than as a slash option (the chest
+form's `points` and `maxClaims`) aren't in that namespace, so they're
+declared in `EXTRA_LOCKABLE_FIELDS` and enforced by the command itself,
+which re-fetches the lock at submit time.
 
 ## 5e) Homework hand-in and marking
 
