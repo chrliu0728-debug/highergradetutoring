@@ -192,8 +192,33 @@ two are required:
 | Points awarded | `50` | Paid on a first-time open. `0` disables the reward. |
 | Max openers | *blank* | Blank = unlimited. Any number caps total distinct openers. |
 
-The `role` and optional `image` stay as slash-command options because
-Discord forms can't hold a role picker or a file upload.
+The `role`, optional `image`, and optional `remove_role` stay as
+slash-command options because Discord forms can't hold a role picker or a
+file upload.
+
+**Swapping roles instead of stacking them.** `remove_role` takes a role
+*away* on unlock, so a chest can promote someone rather than piling roles
+on top of each other:
+
+```
+/chest-create role:@Level 2 remove_role:@Level 1
+```
+
+Opening it grants Level 2 and strips Level 1 in one step. It only fires
+on a **first-time** open, and only if the person actually holds the role
+— no wasted API call otherwise. The chest message footer says
+*"Replaces: Level 1"* so it's visible before anyone opens it.
+
+Three things it refuses at creation time: a role above the bot's own top
+role (it couldn't remove it), the same role it's granting, and the
+`Student` role — stripping that would lock the camper out of every
+channel, and the sync loop would put it back within 2 minutes anyway.
+
+⚠️ Removing one of the four **camp-mirrored** roles (Maze Wizard, Money
+Tree, Clicker, Paper Crane) only sticks until the next sync pass, because
+those are re-asserted from the student's profile on the website. The bot
+warns you about this when you create such a chest. Take the role off
+their camp profile too if it should stay off.
 
 **The rules, by default:** anyone who knows the passcode can open a chest,
 there's no limit on how many different people open it, and **each person

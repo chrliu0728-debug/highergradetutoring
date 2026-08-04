@@ -3335,8 +3335,8 @@ def register_routes(app):
             """INSERT INTO discord_chests
                (id, code, description, imageUrl, roleId, roleName, guildId,
                 channelId, messageId, createdBy, createdAt, claimedBy,
-                points, maxClaims)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?)""",
+                points, maxClaims, removeRoleId, removeRoleName)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
@@ -3349,6 +3349,8 @@ def register_routes(app):
                 (d.get("createdBy") or "").strip() or None,
                 int(time.time()),
                 points, max_claims,
+                (d.get("removeRoleId") or "").strip() or None,
+                (d.get("removeRoleName") or "").strip() or None,
             ),
         )
         return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims})
@@ -3675,6 +3677,8 @@ def register_routes(app):
                     "awarded":     0,
                     "claimedCount": len(claimed),
                     "maxClaims":   max_claims,
+                    "removeRoleId":   chest["removeRoleId"],
+                    "removeRoleName": chest["removeRoleName"],
                 })
 
             if max_claims is not None and len(claimed) >= int(max_claims):
@@ -3730,6 +3734,8 @@ def register_routes(app):
             "awardSkipped": award_skipped,
             "claimedCount": len(claimed),
             "maxClaims":   max_claims,
+            "removeRoleId":   chest["removeRoleId"],
+            "removeRoleName": chest["removeRoleName"],
         })
 
     # ── Camp reset (scoped) ────────────────────────────────────────

@@ -185,8 +185,10 @@ def _migrate(conn):
     # Chests later gained a points reward and an optional cap on how many
     # different people may claim them. `points` defaults to 50 for chests
     # that pre-date the reward; `maxClaims` stays NULL = unlimited.
+    # `removeRole*` came later still — the role a chest strips on unlock.
     for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT"),
-                ("points", "INTEGER NOT NULL DEFAULT 50"), ("maxClaims", "INTEGER")):
+                ("points", "INTEGER NOT NULL DEFAULT 50"), ("maxClaims", "INTEGER"),
+                ("removeRoleId", "TEXT"), ("removeRoleName", "TEXT")):
         try:
             if _has_column("discord_chests", "id") and not _has_column("discord_chests", col[0]):
                 conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")

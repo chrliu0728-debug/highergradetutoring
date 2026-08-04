@@ -174,7 +174,11 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   -- 0 disables the reward for this chest.
   points       INTEGER NOT NULL DEFAULT 50,
   -- Cap on total distinct claimers. NULL = unlimited (the default).
-  maxClaims    INTEGER
+  maxClaims    INTEGER,
+  -- Optional role STRIPPED on a first-time unlock, so a chest can promote
+  -- someone out of one role into another instead of stacking both.
+  removeRoleId   TEXT,
+  removeRoleName TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
 

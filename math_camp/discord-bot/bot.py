@@ -217,12 +217,16 @@ class CampAPI:
                            description: str, created_by: str,
                            image_url: Optional[str] = None,
                            points: int = DEFAULT_CHEST_POINTS,
-                           max_claims: Optional[int] = None) -> Dict[str, Any]:
+                           max_claims: Optional[int] = None,
+                           remove_role_id: str = "",
+                           remove_role_name: str = "") -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
             "imageUrl": image_url or "",
             "points": points, "maxClaims": max_claims,
+            "removeRoleId": remove_role_id or "",
+            "removeRoleName": remove_role_name or "",
         })
 
     async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
@@ -1043,6 +1047,22 @@ async def _deliver_chest(interaction: discord.Interaction, payload: Dict[str, An
         except discord.Forbidden:
             pass
 
+    # Optional role swap: strip the old role so they don't accumulate both.
+    # Only on a first-time open — a repeat open is a no-op like everything
+    # else about this chest.
+    removed_name: Optional[str] = None
+    remove_failed = False
+    rm_id = payload.get("removeRoleId")
+    if rm_id and member and guild and not already:
+        rm_role = guild.get_role(int(rm_id))
+        if rm_role and rm_role in member.roles:
+            try:
+                await member.remove_roles(
+                    rm_role, reason="HigherGrade chest unlock — role swap")
+                removed_name = rm_role.name
+            except discord.Forbidden:
+                remove_failed = True
+
     lines = ["🗝 **Chest opened!**" if not already else "🗝 **You've already opened this chest.**"]
     if granted and role:
         lines.append(f"✅ Role granted: **{role.name}**")
@@ -1053,6 +1073,12 @@ async def _deliver_chest(interaction: discord.Interaction, payload: Dict[str, An
     elif role:
         lines.append("⚠️ Couldn't grant the role — ask an admin to put my role above it "
                      "in Server Settings → Roles.")
+
+    if removed_name:
+        lines.append(f"🔄 Removed: **{removed_name}**")
+    elif remove_failed:
+        lines.append(f"⚠️ Couldn't remove **{payload.get('removeRoleName') or 'the old role'}** "
+                     "— ask an admin to put my role above it.")
 
     awarded = int(payload.get("awarded") or 0)
     points = int(payload.get("points") or 0)
@@ -1169,7 +1195,8 @@ def _chunk(text: str, size: int) -> List[str]:
 
 def _chest_embed(description: str, image_url: Optional[str] = None,
                  role_name: Optional[str] = None,
-                 points: int = 0, max_claims: Optional[int] = None) -> discord.Embed:
+                 points: int = 0, max_claims: Optional[int] = None,
+                 remove_role_name: Optional[str] = None) -> discord.Embed:
     """First (or only) embed of a chest message. Long descriptions are
     carried on by _chest_overflow_embeds."""
     body = _chunk(description, EMBED_DESC_LIMIT)
@@ -1183,6 +1210,8 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
     bits = ["Tap the button below and enter the passcode to open."]
     if role_name:
         bits.append(f"Unlocks: {role_name}.")
+    if remove_role_name:
+        bits.append(f"Replaces: {remove_role_name}.")
     if points > 0:
         bits.append(f"Reward: +{points} pts.")
     if max_claims:
@@ -2028,10 +2057,12 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
     )
 
     def __init__(self, role: discord.Role, image_url: Optional[str],
-                 locks: Optional[Dict[str, str]] = None) -> None:
+                 locks: Optional[Dict[str, str]] = None,
+                 remove_role: Optional[discord.Role] = None) -> None:
         super().__init__()
         self.role = role
         self.image_url = image_url
+        self.remove_role = remove_role
         # Pre-fill and relabel any locked field so the creator can see the
         # value is not theirs to set. Enforcement still happens on submit
         # against a fresh fetch — this is presentation only.
@@ -2116,6 +2147,8 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             str(interaction.guild.id), str(self.code.value).strip(),
             str(role.id), role.name, desc, str(interaction.user.id),
             image_url=self.image_url, points=pts, max_claims=cap,
+            remove_role_id=str(self.remove_role.id) if self.remove_role else "",
+            remove_role_name=self.remove_role.name if self.remove_role else "",
         )
         if not res.get("ok"):
             await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
@@ -2126,7 +2159,9 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             return
 
         embeds = [_chest_embed(desc, image_url=self.image_url, role_name=role.name,
-                               points=pts, max_claims=cap)] + _chest_overflow_embeds(desc)
+                               points=pts, max_claims=cap,
+                               remove_role_name=self.remove_role.name if self.remove_role else None,
+                               )] + _chest_overflow_embeds(desc)
 
         # Post the public chest message into the channel the command was run
         # in. The button is persistent, so this message keeps working forever
@@ -2161,6 +2196,16 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             f"• Reward: **{pts} pts**" + (" (no points)" if pts == 0 else "") + "\n"
             f"• Openers: **{cap if cap else 'unlimited'}** — one open per person either way"
         )
+        if self.remove_role:
+            summary += f"\n• Removes: **{self.remove_role.name}** on open"
+            # Camp-mirrored roles get re-asserted from the website, so a
+            # chest stripping one only sticks until the next sync pass.
+            if self.remove_role.name in _camp_discord_role_names():
+                summary += (
+                    f"\n\n⚠️ **{self.remove_role.name}** mirrors a camp role from the "
+                    f"website. The sync loop re-adds it within 2 minutes for anyone who "
+                    f"still holds it there — take it off their camp profile too if it "
+                    f"should stay off.")
         if len(embeds) > 1:
             summary += f"\n• Description spans {len(embeds)} message blocks."
         if overridden:
@@ -2173,11 +2218,13 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
 @app_commands.describe(
     role="The role granted on unlock",
     image="Optional image to embed in the chest message",
+    remove_role="Optional role taken away on unlock, so roles swap instead of stacking",
 )
 async def cmd_chest_create(
     interaction: discord.Interaction,
     role: discord.Role,
     image: Optional[discord.Attachment] = None,
+    remove_role: Optional[discord.Role] = None,
 ) -> None:
     # No defer() here — a modal has to be the FIRST response to the
     # interaction, so only cheap local checks can run before we reply.
@@ -2199,11 +2246,35 @@ async def cmd_chest_create(
             ephemeral=True,
         )
         return
+    if remove_role is not None:
+        if me and remove_role >= me.top_role:
+            await interaction.response.send_message(
+                f"❌ I can't remove **{remove_role.name}** — it's above my top role. "
+                "Move my role above it in Server Settings → Roles.",
+                ephemeral=True,
+            )
+            return
+        if remove_role.name == STUDENT_ROLE_NAME:
+            await interaction.response.send_message(
+                f"❌ **{STUDENT_ROLE_NAME}** is the role that verification grants — "
+                "stripping it would lock the camper out of every channel. "
+                "It also wouldn't stick: the sync loop re-adds it within 2 minutes.",
+                ephemeral=True,
+            )
+            return
+        if remove_role.id == role.id:
+            await interaction.response.send_message(
+                f"❌ The chest would grant and remove **{role.name}** at the same time. "
+                "Pick a different role to remove.",
+                ephemeral=True,
+            )
+            return
     # Cached locks only — there's no time for a fetch before a modal, and
     # these are used purely to pre-fill. on_submit re-checks for real.
     await interaction.response.send_modal(
         ChestCreateModal(role, image.url if image else None,
-                         locks=_locks_cached(interaction, "chest-create")))
+                         locks=_locks_cached(interaction, "chest-create"),
+                         remove_role=remove_role))
 
 
 @bot.tree.command(name="chest-list", description="List every chest in this server.")
@@ -2233,8 +2304,9 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
         blurb = (c.get("description") or "(no description)").replace("\n", " ")
         # <t:unix:R> renders as "2 hours ago" in each viewer's own timezone.
         when = f" · placed <t:{int(c['createdAt'])}:R>" if c.get("createdAt") else ""
+        swap = f" · removes <@&{c['removeRoleId']}>" if c.get("removeRoleId") else ""
         lines.append(
-            f"• code **{c['code']}** → <@&{c['roleId']}> "
+            f"• code **{c['code']}** → <@&{c['roleId']}>{swap} "
             f"· {opens} opens · {pts} pts{when}\n"
             f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
         )
