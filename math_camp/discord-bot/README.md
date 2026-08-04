@@ -118,6 +118,10 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
 | `/submit title:<…> file:<…>` | Verified campers | Hands homework in for marking. |
 | `/submissions [show:<…>]` | Staff | Lists homework waiting to be marked. |
+| `/award student:<@…> points:<n> reason:<…>` | Staff | Gives or takes points, with a reason that lands on the transaction. |
+| `/handraise student:<@…> [times:<n>]` | Staff | Credits hand-raises — 2 pts each, via the Hand Raised base stat. |
+| `/attendance student:<@…> status:<…> [date]` | Staff | Present (+250), Late (−50), or Absent (0). |
+| `/attendance-today [date]` | Staff | Who's been marked today, with a tally. |
 | `/setup-verify` | Administrator | Posts the "Verify me" panel in the current channel. |
 | `/gate target:<#channel> access:<…>` | Administrator | Sets who can see a channel or category. |
 | `/perms-lock command:<…> role:<@role> field:<…> value:<…>` | Administrator | Pins a command's parameter to a fixed value for a role. |
@@ -253,6 +257,42 @@ code, role name, or description text. You never need to handle a chest ID
 Deleting a chest removes the record, not the message. The posted embed
 stays in the channel and its button will report that the code doesn't
 open anything; delete the message yourself if you want it gone.
+
+## 5c-ii) Points, participation, and attendance
+
+All three move points through the **same ledger** as everything else, so
+every change is auditable on the admin Transactions page, and all three
+are staff-gated (Administrator, the **Staff** role, or a role granted the
+matching command via `/perms-grant`).
+
+**Awards** — `/award student points reason`. The reason is required and is
+written onto the transaction; a negative amount deducts. Nobody goes below
+zero: a deduction larger than the balance takes what's there and the
+ledger notes the shortfall. The camper gets a DM with the amount, the
+reason, and their new balance.
+
+**Hand raises** — `/handraise student [times]`. This is not new machinery:
+it bumps the **Hand Raised base stat**, which carries `pointsPerUnit: 2`,
+so each raise is worth 2 points automatically. Change the value on the
+Base Stats admin page and the command follows it. A negative `times`
+takes raises back, which is how you deal with anyone gaming it.
+
+**Attendance** — `/attendance student status [date]`, or the
+**Attendance** page in the admin nav for marking a whole room quickly.
+
+| Status | Points |
+| --- | --- |
+| Present | **+250** |
+| Late | **−50** |
+| Absent | 0 |
+
+One record per camper per day. Re-marking a day **reverses the previous
+mark's points first**, using what was actually applied rather than the
+nominal value — so correcting a mistake never double-charges anyone, and a
+deduction that got clipped by an empty balance is undone by the same
+clipped amount. Marking the same status twice is a no-op. Dates are
+camp-local (America/Toronto), so an evening session doesn't roll onto
+tomorrow.
 
 ## 5d) Locking parameters per role
 

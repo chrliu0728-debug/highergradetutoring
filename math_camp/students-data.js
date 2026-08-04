@@ -378,6 +378,15 @@ const TX_TYPES = {
   class_bank_withdraw: { label: 'Class bank withdraw',  icon: '↩' },
   class_bank_adjust:   { label: 'Class bank adjustment',icon: '🏦' },
   role_assigned:       { label: 'Role assigned',        icon: '🏅' },
+  // Staff awards carry a written reason and cover attendance too, since
+  // attendance moves points through the same path.
+  staff_award:         { label: 'Staff award',          icon: '🎖' },
+  // Base-stat bumps (hand raises etc.) — these were already being logged
+  // but had no entry here, so they never showed in the type filter.
+  stat_award:          { label: 'Stat award',           icon: '📊' },
+  stat_penalty:        { label: 'Stat deduction',       icon: '📉' },
+  bank_withdraw:       { label: 'Bank withdrawal',      icon: '🏦' },
+  class_contribute:    { label: 'Class contribution',   icon: '🤝' },
 };
 
 function getTransactions() {

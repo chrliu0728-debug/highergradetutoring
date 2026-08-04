@@ -1960,6 +1960,255 @@ def register_routes(app):
         return jsonify(ok=True, data={"awarded": amount, "newBalance": balance - amount})
 
     # ── Vulgar Vault — staff penalties + rotating claim code ───────
+    # ── Staff point awards ─────────────────────────────────────────
+    # One core used by both the admin page and the Discord /award command,
+    # so the rules and the ledger entry are identical whichever way staff
+    # reach for it.
+    AWARD_MAX = 100000
+
+    def _award_points(sid, amount, reason, awarded_by):
+        """Give (or take) points with a written reason. Returns
+        (response_dict, status). Negative amounts deduct and floor at zero."""
+        reason = (reason or "").strip()
+        if not reason:
+            return {"ok": False, "error": "Give a brief reason — it goes on the transaction."}, 400
+        if amount == 0:
+            return {"ok": False, "error": "Amount can't be zero."}, 400
+        if abs(amount) > AWARD_MAX:
+            return {"ok": False, "error": f"Amount looks suspiciously large (max {AWARD_MAX})."}, 400
+
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return {"ok": False, "error": "Student not found."}, 404
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            cur = int(stats.get("privatePoints") or 0)
+
+            if amount > 0:
+                applied = amount
+                stats["privatePoints"]     = cur + applied
+                # Lifetime earned only ever goes up.
+                stats["totalPointsEarned"] = int(stats.get("totalPointsEarned") or 0) + applied
+            else:
+                # Never push anyone negative — take what they actually have.
+                applied = -min(cur, abs(amount))
+                stats["privatePoints"] = cur + applied
+
+            g.db.execute("UPDATE students SET stats = ? WHERE id = ?",
+                         (json.dumps(stats), sid))
+            who = _full_name(row)
+            by = (awarded_by or "staff").strip() or "staff"
+            short = reason if len(reason) <= 300 else reason[:297] + "…"
+            # Sign follows what was intended, not what landed — a deduction
+            # clipped to 0 by an empty balance is still a deduction.
+            sign = "+" if amount > 0 else "−"
+            _log_tx(
+                type="staff_award", scope="student", subjectId=sid, subjectName=who,
+                relatedName=by, amount=applied,
+                description=f"{sign}{abs(applied)} pts by {by} · {short}"
+                            + (f" (asked for {abs(amount)}, only {cur} available)"
+                               if applied != amount else ""),
+            )
+        return {"ok": True, "data": {
+            "studentId": sid, "studentName": who,
+            "requested": amount, "applied": applied,
+            "newPrivatePoints": stats["privatePoints"],
+            "totalPointsEarned": stats.get("totalPointsEarned", 0),
+            "reason": reason, "awardedBy": by,
+            "frozen": bool(row["frozen"]),
+        }}, 200
+
+    def _award_amount_from(d):
+        try:
+            return int(d.get("amount") or d.get("points") or 0), None
+        except (TypeError, ValueError):
+            return 0, "Amount must be a whole number."
+
+    @app.route("/api/admin/students/<sid>/award", methods=["POST"])
+    @require_admin
+    def admin_award_points(sid):
+        d = request.get_json(silent=True) or {}
+        amount, err = _award_amount_from(d)
+        if err:
+            return jsonify(ok=False, error=err), 400
+        body, status = _award_points(sid, amount, d.get("reason"),
+                                     (d.get("awardedBy") or "an admin"))
+        return jsonify(**body), status
+
+    @app.route("/api/bot/award", methods=["POST"])
+    @require_bot
+    def bot_award_points():
+        """Discord side. Accepts either a studentId or the camper's
+        discordId, so the bot doesn't need to resolve the link itself."""
+        d = request.get_json(silent=True) or {}
+        sid = (d.get("studentId") or "").strip()
+        if not sid:
+            discord_id = (d.get("discordId") or "").strip()
+            if not discord_id:
+                return jsonify(ok=False, error="studentId or discordId is required."), 400
+            link = g.db.execute("SELECT * FROM discord_links WHERE discordId = ?",
+                                (discord_id,)).fetchone()
+            if not link:
+                return jsonify(ok=False, unverified=True,
+                               error="That camper hasn't verified their camp account yet."), 404
+            sid = link["studentId"]
+        amount, err = _award_amount_from(d)
+        if err:
+            return jsonify(ok=False, error=err), 400
+        body, status = _award_points(sid, amount, d.get("reason"),
+                                     (d.get("awardedBy") or "staff"))
+        return jsonify(**body), status
+
+    # ── Attendance ─────────────────────────────────────────────────
+    # Present pays, late costs, absent is neutral. The point movement goes
+    # through the same ledger as everything else so it's auditable.
+    ATTENDANCE_POINTS = {"present": 250, "late": -50, "absent": 0}
+
+    def _camp_today():
+        """Today's date in camp-local time, so a late-evening mark doesn't
+        land on tomorrow the way a naive UTC date would."""
+        try:
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            return datetime.now(ZoneInfo("America/Toronto")).strftime("%Y-%m-%d")
+        except Exception:  # noqa: BLE001
+            return time.strftime("%Y-%m-%d")
+
+    def _mark_attendance(sid, date, status, marked_by):
+        status = (status or "").strip().lower()
+        if status not in ATTENDANCE_POINTS:
+            return {"ok": False,
+                    "error": "Status must be present, late, or absent."}, 400
+        date = (date or "").strip() or _camp_today()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            return {"ok": False, "error": "Date must look like YYYY-MM-DD."}, 400
+
+        row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        if not row:
+            return {"ok": False, "error": "Student not found."}, 404
+        who = _full_name(row)
+        by = (marked_by or "staff").strip() or "staff"
+
+        prev = g.db.execute(
+            "SELECT * FROM attendance WHERE studentId = ? AND date = ?", (sid, date),
+        ).fetchone()
+        if prev and prev["status"] == status:
+            return {"ok": True, "data": {
+                "studentId": sid, "studentName": who, "date": date, "status": status,
+                "pointsApplied": int(prev["pointsApplied"] or 0), "unchanged": True,
+            }}, 200
+
+        # Re-marking: undo exactly what the previous mark moved, not its
+        # nominal value — a deduction may have been clipped by the balance.
+        reversed_pts = 0
+        if prev and int(prev["pointsApplied"] or 0) != 0:
+            undo = -int(prev["pointsApplied"])
+            body, st = _award_points(
+                sid, undo,
+                f"Attendance correction for {date} (was {prev['status']})", by)
+            if st != 200:
+                return body, st
+            reversed_pts = int((body.get("data") or {}).get("applied") or 0)
+
+        nominal = ATTENDANCE_POINTS[status]
+        applied = 0
+        if nominal != 0:
+            body, st = _award_points(
+                sid, nominal, f"Attendance {date}: {status}", by)
+            if st != 200:
+                return body, st
+            applied = int((body.get("data") or {}).get("applied") or 0)
+
+        now = int(time.time())
+        if prev:
+            g.db.execute(
+                """UPDATE attendance SET status = ?, pointsApplied = ?, markedBy = ?,
+                   markedAt = ? WHERE id = ?""",
+                (status, applied, by, now, prev["id"]))
+            aid = prev["id"]
+        else:
+            aid = "att-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+            g.db.execute(
+                """INSERT INTO attendance
+                   (id, studentId, date, status, pointsApplied, markedBy, markedAt)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (aid, sid, date, status, applied, by, now))
+
+        fresh = g.db.execute("SELECT stats FROM students WHERE id = ?", (sid,)).fetchone()
+        stats = {**default_stats(), **json.loads(fresh["stats"] or "{}")}
+        return {"ok": True, "data": {
+            "id": aid, "studentId": sid, "studentName": who, "date": date,
+            "status": status, "pointsApplied": applied, "reversed": reversed_pts,
+            "previousStatus": prev["status"] if prev else None,
+            "newPrivatePoints": stats.get("privatePoints", 0),
+        }}, 200
+
+    def _attendance_rows(date=None, sid=None):
+        sql = "SELECT * FROM attendance WHERE 1=1"
+        params = []
+        if date:
+            sql += " AND date = ?"
+            params.append(date)
+        if sid:
+            sql += " AND studentId = ?"
+            params.append(sid)
+        sql += " ORDER BY date DESC, markedAt DESC LIMIT 2000"
+        out = []
+        for r in g.db.execute(sql, tuple(params)).fetchall():
+            d = dict(r)
+            # Resolve the name here rather than storing a second copy of it
+            # — the students table already holds it, encrypted at rest.
+            srow = g.db.execute("SELECT * FROM students WHERE id = ?",
+                                (d["studentId"],)).fetchone()
+            d["studentName"] = _full_name(srow) if srow else "(removed student)"
+            out.append(d)
+        return out
+
+    @app.route("/api/admin/attendance", methods=["GET"])
+    @require_admin
+    def admin_attendance_list():
+        return jsonify(ok=True,
+                       date=(request.args.get("date") or "").strip() or _camp_today(),
+                       today=_camp_today(),
+                       points=ATTENDANCE_POINTS,
+                       data=_attendance_rows((request.args.get("date") or "").strip() or None,
+                                             (request.args.get("studentId") or "").strip() or None))
+
+    @app.route("/api/admin/attendance", methods=["POST"])
+    @require_admin
+    def admin_attendance_mark():
+        d = request.get_json(silent=True) or {}
+        body, status = _mark_attendance(
+            (d.get("studentId") or "").strip(), d.get("date"),
+            d.get("status"), d.get("markedBy") or "an admin")
+        return jsonify(**body), status
+
+    @app.route("/api/bot/attendance", methods=["POST"])
+    @require_bot
+    def bot_attendance_mark():
+        d = request.get_json(silent=True) or {}
+        sid = (d.get("studentId") or "").strip()
+        if not sid:
+            discord_id = (d.get("discordId") or "").strip()
+            if not discord_id:
+                return jsonify(ok=False, error="studentId or discordId is required."), 400
+            link = g.db.execute("SELECT * FROM discord_links WHERE discordId = ?",
+                                (discord_id,)).fetchone()
+            if not link:
+                return jsonify(ok=False, unverified=True,
+                               error="That camper hasn't verified their camp account yet."), 404
+            sid = link["studentId"]
+        body, status = _mark_attendance(sid, d.get("date"), d.get("status"),
+                                        d.get("markedBy") or "staff")
+        return jsonify(**body), status
+
+    @app.route("/api/bot/attendance", methods=["GET"])
+    @require_bot
+    def bot_attendance_list():
+        date = (request.args.get("date") or "").strip() or _camp_today()
+        return jsonify(ok=True, date=date, today=_camp_today(),
+                       points=ATTENDANCE_POINTS, data=_attendance_rows(date))
+
     def _apply_penalty(sid, amount, *, kind):
         """Shared core for penalty + curse: deducts points from the
         student, deposits them into the Vulgar Vault, logs both sides.
@@ -2008,14 +2257,38 @@ def register_routes(app):
             },
         }, 200
 
-    @app.route("/api/admin/students/<sid>/base-stat", methods=["POST"])
-    @require_admin
-    def admin_student_base_stat(sid):
-        """Adjust an admin-defined base stat for a student. The stat's
-        `pointsPerUnit` (set on the Base Stats admin page) determines
-        how many private points the student gains or loses per unit.
-        Body: { catId: str, delta: int }."""
+    @app.route("/api/bot/base-stat", methods=["POST"])
+    @require_bot
+    def bot_student_base_stat():
+        """Same stat bump as the admin route, reached from Discord. Takes a
+        studentId or the camper's discordId."""
         d = request.get_json(silent=True) or {}
+        sid = (d.get("studentId") or "").strip()
+        if not sid:
+            discord_id = (d.get("discordId") or "").strip()
+            if not discord_id:
+                return jsonify(ok=False, error="studentId or discordId is required."), 400
+            link = g.db.execute("SELECT * FROM discord_links WHERE discordId = ?",
+                                (discord_id,)).fetchone()
+            if not link:
+                return jsonify(ok=False, unverified=True,
+                               error="That camper hasn't verified their camp account yet."), 404
+            sid = link["studentId"]
+        return _bump_base_stat(sid, d)
+
+    @app.route("/api/bot/base-stats", methods=["GET"])
+    @require_bot
+    def bot_base_stats():
+        rows = g.db.execute(
+            "SELECT * FROM base_stat_categories ORDER BY position ASC").fetchall()
+        return jsonify(ok=True, data=[row_to_basestat(r) for r in rows])
+
+    def _bump_base_stat(sid, d):
+        """Adjust an admin-defined base stat for a student. The stat's
+        `pointsPerUnit` (set on the Base Stats admin page) determines how
+        many private points the student gains or loses per unit. Shared by
+        the admin route and the Discord one.
+        Body: { catId: str, delta: int }. Returns (body, status)."""
         cat_id = (d.get("catId") or "").strip()
         try:
             delta = int(d.get("delta") or 0)
@@ -2064,8 +2337,16 @@ def register_routes(app):
             "appliedDelta": applied_delta,
             "newCount": new_count,
             "pointDelta": point_delta,
+            "statName": label,
+            "studentName": who,
+            "newPrivatePoints": stats["privatePoints"],
             "student": row_to_student(updated),
-        })
+        }), 200
+
+    @app.route("/api/admin/students/<sid>/base-stat", methods=["POST"])
+    @require_admin
+    def admin_student_base_stat(sid):
+        return _bump_base_stat(sid, request.get_json(silent=True) or {})
 
     @app.route("/api/admin/students/<sid>/penalty", methods=["POST"])
     @require_admin

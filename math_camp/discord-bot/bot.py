@@ -292,6 +292,35 @@ class CampAPI:
             "guildId": guild_id, "command": command, "roleId": role_id,
         })
 
+    # — Staff point awards —
+    async def award(self, discord_id: str, amount: int, reason: str,
+                    awarded_by: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/award", {
+            "discordId": discord_id, "amount": amount,
+            "reason": reason, "awardedBy": awarded_by,
+        })
+
+    # — Base stats (hand raises etc.) —
+    async def base_stat_bump(self, discord_id: str, cat_id: str,
+                             delta: int) -> Dict[str, Any]:
+        return await self._post("/api/bot/base-stat", {
+            "discordId": discord_id, "catId": cat_id, "delta": delta,
+        })
+
+    async def base_stats(self) -> Dict[str, Any]:
+        return await self._get("/api/bot/base-stats")
+
+    # — Attendance —
+    async def attendance_mark(self, discord_id: str, status: str, date: str,
+                              marked_by: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/attendance", {
+            "discordId": discord_id, "status": status, "date": date,
+            "markedBy": marked_by,
+        })
+
+    async def attendance_list(self, date: str = "") -> Dict[str, Any]:
+        return await self._get("/api/bot/attendance", {"date": date} if date else None)
+
     # — Homework hand-in / marking —
     async def homework_create(self, guild_id: str, discord_id: str, title: str,
                               notes: str, attachments: List[Dict[str, Any]],
@@ -1510,6 +1539,219 @@ async def cmd_onboard(interaction: discord.Interaction) -> None:
     await interaction.response.send_modal(OnboardingModal())
 
 
+# ── Staff point awards ───────────────────────────────────────────────
+@bot.tree.command(name="award", description="Give (or take) points from a camper, with a reason.")
+@app_commands.describe(
+    student="The camper — they must have verified their camp account",
+    points="How many points. Use a negative number to take points away.",
+    reason="Brief note on why. This shows on the transaction record.",
+)
+async def cmd_award(interaction: discord.Interaction, student: discord.Member,
+                    points: int, reason: str) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not interaction.guild:
+        await interaction.followup.send("Run this in the server.", ephemeral=True)
+        return
+    if not await _can_award(interaction):
+        await interaction.followup.send(
+            "🚫 Only staff can award points. Ask an admin for the **Staff** role, "
+            "or to grant your role `award-points` with `/perms-grant`.",
+            ephemeral=True)
+        return
+    if not reason.strip():
+        await interaction.followup.send(
+            "❌ Give a brief reason — it goes on the camper's transaction record.",
+            ephemeral=True)
+        return
+
+    giver = _member_of(interaction)
+    res = await api.award(str(student.id), points, reason.strip(),
+                          giver.display_name if giver else str(interaction.user))
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Could not award points.'}",
+                                        ephemeral=True)
+        return
+    data = res.get("data") or {}
+    applied = int(data.get("applied") or 0)
+    verb = "Gave" if applied >= 0 else "Took"
+    prep = "to" if applied >= 0 else "from"
+
+    # Tell the camper themselves — a point change with no explanation is
+    # the thing people complain about.
+    dm_note = ""
+    try:
+        e = discord.Embed(
+            title=("🎉 You earned points!" if applied >= 0 else "📉 Points removed"),
+            description=f"**{'+' if applied >= 0 else '−'}{abs(applied)} points**",
+            colour=0x22C55E if applied >= 0 else 0xEF4444,
+        )
+        e.add_field(name="Why", value=reason.strip()[:1024], inline=False)
+        e.add_field(name="Balance", value=f"{data.get('newPrivatePoints', 0)} pts", inline=True)
+        e.set_footer(text=f"From {data.get('awardedBy') or 'HigherGrade staff'}")
+        await student.send(embed=e)
+    except (discord.Forbidden, discord.HTTPException):
+        dm_note = "\n⚠️ Couldn't DM them (their DMs are closed) — tell them in person."
+
+    msg = (f"✅ {verb} **{abs(applied)} pts** {prep} **{data.get('studentName') or student.display_name}**."
+           f"\n• Reason: {reason.strip()}"
+           f"\n• New balance: **{data.get('newPrivatePoints', 0)} pts**")
+    if applied != int(data.get("requested") or 0):
+        msg += (f"\n• They only had {abs(applied)} pts to take, so that's all that came off "
+                f"— nobody goes negative.")
+    if data.get("frozen"):
+        msg += "\n• ℹ️ Their camp account is still pending payment confirmation."
+    msg += dm_note
+    await interaction.followup.send(msg, ephemeral=True)
+
+
+# ── Class participation (base stats) ─────────────────────────────────
+HAND_RAISED_STAT_ID = os.environ.get("HAND_RAISED_STAT_ID") or "hand_raised"
+
+
+@bot.tree.command(name="handraise",
+                  description="Credit a camper for raising their hand (2 pts each).")
+@app_commands.describe(
+    student="The camper — they must have verified their camp account",
+    times="How many hand-raises to credit. Negative takes them back.",
+)
+async def cmd_handraise(interaction: discord.Interaction, student: discord.Member,
+                        times: int = 1) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not interaction.guild:
+        await interaction.followup.send("Run this in the server.", ephemeral=True)
+        return
+    if not await _can_award(interaction):
+        await interaction.followup.send(
+            "🚫 Only staff can credit participation. Ask an admin for the **Staff** "
+            "role, or to grant your role `award-points` with `/perms-grant`.",
+            ephemeral=True)
+        return
+    if times == 0:
+        await interaction.followup.send("❌ That would do nothing — use a non-zero number.",
+                                        ephemeral=True)
+        return
+
+    res = await api.base_stat_bump(str(student.id), HAND_RAISED_STAT_ID, times)
+    if not res.get("ok"):
+        err = res.get("error") or "Could not credit that."
+        if "not found" in err.lower():
+            err += (f"\n(The `{HAND_RAISED_STAT_ID}` stat is missing — recreate it on the "
+                    f"**Base Stats** admin page, or set `HAND_RAISED_STAT_ID`.)")
+        await interaction.followup.send(f"❌ {err}", ephemeral=True)
+        return
+    d = res.get("data") or {}
+    pd = int(d.get("pointDelta") or 0)
+    name = d.get("studentName") or student.display_name
+    await interaction.followup.send(
+        f"✋ **{name}** — {d.get('statName') or 'Hand Raised'} "
+        f"{int(d.get('appliedDelta') or 0):+d} (now {d.get('newCount')}).\n"
+        f"• {'+' if pd >= 0 else '−'}{abs(pd)} pts · balance **{d.get('newPrivatePoints', 0)} pts**",
+        ephemeral=True,
+    )
+
+
+# ── Attendance ───────────────────────────────────────────────────────
+@bot.tree.command(name="attendance", description="Mark a camper present, late, or absent.")
+@app_commands.describe(
+    student="The camper — they must have verified their camp account",
+    status="Present (+250 pts), Late (−50 pts), or Absent (no change)",
+    date="Defaults to today. Format YYYY-MM-DD.",
+)
+@app_commands.choices(status=[
+    app_commands.Choice(name="Present  (+250 pts)", value="present"),
+    app_commands.Choice(name="Late  (−50 pts)",     value="late"),
+    app_commands.Choice(name="Absent  (no points)", value="absent"),
+])
+async def cmd_attendance(interaction: discord.Interaction, student: discord.Member,
+                         status: app_commands.Choice[str],
+                         date: Optional[str] = None) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not interaction.guild:
+        await interaction.followup.send("Run this in the server.", ephemeral=True)
+        return
+    if not await _can_attend(interaction):
+        await interaction.followup.send(
+            "🚫 Only staff can take attendance. Ask an admin for the **Staff** role, "
+            "or to grant your role `attendance` with `/perms-grant`.", ephemeral=True)
+        return
+
+    marker = _member_of(interaction)
+    res = await api.attendance_mark(
+        str(student.id), status.value, (date or "").strip(),
+        marker.display_name if marker else str(interaction.user))
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Could not mark attendance.'}",
+                                        ephemeral=True)
+        return
+    d = res.get("data") or {}
+    name = d.get("studentName") or student.display_name
+
+    if d.get("unchanged"):
+        await interaction.followup.send(
+            f"➖ **{name}** was already marked **{status.value}** for {d.get('date')} — "
+            f"nothing changed, no points moved.", ephemeral=True)
+        return
+
+    applied = int(d.get("pointsApplied") or 0)
+    bits = [f"✅ **{name}** marked **{status.value}** for {d.get('date')}."]
+    if d.get("previousStatus"):
+        bits.append(f"• Changed from **{d['previousStatus']}** — "
+                    f"the earlier {abs(int(d.get('reversed') or 0))} pts were reversed first.")
+    if applied:
+        bits.append(f"• {'+' if applied > 0 else '−'}{abs(applied)} pts")
+    else:
+        bits.append("• No points moved" +
+                    (" (they had none left to deduct)" if status.value == "late" else ""))
+    bits.append(f"• Balance: **{d.get('newPrivatePoints', 0)} pts**")
+
+    # Let the camper know, same as with awards.
+    try:
+        colour = {"present": 0x22C55E, "late": 0xF59E0B, "absent": 0x94A3B8}[status.value]
+        e = discord.Embed(title=f"📋 Attendance — {d.get('date')}",
+                          description=f"You were marked **{status.value}**.", colour=colour)
+        if applied:
+            e.add_field(name="Points", value=f"{'+' if applied > 0 else '−'}{abs(applied)}",
+                        inline=True)
+        e.add_field(name="Balance", value=f"{d.get('newPrivatePoints', 0)} pts", inline=True)
+        await student.send(embed=e)
+    except (discord.Forbidden, discord.HTTPException):
+        bits.append("⚠️ Couldn't DM them — their DMs are closed.")
+
+    await interaction.followup.send("\n".join(bits), ephemeral=True)
+
+
+@bot.tree.command(name="attendance-today", description="Show who's been marked today.")
+@app_commands.describe(date="Defaults to today. Format YYYY-MM-DD.")
+async def cmd_attendance_today(interaction: discord.Interaction,
+                               date: Optional[str] = None) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not await _can_attend(interaction):
+        await interaction.followup.send("🚫 Staff only.", ephemeral=True)
+        return
+    res = await api.attendance_list((date or "").strip())
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    rows = res.get("data") or []
+    day = res.get("date")
+    if not rows:
+        await interaction.followup.send(
+            f"Nobody marked for **{day}** yet.", ephemeral=True)
+        return
+    icon = {"present": "✅", "late": "🟡", "absent": "⬜"}
+    tally = {"present": 0, "late": 0, "absent": 0}
+    lines = []
+    for r in rows:
+        tally[r["status"]] = tally.get(r["status"], 0) + 1
+        pts = int(r.get("pointsApplied") or 0)
+        lines.append(f"{icon.get(r['status'], '•')} **{r.get('studentName') or '?'}** "
+                     f"— {r['status']}"
+                     + (f" ({'+' if pts > 0 else '−'}{abs(pts)} pts)" if pts else ""))
+    head = (f"**Attendance for {day}** — ✅ {tally['present']} present · "
+            f"🟡 {tally['late']} late · ⬜ {tally['absent']} absent")
+    await interaction.followup.send((head + "\n" + "\n".join(lines))[:1900], ephemeral=True)
+
+
 # ── Homework hand-in & marking ───────────────────────────────────────
 def _marking_channel(guild: discord.Guild) -> Optional[discord.abc.Messageable]:
     """Where handed-in work goes: MARKING_CHANNEL_ID, else a channel named
@@ -1523,15 +1765,27 @@ def _marking_channel(guild: discord.Guild) -> Optional[discord.abc.Messageable]:
             or discord.utils.get(guild.text_channels, name="marking"))
 
 
-async def _can_mark(interaction: discord.Interaction) -> bool:
-    """Who may mark work: server admins, anyone holding Staff, or a role
-    granted `mark-homework` via /perms-grant."""
+async def _can_staff(interaction: discord.Interaction, command: str) -> bool:
+    """Staff-tier gate: server admins, anyone holding Staff, or a role
+    granted this specific command via /perms-grant."""
     if _is_server_admin(interaction):
         return True
     member = _member_of(interaction)
     if member and any(r.name == STAFF_ROLE_NAME for r in member.roles):
         return True
-    return await _user_can_run(interaction, "mark-homework")
+    return await _user_can_run(interaction, command)
+
+
+async def _can_mark(interaction: discord.Interaction) -> bool:
+    return await _can_staff(interaction, "mark-homework")
+
+
+async def _can_award(interaction: discord.Interaction) -> bool:
+    return await _can_staff(interaction, "award-points")
+
+
+async def _can_attend(interaction: discord.Interaction) -> bool:
+    return await _can_staff(interaction, "attendance")
 
 
 def _submission_embed(data: Dict[str, Any], *, attachment_names: List[str]) -> discord.Embed:
@@ -1961,6 +2215,10 @@ async def cmd_help(interaction: discord.Interaction) -> None:
     ]
     staff_tools = [
         ("submissions", "List homework waiting to be marked."),
+        ("award", "Give or take points from a camper, with a reason."),
+        ("handraise", "Credit a camper for raising their hand (2 pts each)."),
+        ("attendance", "Mark a camper present, late, or absent."),
+        ("attendance-today", "Show who's been marked today."),
     ]
     chest_tools = [
         ("chest-create", "Place a locked chest in this channel."),
@@ -2049,7 +2307,7 @@ async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
 # /perms-grant. Anything not in this list is implicitly admin/owner-only
 # (or open, depending on the command).
 RESTRICTABLE_COMMANDS: List[str] = ["chest-create", "chest-list", "chest-delete",
-                                    "mark-homework"]
+                                    "mark-homework", "award-points", "attendance"]
 
 
 def _is_server_admin(interaction: discord.Interaction) -> bool:

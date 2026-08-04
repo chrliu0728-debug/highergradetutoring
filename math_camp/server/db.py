@@ -299,6 +299,15 @@ DEFAULT_ROLES = [
 # many points a student earns (or loses) when the count changes by 1.
 DEFAULT_BASE_STATS = []
 
+# Built-in stats that roll out to already-seeded databases too (same
+# treatment as DEFAULT_ROLES). Hand-raising is the classroom one: every
+# +1 is worth 2 points via pointsPerUnit, and staff can undo abuse by
+# bumping it back down or awarding negative points.
+BUILTIN_BASE_STATS = [
+    {"id": "hand_raised", "name": "Hand Raised", "icon": "✋",
+     "pointsPerUnit": 2, "position": 0},
+]
+
 DEFAULT_STAFF = [
     {"id": "alex-chen", "category": "organizers",
      "name": "Alex Chen", "role": "Lead Organizer",
@@ -399,6 +408,13 @@ def _seed(conn):
             "INSERT INTO base_stat_categories (id, name, icon, pointsPerUnit, position) VALUES (:id, :name, :icon, :pointsPerUnit, :position)",
             DEFAULT_BASE_STATS,
         )
+    # Built-ins are upserted every boot so they appear on databases that
+    # were seeded before the stat existed. Note the same caveat as roles:
+    # deleting one of these on the admin page brings it back on restart.
+    conn.executemany(
+        "INSERT OR IGNORE INTO base_stat_categories (id, name, icon, pointsPerUnit, position) VALUES (:id, :name, :icon, :pointsPerUnit, :position)",
+        BUILTIN_BASE_STATS,
+    )
 
     cur = conn.execute("SELECT COUNT(*) AS n FROM staff")
     if cur.fetchone()["n"] == 0:

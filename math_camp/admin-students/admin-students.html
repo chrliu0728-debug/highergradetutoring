@@ -403,6 +403,35 @@
     }
     .class-row select:focus { border-color: var(--blush); }
 
+    /* Award points: amount + reason + go, on one line. */
+    .award-row {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      padding: 10px 12px; margin-bottom: 12px;
+      background: rgba(107,191,160,.08);
+      border: 1px solid rgba(107,191,160,.45); border-radius: 10px;
+    }
+    .award-row label {
+      font-size: .78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted); white-space: nowrap;
+    }
+    .award-row input[type="number"] { width: 130px; }
+    .award-row input[type="text"] { flex: 1; min-width: 180px; }
+    .award-row input {
+      padding: 7px 10px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: .88rem; font-family: inherit;
+    }
+    .award-row input:focus { border-color: #6BBFA0; outline: none; }
+    .award-btn {
+      padding: 7px 14px; border: none; border-radius: 8px; cursor: pointer;
+      background: #6BBFA0; color: #fff; font-weight: 700; font-size: .85rem;
+      white-space: nowrap;
+    }
+    .award-btn:hover { filter: brightness(1.05); }
+    .award-btn:disabled { opacity: .55; cursor: default; }
+    @media (max-width: 560px) {
+      .award-row input[type="number"] { width: 100%; }
+    }
+
     .roles-row {
       display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
       margin-top: 12px;
@@ -573,6 +602,7 @@
   <nav class="admin-nav">
     <a href="/admin/admin.html">Staff</a>
     <a href="/admin-students/admin-students.html" class="active">Students</a>
+    <a href="/admin-attendance/admin-attendance.html">Attendance</a>
     <!-- Classes disabled — camp runs as one group. <a href="/admin-classes/admin-classes.html">Classes</a> -->
     <a href="/admin-base-stats/admin-base-stats.html">Base Stats</a>
     <a href="/admin-transactions/admin-transactions.html">Transactions</a>
@@ -805,6 +835,14 @@ function render() {
       </div>
       -->
 
+      <div class="award-row">
+        <label>Award points</label>
+        <input type="number" data-award-amt placeholder="e.g. 50 — negative to deduct" />
+        <input type="text" data-award-reason maxlength="300"
+               placeholder="Reason — this shows on the transaction" />
+        <button class="award-btn" data-award-btn>Give →</button>
+      </div>
+
       <div class="stat-grid">
         <div class="stat-cell highlight">
           <div class="stat-head">
@@ -913,6 +951,39 @@ function render() {
     //   showToast(e.target.value ? 'Class assigned' : 'Removed from class');
     //   render();
     // });
+
+    // Award points with a written reason. Unlike the raw stat inputs
+    // below, this goes through /award so it lands in the transaction log
+    // with the why attached.
+    const awardBtn = card.querySelector('[data-award-btn]');
+    if (awardBtn) {
+      const amtEl    = card.querySelector('[data-award-amt]');
+      const reasonEl = card.querySelector('[data-award-reason]');
+      const submitAward = async () => {
+        const amount = parseInt(amtEl.value, 10);
+        const reason = (reasonEl.value || '').trim();
+        if (!amount) { showToast('Enter an amount'); amtEl.focus(); return; }
+        if (!reason) { showToast('Give a brief reason'); reasonEl.focus(); return; }
+        awardBtn.disabled = true;
+        try {
+          const r = await _api(`/admin/students/${encodeURIComponent(id)}/award`, {
+            method: 'POST', body: { amount, reason, awardedBy: 'an admin' },
+          });
+          const d = (r && r.data) || {};
+          const applied = Number(d.applied || 0);
+          showToast(`${applied >= 0 ? '+' : '−'}${Math.abs(applied)} pts · ${d.studentName || ''}`.trim());
+          amtEl.value = ''; reasonEl.value = '';
+          await _refresh('students', '/students');
+          render();
+        } catch (err) {
+          showToast(err.message || 'Award failed');
+        } finally {
+          awardBtn.disabled = false;
+        }
+      };
+      awardBtn.addEventListener('click', submitAward);
+      reasonEl.addEventListener('keydown', e => { if (e.key === 'Enter') submitAward(); });
+    }
 
     card.querySelectorAll('[data-stat]').forEach(input => {
       input.addEventListener('change', () => {

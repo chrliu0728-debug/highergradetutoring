@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="/logo.webp" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--navy), var(--navy-mid)); padding: 20px; }
+    .gate-box { background: var(--surface); border-radius: 18px; padding: 44px 36px; max-width: 400px; width: 100%; box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center; }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input { width: 100%; padding: 12px 14px; font-size: 1rem; border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface2); outline: none; margin-bottom: 14px; }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1200px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 8px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px; font-size: .9rem; font-weight: 600;
+      color: var(--text-mid); text-decoration: none; border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center;
+      padding: 22px 26px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon { font-size: 2.4rem; }
+    .admin-welcome h1 { font-size: 1.35rem; margin: 0 0 4px; }
+    .admin-welcome p { margin: 0; font-size: .9rem; color: var(--muted); line-height: 1.5; }
+
+    .att-toolbar {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 12px 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+    }
+    .att-toolbar input[type="date"], .att-toolbar input[type="search"] {
+      padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+      font-size: .92rem; font-family: inherit;
+    }
+    .att-toolbar input:focus { border-color: var(--blush); outline: none; }
+    .att-toolbar .spacer { flex: 1; }
+    .tally { display: flex; gap: 12px; flex-wrap: wrap; font-size: .86rem; font-weight: 700; }
+    .tally span { padding: 5px 11px; border-radius: 999px; background: var(--surface2); }
+    .tally .p { color: #16794f; background: rgba(107,191,160,.18); }
+    .tally .l { color: #9a6206; background: rgba(245,158,11,.16); }
+    .tally .a { color: #64748b; }
+    .tally .u { color: var(--muted); }
+
+    .att-table { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-sm); }
+    .att-row {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center;
+      padding: 13px 18px; border-bottom: 1px solid var(--border);
+    }
+    .att-row:last-child { border-bottom: none; }
+    .att-row:nth-child(even) { background: rgba(0,0,0,.015); }
+    .att-name { font-weight: 700; font-size: .96rem; }
+    .att-sub { font-size: .76rem; color: var(--muted); margin-top: 2px; }
+    .att-btns { display: flex; gap: 6px; }
+    .att-btn {
+      padding: 7px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;
+      font-size: .82rem; border: 1.5px solid var(--border); background: var(--surface);
+      color: var(--text-mid); white-space: nowrap;
+    }
+    .att-btn:hover { border-color: var(--text-mid); }
+    .att-btn:disabled { opacity: .5; cursor: default; }
+    .att-btn.on-present { background: #6BBFA0; border-color: #6BBFA0; color: #fff; }
+    .att-btn.on-late    { background: #F59E0B; border-color: #F59E0B; color: #fff; }
+    .att-btn.on-absent  { background: #94A3B8; border-color: #94A3B8; color: #fff; }
+    .att-pts { font-variant-numeric: tabular-nums; font-weight: 800; font-size: .92rem; text-align: right; min-width: 74px; }
+    .att-pts.pos { color: var(--mint-dark); }
+    .att-pts.neg { color: #c0392b; }
+    .att-pts.zero { color: var(--muted); font-weight: 600; }
+
+    .empty-state { padding: 46px 20px; text-align: center; }
+    .empty-state h2 { font-size: 1.1rem; margin-bottom: 6px; }
+    .empty-state p { color: var(--muted); font-size: .9rem; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+      background: var(--navy); color: #fff; padding: 11px 20px; border-radius: 10px;
+      font-size: .9rem; font-weight: 600; opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 1000;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+
+    @media (max-width: 640px) {
+      .att-row { grid-template-columns: 1fr; gap: 8px; }
+      .att-pts { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to take attendance.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="/index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="/admin/admin.html">Staff</a>
+    <a href="/admin-students/admin-students.html">Students</a>
+    <a href="/admin-attendance/admin-attendance.html" class="active">Attendance</a>
+    <a href="/admin-base-stats/admin-base-stats.html">Base Stats</a>
+    <a href="/admin-transactions/admin-transactions.html">Transactions</a>
+    <a href="/admin-hints/admin-hints.html">Game</a>
+    <a href="/admin-trail/admin-trail.html">Trail</a>
+    <a href="/admin-sponsors/admin-sponsors.html">Sponsors</a>
+    <a href="/admin-registrations/admin-registrations.html">Registrations</a>
+    <a href="/admin-messages/admin-messages.html">Messages</a>
+    <a href="/leaderboard/leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <span class="spacer"></span>
+    <a href="/index.html" data-admin-logout>Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">📋</div>
+    <div>
+      <h1>Attendance</h1>
+      <p><strong>Present</strong> awards <strong>+250 pts</strong>, <strong>Late</strong> deducts <strong>50 pts</strong>, <strong>Absent</strong> moves nothing. Every mark is logged to the transactions ledger. Changing a mark reverses the previous one first, so correcting a mistake never double-charges anyone.</p>
+    </div>
+  </div>
+
+  <div class="att-toolbar">
+    <label for="att-date" style="font-size:.82rem;font-weight:700;color:var(--muted);">Date</label>
+    <input type="date" id="att-date" />
+    <input type="search" id="att-search" placeholder="Filter by name…" />
+    <span class="spacer"></span>
+    <div class="tally" id="att-tally"></div>
+  </div>
+
+  <div id="att-container"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/icons.js"></script>
+<script src="/students-data.js"></script>
+<script>
+const gate      = document.getElementById('gate');
+const shell     = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+const dateEl    = document.getElementById('att-date');
+const searchEl  = document.getElementById('att-search');
+const tallyEl   = document.getElementById('att-tally');
+const container = document.getElementById('att-container');
+const toast     = document.getElementById('toast');
+
+// studentId -> attendance row, for the currently selected date.
+let marks = {};
+let busy = false;
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      if (window.HG && typeof window.HG.refresh === 'function') {
+        try { await window.HG.refresh(); } catch (_) {}
+      }
+      await load();
+      return;
+    }
+  } catch (_) {}
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+}
+(async function () {
+  try {
+    if (window.dataReady) await window.dataReady;
+    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (j && j.kind === 'admin') {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      await load();
+    } else {
+      sessionStorage.removeItem('hg_admin_unlocked');
+      gate.style.display = '';
+      shell.classList.remove('unlocked');
+    }
+  } catch (_) {}
+})();
+
+/* Load the marks for the selected date. The server decides what "today"
+   is, in camp-local time, so an evening session doesn't roll over early. */
+async function load() {
+  const wanted = (dateEl.value || '').trim();
+  try {
+    const r = await _api('/admin/attendance' + (wanted ? `?date=${encodeURIComponent(wanted)}` : ''));
+    if (!dateEl.value) dateEl.value = r.date;
+    marks = {};
+    (r.data || []).forEach(row => { marks[row.studentId] = row; });
+  } catch (e) {
+    showToast(e.message || 'Could not load attendance');
+    marks = {};
+  }
+  render();
+}
+
+async function mark(studentId, status) {
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await _api('/admin/attendance', {
+      method: 'POST',
+      body: { studentId, status, date: dateEl.value || undefined, markedBy: 'an admin' },
+    });
+    const d = (r && r.data) || {};
+    if (d.unchanged) {
+      showToast('Already marked ' + status);
+    } else {
+      const pts = Number(d.pointsApplied || 0);
+      showToast(`${d.studentName || 'Marked'} · ${status}` +
+                (pts ? ` (${pts > 0 ? '+' : '−'}${Math.abs(pts)} pts)` : ''));
+    }
+    // Pull fresh student point totals so the leaderboard/portal stay honest.
+    await _refresh('students', '/students');
+    await load();
+  } catch (e) {
+    showToast(e.message || 'Could not save');
+  } finally {
+    busy = false;
+  }
+}
+
+function render() {
+  const q = (searchEl.value || '').trim().toLowerCase();
+  const students = (typeof getStudents === 'function' ? getStudents() : [])
+    .slice()
+    .sort((a, b) => studentFullName(a).localeCompare(studentFullName(b)));
+
+  const tally = { present: 0, late: 0, absent: 0 };
+  students.forEach(s => {
+    const m = marks[s.id];
+    if (m && tally[m.status] !== undefined) tally[m.status]++;
+  });
+  const unmarked = students.length - (tally.present + tally.late + tally.absent);
+  tallyEl.innerHTML =
+    `<span class="p">✅ ${tally.present} present</span>` +
+    `<span class="l">🟡 ${tally.late} late</span>` +
+    `<span class="a">⬜ ${tally.absent} absent</span>` +
+    `<span class="u">— ${unmarked} unmarked</span>`;
+
+  const shown = q
+    ? students.filter(s => studentFullName(s).toLowerCase().includes(q))
+    : students;
+
+  if (students.length === 0) {
+    container.innerHTML = `
+      <div class="att-table"><div class="empty-state">
+        <h2>No students yet</h2>
+        <p>Attendance appears here once campers are registered and approved.</p>
+      </div></div>`;
+    return;
+  }
+  if (shown.length === 0) {
+    container.innerHTML = `
+      <div class="att-table"><div class="empty-state">
+        <h2>No matches</h2><p>Try a different name.</p>
+      </div></div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="att-table">` + shown.map(s => {
+    const m = marks[s.id];
+    const status = m ? m.status : '';
+    const pts = m ? Number(m.pointsApplied || 0) : 0;
+    const ptsCls = pts > 0 ? 'pos' : (pts < 0 ? 'neg' : 'zero');
+    const ptsTxt = m ? (pts ? `${pts > 0 ? '+' : '−'}${Math.abs(pts)}` : '—') : '';
+    const btn = (val, label) =>
+      `<button class="att-btn ${status === val ? 'on-' + val : ''}"
+               data-id="${escapeHtml(s.id)}" data-status="${val}">${label}</button>`;
+    return `
+      <div class="att-row">
+        <div>
+          <div class="att-name">${escapeHtml(studentFullName(s))}</div>
+          <div class="att-sub">${m ? `marked by ${escapeHtml(m.markedBy || 'staff')}` : 'not marked yet'}</div>
+        </div>
+        <div class="att-btns">
+          ${btn('present', 'Present')}
+          ${btn('late', 'Late')}
+          ${btn('absent', 'Absent')}
+        </div>
+        <div class="att-pts ${ptsCls}">${ptsTxt}</div>
+      </div>`;
+  }).join('') + `</div>`;
+
+  container.querySelectorAll('.att-btn').forEach(b => {
+    b.addEventListener('click', () => mark(b.dataset.id, b.dataset.status));
+  });
+}
+
+dateEl.addEventListener('change', load);
+searchEl.addEventListener('input', render);
+
+document.querySelectorAll('[data-admin-logout]').forEach(a => {
+  a.addEventListener('click', async e => {
+    e.preventDefault();
+    try { await fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+    sessionStorage.removeItem('hg_admin_unlocked');
+    window.location.href = '/index.html';
+  });
+});
+</script>
+</body>
+</html>

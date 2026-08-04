@@ -264,6 +264,24 @@ CREATE TABLE IF NOT EXISTS homework_submissions (
   markedAt      INTEGER,
   dmDelivered   INTEGER NOT NULL DEFAULT 0
 );
+-- Daily attendance. One row per student per day; re-marking a day updates
+-- the row in place and reverses the previous day's points, so a mistake
+-- can be corrected without double-charging anyone.
+-- `pointsApplied` records what was actually moved, which is what gets
+-- undone on a change — never the nominal value, since a deduction can be
+-- clipped by a student's balance.
+CREATE TABLE IF NOT EXISTS attendance (
+  id           TEXT PRIMARY KEY,
+  studentId    TEXT NOT NULL,
+  date         TEXT NOT NULL,          -- YYYY-MM-DD, camp-local
+  status       TEXT NOT NULL,          -- present | late | absent
+  pointsApplied INTEGER NOT NULL DEFAULT 0,
+  markedBy     TEXT,
+  markedAt     INTEGER NOT NULL,
+  UNIQUE (studentId, date)
+);
+CREATE INDEX IF NOT EXISTS idx_att_date ON attendance(date);
+
 CREATE INDEX IF NOT EXISTS idx_hw_guild ON homework_submissions(guildId, status);
 CREATE INDEX IF NOT EXISTS idx_hw_student ON homework_submissions(discordId);
 
