@@ -3618,6 +3618,25 @@ def register_routes(app):
         ).fetchone()
         return jsonify(ok=True, data=_student_summary_for_bot(row, dict(link)))
 
+    def _norm_code(code, *, ignore_case, ignore_spaces):
+        """Fold a passcode according to a chest's matching rules."""
+        s = str(code or "")
+        if ignore_spaces:
+            s = re.sub(r"\s+", "", s)
+        else:
+            s = s.strip()
+        if ignore_case:
+            s = s.casefold()
+        return s
+
+    def _code_matches(chest, typed):
+        """Does `typed` open this chest, under the chest's own rules?"""
+        ic = bool(chest["ignoreCase"])
+        isp = bool(chest["ignoreSpaces"])
+        want = _norm_code(chest["code"], ignore_case=ic, ignore_spaces=isp)
+        got  = _norm_code(typed,        ignore_case=ic, ignore_spaces=isp)
+        return bool(want) and want == got
+
     @app.route("/api/bot/chests", methods=["POST"])
     @require_bot
     def bot_chest_create():
@@ -3628,12 +3647,25 @@ def register_routes(app):
         role_id  = (d.get("roleId") or "").strip()
         if not guild_id or not code:
             return jsonify(ok=False, error="guildId and code are required."), 400
-        existing = g.db.execute(
-            "SELECT id FROM discord_chests WHERE guildId = ? AND code = ?",
-            (guild_id, code),
-        ).fetchone()
-        if existing:
-            return jsonify(ok=False, error="A chest with that code already exists in this server."), 409
+        ignore_case   = bool(d.get("ignoreCase"))
+        ignore_spaces = bool(d.get("ignoreSpaces"))
+        # Collision check has to respect the fuzzy rules: with ignore_caps
+        # on, "GOLD" and "gold" are the same passcode, and a claim couldn't
+        # tell which chest was meant. Compare under the union of both
+        # chests' rules so the looser one wins.
+        for row in g.db.execute(
+            "SELECT * FROM discord_chests WHERE guildId = ?", (guild_id,),
+        ).fetchall():
+            ic  = ignore_case   or bool(row["ignoreCase"])
+            isp = ignore_spaces or bool(row["ignoreSpaces"])
+            if _norm_code(row["code"], ignore_case=ic, ignore_spaces=isp) == \
+               _norm_code(code,        ignore_case=ic, ignore_spaces=isp):
+                return jsonify(
+                    ok=False,
+                    error=(f"A chest with the passcode `{row['code']}` already exists here "
+                           f"— with these matching rules the two would be "
+                           f"indistinguishable."),
+                ), 409
         # points: 0 disables the reward. maxClaims: None/0/blank = unlimited.
         try:
             points = int(d.get("points") if d.get("points") is not None else 50)
@@ -3682,8 +3714,8 @@ def register_routes(app):
                (id, code, description, imageUrl, roleId, roleName, guildId,
                 channelId, messageId, createdBy, createdAt, claimedBy,
                 points, maxClaims, removeRoleId, removeRoleName,
-                bonusPoints, bonusCount)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?)""",
+                bonusPoints, bonusCount, ignoreCase, ignoreSpaces)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
@@ -3699,10 +3731,13 @@ def register_routes(app):
                 (d.get("removeRoleId") or "").strip() or None,
                 (d.get("removeRoleName") or "").strip() or None,
                 bonus_points, bonus_count,
+                1 if ignore_case else 0, 1 if ignore_spaces else 0,
             ),
         )
         return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims,
-                                      "bonusPoints": bonus_points, "bonusCount": bonus_count})
+                                      "bonusPoints": bonus_points, "bonusCount": bonus_count,
+                                      "ignoreCase": ignore_case,
+                                      "ignoreSpaces": ignore_spaces})
 
     @app.route("/api/bot/chests/<cid>/message", methods=["POST"])
     @require_bot
@@ -4130,16 +4165,22 @@ def register_routes(app):
             # If chestId is supplied (button-driven flow), validate that
             # the typed code matches the SPECIFIC chest the user clicked.
             # Otherwise fall back to the older "any chest with this code".
+            # Matching is done in Python rather than SQL because each chest
+            # carries its own case/space rules.
             if chest_id:
                 chest = g.db.execute(
-                    "SELECT * FROM discord_chests WHERE id = ? AND code = ? AND guildId = ?",
-                    (chest_id, code, guild_id),
+                    "SELECT * FROM discord_chests WHERE id = ? AND guildId = ?",
+                    (chest_id, guild_id),
                 ).fetchone()
+                if chest and not _code_matches(chest, code):
+                    chest = None
             else:
-                chest = g.db.execute(
-                    "SELECT * FROM discord_chests WHERE guildId = ? AND code = ?",
-                    (guild_id, code),
-                ).fetchone()
+                chest = next(
+                    (row for row in g.db.execute(
+                        "SELECT * FROM discord_chests WHERE guildId = ?", (guild_id,),
+                    ).fetchall() if _code_matches(row, code)),
+                    None,
+                )
             if not chest:
                 return jsonify(ok=False, error="That code doesn't open this chest."), 404
             try:

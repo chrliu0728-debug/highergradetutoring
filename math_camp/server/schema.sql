@@ -182,7 +182,11 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   -- Early-bird bonus: the first `bonusCount` people to open the chest each
   -- get `bonusPoints` on top of the normal reward. 0 disables it.
   bonusPoints  INTEGER NOT NULL DEFAULT 0,
-  bonusCount   INTEGER NOT NULL DEFAULT 0
+  bonusCount   INTEGER NOT NULL DEFAULT 0,
+  -- How forgiving the passcode is. Both off (the default) means the code
+  -- must be typed exactly as it was set.
+  ignoreCase   INTEGER NOT NULL DEFAULT 0,
+  ignoreSpaces INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
 

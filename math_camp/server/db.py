@@ -190,7 +190,9 @@ def _migrate(conn):
                 ("points", "INTEGER NOT NULL DEFAULT 50"), ("maxClaims", "INTEGER"),
                 ("removeRoleId", "TEXT"), ("removeRoleName", "TEXT"),
                 ("bonusPoints", "INTEGER NOT NULL DEFAULT 0"),
-                ("bonusCount", "INTEGER NOT NULL DEFAULT 0")):
+                ("bonusCount", "INTEGER NOT NULL DEFAULT 0"),
+                ("ignoreCase", "INTEGER NOT NULL DEFAULT 0"),
+                ("ignoreSpaces", "INTEGER NOT NULL DEFAULT 0")):
         try:
             if _has_column("discord_chests", "id") and not _has_column("discord_chests", col[0]):
                 conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")

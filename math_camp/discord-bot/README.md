@@ -197,19 +197,44 @@ two are required:
 | Reveal text | — | Up to 4000 characters. Shown on the chest message *and* on unlock. |
 | Points awarded | `50` | Paid on a first-time open. `0` disables the reward. |
 | Max openers | *blank* | Blank = unlimited. Any number caps total distinct openers. |
-| Early-bird bonus | *blank* | `100 x 3` — the first 3 openers get +100 each on top. |
 
-**Early-bird bonus.** Written as **amount × count**: `100 x 3` means the
-first three people to open the chest get 100 points *on top of* the normal
-reward, and everyone after them gets the normal reward only. `x`, `×`,
-`*`, `/`, `,`, `for` and `to` all work as the separator.
+The command options are all optional:
 
-Position is decided by claim order, so it's a genuine race. The chest
-message advertises it (*"⚡ First 3 to open get +100 bonus!"*), the winner
-is told their placing on unlock, and latecomers are told the bonus is
-gone. Re-opening never pays a second bonus. Both halves are required —
-an amount with no count is refused rather than silently ignored — and the
-count can't exceed the opener cap.
+| Option | Default | Notes |
+| --- | --- | --- |
+| `role` | *none* | Skip for a points-only chest. |
+| `image` | *none* | Embedded in the chest message. |
+| `remove_role` | *none* | Stripped on unlock, so roles swap. |
+| `bonus_points` | *none* | Extra points for the earliest openers. |
+| `bonus_for_first` | *none* | How many openers get that bonus. |
+| `ignore_caps` | off | Accept the passcode in any capitalisation. |
+| `ignore_spaces` | off | Accept it with spaces anywhere, or none. |
+
+**Early-bird bonus.** `bonus_points:100 bonus_for_first:3` gives the first
+three people to open the chest 100 points *on top of* the normal reward;
+everyone after gets the normal reward only. Position is claim order, so
+it's a genuine race. The chest message advertises it (*"⚡ First 3 to open
+get +100 bonus!"*), the winner is told their placing on unlock, and
+latecomers are told the bonus is gone. Re-opening never pays a second
+bonus. Both halves are required — an amount with no count is refused
+rather than silently ignored — and the count can't exceed the opener cap.
+
+**Passcode matching.** Both `ignore_caps` and `ignore_spaces` default to
+**off**, so a passcode must be typed exactly as set. Turn on either or
+both:
+
+| Passcode `Iron Key` | exact | `ignore_caps` | `ignore_spaces` | both |
+| --- | --- | --- | --- | --- |
+| `Iron Key` | ✅ | ✅ | ✅ | ✅ |
+| `iron key` | ❌ | ✅ | ❌ | ✅ |
+| `IronKey` | ❌ | ❌ | ✅ | ✅ |
+| ` IRON  key ` | ❌ | ❌ | ❌ | ✅ |
+
+The chest footer says which rules are relaxed, so nobody has to guess.
+Creating a chest is refused when its passcode would be **indistinguishable
+from an existing one** under either chest's rules — with `ignore_caps` on,
+`GOLD` and `gold` are the same passcode and a claim couldn't tell them
+apart.
 
 The `role`, `image`, and `remove_role` options stay as slash-command
 options because Discord forms can't hold a role picker or a file upload.

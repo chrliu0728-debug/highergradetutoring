@@ -229,7 +229,9 @@ class CampAPI:
                            remove_role_id: str = "",
                            remove_role_name: str = "",
                            bonus_points: int = 0,
-                           bonus_count: int = 0) -> Dict[str, Any]:
+                           bonus_count: int = 0,
+                           ignore_case: bool = False,
+                           ignore_spaces: bool = False) -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
@@ -238,6 +240,7 @@ class CampAPI:
             "removeRoleId": remove_role_id or "",
             "removeRoleName": remove_role_name or "",
             "bonusPoints": bonus_points, "bonusCount": bonus_count,
+            "ignoreCase": ignore_case, "ignoreSpaces": ignore_spaces,
         })
 
     async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
@@ -1259,30 +1262,6 @@ EMBED_DESC_LIMIT = 4096
 MSG_LIMIT = 2000
 
 
-def _parse_bonus(raw: str) -> tuple[Optional[int], Optional[int], str]:
-    """Read an early-bird bonus written as "amount x count".
-
-    Accepts 100x3, 100 x 3, 100*3, 100/3, 100,3 and "100 for 3" — people
-    write this a lot of ways and none of them should be a failure.
-    Returns (points, count, error). All-None means "not set"."""
-    raw = (raw or "").strip()
-    if not raw:
-        return None, None, ""
-    parts = [p for p in re.split(r"[x×*/,;]|\bfor\b|\bto\b", raw, flags=re.I) if p.strip()]
-    if len(parts) != 2:
-        return None, None, (f"Couldn't read `{raw}` — write it as **amount x count**, "
-                            f"like `100 x 3` (100 bonus points for the first 3 openers).")
-    try:
-        pts = int(parts[0].strip())
-        cnt = int(parts[1].strip())
-    except ValueError:
-        return None, None, (f"Couldn't read `{raw}` — both halves need to be whole "
-                            f"numbers, like `100 x 3`.")
-    if pts <= 0 or cnt <= 0:
-        return None, None, "Both the bonus amount and the number of openers must be above 0."
-    return pts, cnt, ""
-
-
 def _chunk(text: str, size: int) -> List[str]:
     """Split text into <=size pieces, preferring to break at a paragraph or
     line boundary so a long chest description doesn't get cut mid-sentence."""
@@ -1306,7 +1285,8 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
                  role_name: Optional[str] = None,
                  points: int = 0, max_claims: Optional[int] = None,
                  remove_role_name: Optional[str] = None,
-                 bonus_points: int = 0, bonus_count: int = 0) -> discord.Embed:
+                 bonus_points: int = 0, bonus_count: int = 0,
+                 ignore_caps: bool = False, ignore_spaces: bool = False) -> discord.Embed:
     """First (or only) embed of a chest message. Long descriptions are
     carried on by _chest_overflow_embeds."""
     body = _chunk(description, EMBED_DESC_LIMIT)
@@ -1330,6 +1310,13 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
         bits.append(f"Limited to {max_claims} opener(s).")
     else:
         bits.append("Unlimited openers — but only once each.")
+    # Say when the passcode is forgiving, so nobody assumes it's exact.
+    if ignore_caps and ignore_spaces:
+        bits.append("Capitalisation and spaces don't matter.")
+    elif ignore_caps:
+        bits.append("Capitalisation doesn't matter.")
+    elif ignore_spaces:
+        bits.append("Spaces don't matter.")
     e.set_footer(text=" ".join(bits))
     return e
 
@@ -2946,19 +2933,20 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         placeholder="Leave blank so everyone with the code can open it",
         max_length=6, required=False,
     )
-    bonus = discord.ui.TextInput(
-        label="Early-bird bonus (e.g. 100 x 3)",
-        placeholder="Extra points × how many of the first openers get them",
-        max_length=32, required=False,
-    )
 
     def __init__(self, role: Optional[discord.Role], image_url: Optional[str],
                  locks: Optional[Dict[str, str]] = None,
-                 remove_role: Optional[discord.Role] = None) -> None:
+                 remove_role: Optional[discord.Role] = None,
+                 bonus_points: int = 0, bonus_count: int = 0,
+                 ignore_caps: bool = False, ignore_spaces: bool = False) -> None:
         super().__init__()
         self.role = role
         self.image_url = image_url
         self.remove_role = remove_role
+        self.bonus_points = bonus_points
+        self.bonus_count = bonus_count
+        self.ignore_caps = ignore_caps
+        self.ignore_spaces = ignore_spaces
         # Pre-fill and relabel any locked field so the creator can see the
         # value is not theirs to set. Enforcement still happens on submit
         # against a fresh fetch — this is presentation only.
@@ -3038,10 +3026,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                 overridden.append(f"role → **{locked_role.name}**")
                 role = locked_role
 
-        bonus_pts, bonus_cnt, bonus_err = _parse_bonus(str(self.bonus.value or ""))
-        if bonus_err:
-            await interaction.followup.send(f"❌ {bonus_err}", ephemeral=True)
-            return
+        bonus_pts, bonus_cnt = self.bonus_points, self.bonus_count
         if bonus_cnt and cap and bonus_cnt > cap:
             await interaction.followup.send(
                 f"❌ The bonus covers the first {bonus_cnt} openers but the chest only "
@@ -3066,6 +3051,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             remove_role_id=str(self.remove_role.id) if self.remove_role else "",
             remove_role_name=self.remove_role.name if self.remove_role else "",
             bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
+            ignore_case=self.ignore_caps, ignore_spaces=self.ignore_spaces,
         )
         if not res.get("ok"):
             await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
@@ -3080,6 +3066,8 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                                points=pts, max_claims=cap,
                                remove_role_name=self.remove_role.name if self.remove_role else None,
                                bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
+                               ignore_caps=self.ignore_caps,
+                               ignore_spaces=self.ignore_spaces,
                                )] + _chest_overflow_embeds(desc)
 
         # Post the public chest message into the channel the command was run
@@ -3118,6 +3106,10 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         if bonus_pts and bonus_cnt:
             summary += (f"\n• ⚡ Early-bird: first **{bonus_cnt}** opener(s) get "
                         f"**+{bonus_pts}** on top (so **{pts + bonus_pts} pts** for them)")
+        relaxed = [n for n, on in (("capitalisation", self.ignore_caps),
+                                   ("spaces", self.ignore_spaces)) if on]
+        summary += ("\n• Passcode: **exact match**" if not relaxed
+                    else f"\n• Passcode ignores **{' and '.join(relaxed)}**")
         if self.remove_role:
             summary += f"\n• Removes: **{self.remove_role.name}** on open"
             # Camp-mirrored roles get re-asserted from the website, so a
@@ -3141,12 +3133,20 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
     role="Role granted on unlock. Leave blank (or pick a role named N/A) for a points-only chest.",
     image="Optional image to embed in the chest message",
     remove_role="Optional role taken away on unlock, so roles swap instead of stacking",
+    bonus_points="Extra points for the earliest openers, on top of the normal reward",
+    bonus_for_first="How many of the first openers get that bonus",
+    ignore_caps="Accept the passcode in any capitalisation",
+    ignore_spaces="Accept the passcode with spaces anywhere (or none)",
 )
 async def cmd_chest_create(
     interaction: discord.Interaction,
     role: Optional[discord.Role] = None,
     image: Optional[discord.Attachment] = None,
     remove_role: Optional[discord.Role] = None,
+    bonus_points: Optional[int] = None,
+    bonus_for_first: Optional[int] = None,
+    ignore_caps: bool = False,
+    ignore_spaces: bool = False,
 ) -> None:
     # No defer() here — a modal has to be the FIRST response to the
     # interaction, so only cheap local checks can run before we reply.
@@ -3196,12 +3196,29 @@ async def cmd_chest_create(
                 ephemeral=True,
             )
             return
+    # Both halves of the bonus are needed for it to mean anything — reject
+    # a lone one here rather than silently dropping it.
+    bp = int(bonus_points or 0)
+    bc = int(bonus_for_first or 0)
+    if bool(bp) != bool(bc):
+        await interaction.response.send_message(
+            "❌ An early-bird bonus needs both halves: `bonus_points` (how many "
+            "extra points) **and** `bonus_for_first` (how many early openers get "
+            "them).", ephemeral=True)
+        return
+    if bp < 0 or bc < 0:
+        await interaction.response.send_message(
+            "❌ Bonus points and opener count can't be negative.", ephemeral=True)
+        return
+
     # Cached locks only — there's no time for a fetch before a modal, and
     # these are used purely to pre-fill. on_submit re-checks for real.
     await interaction.response.send_modal(
         ChestCreateModal(role, image.url if image else None,
                          locks=_locks_cached(interaction, "chest-create"),
-                         remove_role=remove_role))
+                         remove_role=remove_role,
+                         bonus_points=bp, bonus_count=bc,
+                         ignore_caps=ignore_caps, ignore_spaces=ignore_spaces))
 
 
 @bot.tree.command(name="chest-list", description="List every chest in this server.")
