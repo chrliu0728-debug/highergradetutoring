@@ -197,6 +197,19 @@ two are required:
 | Reveal text | — | Up to 4000 characters. Shown on the chest message *and* on unlock. |
 | Points awarded | `50` | Paid on a first-time open. `0` disables the reward. |
 | Max openers | *blank* | Blank = unlimited. Any number caps total distinct openers. |
+| Early-bird bonus | *blank* | `100 x 3` — the first 3 openers get +100 each on top. |
+
+**Early-bird bonus.** Written as **amount × count**: `100 x 3` means the
+first three people to open the chest get 100 points *on top of* the normal
+reward, and everyone after them gets the normal reward only. `x`, `×`,
+`*`, `/`, `,`, `for` and `to` all work as the separator.
+
+Position is decided by claim order, so it's a genuine race. The chest
+message advertises it (*"⚡ First 3 to open get +100 bonus!"*), the winner
+is told their placing on unlock, and latecomers are told the bonus is
+gone. Re-opening never pays a second bonus. Both halves are required —
+an amount with no count is refused rather than silently ignored — and the
+count can't exceed the opener cap.
 
 The `role`, `image`, and `remove_role` options stay as slash-command
 options because Discord forms can't hold a role picker or a file upload.

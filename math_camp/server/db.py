@@ -188,7 +188,9 @@ def _migrate(conn):
     # `removeRole*` came later still — the role a chest strips on unlock.
     for col in (("imageUrl", "TEXT"), ("channelId", "TEXT"), ("messageId", "TEXT"),
                 ("points", "INTEGER NOT NULL DEFAULT 50"), ("maxClaims", "INTEGER"),
-                ("removeRoleId", "TEXT"), ("removeRoleName", "TEXT")):
+                ("removeRoleId", "TEXT"), ("removeRoleName", "TEXT"),
+                ("bonusPoints", "INTEGER NOT NULL DEFAULT 0"),
+                ("bonusCount", "INTEGER NOT NULL DEFAULT 0")):
         try:
             if _has_column("discord_chests", "id") and not _has_column("discord_chests", col[0]):
                 conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")

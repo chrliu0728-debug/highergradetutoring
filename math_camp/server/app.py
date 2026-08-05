@@ -3652,13 +3652,38 @@ def register_routes(app):
                 return jsonify(ok=False, error="maxClaims must be a whole number."), 400
             if max_claims < 1:
                 return jsonify(ok=False, error="maxClaims must be at least 1 (leave blank for unlimited)."), 400
+        # Early-bird bonus. Both halves must be present for it to mean
+        # anything, so a lone value is rejected rather than silently ignored.
+        try:
+            bonus_points = int(d.get("bonusPoints") or 0)
+            bonus_count  = int(d.get("bonusCount") or 0)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Bonus points and count must be whole numbers."), 400
+        if bonus_points < 0 or bonus_count < 0:
+            return jsonify(ok=False, error="Bonus points and count can't be negative."), 400
+        if bonus_points > 100000:
+            return jsonify(ok=False, error="Bonus points look suspiciously large."), 400
+        if bool(bonus_points) != bool(bonus_count):
+            return jsonify(
+                ok=False,
+                error="An early-bird bonus needs both an amount and how many "
+                      "people get it — e.g. 100 x 3.",
+            ), 400
+        if bonus_count and max_claims is not None and bonus_count > max_claims:
+            return jsonify(
+                ok=False,
+                error=f"The bonus covers {bonus_count} openers but the chest only "
+                      f"allows {max_claims}.",
+            ), 400
+
         cid = "chest-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         g.db.execute(
             """INSERT INTO discord_chests
                (id, code, description, imageUrl, roleId, roleName, guildId,
                 channelId, messageId, createdBy, createdAt, claimedBy,
-                points, maxClaims, removeRoleId, removeRoleName)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)""",
+                points, maxClaims, removeRoleId, removeRoleName,
+                bonusPoints, bonusCount)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?)""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
@@ -3673,9 +3698,11 @@ def register_routes(app):
                 points, max_claims,
                 (d.get("removeRoleId") or "").strip() or None,
                 (d.get("removeRoleName") or "").strip() or None,
+                bonus_points, bonus_count,
             ),
         )
-        return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims})
+        return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims,
+                                      "bonusPoints": bonus_points, "bonusCount": bonus_count})
 
     @app.route("/api/bot/chests/<cid>/message", methods=["POST"])
     @require_bot
@@ -4157,10 +4184,16 @@ def register_routes(app):
                 (json.dumps(claimed), chest["id"]),
             )
 
+            # Where this person landed in the queue: 1 = first to open it.
+            position = len(claimed)
+            bonus_count  = int(chest["bonusCount"] or 0)
+            bonus_points = int(chest["bonusPoints"] or 0)
+            bonus = bonus_points if (bonus_count and position <= bonus_count) else 0
+
             # Points go to the camp account behind this Discord user. An
             # unverified user still gets the role — they just can't be paid,
             # since there's no account to pay into.
-            points = int(chest["points"] or 0)
+            points = int(chest["points"] or 0) + bonus
             if points > 0:
                 link = g.db.execute(
                     "SELECT * FROM discord_links WHERE discordId = ?", (discord_id,)
@@ -4184,7 +4217,9 @@ def register_routes(app):
                         awarded = points
                         _log_tx(type="earn", scope="student", subjectId=srow["id"],
                                 subjectName=_full_name(srow), amount=points,
-                                description=f"🗝 Chest unlocked (`{chest['code']}`) · +{points} pts")
+                                description=f"🗝 Chest unlocked (`{chest['code']}`) · +{points} pts"
+                                            + (f" (incl. +{bonus} early-bird bonus, "
+                                               f"#{position} of {bonus_count})" if bonus else ""))
 
         return jsonify(ok=True, data={
             "chestId":     chest["id"],
@@ -4199,6 +4234,10 @@ def register_routes(app):
             "maxClaims":   max_claims,
             "removeRoleId":   chest["removeRoleId"],
             "removeRoleName": chest["removeRoleName"],
+            "position":    position,
+            "bonus":       bonus,
+            "bonusPoints": bonus_points,
+            "bonusCount":  bonus_count,
         })
 
     # ── Camp reset (scoped) ────────────────────────────────────────

@@ -178,7 +178,11 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   -- Optional role STRIPPED on a first-time unlock, so a chest can promote
   -- someone out of one role into another instead of stacking both.
   removeRoleId   TEXT,
-  removeRoleName TEXT
+  removeRoleName TEXT,
+  -- Early-bird bonus: the first `bonusCount` people to open the chest each
+  -- get `bonusPoints` on top of the normal reward. 0 disables it.
+  bonusPoints  INTEGER NOT NULL DEFAULT 0,
+  bonusCount   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
 

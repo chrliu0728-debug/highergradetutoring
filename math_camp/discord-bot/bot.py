@@ -42,6 +42,7 @@ import asyncio
 import io
 import logging
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -226,7 +227,9 @@ class CampAPI:
                            points: int = DEFAULT_CHEST_POINTS,
                            max_claims: Optional[int] = None,
                            remove_role_id: str = "",
-                           remove_role_name: str = "") -> Dict[str, Any]:
+                           remove_role_name: str = "",
+                           bonus_points: int = 0,
+                           bonus_count: int = 0) -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
@@ -234,6 +237,7 @@ class CampAPI:
             "points": points, "maxClaims": max_claims,
             "removeRoleId": remove_role_id or "",
             "removeRoleName": remove_role_name or "",
+            "bonusPoints": bonus_points, "bonusCount": bonus_count,
         })
 
     async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
@@ -1154,8 +1158,18 @@ async def _deliver_chest(interaction: discord.Interaction, payload: Dict[str, An
     awarded = int(payload.get("awarded") or 0)
     points = int(payload.get("points") or 0)
     skipped = payload.get("awardSkipped")
+    bonus = int(payload.get("bonus") or 0)
+    position = int(payload.get("position") or 0)
+    bonus_count = int(payload.get("bonusCount") or 0)
     if awarded > 0:
         lines.append(f"💰 **+{awarded} pts** added to your camp account.")
+        if bonus:
+            ordinal = {1: "1st", 2: "2nd", 3: "3rd"}.get(position, f"{position}th")
+            lines.append(f"⚡ **{ordinal} to open it** — that includes a **+{bonus} "
+                         f"early-bird bonus** for the first {bonus_count}!")
+        elif bonus_count and position:
+            lines.append(f"🐢 You were #{position} — the early-bird bonus was gone after "
+                         f"the first {bonus_count}.")
     elif already and points > 0:
         lines.append("💰 No points this time — a chest only pays out once per person.")
     elif skipped == "unverified":
@@ -1245,6 +1259,30 @@ EMBED_DESC_LIMIT = 4096
 MSG_LIMIT = 2000
 
 
+def _parse_bonus(raw: str) -> tuple[Optional[int], Optional[int], str]:
+    """Read an early-bird bonus written as "amount x count".
+
+    Accepts 100x3, 100 x 3, 100*3, 100/3, 100,3 and "100 for 3" — people
+    write this a lot of ways and none of them should be a failure.
+    Returns (points, count, error). All-None means "not set"."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None, None, ""
+    parts = [p for p in re.split(r"[x×*/,;]|\bfor\b|\bto\b", raw, flags=re.I) if p.strip()]
+    if len(parts) != 2:
+        return None, None, (f"Couldn't read `{raw}` — write it as **amount x count**, "
+                            f"like `100 x 3` (100 bonus points for the first 3 openers).")
+    try:
+        pts = int(parts[0].strip())
+        cnt = int(parts[1].strip())
+    except ValueError:
+        return None, None, (f"Couldn't read `{raw}` — both halves need to be whole "
+                            f"numbers, like `100 x 3`.")
+    if pts <= 0 or cnt <= 0:
+        return None, None, "Both the bonus amount and the number of openers must be above 0."
+    return pts, cnt, ""
+
+
 def _chunk(text: str, size: int) -> List[str]:
     """Split text into <=size pieces, preferring to break at a paragraph or
     line boundary so a long chest description doesn't get cut mid-sentence."""
@@ -1267,7 +1305,8 @@ def _chunk(text: str, size: int) -> List[str]:
 def _chest_embed(description: str, image_url: Optional[str] = None,
                  role_name: Optional[str] = None,
                  points: int = 0, max_claims: Optional[int] = None,
-                 remove_role_name: Optional[str] = None) -> discord.Embed:
+                 remove_role_name: Optional[str] = None,
+                 bonus_points: int = 0, bonus_count: int = 0) -> discord.Embed:
     """First (or only) embed of a chest message. Long descriptions are
     carried on by _chest_overflow_embeds."""
     body = _chunk(description, EMBED_DESC_LIMIT)
@@ -1285,6 +1324,8 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
         bits.append(f"Replaces: {remove_role_name}.")
     if points > 0:
         bits.append(f"Reward: +{points} pts.")
+    if bonus_points and bonus_count:
+        bits.append(f"⚡ First {bonus_count} to open get +{bonus_points} bonus!")
     if max_claims:
         bits.append(f"Limited to {max_claims} opener(s).")
     else:
@@ -2905,6 +2946,11 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         placeholder="Leave blank so everyone with the code can open it",
         max_length=6, required=False,
     )
+    bonus = discord.ui.TextInput(
+        label="Early-bird bonus (e.g. 100 x 3)",
+        placeholder="Extra points × how many of the first openers get them",
+        max_length=32, required=False,
+    )
 
     def __init__(self, role: Optional[discord.Role], image_url: Optional[str],
                  locks: Optional[Dict[str, str]] = None,
@@ -2992,10 +3038,20 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                 overridden.append(f"role → **{locked_role.name}**")
                 role = locked_role
 
+        bonus_pts, bonus_cnt, bonus_err = _parse_bonus(str(self.bonus.value or ""))
+        if bonus_err:
+            await interaction.followup.send(f"❌ {bonus_err}", ephemeral=True)
+            return
+        if bonus_cnt and cap and bonus_cnt > cap:
+            await interaction.followup.send(
+                f"❌ The bonus covers the first {bonus_cnt} openers but the chest only "
+                f"allows {cap}. Raise the cap or lower the bonus count.", ephemeral=True)
+            return
+
         # A points-only chest with no reward at all would do nothing on
         # unlock but show its description, so say so rather than let it
         # look broken.
-        if role is None and pts == 0:
+        if role is None and pts == 0 and not bonus_pts:
             await interaction.followup.send(
                 "❌ That chest wouldn't do anything — it has no role and no points. "
                 "Give it a role, or set points above 0.", ephemeral=True)
@@ -3009,6 +3065,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             image_url=self.image_url, points=pts, max_claims=cap,
             remove_role_id=str(self.remove_role.id) if self.remove_role else "",
             remove_role_name=self.remove_role.name if self.remove_role else "",
+            bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
         )
         if not res.get("ok"):
             await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
@@ -3022,6 +3079,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                                role_name=role.name if role else None,
                                points=pts, max_claims=cap,
                                remove_role_name=self.remove_role.name if self.remove_role else None,
+                               bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
                                )] + _chest_overflow_embeds(desc)
 
         # Post the public chest message into the channel the command was run
@@ -3057,6 +3115,9 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             f"• Reward: **{pts} pts**" + (" (no points)" if pts == 0 else "") + "\n"
             f"• Openers: **{cap if cap else 'unlimited'}** — one open per person either way"
         )
+        if bonus_pts and bonus_cnt:
+            summary += (f"\n• ⚡ Early-bird: first **{bonus_cnt}** opener(s) get "
+                        f"**+{bonus_pts}** on top (so **{pts + bonus_pts} pts** for them)")
         if self.remove_role:
             summary += f"\n• Removes: **{self.remove_role.name}** on open"
             # Camp-mirrored roles get re-asserted from the website, so a
@@ -3173,9 +3234,11 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
         swap = f" · removes <@&{c['removeRoleId']}>" if c.get("removeRoleId") else ""
         # Points-only chests have no role — don't emit a broken <@&> mention.
         grants = f"<@&{c['roleId']}>" if c.get("roleId") else "*points only*"
+        bonus = (f" · ⚡ +{c['bonusPoints']}×{c['bonusCount']}"
+                 if c.get("bonusPoints") and c.get("bonusCount") else "")
         lines.append(
             f"• code **{c['code']}** → {grants}{swap} "
-            f"· {opens} opens · {pts} pts{when}\n"
+            f"· {opens} opens · {pts} pts{bonus}{when}\n"
             f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
         )
     await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
