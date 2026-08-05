@@ -2906,7 +2906,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         max_length=6, required=False,
     )
 
-    def __init__(self, role: discord.Role, image_url: Optional[str],
+    def __init__(self, role: Optional[discord.Role], image_url: Optional[str],
                  locks: Optional[Dict[str, str]] = None,
                  remove_role: Optional[discord.Role] = None) -> None:
         super().__init__()
@@ -2988,14 +2988,24 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         if "role" in locks:
             locked_role = interaction.guild.get_role(int(locks["role"])) if str(
                 locks["role"]).isdigit() else None
-            if locked_role and locked_role.id != role.id:
+            if locked_role and (role is None or locked_role.id != role.id):
                 overridden.append(f"role → **{locked_role.name}**")
                 role = locked_role
+
+        # A points-only chest with no reward at all would do nothing on
+        # unlock but show its description, so say so rather than let it
+        # look broken.
+        if role is None and pts == 0:
+            await interaction.followup.send(
+                "❌ That chest wouldn't do anything — it has no role and no points. "
+                "Give it a role, or set points above 0.", ephemeral=True)
+            return
 
         desc = str(self.description.value).strip()
         res = await api.chest_create(
             str(interaction.guild.id), str(self.code.value).strip(),
-            str(role.id), role.name, desc, str(interaction.user.id),
+            str(role.id) if role else "", role.name if role else "",
+            desc, str(interaction.user.id),
             image_url=self.image_url, points=pts, max_claims=cap,
             remove_role_id=str(self.remove_role.id) if self.remove_role else "",
             remove_role_name=self.remove_role.name if self.remove_role else "",
@@ -3008,7 +3018,8 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             await interaction.followup.send("❌ Server didn't return a chest id.", ephemeral=True)
             return
 
-        embeds = [_chest_embed(desc, image_url=self.image_url, role_name=role.name,
+        embeds = [_chest_embed(desc, image_url=self.image_url,
+                               role_name=role.name if role else None,
                                points=pts, max_claims=cap,
                                remove_role_name=self.remove_role.name if self.remove_role else None,
                                )] + _chest_overflow_embeds(desc)
@@ -3042,7 +3053,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         summary = (
             f"📦 Chest placed in {posted.channel.mention if posted else 'this channel'}.\n"
             f"• Code: **{str(self.code.value).strip()}**\n"
-            f"• Unlocks: **{role.name}**\n"
+            f"• Unlocks: **{role.name if role else 'nothing — points only'}**\n"
             f"• Reward: **{pts} pts**" + (" (no points)" if pts == 0 else "") + "\n"
             f"• Openers: **{cap if cap else 'unlimited'}** — one open per person either way"
         )
@@ -3066,13 +3077,13 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
 
 @bot.tree.command(name="chest-create", description="Place a locked chest in this channel.")
 @app_commands.describe(
-    role="The role granted on unlock",
+    role="Role granted on unlock. Leave blank (or pick a role named N/A) for a points-only chest.",
     image="Optional image to embed in the chest message",
     remove_role="Optional role taken away on unlock, so roles swap instead of stacking",
 )
 async def cmd_chest_create(
     interaction: discord.Interaction,
-    role: discord.Role,
+    role: Optional[discord.Role] = None,
     image: Optional[discord.Attachment] = None,
     remove_role: Optional[discord.Role] = None,
 ) -> None:
@@ -3082,8 +3093,13 @@ async def cmd_chest_create(
     if not interaction.guild:
         await interaction.response.send_message("Run this in a server.", ephemeral=True)
         return
+    # A role literally named "N/A" reads as "no role" — some people reach
+    # for the picker before realising the field is optional.
+    if role is not None and _normalize_role_name(role.name) in ("n/a", "na", "none"):
+        role = None
+
     me = interaction.guild.me
-    if me and role >= me.top_role:
+    if role is not None and me and role >= me.top_role:
         await interaction.response.send_message(
             f"❌ I can't grant **{role.name}** — it's above my top role. "
             "Move my role above it in Server Settings → Roles.",
@@ -3112,7 +3128,7 @@ async def cmd_chest_create(
                 ephemeral=True,
             )
             return
-        if remove_role.id == role.id:
+        if role is not None and remove_role.id == role.id:
             await interaction.response.send_message(
                 f"❌ The chest would grant and remove **{role.name}** at the same time. "
                 "Pick a different role to remove.",
@@ -3155,8 +3171,10 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
         # <t:unix:R> renders as "2 hours ago" in each viewer's own timezone.
         when = f" · placed <t:{int(c['createdAt'])}:R>" if c.get("createdAt") else ""
         swap = f" · removes <@&{c['removeRoleId']}>" if c.get("removeRoleId") else ""
+        # Points-only chests have no role — don't emit a broken <@&> mention.
+        grants = f"<@&{c['roleId']}>" if c.get("roleId") else "*points only*"
         lines.append(
-            f"• code **{c['code']}** → <@&{c['roleId']}>{swap} "
+            f"• code **{c['code']}** → {grants}{swap} "
             f"· {opens} opens · {pts} pts{when}\n"
             f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
         )
@@ -3202,7 +3220,8 @@ def _chest_label(c: Dict[str, Any]) -> str:
                                                   ZoneInfo("America/Toronto")).strftime("%b %-d, %-I:%M %p")
         except Exception:  # noqa: BLE001
             when = ""
-    label = f"{c.get('code')} → {c.get('roleName') or 'role'} · {opens} opens{when}"
+    label = (f"{c.get('code')} → {c.get('roleName') or 'points only'} "
+             f"· {opens} opens{when}")
     return label[:100]
 
 

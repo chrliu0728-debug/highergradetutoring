@@ -112,7 +112,7 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/whoami` | Anyone | Shows your linked profile + current points. |
 | `/unlink` | Anyone | Removes your link and revokes the bot-managed roles. |
 | `/unlock code:<passcode>` | Anyone | Opens the chest with that code and grants its hidden role. |
-| `/chest-create role:<@role> [image:<file>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. Posts the chest with an unlock button. |
+| `/chest-create [role:<@role>] [image:<file>] [remove_role:<@role>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. `role` is optional — skip it for a points-only chest. |
 | `/chest-list` | Manage Roles | Lists every chest with its code, role, opens/cap, points, and description. |
 | `/chest-delete chest:<pick>` | Manage Roles | Pick a chest from a dropdown, newest first. No IDs to copy. |
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
@@ -198,9 +198,12 @@ two are required:
 | Points awarded | `50` | Paid on a first-time open. `0` disables the reward. |
 | Max openers | *blank* | Blank = unlimited. Any number caps total distinct openers. |
 
-The `role`, optional `image`, and optional `remove_role` stay as
-slash-command options because Discord forms can't hold a role picker or a
-file upload.
+The `role`, `image`, and `remove_role` options stay as slash-command
+options because Discord forms can't hold a role picker or a file upload.
+**All three are optional.** Leave `role` blank for a **points-only
+chest** that pays out but grants nothing — picking a role literally
+named `N/A` (or `NA`/`None`) counts as blank too. A chest with neither
+a role nor points is refused, since it would do nothing on unlock.
 
 **Swapping roles instead of stacking them.** `remove_role` takes a role
 *away* on unlock, so a chest can promote someone rather than piling roles

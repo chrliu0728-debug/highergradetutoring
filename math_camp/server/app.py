@@ -3624,9 +3624,10 @@ def register_routes(app):
         d = request.get_json(silent=True) or {}
         guild_id = (d.get("guildId") or "").strip()
         code     = (d.get("code") or "").strip()
+        # roleId is optional — a chest can be points-only, granting nothing.
         role_id  = (d.get("roleId") or "").strip()
-        if not guild_id or not code or not role_id:
-            return jsonify(ok=False, error="guildId, code, and roleId are required."), 400
+        if not guild_id or not code:
+            return jsonify(ok=False, error="guildId and code are required."), 400
         existing = g.db.execute(
             "SELECT id FROM discord_chests WHERE guildId = ? AND code = ?",
             (guild_id, code),
