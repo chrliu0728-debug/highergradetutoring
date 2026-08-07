@@ -200,6 +200,12 @@ def _migrate(conn):
             pass
     # Homework: where the camper ran /submit, so feedback has somewhere to go
     # when their DMs are shut. Added after the table shipped.
+    try:
+        if _has_column("discord_links", "discordId") and \
+                not _has_column("discord_links", "feedbackChannelId"):
+            conn.execute("ALTER TABLE discord_links ADD COLUMN feedbackChannelId TEXT")
+    except sqlite3.OperationalError:
+        pass
     for _col, _type in (
         ("originChannelId", "TEXT"),
         # Quiz scoring, added after the table shipped.

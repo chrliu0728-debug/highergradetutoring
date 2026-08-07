@@ -457,19 +457,27 @@ feedback, and **where the feedback actually went**. You can press the
 button again to re-mark; the card replaces the previous result rather than
 stacking a second one.
 
-**If the camper's DMs are closed**, the bot falls back to pinging them
-with the feedback in the channel they ran `/submit` in. The card shows
-📢 *DMs closed — posted in #channel* so you know it happened.
+**If the camper's DMs are closed**, delivery falls down a ladder, most
+private first:
 
-> ⚠️ The fallback makes that camper's grade and feedback **visible to
-> everyone who can see that channel**. That's the trade for reaching
-> someone who can't be DMed. If you'd rather it stay private, either tell
-> campers to submit in a channel only they and staff can see, or ask for
-> the fallback to be changed to a bare "come see a staff member" ping.
+1. **DM** — normal case.
+2. **A private channel just for them.** The bot opens
+   `#feedback-<their-name>`, visible only to that camper, Staff and the
+   bot, and posts the mark and files there. One channel per camper, reused
+   for every future delivery — a term of marking doesn't leave a channel
+   per quiz behind. The card shows 🔒 *DMs closed — sent to #channel*.
+3. **The channel they submitted from** — only if a private channel can't
+   be opened (no **Manage Channels**, or Discord's channel cap). This one
+   is readable by everyone who can see that channel, so it's genuinely
+   last; the card and the staff confirmation both say so.
 
-If the bot can't post there either (no permission, or an older submission
-from before the origin channel was recorded), the card shows ⚠️ *Not
-delivered* and you'll need to pass it on yourself.
+If none of the three work the card shows ⚠️ *Not delivered* and you'll
+need to pass it on yourself. Nothing is ever silently dropped.
+
+Set `FEEDBACK_CATEGORY_ID` to file the private channels under a category,
+or just make one named **Feedback** and the bot will find it. The bot
+needs **Manage Channels** to create them — it already needs that for
+`/gate`.
 
 `/submissions` lists what's outstanding, newest first, with a jump link to
 each card. It defaults to unmarked work; `show:` switches to marked or

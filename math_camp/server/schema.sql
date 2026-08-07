@@ -149,7 +149,11 @@ CREATE TABLE IF NOT EXISTS discord_links (
   discordId   TEXT PRIMARY KEY,
   studentId   TEXT NOT NULL UNIQUE,
   guildId     TEXT,
-  linkedAt    INTEGER NOT NULL
+  linkedAt    INTEGER NOT NULL,
+  -- Private channel used to reach this camper when their DMs are shut.
+  -- One per camper, reused for every delivery, so marking a term's worth
+  -- of quizzes doesn't leave a channel behind for each one.
+  feedbackChannelId TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_dl_student ON discord_links(studentId);
 

@@ -3637,6 +3637,30 @@ def register_routes(app):
         got  = _norm_code(typed,        ignore_case=ic, ignore_spaces=isp)
         return bool(want) and want == got
 
+    @app.route("/api/bot/feedback-channel", methods=["GET", "POST"])
+    @require_bot
+    def bot_feedback_channel():
+        """The private channel used to reach a camper whose DMs are shut.
+        Remembered per camper so one channel is reused rather than a new one
+        appearing for every marked quiz."""
+        if request.method == "GET":
+            discord_id = (request.args.get("discordId") or "").strip()
+        else:
+            discord_id = ((request.get_json(silent=True) or {}).get("discordId") or "").strip()
+        if not discord_id:
+            return jsonify(ok=False, error="discordId is required."), 400
+        link = g.db.execute("SELECT * FROM discord_links WHERE discordId = ?",
+                            (discord_id,)).fetchone()
+        if not link:
+            return jsonify(ok=False, unverified=True,
+                           error="That Discord user isn't linked to a camp account."), 404
+        if request.method == "POST":
+            cid = ((request.get_json(silent=True) or {}).get("channelId") or "").strip() or None
+            g.db.execute("UPDATE discord_links SET feedbackChannelId = ? WHERE discordId = ?",
+                         (cid, discord_id))
+            return jsonify(ok=True, data={"channelId": cid})
+        return jsonify(ok=True, data={"channelId": link["feedbackChannelId"]})
+
     @app.route("/api/bot/chests", methods=["POST"])
     @require_bot
     def bot_chest_create():

@@ -83,6 +83,9 @@ ONBOARD_CHANNEL_ID = os.environ.get("ONBOARD_CHANNEL_ID") or ""
 # Where handed-in homework lands for staff to mark. Falls back to a channel
 # named "marking-discussions"/"marking".
 MARKING_CHANNEL_ID = os.environ.get("MARKING_CHANNEL_ID") or ""
+# Category to put per-camper private feedback channels in. Falls back to a
+# category named "Feedback", then to no category at all.
+FEEDBACK_CATEGORY_ID = os.environ.get("FEEDBACK_CATEGORY_ID") or ""
 # Discord's per-file upload ceiling on a non-boosted server is 25 MB.
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES") or 25 * 1024 * 1024)
 
@@ -327,6 +330,15 @@ class CampAPI:
 
     async def attendance_list(self, date: str = "") -> Dict[str, Any]:
         return await self._get("/api/bot/attendance", {"date": date} if date else None)
+
+    # — Private feedback channel —
+    async def feedback_channel_get(self, discord_id: str) -> Dict[str, Any]:
+        return await self._get("/api/bot/feedback-channel", {"discordId": discord_id})
+
+    async def feedback_channel_set(self, discord_id: str, channel_id: str) -> Dict[str, Any]:
+        return await self._post("/api/bot/feedback-channel", {
+            "discordId": discord_id, "channelId": channel_id,
+        })
 
     # — Homework hand-in / marking —
     async def homework_create(self, guild_id: str, discord_id: str, title: str,
@@ -1847,7 +1859,8 @@ def _submission_embed(data: Dict[str, Any], *, attachment_names: List[str]) -> d
 
 
 def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool,
-                  fallback_channel: Optional[int] = None) -> discord.Embed:
+                  fallback_channel: Optional[int] = None,
+                  private_channel: Optional[int] = None) -> discord.Embed:
     """Re-render a submission card once it's been marked. Rebuilt from the
     original so re-marking replaces the result instead of stacking fields."""
     e = discord.Embed(title=base.title, colour=0x22C55E)
@@ -1862,6 +1875,8 @@ def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool,
                     inline=True)
     if dm_ok:
         delivery = "✅ DM delivered"
+    elif private_channel:
+        delivery = f"🔒 DMs closed — sent to <#{private_channel}>"
     elif fallback_channel:
         delivery = f"📢 DMs closed — posted in <#{fallback_channel}>"
     else:
@@ -1876,6 +1891,136 @@ def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool,
                     value="\n".join(f"• {f.get('name')}" for f in rf)[:1024], inline=False)
     e.set_footer(text=base.footer.text or "")
     return e
+
+
+def _feedback_slug(name: str, discord_id: str) -> str:
+    """Channel name for a camper's private line. Discord lowercases and
+    strips these anyway, so do it up front and keep it recognisable."""
+    base = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    if not base:
+        base = f"camper-{discord_id[-6:]}"
+    return f"feedback-{base}"[:100]
+
+
+async def _ensure_feedback_channel(guild: discord.Guild, member: discord.Member,
+                                   student_name: str) -> Optional[discord.TextChannel]:
+    """Get (or make) the private channel for one camper — visible to them and
+    to Staff, hidden from everyone else. Reused across submissions, so a term
+    of marking doesn't leave a channel per quiz behind.
+
+    Returns None if the bot can't make one, so callers fall back further."""
+    discord_id = str(member.id)
+
+    # Remembered from last time?
+    try:
+        res = await api.feedback_channel_get(discord_id)
+        cid = ((res.get("data") or {}).get("channelId") or "") if res.get("ok") else ""
+        if cid:
+            ch = guild.get_channel(int(cid))
+            if ch is not None:
+                return ch
+            # Channel was deleted — forget it and make a fresh one.
+            await api.feedback_channel_set(discord_id, "")
+    except Exception:  # noqa: BLE001
+        log.exception("feedback-channel lookup failed for %s", discord_id)
+
+    if _missing_guild_perms(guild, "manage_channels"):
+        _warn_once(f"fbchan:{guild.id}",
+                   "Can't open private feedback channels in '%s' — missing Manage "
+                   "Channels.", guild.name)
+        return None
+
+    staff_role = discord.utils.get(guild.roles, name=STAFF_ROLE_NAME)
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        member: discord.PermissionOverwrite(
+            view_channel=True, read_message_history=True, send_messages=True),
+        guild.me: discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, embed_links=True,
+            attach_files=True, manage_messages=True),
+    }
+    if staff_role:
+        overwrites[staff_role] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True)
+
+    category = None
+    if FEEDBACK_CATEGORY_ID:
+        category = guild.get_channel(int(FEEDBACK_CATEGORY_ID))
+        if not isinstance(category, discord.CategoryChannel):
+            category = None
+    if category is None:
+        category = discord.utils.get(guild.categories, name="Feedback") \
+            or discord.utils.get(guild.categories, name="feedback")
+
+    try:
+        ch = await guild.create_text_channel(
+            _feedback_slug(student_name or member.display_name, discord_id),
+            overwrites=overwrites, category=category,
+            topic=f"Private feedback for {student_name or member.display_name}. "
+                  f"Only they and staff can see this.",
+            reason="HigherGrade — private feedback channel (camper's DMs are closed)",
+        )
+    except discord.Forbidden:
+        _warn_once(f"fbchan:{guild.id}",
+                   "Forbidden creating a feedback channel in '%s'.", guild.name)
+        return None
+    except discord.HTTPException:
+        log.exception("could not create a feedback channel for %s", discord_id)
+        return None
+
+    try:
+        await api.feedback_channel_set(discord_id, str(ch.id))
+    except Exception:  # noqa: BLE001
+        log.exception("could not remember feedback channel %s", ch.id)
+    try:
+        await ch.send(
+            f"{member.mention} — your DMs are closed, so this is where your marked "
+            f"work and feedback will land. Only you and the staff can see this "
+            f"channel. You can reply here if you have questions.",
+            allowed_mentions=discord.AllowedMentions(users=True, everyone=False, roles=False))
+    except discord.HTTPException:
+        pass
+    return ch
+
+
+async def _deliver_private(data: Dict[str, Any], guild: Optional[discord.Guild],
+                           files: Optional[List[discord.File]] = None) -> Optional[int]:
+    """Second delivery route: a channel only the camper and staff can see.
+    Returns the channel id, or None if one couldn't be opened."""
+    if guild is None:
+        return None
+    try:
+        uid = int(data.get("discordId"))
+    except (TypeError, ValueError):
+        return None
+    member = guild.get_member(uid)
+    if member is None:
+        try:
+            member = await guild.fetch_member(uid)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return None
+    ch = await _ensure_feedback_channel(guild, member, data.get("studentName") or "")
+    if ch is None:
+        return None
+
+    e = discord.Embed(
+        title="📝 Your homework has been marked",
+        description=f"**{data.get('title') or 'Your submission'}**",
+        colour=0x22C55E,
+    )
+    e.add_field(name="Score", value=_score_line(data), inline=False)
+    e.add_field(name="Feedback", value=str(data.get("feedback") or "")[:1024], inline=False)
+    e.set_footer(text=f"Marked by {data.get('markedByName') or 'HigherGrade staff'}")
+    try:
+        await ch.send(content=member.mention, embed=e, files=files or [],
+                      allowed_mentions=discord.AllowedMentions(
+                          users=True, everyone=False, roles=False))
+        for part in _chunk(str(data.get("feedback") or "")[1024:], MSG_LIMIT):
+            await ch.send(part)
+        return int(ch.id)
+    except (discord.Forbidden, discord.HTTPException):
+        log.info("could not post into feedback channel %s", ch.id)
+        return None
 
 
 async def _post_feedback_fallback(data: Dict[str, Any],
@@ -2018,21 +2163,31 @@ async def _apply_mark(interaction: discord.Interaction, hid: str, score: str,
         return
     data = res.get("data") or {}
 
+    # Delivery ladder, most private first:
+    #   1. DM
+    #   2. a private channel only they and staff can see
+    #   3. the channel they submitted from — public, so genuinely last
     dm_ok = await _dm_feedback(data, files=_files_from(meta, blobs))
+    private_channel: Optional[int] = None
     fallback_channel: Optional[int] = None
     if not dm_ok:
-        fallback_channel = await _post_feedback_fallback(
-            data, files=_files_from(meta, blobs))
+        private_channel = await _deliver_private(
+            data, interaction.guild, files=_files_from(meta, blobs))
+        if private_channel is None:
+            fallback_channel = await _post_feedback_fallback(
+                data, files=_files_from(meta, blobs))
     try:
-        await api.homework_dm(hid, dm_ok or fallback_channel is not None)
+        await api.homework_dm(
+            hid, dm_ok or private_channel is not None or fallback_channel is not None)
     except Exception:  # noqa: BLE001
         log.exception("could not record DM status for %s", hid)
 
     if source and source.embeds:
         try:
-            await source.edit(embed=_marked_embed(source.embeds[0], data, dm_ok,
-                                                  fallback_channel=fallback_channel),
-                              view=_mark_view(hid))
+            await source.edit(embed=_marked_embed(
+                source.embeds[0], data, dm_ok,
+                fallback_channel=fallback_channel, private_channel=private_channel),
+                view=_mark_view(hid))
         except (discord.Forbidden, discord.HTTPException):
             log.info("couldn't update submission message for %s", hid)
 
@@ -2052,9 +2207,13 @@ async def _apply_mark(interaction: discord.Interaction, hid: str, score: str,
     if meta:
         bits.append(f"• {len(meta)} file(s) sent back.")
     if dm_ok:
-        bits.append(f"• DM delivered.")
+        bits.append("• DM delivered.")
+    elif private_channel:
+        bits.append(f"• DMs closed — sent to their private channel <#{private_channel}> "
+                    f"(only they and staff can see it).")
     elif fallback_channel:
-        bits.append(f"• DMs closed — posted in <#{fallback_channel}> instead.")
+        bits.append(f"• DMs closed and I couldn't open a private channel — posted in "
+                    f"<#{fallback_channel}>, which others can read.")
     else:
         bits.append("• ⚠️ Couldn't reach them — pass the feedback on another way.")
     if data.get("awardNote"):
