@@ -270,7 +270,17 @@ CREATE TABLE IF NOT EXISTS homework_submissions (
   markedBy      TEXT,
   markedByName  TEXT,
   markedAt      INTEGER,
-  dmDelivered   INTEGER NOT NULL DEFAULT 0
+  dmDelivered   INTEGER NOT NULL DEFAULT 0,
+  -- Score is kept EXACTLY as the marker typed it ("18/20", "N/A") so the
+  -- camper sees the fraction back, not a rounded decimal. The parsed
+  -- halves live alongside it purely to do the points arithmetic.
+  scoreEarned   INTEGER,
+  scoreTotal    INTEGER,
+  -- Game points actually paid for this mark. Stored so re-marking can
+  -- reverse precisely what was given rather than recompute it.
+  pointsAwarded INTEGER NOT NULL DEFAULT 0,
+  -- Files sent back with the mark: JSON [{name, size}].
+  returnedFiles TEXT NOT NULL DEFAULT '[]'
 );
 -- Daily attendance. One row per student per day; re-marking a day updates
 -- the row in place and reverses the previous day's points, so a mistake

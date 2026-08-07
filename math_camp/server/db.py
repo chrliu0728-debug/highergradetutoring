@@ -200,12 +200,20 @@ def _migrate(conn):
             pass
     # Homework: where the camper ran /submit, so feedback has somewhere to go
     # when their DMs are shut. Added after the table shipped.
-    try:
-        if _has_column("homework_submissions", "id") and \
-                not _has_column("homework_submissions", "originChannelId"):
-            conn.execute("ALTER TABLE homework_submissions ADD COLUMN originChannelId TEXT")
-    except sqlite3.OperationalError:
-        pass
+    for _col, _type in (
+        ("originChannelId", "TEXT"),
+        # Quiz scoring, added after the table shipped.
+        ("scoreEarned",   "INTEGER"),
+        ("scoreTotal",    "INTEGER"),
+        ("pointsAwarded", "INTEGER NOT NULL DEFAULT 0"),
+        ("returnedFiles", "TEXT NOT NULL DEFAULT '[]'"),
+    ):
+        try:
+            if _has_column("homework_submissions", "id") and \
+                    not _has_column("homework_submissions", _col):
+                conn.execute(f"ALTER TABLE homework_submissions ADD COLUMN {_col} {_type}")
+        except sqlite3.OperationalError:
+            pass
     # Staff transcript file uploads — added after launch.
     try:
         if _has_column("staff", "id") and not _has_column("staff", "transcriptFile"):

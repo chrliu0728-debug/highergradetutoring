@@ -409,6 +409,43 @@ Only **verified** campers can submit — the whole thing keys off the linked
 camp account, which is where the real name comes from and who the feedback
 gets sent to. An unverified user is told to verify first.
 
+**Scoring.** Enter the score as a **fraction** — `18/20` — or `N/A` if no
+quiz was handed in. The fraction is stored and shown back exactly as
+typed; it's never turned into a decimal or a percentage.
+
+Points are worked out from it automatically and credited to the camper's
+camp account:
+
+| Score | Maths | Points |
+| --- | --- | --- |
+| `20/20` | 20 × 6, **doubled** (100% ≥ 95%) | **240** |
+| `19/20` | 19 × 6, **doubled** (95% ≥ 95%) | **228** |
+| `18/20` | 18 × 6 (90%, no bonus) | **108** |
+| `0/20` | 0 × 6 | 0 |
+| `N/A` | no quiz handed in | 0 |
+
+Each mark on the test is worth **6 game points**, and the whole total is
+**doubled at 95% or above**. Re-marking a submission takes back exactly
+what the previous mark paid before paying the new figure, so a corrected
+score never stacks. The values live in `POINTS_PER_MARK` and
+`DOUBLE_AT_PERCENT` in `server/app.py`.
+
+**Sending files back.** Two ways:
+
+- `/mark submission:<pick> score:18/20 feedback:"…" file:<annotated.pdf>` —
+  up to 3 files, picked from a dropdown of unmarked work (oldest first).
+- Mark with the button, then **reply to the card** with files attached and
+  the bot forwards them. This one needs the **Message Content** intent
+  turned on in the dev portal; without it the bot runs fine and this one
+  convenience just never fires.
+
+**Keeping the queue in order.** `/marking-queue` reposts every unmarked
+card so the queue reads bottom-up — newest first, **oldest at the very
+bottom**, where staff look first. Each card is reposted *before* the old
+copy is removed, so an interruption can never lose work; worst case you
+get a duplicate card. Submission records are never deleted, and attached
+files are carried across to the new card.
+
 **Staff side.** Each submission posts a card into the marking channel with
 the camper's real name, their Discord mention, the hand-in time (absolute
 *and* relative, in each reader's own timezone), their note, and the files

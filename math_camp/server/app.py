@@ -3835,10 +3835,11 @@ def register_routes(app):
             d["feedback"] = crypto.dec(d.get("feedback")) or ""
         else:
             d.pop("feedback", None)
-        try:
-            d["attachments"] = json.loads(d.get("attachments") or "[]")
-        except Exception:  # noqa: BLE001
-            d["attachments"] = []
+        for key in ("attachments", "returnedFiles"):
+            try:
+                d[key] = json.loads(d.get(key) or "[]")
+            except Exception:  # noqa: BLE001
+                d[key] = []
         d["studentName"] = ""
         if d.get("studentId"):
             srow = g.db.execute("SELECT * FROM students WHERE id = ?",
@@ -3908,6 +3909,45 @@ def register_routes(app):
             return jsonify(ok=False, error="No such submission."), 404
         return jsonify(ok=True, data=_hw_row(row))
 
+    # Quiz scoring. Every mark on the test is worth this many game points,
+    # doubled when the camper scores at or above the bonus threshold.
+    POINTS_PER_MARK   = 6
+    DOUBLE_AT_PERCENT = 95.0
+
+    def _parse_score(raw):
+        """Read a score written as a fraction. Returns
+        (earned, total, normalised_text, error).
+
+        The text is handed back exactly as typed — the fraction is what the
+        camper sees, never a decimal. "N/A" (or blank) means no quiz was
+        handed in, which scores nothing rather than zero."""
+        s = (raw or "").strip()
+        if not s or s.upper().replace(".", "").replace(" ", "") in ("NA", "N/A".replace("/", "")):
+            return None, None, "N/A", ""
+        if s.upper() in ("N/A", "NA", "N.A."):
+            return None, None, "N/A", ""
+        m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$", s)
+        if not m:
+            return None, None, "", (
+                f"Write the score as a fraction like `18/20`, or `N/A` if they "
+                f"didn't hand a quiz in — got `{s}`.")
+        earned, total = float(m.group(1)), float(m.group(2))
+        if total <= 0:
+            return None, None, "", "The bottom of the fraction has to be above 0."
+        if earned > total:
+            return None, None, "", (
+                f"`{s}` scores more than the quiz is out of. Check the fraction.")
+        return earned, total, s, ""
+
+    def _score_to_points(earned, total):
+        """Marks × 6, doubled at 95% or better. Returns (points, doubled)."""
+        if earned is None or not total:
+            return 0, False
+        pct = (earned / total) * 100.0
+        pts = int(round(earned * POINTS_PER_MARK))
+        doubled = pct >= DOUBLE_AT_PERCENT
+        return (pts * 2 if doubled else pts), doubled
+
     @app.route("/api/bot/homework/<hid>/mark", methods=["POST"])
     @require_bot
     def bot_homework_mark(hid):
@@ -3919,20 +3959,67 @@ def register_routes(app):
                            (hid,)).fetchone()
         if not row:
             return jsonify(ok=False, error="No such submission."), 404
+
+        earned, total, score_text, err = _parse_score(d.get("grade") or d.get("score"))
+        if err:
+            return jsonify(ok=False, error=err), 400
+        points, doubled = _score_to_points(earned, total)
+
+        marker = (d.get("markedByName") or "").strip()[:100] or None
+        # Re-marking: take back exactly what the previous mark paid before
+        # paying the new figure, so a corrected score never stacks.
+        previous = int(row["pointsAwarded"] or 0)
+        reversed_pts = 0
+        if previous:
+            body, st = _award_points(
+                row["studentId"], -previous,
+                f"Re-mark correction: {row['title'] or 'submission'}",
+                marker or "staff")
+            if st == 200:
+                reversed_pts = int((body.get("data") or {}).get("applied") or 0)
+
+        awarded = 0
+        award_note = None
+        if points > 0 and row["studentId"]:
+            body, st = _award_points(
+                row["studentId"], points,
+                f"📝 {row['title'] or 'Quiz'} · {score_text}"
+                + (f" · {POINTS_PER_MARK} pts/mark, DOUBLED for {DOUBLE_AT_PERCENT:g}%+"
+                   if doubled else f" · {POINTS_PER_MARK} pts/mark"),
+                marker or "staff")
+            if st == 200:
+                awarded = int((body.get("data") or {}).get("applied") or 0)
+            else:
+                award_note = body.get("error")
+
+        files = d.get("returnedFiles")
+        if not isinstance(files, list):
+            files = []
+
         g.db.execute(
             """UPDATE homework_submissions
                SET status = 'marked', grade = ?, feedback = ?, markedBy = ?,
-                   markedByName = ?, markedAt = ?
+                   markedByName = ?, markedAt = ?, scoreEarned = ?, scoreTotal = ?,
+                   pointsAwarded = ?, returnedFiles = ?
                WHERE id = ?""",
-            ((d.get("grade") or "").strip()[:60] or None,
+            (score_text or None,
              crypto.enc(feedback[:4000]),
              (d.get("markedBy") or "").strip() or None,
-             (d.get("markedByName") or "").strip()[:100] or None,
-             int(time.time()), hid),
+             marker, int(time.time()),
+             int(earned) if earned is not None and float(earned).is_integer() else earned,
+             int(total) if total is not None and float(total).is_integer() else total,
+             awarded, json.dumps(files[:10]), hid),
         )
         fresh = g.db.execute("SELECT * FROM homework_submissions WHERE id = ?",
                              (hid,)).fetchone()
-        return jsonify(ok=True, data=_hw_row(fresh))
+        out = _hw_row(fresh)
+        out.update({
+            "pointsAwarded": awarded, "doubled": doubled,
+            "reversed": reversed_pts, "awardNote": award_note,
+            "pointsPerMark": POINTS_PER_MARK, "doubleAt": DOUBLE_AT_PERCENT,
+            "submitted": score_text != "N/A",
+        })
+        return jsonify(ok=True, data=out)
 
     @app.route("/api/bot/homework/<hid>/dm", methods=["POST"])
     @require_bot

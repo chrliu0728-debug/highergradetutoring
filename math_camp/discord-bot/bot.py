@@ -348,10 +348,13 @@ class CampAPI:
         return await self._get(f"/api/bot/homework/{hid}")
 
     async def homework_mark(self, hid: str, grade: str, feedback: str,
-                            marked_by: str, marked_by_name: str) -> Dict[str, Any]:
+                            marked_by: str, marked_by_name: str,
+                            returned_files: Optional[List[Dict[str, Any]]] = None
+                            ) -> Dict[str, Any]:
         return await self._post(f"/api/bot/homework/{hid}/mark", {
             "grade": grade, "feedback": feedback,
             "markedBy": marked_by, "markedByName": marked_by_name,
+            "returnedFiles": returned_files or [],
         })
 
     async def homework_dm(self, hid: str, delivered: bool) -> Dict[str, Any]:
@@ -388,6 +391,10 @@ api = CampAPI(CAMP_API_BASE, BOT_API_TOKEN)
 # ── Discord client ───────────────────────────────────────────────────
 intents = discord.Intents.default()
 intents.members = True   # PRIVILEGED — must be enabled in dev portal
+# PRIVILEGED — needed only so staff can reply to a marked submission card
+# with files attached and have the bot forward them. If it's off in the dev
+# portal the bot still runs; that one convenience just never fires.
+intents.message_content = True
 
 
 class HGBot(discord.Client):
@@ -1845,11 +1852,14 @@ def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool,
     original so re-marking replaces the result instead of stacking fields."""
     e = discord.Embed(title=base.title, colour=0x22C55E)
     for f in base.fields:
-        if f.name in ("Grade", "Feedback", "Marked by"):
+        if f.name in ("Grade", "Score", "Feedback", "Marked by", "Returned files"):
             continue
         e.add_field(name=f.name, value=f.value, inline=f.inline)
     if marked.get("grade"):
-        e.add_field(name="Grade", value=str(marked["grade"])[:1024], inline=True)
+        pts = int(marked.get("pointsAwarded") or 0)
+        e.add_field(name="Score",
+                    value=f"{marked['grade']}" + (f"\n+{pts} pts" if pts else ""),
+                    inline=True)
     if dm_ok:
         delivery = "✅ DM delivered"
     elif fallback_channel:
@@ -1860,11 +1870,16 @@ def _marked_embed(base: discord.Embed, marked: Dict[str, Any], dm_ok: bool,
                 value=f"{marked.get('markedByName') or 'staff'}\n{delivery}",
                 inline=True)
     e.add_field(name="Feedback", value=str(marked.get("feedback") or "")[:1024], inline=False)
+    rf = marked.get("returnedFiles") or []
+    if rf:
+        e.add_field(name="Returned files",
+                    value="\n".join(f"• {f.get('name')}" for f in rf)[:1024], inline=False)
     e.set_footer(text=base.footer.text or "")
     return e
 
 
-async def _post_feedback_fallback(data: Dict[str, Any]) -> Optional[int]:
+async def _post_feedback_fallback(data: Dict[str, Any],
+                                  files: Optional[List[discord.File]] = None) -> Optional[int]:
     """When a camper's DMs are shut, ping them with their feedback in the
     channel they ran /submit in. Returns the channel id used, or None.
 
@@ -1889,15 +1904,14 @@ async def _post_feedback_fallback(data: Dict[str, Any]) -> Optional[int]:
         description=f"**{data.get('title') or 'Your submission'}**",
         colour=0x22C55E,
     )
-    if data.get("grade"):
-        e.add_field(name="Grade", value=str(data["grade"])[:1024], inline=False)
+    e.add_field(name="Score", value=_score_line(data), inline=False)
     e.add_field(name="Feedback", value=str(data.get("feedback") or "")[:1024], inline=False)
     e.set_footer(text=f"Marked by {data.get('markedByName') or 'HigherGrade staff'} · "
                       f"posted here because your DMs are closed")
     try:
         await channel.send(
             content=f"<@{data.get('discordId')}> — I couldn't DM you, so here it is:",
-            embed=e,
+            embed=e, files=files or [],
             allowed_mentions=discord.AllowedMentions(users=True, everyone=False, roles=False),
         )
         rest = str(data.get("feedback") or "")[1024:]
@@ -1909,7 +1923,26 @@ async def _post_feedback_fallback(data: Dict[str, Any]) -> Optional[int]:
         return None
 
 
-async def _dm_feedback(data: Dict[str, Any]) -> bool:
+def _score_line(data: Dict[str, Any]) -> str:
+    """How the score and its payout read back to the camper."""
+    score = data.get("grade") or "N/A"
+    pts = int(data.get("pointsAwarded") or 0)
+    if not data.get("submitted"):
+        return "**N/A** — no quiz handed in, so no points this time."
+    per = data.get("pointsPerMark") or 6
+    line = f"**{score}**"
+    if pts:
+        line += f" → **+{pts} game points** ({per} per mark"
+        if data.get("doubled"):
+            line += f", **doubled** for {data.get('doubleAt', 95):g}%+"
+        line += ")"
+    else:
+        line += " → no points this time."
+    return line
+
+
+async def _dm_feedback(data: Dict[str, Any],
+                       files: Optional[List[discord.File]] = None) -> bool:
     """Send the student their feedback. Returns whether it landed."""
     try:
         uid = int(data.get("discordId"))
@@ -1920,13 +1953,15 @@ async def _dm_feedback(data: Dict[str, Any]) -> bool:
         description=f"**{data.get('title') or 'Your submission'}**",
         colour=0x22C55E,
     )
-    if data.get("grade"):
-        e.add_field(name="Grade", value=str(data["grade"])[:1024], inline=False)
+    e.add_field(name="Score", value=_score_line(data), inline=False)
     e.add_field(name="Feedback", value=str(data.get("feedback") or "")[:1024], inline=False)
+    if files:
+        e.add_field(name="Returned work",
+                    value="Your marked paper is attached below. 📎", inline=False)
     e.set_footer(text=f"Marked by {data.get('markedByName') or 'HigherGrade staff'}")
     try:
         user = bot.get_user(uid) or await bot.fetch_user(uid)
-        await user.send(embed=e)
+        await user.send(embed=e, files=files or [])
         # Feedback longer than one embed field continues as plain messages.
         rest = str(data.get("feedback") or "")[1024:]
         for part in _chunk(rest, MSG_LIMIT):
@@ -1940,10 +1975,97 @@ async def _dm_feedback(data: Dict[str, Any]) -> bool:
         return False
 
 
+async def _grab_files(attachments: List[Any]) -> tuple[List[Dict[str, Any]], List[bytes]]:
+    """Read attachments into memory so they can be re-sent to the camper and
+    kept on the marking card. Oversized files are skipped, not fatal."""
+    meta: List[Dict[str, Any]] = []
+    blobs: List[bytes] = []
+    for a in attachments[:3]:
+        if getattr(a, "size", 0) > MAX_UPLOAD_BYTES:
+            log.info("skipping oversized return file %s", getattr(a, "filename", "?"))
+            continue
+        try:
+            blobs.append(await a.read())
+            meta.append({"name": a.filename, "size": a.size})
+        except Exception:  # noqa: BLE001
+            log.exception("could not read return file %s", getattr(a, "filename", "?"))
+    return meta, blobs
+
+
+def _files_from(meta: List[Dict[str, Any]], blobs: List[bytes]) -> List[discord.File]:
+    """Fresh discord.File objects — they're single-use, so each send needs
+    its own set built from the same bytes."""
+    return [discord.File(io.BytesIO(b), filename=m["name"])
+            for m, b in zip(meta, blobs)]
+
+
+async def _apply_mark(interaction: discord.Interaction, hid: str, score: str,
+                      feedback: str, meta: List[Dict[str, Any]],
+                      blobs: List[bytes],
+                      source: Optional[discord.Message]) -> None:
+    """Save the mark, pay the points, return the work, update the card.
+    Shared by the Mark button, /mark, and the reply-with-files flow. The
+    interaction must already be deferred."""
+    marker = _member_of(interaction)
+    res = await api.homework_mark(
+        hid, score.strip(), feedback.strip(), str(interaction.user.id),
+        (marker.display_name if marker else str(interaction.user)),
+        returned_files=meta,
+    )
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Could not save.'}",
+                                        ephemeral=True)
+        return
+    data = res.get("data") or {}
+
+    dm_ok = await _dm_feedback(data, files=_files_from(meta, blobs))
+    fallback_channel: Optional[int] = None
+    if not dm_ok:
+        fallback_channel = await _post_feedback_fallback(
+            data, files=_files_from(meta, blobs))
+    try:
+        await api.homework_dm(hid, dm_ok or fallback_channel is not None)
+    except Exception:  # noqa: BLE001
+        log.exception("could not record DM status for %s", hid)
+
+    if source and source.embeds:
+        try:
+            await source.edit(embed=_marked_embed(source.embeds[0], data, dm_ok,
+                                                  fallback_channel=fallback_channel),
+                              view=_mark_view(hid))
+        except (discord.Forbidden, discord.HTTPException):
+            log.info("couldn't update submission message for %s", hid)
+
+    who = data.get("studentName") or "the student"
+    pts = int(data.get("pointsAwarded") or 0)
+    bits = [f"✅ Marked **{who}** — {data.get('grade') or 'N/A'}."]
+    if pts:
+        bits.append(f"• **+{pts} game points** credited"
+                    + (" (doubled 🎉)" if data.get("doubled") else ""))
+    elif data.get("submitted"):
+        bits.append("• No points from this score.")
+    else:
+        bits.append("• Marked N/A — no quiz handed in, so no points.")
+    if data.get("reversed"):
+        bits.append(f"• Re-mark: took back {abs(int(data['reversed']))} pts from the "
+                    f"previous mark first.")
+    if meta:
+        bits.append(f"• {len(meta)} file(s) sent back.")
+    if dm_ok:
+        bits.append(f"• DM delivered.")
+    elif fallback_channel:
+        bits.append(f"• DMs closed — posted in <#{fallback_channel}> instead.")
+    else:
+        bits.append("• ⚠️ Couldn't reach them — pass the feedback on another way.")
+    if data.get("awardNote"):
+        bits.append(f"• ⚠️ Points note: {data['awardNote']}")
+    await interaction.followup.send("\n".join(bits), ephemeral=True)
+
+
 class MarkModal(discord.ui.Modal, title="Mark this submission"):
     grade = discord.ui.TextInput(
-        label="Grade / mark (optional)",
-        placeholder="e.g. 8/10, B+, Complete",
+        label="Score as a fraction (or N/A)",
+        placeholder="e.g. 18/20 — N/A if they didn't hand a quiz in",
         max_length=60, required=False,
     )
     feedback = discord.ui.TextInput(
@@ -1966,54 +2088,10 @@ class MarkModal(discord.ui.Modal, title="Mark this submission"):
                 "or to grant your role `mark-homework` with `/perms-grant`.",
                 ephemeral=True)
             return
-        marker = _member_of(interaction)
-        res = await api.homework_mark(
-            self.hid, str(self.grade.value or "").strip(),
-            str(self.feedback.value).strip(), str(interaction.user.id),
-            (marker.display_name if marker else str(interaction.user)),
-        )
-        if not res.get("ok"):
-            await interaction.followup.send(f"❌ {res.get('error') or 'Could not save.'}",
-                                            ephemeral=True)
-            return
-        data = res.get("data") or {}
-
-        dm_ok = await _dm_feedback(data)
-        fallback_channel: Optional[int] = None
-        if not dm_ok:
-            # DMs shut — reach them where they handed the work in instead.
-            fallback_channel = await _post_feedback_fallback(data)
-        try:
-            # Delivered either way counts as delivered for the record.
-            await api.homework_dm(self.hid, dm_ok or fallback_channel is not None)
-        except Exception:  # noqa: BLE001
-            log.exception("could not record DM status for %s", self.hid)
-
-        # Re-render the card in the marking channel so the thread of record
-        # shows the result without anyone having to re-open the modal.
-        if self.source and self.source.embeds:
-            try:
-                await self.source.edit(
-                    embed=_marked_embed(self.source.embeds[0], data, dm_ok,
-                                        fallback_channel=fallback_channel),
-                    view=_mark_view(self.hid))
-            except (discord.Forbidden, discord.HTTPException):
-                log.info("couldn't update submission message for %s", self.hid)
-
-        who = data.get("studentName") or "the student"
-        if dm_ok:
-            await interaction.followup.send(
-                f"✅ Marked. **{who}** has been DMed your feedback.", ephemeral=True)
-        elif fallback_channel:
-            await interaction.followup.send(
-                f"✅ Marked. **{who}**'s DMs are closed, so I posted the feedback in "
-                f"<#{fallback_channel}> and pinged them there — note that anyone who "
-                f"can see that channel can read it.", ephemeral=True)
-        else:
-            await interaction.followup.send(
-                f"✅ Marked and saved — but I couldn't reach **{who}**: their DMs are "
-                f"closed and I couldn't post in the channel they submitted from. "
-                f"You'll need to pass the feedback on another way.", ephemeral=True)
+        # The form can't hold file uploads — /mark does that, or reply to
+        # the card with files attached.
+        await _apply_mark(interaction, self.hid, str(self.grade.value or ""),
+                          str(self.feedback.value), [], [], self.source)
 
 
 class MarkButton(
@@ -2143,6 +2221,158 @@ async def cmd_submit(
     )
 
 
+async def _pending_choices(interaction: discord.Interaction,
+                           current: str) -> List[app_commands.Choice[str]]:
+    """Unmarked submissions, oldest first — that's the order they should be
+    worked through."""
+    if not interaction.guild:
+        return []
+    try:
+        res = await api.homework_list(str(interaction.guild.id), "pending")
+    except Exception:  # noqa: BLE001
+        return []
+    rows = list(reversed(res.get("data") or []))   # API gives newest first
+    cur = (current or "").lower()
+    out = []
+    for r in rows:
+        label = f"{r.get('studentName') or '?'} — {r.get('title') or 'untitled'}"
+        if cur and cur not in label.lower():
+            continue
+        out.append(app_commands.Choice(name=label[:100], value=str(r.get("id"))))
+        if len(out) >= 25:
+            break
+    return out
+
+
+@bot.tree.command(name="mark", description="Mark a submission and send back files.")
+@app_commands.describe(
+    submission="Which piece of work — oldest first",
+    score="Score as a fraction, e.g. 18/20. N/A if they didn't hand one in.",
+    feedback="What you want them to read. DMed to them word for word.",
+    file="The marked paper to send back (optional)",
+    file2="Another file (optional)",
+    file3="Another file (optional)",
+)
+@app_commands.autocomplete(submission=_pending_choices)
+async def cmd_mark(
+    interaction: discord.Interaction,
+    submission: str,
+    score: str,
+    feedback: str,
+    file: Optional[discord.Attachment] = None,
+    file2: Optional[discord.Attachment] = None,
+    file3: Optional[discord.Attachment] = None,
+) -> None:
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not await _can_mark(interaction):
+        await interaction.followup.send(
+            "🚫 Only staff can mark work. Ask an admin for the **Staff** role, "
+            "or to grant your role `mark-homework` with `/perms-grant`.",
+            ephemeral=True)
+        return
+    if not feedback.strip():
+        await interaction.followup.send("❌ Feedback can't be empty.", ephemeral=True)
+        return
+
+    meta, blobs = await _grab_files([a for a in (file, file2, file3) if a is not None])
+    # Find the card so it can be updated in place, same as the button does.
+    source = await _find_submission_message(interaction.guild, submission.strip())
+    await _apply_mark(interaction, submission.strip(), score, feedback, meta, blobs, source)
+
+
+async def _find_submission_message(guild: Optional[discord.Guild],
+                                   hid: str) -> Optional[discord.Message]:
+    """Fetch a submission's card from the marking channel, if it's still there."""
+    if not guild:
+        return None
+    try:
+        res = await api.homework_get(hid)
+        row = res.get("data") or {}
+        cid, mid = row.get("channelId"), row.get("messageId")
+        if not cid or not mid:
+            return None
+        channel = bot.get_channel(int(cid)) or await bot.fetch_channel(int(cid))
+        return await channel.fetch_message(int(mid))
+    except (discord.NotFound, discord.Forbidden, ValueError, TypeError):
+        return None
+    except Exception:  # noqa: BLE001
+        log.exception("could not fetch submission message for %s", hid)
+        return None
+
+
+@bot.tree.command(name="marking-queue",
+                  description="Move unmarked work to the bottom, oldest last.")
+async def cmd_marking_queue(interaction: discord.Interaction) -> None:
+    """Repost every pending card so the queue reads bottom-up: the oldest
+    submission ends up as the very last message, which is where staff look
+    first. Each card is REPOSTED BEFORE the old copy is removed, so a
+    failure part-way through can never lose a submission — worst case
+    there's a duplicate card, and the record itself is never touched."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not await _can_mark(interaction):
+        await interaction.followup.send("🚫 Staff only.", ephemeral=True)
+        return
+    if not interaction.guild:
+        await interaction.followup.send("Run this in the server.", ephemeral=True)
+        return
+    channel = _marking_channel(interaction.guild)
+    if channel is None or not _can_post(channel, "the marking queue", embeds=True):
+        await interaction.followup.send(
+            "❌ I can't post in the marking channel.", ephemeral=True)
+        return
+
+    res = await api.homework_list(str(interaction.guild.id), "pending")
+    if not res.get("ok"):
+        await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
+        return
+    rows = res.get("data") or []       # newest first
+    if not rows:
+        await interaction.followup.send("Nothing waiting to be marked. 🎉", ephemeral=True)
+        return
+
+    moved, kept_files, failed = 0, 0, 0
+    # Posting newest → oldest means the OLDEST lands at the very bottom.
+    for row in rows:
+        hid = str(row.get("id"))
+        old = await _find_submission_message(interaction.guild, hid)
+
+        files: List[discord.File] = []
+        if old and old.attachments:
+            meta, blobs = await _grab_files(list(old.attachments))
+            files = _files_from(meta, blobs)
+            kept_files += len(files)
+
+        embed = (old.embeds[0] if old and old.embeds
+                 else _submission_embed(row, attachment_names=[
+                     f.get("name") for f in (row.get("attachments") or [])]))
+        try:
+            posted = await channel.send(embed=embed, files=files, view=_mark_view(hid))
+        except (discord.Forbidden, discord.HTTPException):
+            log.exception("could not repost submission %s", hid)
+            failed += 1
+            continue
+
+        # Only now is it safe to drop the old copy.
+        try:
+            await api.homework_set_message(hid, str(posted.channel.id), str(posted.id))
+        except Exception:  # noqa: BLE001
+            log.exception("could not update message id for %s", hid)
+        if old:
+            try:
+                await old.delete()
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                log.info("left the old card for %s in place — couldn't delete it", hid)
+        moved += 1
+
+    msg = (f"📋 Requeued **{moved}** submission(s) — oldest is now at the bottom of "
+           f"{channel.mention}.")
+    if kept_files:
+        msg += f"\n• Carried {kept_files} attached file(s) across."
+    if failed:
+        msg += f"\n• ⚠️ {failed} couldn't be reposted and were left where they are."
+    await interaction.followup.send(msg, ephemeral=True)
+
+
 @bot.tree.command(name="submissions", description="List homework waiting to be marked.")
 @app_commands.describe(show="Which submissions to list")
 @app_commands.choices(show=[
@@ -2243,6 +2473,8 @@ async def cmd_help(interaction: discord.Interaction) -> None:
     ]
     staff_tools = [
         ("submissions", "List homework waiting to be marked."),
+        ("mark", "Mark a submission and send back files."),
+        ("marking-queue", "Move unmarked work to the bottom, oldest last."),
         ("award", "Give or take points from a camper, with a reason."),
         ("handraise", "Credit a camper for raising their hand (2 pts each)."),
         ("attendance", "Mark a camper present, late, or absent."),
@@ -3557,6 +3789,72 @@ def _verify_channel(guild: discord.Guild) -> Optional[discord.abc.GuildChannel]:
         if ch is not None:
             return ch
     return None
+
+
+@bot.event
+async def on_message(message: discord.Message) -> None:
+    """Reply to a marked submission card with files attached and the bot
+    forwards them to the camper.
+
+    Needs the Message Content intent; without it `message.reference` still
+    resolves but we simply never see the reply, so this degrades to doing
+    nothing rather than erroring."""
+    if message.author.bot or not message.guild or not message.attachments:
+        return
+    ref = message.reference
+    if not ref or not ref.message_id:
+        return
+    channel = _marking_channel(message.guild)
+    if channel is None or message.channel.id != channel.id:
+        return
+
+    # Which submission is this a reply to? The card's footer carries the id.
+    try:
+        parent = await message.channel.fetch_message(ref.message_id)
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        return
+    if not parent.embeds or parent.author.id != bot.user.id:
+        return
+    footer = (parent.embeds[0].footer.text or "")
+    m = re.search(r"\b(hw-[A-Za-z0-9_\-]+)", footer)
+    if not m:
+        return
+    hid = m.group(1)
+
+    perms = message.channel.permissions_for(message.guild.me)
+    if not perms.send_messages:
+        return
+
+    res = await api.homework_get(hid)
+    row = (res.get("data") or {}) if res.get("ok") else {}
+    if not row:
+        return
+    if row.get("status") != "marked":
+        await message.reply(
+            "That submission hasn't been marked yet — mark it first, then reply "
+            "with the files.", mention_author=False)
+        return
+
+    meta, blobs = await _grab_files(list(message.attachments))
+    if not meta:
+        await message.reply("I couldn't read those files (too large?).",
+                            mention_author=False)
+        return
+
+    row["submitted"] = bool(row.get("scoreTotal"))
+    row["pointsPerMark"] = 6
+    sent = await _dm_feedback(row, files=_files_from(meta, blobs))
+    where = None
+    if not sent:
+        where = await _post_feedback_fallback(row, files=_files_from(meta, blobs))
+    if sent:
+        note = f"📎 Sent {len(meta)} file(s) to **{row.get('studentName') or 'them'}**."
+    elif where:
+        note = (f"📎 Their DMs are closed — posted {len(meta)} file(s) in <#{where}> "
+                f"and pinged them.")
+    else:
+        note = "⚠️ Couldn't reach them — DMs closed and no channel to fall back to."
+    await message.reply(note, mention_author=False)
 
 
 @bot.event
