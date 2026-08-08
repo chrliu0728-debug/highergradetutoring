@@ -17,8 +17,8 @@ confirmed — are refused, and lose their roles again if re-frozen later.
 
 Admin-only (Manage Roles permission):
 
-  /chest-create code role description
-  /chest-list
+  /chest-create code role description [answer_cooldown]
+  /chest-list              → paged; ◀ ▶ walk every chest in the server
   /chest-delete chest_id
 
 Admin-only (Administrator):
@@ -101,6 +101,12 @@ STAFF_ROLE_NAME = "Staff"
 # Points a chest pays out on a first-time unlock, when the admin doesn't
 # override it at creation time. 0 in the create modal disables the reward.
 DEFAULT_CHEST_POINTS = int(os.environ.get("DEFAULT_CHEST_POINTS") or 50)
+
+# Seconds one person must wait between passcode attempts on a chest, when
+# the creator doesn't set it. Keeps a short code from being brute-forced by
+# hammering the button. 0 on a chest disables the wait for that chest.
+DEFAULT_CHEST_COOLDOWN = int(os.environ.get("DEFAULT_CHEST_COOLDOWN") or 15)
+MAX_CHEST_COOLDOWN = 3600
 
 # Mapping of camp-side role IDs (from the `roles` table) to a friendly
 # Discord role name. Names match exactly so admins can also create roles
@@ -234,7 +240,8 @@ class CampAPI:
                            bonus_points: int = 0,
                            bonus_count: int = 0,
                            ignore_case: bool = False,
-                           ignore_spaces: bool = False) -> Dict[str, Any]:
+                           ignore_spaces: bool = False,
+                           cooldown_seconds: int = DEFAULT_CHEST_COOLDOWN) -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
@@ -244,6 +251,7 @@ class CampAPI:
             "removeRoleName": remove_role_name or "",
             "bonusPoints": bonus_points, "bonusCount": bonus_count,
             "ignoreCase": ignore_case, "ignoreSpaces": ignore_spaces,
+            "cooldownSeconds": cooldown_seconds,
         })
 
     async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
@@ -1212,6 +1220,21 @@ async def _deliver_chest(interaction: discord.Interaction, payload: Dict[str, An
             break
 
 
+def _chest_error(res: Dict[str, Any]) -> str:
+    """Turn a failed claim into something a camper can act on. A cooldown
+    refusal gets a live countdown timestamp — <t:unix:R> renders as "in 12
+    seconds" and ticks down on its own, in each viewer's own locale."""
+    if res.get("cooldown"):
+        retry = int(res.get("retryAfter") or 0)
+        when = int(time.time()) + max(retry, 1)
+        return (f"⏳ Too fast — you can try this chest again <t:{when}:R>.\n"
+                f"-# There's a {int(res.get('cooldownSeconds') or 0)}s wait "
+                f"between guesses on this chest.")
+    if res.get("exhausted"):
+        return f"📦 {res.get('error') or 'This chest is empty.'}"
+    return f"🔒 {res.get('error') or 'Wrong code.'}"
+
+
 class ChestUnlockModal(discord.ui.Modal, title="🔒 Locked chest"):
     code = discord.ui.TextInput(
         label="Passcode",
@@ -1234,7 +1257,7 @@ class ChestUnlockModal(discord.ui.Modal, title="🔒 Locked chest"):
         )
         if not res.get("ok"):
             await interaction.followup.send(
-                f"🔒 {res.get('error') or 'Wrong code.'}", ephemeral=True,
+                _chest_error(res), ephemeral=True,
             )
             return
         await _deliver_chest(interaction, res.get("data") or {})
@@ -1305,7 +1328,8 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
                  points: int = 0, max_claims: Optional[int] = None,
                  remove_role_name: Optional[str] = None,
                  bonus_points: int = 0, bonus_count: int = 0,
-                 ignore_caps: bool = False, ignore_spaces: bool = False) -> discord.Embed:
+                 ignore_caps: bool = False, ignore_spaces: bool = False,
+                 cooldown: int = 0) -> discord.Embed:
     """First (or only) embed of a chest message. Long descriptions are
     carried on by _chest_overflow_embeds."""
     body = _chunk(description, EMBED_DESC_LIMIT)
@@ -1336,6 +1360,9 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
         bits.append("Capitalisation doesn't matter.")
     elif ignore_spaces:
         bits.append("Spaces don't matter.")
+    # Warn up front so a wrong guess followed by a refusal isn't a mystery.
+    if cooldown > 0:
+        bits.append(f"{cooldown}s between tries.")
     e.set_footer(text=" ".join(bits))
     return e
 
@@ -2716,7 +2743,7 @@ async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
         return
     res = await api.chest_claim(str(interaction.guild.id), str(interaction.user.id), code.strip())
     if not res.get("ok"):
-        await interaction.followup.send(f"🔒 {res.get('error') or 'Wrong code.'}", ephemeral=True)
+        await interaction.followup.send(_chest_error(res), ephemeral=True)
         return
     await _deliver_chest(interaction, res.get("data") or {})
 
@@ -3329,7 +3356,8 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                  locks: Optional[Dict[str, str]] = None,
                  remove_role: Optional[discord.Role] = None,
                  bonus_points: int = 0, bonus_count: int = 0,
-                 ignore_caps: bool = False, ignore_spaces: bool = False) -> None:
+                 ignore_caps: bool = False, ignore_spaces: bool = False,
+                 cooldown: int = DEFAULT_CHEST_COOLDOWN) -> None:
         super().__init__()
         self.role = role
         self.image_url = image_url
@@ -3338,6 +3366,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         self.bonus_count = bonus_count
         self.ignore_caps = ignore_caps
         self.ignore_spaces = ignore_spaces
+        self.cooldown = cooldown
         # Pre-fill and relabel any locked field so the creator can see the
         # value is not theirs to set. Enforcement still happens on submit
         # against a fresh fetch — this is presentation only.
@@ -3443,6 +3472,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             remove_role_name=self.remove_role.name if self.remove_role else "",
             bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
             ignore_case=self.ignore_caps, ignore_spaces=self.ignore_spaces,
+            cooldown_seconds=self.cooldown,
         )
         if not res.get("ok"):
             await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
@@ -3459,6 +3489,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                                bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
                                ignore_caps=self.ignore_caps,
                                ignore_spaces=self.ignore_spaces,
+                               cooldown=self.cooldown,
                                )] + _chest_overflow_embeds(desc)
 
         # Post the public chest message into the channel the command was run
@@ -3501,6 +3532,9 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                                    ("spaces", self.ignore_spaces)) if on]
         summary += ("\n• Passcode: **exact match**" if not relaxed
                     else f"\n• Passcode ignores **{' and '.join(relaxed)}**")
+        summary += ("\n• Answer cooldown: **none** — guesses can be spammed"
+                    if self.cooldown <= 0 else
+                    f"\n• Answer cooldown: **{self.cooldown}s** between tries per person")
         if self.remove_role:
             summary += f"\n• Removes: **{self.remove_role.name}** on open"
             # Camp-mirrored roles get re-asserted from the website, so a
@@ -3528,6 +3562,8 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
     bonus_for_first="How many of the first openers get that bonus",
     ignore_caps="Accept the passcode in any capitalisation",
     ignore_spaces="Accept the passcode with spaces anywhere (or none)",
+    answer_cooldown=f"Seconds each person must wait between passcode tries "
+                    f"(default {DEFAULT_CHEST_COOLDOWN}, 0 for no wait)",
 )
 async def cmd_chest_create(
     interaction: discord.Interaction,
@@ -3538,6 +3574,7 @@ async def cmd_chest_create(
     bonus_for_first: Optional[int] = None,
     ignore_caps: bool = False,
     ignore_spaces: bool = False,
+    answer_cooldown: Optional[int] = None,
 ) -> None:
     # No defer() here — a modal has to be the FIRST response to the
     # interaction, so only cheap local checks can run before we reply.
@@ -3602,6 +3639,18 @@ async def cmd_chest_create(
             "❌ Bonus points and opener count can't be negative.", ephemeral=True)
         return
 
+    cd = DEFAULT_CHEST_COOLDOWN if answer_cooldown is None else int(answer_cooldown)
+    if cd < 0:
+        await interaction.response.send_message(
+            "❌ `answer_cooldown` can't be negative — use 0 for no wait at all.",
+            ephemeral=True)
+        return
+    if cd > MAX_CHEST_COOLDOWN:
+        await interaction.response.send_message(
+            f"❌ `answer_cooldown` can be at most {MAX_CHEST_COOLDOWN}s "
+            f"({MAX_CHEST_COOLDOWN // 60} minutes).", ephemeral=True)
+        return
+
     # Cached locks only — there's no time for a fetch before a modal, and
     # these are used purely to pre-fill. on_submit re-checks for real.
     await interaction.response.send_modal(
@@ -3609,7 +3658,122 @@ async def cmd_chest_create(
                          locks=_locks_cached(interaction, "chest-create"),
                          remove_role=remove_role,
                          bonus_points=bp, bonus_count=bc,
-                         ignore_caps=ignore_caps, ignore_spaces=ignore_spaces))
+                         ignore_caps=ignore_caps, ignore_spaces=ignore_spaces,
+                         cooldown=cd))
+
+
+def _chest_list_entry(c: Dict[str, Any]) -> str:
+    """One chest as a two-line block in /chest-list."""
+    cap = c.get("maxClaims")
+    opens = f"{c.get('claimedCount', 0)}/{cap}" if cap else f"{c.get('claimedCount', 0)}/∞"
+    pts = int(c.get("points") or 0)
+    blurb = (c.get("description") or "(no description)").replace("\n", " ")
+    # <t:unix:R> renders as "2 hours ago" in each viewer's own timezone.
+    when = f" · placed <t:{int(c['createdAt'])}:R>" if c.get("createdAt") else ""
+    swap = f" · removes <@&{c['removeRoleId']}>" if c.get("removeRoleId") else ""
+    # Points-only chests have no role — don't emit a broken <@&> mention.
+    grants = f"<@&{c['roleId']}>" if c.get("roleId") else "*points only*"
+    bonus = (f" · ⚡ +{c['bonusPoints']}×{c['bonusCount']}"
+             if c.get("bonusPoints") and c.get("bonusCount") else "")
+    cd = int(c.get("cooldownSeconds") or 0)
+    wait = f" · ⏳ {cd}s" if cd else " · ⏳ none"
+    return (
+        f"• code **{c['code']}** → {grants}{swap} "
+        f"· {opens} opens · {pts} pts{bonus}{wait}{when}\n"
+        f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
+    )
+
+
+def _paginate(entries: List[str], header: str, limit: int = 1800) -> List[str]:
+    """Pack whole entries into pages that fit Discord's message cap. An
+    entry is never split across pages; one absurdly long entry is truncated
+    onto a page of its own rather than dropped. The header repeats on every
+    page so a reader always knows what they're looking at."""
+    pages: List[str] = []
+    batch: List[str] = []
+    used = len(header)
+    room = max(limit - len(header), 200)
+    for e in entries:
+        e = e if len(e) <= room else e[:room - 1] + "…"
+        if batch and used + len(e) + 1 > limit:
+            pages.append("\n".join([header] + batch))
+            batch, used = [], len(header)
+        batch.append(e)
+        used += len(e) + 1
+    if batch:
+        pages.append("\n".join([header] + batch))
+    return pages or [header + "\n*(nothing to show)*"]
+
+
+class PagedTextView(discord.ui.View):
+    """Prev/Next paging over a list of pre-rendered message bodies. Bound
+    to one ephemeral response, so it doesn't need to be persistent — after
+    the timeout the buttons grey out rather than silently doing nothing."""
+
+    def __init__(self, pages: List[str], owner_id: int, timeout: float = 300.0) -> None:
+        super().__init__(timeout=timeout)
+        self.pages = pages
+        self.owner_id = owner_id
+        self.index = 0
+        # discord.py's View has no `message` of its own — the caller fills
+        # this in from the send() result so on_timeout can grey the buttons.
+        self.message: Optional[discord.Message] = None
+        self._sync()
+
+    def _sync(self) -> None:
+        first = self.index == 0
+        last = self.index >= len(self.pages) - 1
+        self.first_btn.disabled = first
+        self.prev_btn.disabled = first
+        self.next_btn.disabled = last
+        self.last_btn.disabled = last
+        self.counter.label = f"Page {self.index + 1} / {len(self.pages)}"
+
+    def body(self) -> str:
+        return self.pages[self.index]
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Ephemeral messages are only visible to the invoker anyway; this is
+        # belt-and-braces so a copied custom_id can't drive someone's view.
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "That list isn't yours — run `/chest-list` yourself.", ephemeral=True)
+            return False
+        return True
+
+    async def _go(self, interaction: discord.Interaction, index: int) -> None:
+        self.index = max(0, min(index, len(self.pages) - 1))
+        self._sync()
+        await interaction.response.edit_message(content=self.body(), view=self)
+
+    @discord.ui.button(label="⏮", style=discord.ButtonStyle.secondary)
+    async def first_btn(self, interaction: discord.Interaction, _b: discord.ui.Button) -> None:
+        await self._go(interaction, 0)
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.primary)
+    async def prev_btn(self, interaction: discord.Interaction, _b: discord.ui.Button) -> None:
+        await self._go(interaction, self.index - 1)
+
+    @discord.ui.button(label="…", style=discord.ButtonStyle.secondary, disabled=True)
+    async def counter(self, interaction: discord.Interaction, _b: discord.ui.Button) -> None:
+        pass   # display only
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.primary)
+    async def next_btn(self, interaction: discord.Interaction, _b: discord.ui.Button) -> None:
+        await self._go(interaction, self.index + 1)
+
+    @discord.ui.button(label="⏭", style=discord.ButtonStyle.secondary)
+    async def last_btn(self, interaction: discord.Interaction, _b: discord.ui.Button) -> None:
+        await self._go(interaction, len(self.pages) - 1)
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass   # ephemeral message already gone — nothing to grey out
 
 
 @bot.tree.command(name="chest-list", description="List every chest in this server.")
@@ -3630,26 +3794,19 @@ async def cmd_chest_list(interaction: discord.Interaction) -> None:
     if not chests:
         await interaction.followup.send("No chests in this server yet.", ephemeral=True)
         return
-    lines = ["**Chests in this server** — newest first. "
-             "Use `/chest-delete` and pick from the dropdown; you don't need these IDs.\n"]
-    for c in chests:
-        cap = c.get("maxClaims")
-        opens = f"{c.get('claimedCount', 0)}/{cap}" if cap else f"{c.get('claimedCount', 0)}/∞"
-        pts = int(c.get("points") or 0)
-        blurb = (c.get("description") or "(no description)").replace("\n", " ")
-        # <t:unix:R> renders as "2 hours ago" in each viewer's own timezone.
-        when = f" · placed <t:{int(c['createdAt'])}:R>" if c.get("createdAt") else ""
-        swap = f" · removes <@&{c['removeRoleId']}>" if c.get("removeRoleId") else ""
-        # Points-only chests have no role — don't emit a broken <@&> mention.
-        grants = f"<@&{c['roleId']}>" if c.get("roleId") else "*points only*"
-        bonus = (f" · ⚡ +{c['bonusPoints']}×{c['bonusCount']}"
-                 if c.get("bonusPoints") and c.get("bonusCount") else "")
-        lines.append(
-            f"• code **{c['code']}** → {grants}{swap} "
-            f"· {opens} opens · {pts} pts{bonus}{when}\n"
-            f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
-        )
-    await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
+
+    header = (f"**Chests in this server** ({len(chests)}) — newest first. "
+              "Use `/chest-delete` and pick from the dropdown; you don't need these IDs.")
+    pages = _paginate([_chest_list_entry(c) for c in chests], header)
+
+    if len(pages) == 1:
+        await interaction.followup.send(pages[0], ephemeral=True)
+        return
+    view = PagedTextView(pages, interaction.user.id)
+    # wait=True so we get the message back and can disable the buttons when
+    # the view times out — followup.send returns None without it.
+    view.message = await interaction.followup.send(
+        pages[0], view=view, ephemeral=True, wait=True)
 
 
 # Autocomplete fires on every keystroke and has to answer within 3

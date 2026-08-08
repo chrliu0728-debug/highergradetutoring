@@ -195,7 +195,22 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   -- How forgiving the passcode is. Both off (the default) means the code
   -- must be typed exactly as it was set.
   ignoreCase   INTEGER NOT NULL DEFAULT 0,
-  ignoreSpaces INTEGER NOT NULL DEFAULT 0
+  ignoreSpaces INTEGER NOT NULL DEFAULT 0,
+  -- Minimum seconds between one person's passcode attempts on this chest.
+  -- Stops someone brute-forcing a short code by hammering the button.
+  -- 0 disables the wait.
+  cooldownSeconds INTEGER NOT NULL DEFAULT 15
+);
+
+-- Last passcode attempt per (chest, person), for the cooldown above.
+-- chestId is a real chest id, or "<guildId>:*" for a /unlock attempt that
+-- matched no chest at all — otherwise a wrong guess via /unlock would
+-- dodge the wait entirely.
+CREATE TABLE IF NOT EXISTS discord_chest_attempts (
+  chestId   TEXT NOT NULL,
+  discordId TEXT NOT NULL,
+  at        INTEGER NOT NULL,
+  PRIMARY KEY (chestId, discordId)
 );
 CREATE INDEX IF NOT EXISTS idx_chest_code ON discord_chests(guildId, code);
 

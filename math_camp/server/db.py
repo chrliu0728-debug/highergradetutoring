@@ -192,7 +192,10 @@ def _migrate(conn):
                 ("bonusPoints", "INTEGER NOT NULL DEFAULT 0"),
                 ("bonusCount", "INTEGER NOT NULL DEFAULT 0"),
                 ("ignoreCase", "INTEGER NOT NULL DEFAULT 0"),
-                ("ignoreSpaces", "INTEGER NOT NULL DEFAULT 0")):
+                ("ignoreSpaces", "INTEGER NOT NULL DEFAULT 0"),
+                # Per-person wait between passcode attempts. The DEFAULT is
+                # what backfills every already-placed chest to 15s.
+                ("cooldownSeconds", "INTEGER NOT NULL DEFAULT 15")):
         try:
             if _has_column("discord_chests", "id") and not _has_column("discord_chests", col[0]):
                 conn.execute(f"ALTER TABLE discord_chests ADD COLUMN {col[0]} {col[1]}")

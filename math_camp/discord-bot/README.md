@@ -112,8 +112,8 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/whoami` | Anyone | Shows your linked profile + current points. |
 | `/unlink` | Anyone | Removes your link and revokes the bot-managed roles. |
 | `/unlock code:<passcode>` | Anyone | Opens the chest with that code and grants its hidden role. |
-| `/chest-create [role:<@role>] [image:<file>] [remove_role:<@role>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. `role` is optional — skip it for a points-only chest. |
-| `/chest-list` | Manage Roles | Lists every chest with its code, role, opens/cap, points, and description. |
+| `/chest-create [role:<@role>] [image:<file>] [remove_role:<@role>] [answer_cooldown:<secs>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. `role` is optional — skip it for a points-only chest. |
+| `/chest-list` | Manage Roles | Every chest with its code, role, opens/cap, points, cooldown, and description. Paged — use ◀ ▶ to walk the whole list. |
 | `/chest-delete chest:<pick>` | Manage Roles | Pick a chest from a dropdown, newest first. No IDs to copy. |
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
 | `/submit title:<…> file:<…>` | Verified campers | Hands homework in for marking. |
@@ -209,6 +209,18 @@ The command options are all optional:
 | `bonus_for_first` | *none* | How many openers get that bonus. |
 | `ignore_caps` | off | Accept the passcode in any capitalisation. |
 | `ignore_spaces` | off | Accept it with spaces anywhere, or none. |
+| `answer_cooldown` | `15` | Seconds one person must wait between passcode tries. `0` for no wait. |
+
+**Answer cooldown.** Without a wait, a short passcode can simply be
+brute-forced by hammering the button. Each chest enforces a per-person
+gap between attempts — 15 seconds unless you set `answer_cooldown`. The
+clock is per *person* per *chest*, so one camper guessing doesn't slow
+anyone else down, and it starts on a **wrong** guess as well as a right
+one. Re-opening a chest you've already opened is never rate-limited. A
+refusal shows a live countdown (*"you can try this chest again in 12
+seconds"*), and the chest footer advertises the wait up front. `/unlock`
+is covered too, at the strictest cooldown in the server, so it can't be
+used to sidestep the wait.
 
 **Early-bird bonus.** `bonus_points:100 bonus_for_first:3` gives the first
 three people to open the chest 100 points *on top of* the normal reward;

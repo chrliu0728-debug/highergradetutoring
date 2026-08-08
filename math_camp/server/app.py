@@ -69,6 +69,11 @@ TRANSFER_KEEP_RATIO    = 0.5
 # the usual 50%. Charged on top of the amount sent, and it goes to the
 # transactions bank exactly like the tax it replaces.
 LOSSLESS_TRANSFER_COST = 400
+# Seconds a person must wait between passcode attempts on one chest, when
+# the chest doesn't specify its own. Stops a short code being brute-forced
+# by hammering the button.
+CHEST_DEFAULT_COOLDOWN = 15
+CHEST_MAX_COOLDOWN     = 3600
 SPIDER_THRESHOLD       = 20
 CLASS_POINT_TO_INDIV   = 10
 CLASS_BANK_DAILY_RATE  = 0.05
@@ -3857,6 +3862,22 @@ def register_routes(app):
                 error=f"The bonus covers {bonus_count} openers but the chest only "
                       f"allows {max_claims}.",
             ), 400
+        # Per-person wait between passcode attempts. Omitted = the standard
+        # 15s; 0 = no wait at all.
+        raw_cd = d.get("cooldownSeconds")
+        try:
+            cooldown = (CHEST_DEFAULT_COOLDOWN if raw_cd in (None, "")
+                        else int(raw_cd))
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="cooldownSeconds must be a whole number."), 400
+        if cooldown < 0:
+            return jsonify(ok=False, error="cooldownSeconds can't be negative."), 400
+        if cooldown > CHEST_MAX_COOLDOWN:
+            return jsonify(
+                ok=False,
+                error=f"cooldownSeconds can be at most {CHEST_MAX_COOLDOWN} "
+                      f"({CHEST_MAX_COOLDOWN // 60} minutes).",
+            ), 400
 
         cid = "chest-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         g.db.execute(
@@ -3864,8 +3885,9 @@ def register_routes(app):
                (id, code, description, imageUrl, roleId, roleName, guildId,
                 channelId, messageId, createdBy, createdAt, claimedBy,
                 points, maxClaims, removeRoleId, removeRoleName,
-                bonusPoints, bonusCount, ignoreCase, ignoreSpaces)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?)""",
+                bonusPoints, bonusCount, ignoreCase, ignoreSpaces,
+                cooldownSeconds)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
@@ -3882,12 +3904,14 @@ def register_routes(app):
                 (d.get("removeRoleName") or "").strip() or None,
                 bonus_points, bonus_count,
                 1 if ignore_case else 0, 1 if ignore_spaces else 0,
+                cooldown,
             ),
         )
         return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims,
                                       "bonusPoints": bonus_points, "bonusCount": bonus_count,
                                       "ignoreCase": ignore_case,
-                                      "ignoreSpaces": ignore_spaces})
+                                      "ignoreSpaces": ignore_spaces,
+                                      "cooldownSeconds": cooldown})
 
     @app.route("/api/bot/chests/<cid>/message", methods=["POST"])
     @require_bot
@@ -3932,6 +3956,8 @@ def register_routes(app):
     @require_bot
     def bot_chest_delete(cid):
         g.db.execute("DELETE FROM discord_chests WHERE id = ?", (cid,))
+        # Don't leave the cooldown clocks behind for a chest that's gone.
+        g.db.execute("DELETE FROM discord_chest_attempts WHERE chestId = ?", (cid,))
         return jsonify(ok=True)
 
     @app.route("/api/bot/perms", methods=["GET"])
@@ -4404,20 +4430,70 @@ def register_routes(app):
             # Otherwise fall back to the older "any chest with this code".
             # Matching is done in Python rather than SQL because each chest
             # carries its own case/space rules.
+            #
+            # `target` is the chest the attempt was AIMED at, which exists
+            # even when the code is wrong — that's what the cooldown is
+            # keyed on, so a wrong guess still starts the clock.
             if chest_id:
-                chest = g.db.execute(
+                target = g.db.execute(
                     "SELECT * FROM discord_chests WHERE id = ? AND guildId = ?",
                     (chest_id, guild_id),
                 ).fetchone()
-                if chest and not _code_matches(chest, code):
-                    chest = None
+                chest = target if (target and _code_matches(target, code)) else None
             else:
-                chest = next(
+                target = next(
                     (row for row in g.db.execute(
                         "SELECT * FROM discord_chests WHERE guildId = ?", (guild_id,),
                     ).fetchall() if _code_matches(row, code)),
                     None,
                 )
+                chest = target
+
+            try:
+                already_claimed = target is not None and discord_id in json.loads(
+                    target["claimedBy"] or "[]")
+            except Exception:  # noqa: BLE001
+                already_claimed = False
+
+            # Re-opening a chest you've already opened is a harmless no-op,
+            # so it isn't rate-limited. Everything else is.
+            if not already_claimed:
+                if target is not None:
+                    key = target["id"]
+                    cooldown = int(target["cooldownSeconds"] or 0)
+                else:
+                    # A /unlock guess that hit nothing. Rate-limit it per
+                    # guild at the strictest cooldown in play, otherwise
+                    # /unlock would be a free brute-force channel.
+                    key = f"{guild_id}:*"
+                    row = g.db.execute(
+                        "SELECT MAX(cooldownSeconds) AS m FROM discord_chests WHERE guildId = ?",
+                        (guild_id,),
+                    ).fetchone()
+                    cooldown = int((row["m"] if row else 0) or 0)
+                if cooldown > 0:
+                    now = int(time.time())
+                    prev = g.db.execute(
+                        "SELECT at FROM discord_chest_attempts WHERE chestId = ? AND discordId = ?",
+                        (key, discord_id),
+                    ).fetchone()
+                    if prev:
+                        waited = now - int(prev["at"] or 0)
+                        if 0 <= waited < cooldown:
+                            return jsonify(
+                                ok=False, cooldown=True,
+                                retryAfter=cooldown - waited,
+                                cooldownSeconds=cooldown,
+                                error=(f"Too fast — wait {cooldown - waited}s before "
+                                       f"trying another passcode."),
+                            ), 429
+                    g.db.execute(
+                        "INSERT INTO discord_chest_attempts (chestId, discordId, at)"
+                        " VALUES (?, ?, ?)"
+                        " ON CONFLICT(chestId, discordId) DO UPDATE SET at = excluded.at",
+                        (key, discord_id, now),
+                    )
+
             if not chest:
                 return jsonify(ok=False, error="That code doesn't open this chest."), 404
             try:
