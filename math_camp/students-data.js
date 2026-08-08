@@ -37,6 +37,10 @@ const LUCK_COST = 800;
 const CLICKER_RATE = 100;
 const CLICKER_COOLDOWN_MS = 60;
 const TRANSFER_KEEP_RATIO = 0.5;
+// Flat fee that buys a 100%-value transfer instead of the usual 50%.
+// Charged on top of the amount sent. Mirrors LOSSLESS_TRANSFER_COST
+// in server/app.py — the server is the one that enforces it.
+const LOSSLESS_TRANSFER_COST = 400;
 const SPIDER_THRESHOLD = 20;
 
 function defaultStats() {
@@ -387,6 +391,7 @@ const TX_TYPES = {
   curse:               { label: 'Curse-word penalty',   icon: '🤬' },
   transfer_out:        { label: 'Transfer sent',        icon: '📤' },
   transfer_in:         { label: 'Transfer received',    icon: '📥' },
+  transfer_fee:        { label: 'Lossless transfer fee',icon: '🎟' },
   luck:                { label: 'Invested in luck',     icon: '🍀' },
   clicker:             { label: 'Clicker earn',         icon: '🖱' },
   class_award:         { label: 'Class pts awarded',    icon: '🌟' },
@@ -774,14 +779,28 @@ async function investInLuck(_studentId) {
   }
 }
 
-async function transferPoints(_fromId, toId, amount) {
+async function transferPoints(_fromId, toId, amount, lossless) {
   try {
-    const r = await _api('/students/me/transfer', { method: 'POST', body: { toId, amount } });
+    const r = await _api('/students/me/transfer', {
+      method: 'POST', body: { toId, amount, lossless: !!lossless },
+    });
     await _refresh('students', '/students');
     await _refresh('transactions', '/transactions');
     return r;
   } catch (e) {
     return { ok: false, error: e.message || 'Transfer failed.' };
+  }
+}
+
+/* Just the signed-in camper's own ledger, newest first. Separate from
+   getTransactions() (the whole-camp cache the admin pages read) so the
+   portal's point log stays scoped and current. */
+async function getMyTransactions(limit) {
+  try {
+    const r = await _api('/students/me/transactions' + (limit ? '?limit=' + limit : ''));
+    return (r && r.data) || [];
+  } catch (_) {
+    return [];
   }
 }
 

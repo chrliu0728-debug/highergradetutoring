@@ -65,6 +65,10 @@ STAT_FIELD_KEYS = [
 LUCK_COST              = 800
 CLICKER_RATE           = 100
 TRANSFER_KEEP_RATIO    = 0.5
+# Pay this flat fee on a transfer and the recipient gets 100% instead of
+# the usual 50%. Charged on top of the amount sent, and it goes to the
+# transactions bank exactly like the tax it replaces.
+LOSSLESS_TRANSFER_COST = 400
 SPIDER_THRESHOLD       = 20
 CLASS_POINT_TO_INDIV   = 10
 CLASS_BANK_DAILY_RATE  = 0.05
@@ -1115,6 +1119,7 @@ def register_routes(app):
         data = request.get_json(silent=True) or {}
         to_id = data.get("toId")
         amount = int(data.get("amount") or 0)
+        lossless = bool(data.get("lossless"))
         if amount <= 0:
             return jsonify(ok=False, error="Enter a positive amount to transfer."), 400
         from_id = g.session["studentId"]
@@ -1131,11 +1136,21 @@ def register_routes(app):
             to_stats   = {**default_stats(), **json.loads(to_row["stats"] or "{}")}
             cur = from_stats.get("privatePoints", 0)
             if cur == 0: return jsonify(ok=False, error="You have 0 points!"), 400
-            if cur < amount: return jsonify(ok=False, error=f"You only have {cur} points."), 400
+            # The lossless fee is charged ON TOP of the amount sent, so the
+            # sender needs to cover both.
+            fee = LOSSLESS_TRANSFER_COST if lossless else 0
+            total = amount + fee
+            if cur < total:
+                if fee:
+                    return jsonify(ok=False, error=(
+                        f"A lossless transfer of {amount} pts costs {total} pts "
+                        f"in total ({amount} sent + {fee} fee). You only have {cur}."
+                    )), 400
+                return jsonify(ok=False, error=f"You only have {cur} points."), 400
 
-            received = int(amount * TRANSFER_KEEP_RATIO)
+            received = amount if lossless else int(amount * TRANSFER_KEEP_RATIO)
             lost = amount - received
-            from_stats["privatePoints"]  = cur - amount
+            from_stats["privatePoints"]  = cur - total
             from_stats["pointExchanges"] = from_stats.get("pointExchanges", 0) + 1
             to_stats["privatePoints"]    = to_stats.get("privatePoints", 0) + received
             to_stats["totalPointsEarned"] = to_stats.get("totalPointsEarned", 0) + received
@@ -1145,25 +1160,45 @@ def register_routes(app):
 
             from_name = _full_name(from_row)
             to_name   = _full_name(to_row)
-            # Lost points → transactions bank.
-            if lost > 0:
+            # Everything the sender parts with beyond what actually lands in
+            # the recipient's account — the 50% tax, or the lossless fee that
+            # replaces it — goes to the transactions bank.
+            to_bank = lost + fee
+            if to_bank > 0:
                 bank_prev = int(_meta_get("transactions_bank", "0") or "0")
-                _meta_set("transactions_bank", str(bank_prev + lost))
+                _meta_set("transactions_bank", str(bank_prev + to_bank))
+                why = (f"{fee} pt lossless fee" if lossless
+                       else f"{lost} pts")
                 _log_tx(type="bank_deposit", scope="bank",
                         subjectId="transactions_bank", subjectName="Transactions Bank",
                         relatedId=from_id, relatedName=from_name,
-                        amount=lost,
-                        description=f"+{lost} pts deposited from {from_name} → {to_name} transfer ({amount} sent)")
+                        amount=to_bank,
+                        description=f"+{to_bank} pts deposited from {from_name} → {to_name} transfer ({amount} sent, {why})")
             _log_tx(type="transfer_out", scope="student", subjectId=from_id,
                     subjectName=from_name, relatedId=to_id, relatedName=to_name,
                     amount=-amount,
-                    description=f"Sent {amount} pts to {to_name} · {lost} pts deposited to the transactions bank")
+                    description=(
+                        f"Sent {amount} pts to {to_name} in full — no transfer tax"
+                        if lossless else
+                        f"Sent {amount} pts to {to_name} · {lost} pts deposited to the transactions bank"
+                    ))
+            if fee:
+                _log_tx(type="transfer_fee", scope="student", subjectId=from_id,
+                        subjectName=from_name, relatedId=to_id, relatedName=to_name,
+                        amount=-fee,
+                        description=f"Paid {fee} pts so {to_name} received all {amount} pts instead of {int(amount * TRANSFER_KEEP_RATIO)}")
             _log_tx(type="transfer_in", scope="student", subjectId=to_id,
                     subjectName=to_name, relatedId=from_id, relatedName=from_name,
                     amount=received,
-                    description=f"Received {received} pts from {from_name} ({amount} sent, 50% kept)")
+                    description=(
+                        f"Received all {received} pts from {from_name} — they paid the {fee} pt lossless fee"
+                        if lossless else
+                        f"Received {received} pts from {from_name} ({amount} sent, 50% kept)"
+                    ))
 
-        return jsonify(ok=True, data={"sent": amount, "received": received, "lost": lost})
+        return jsonify(ok=True, data={"sent": amount, "received": received,
+                                      "lost": lost, "fee": fee,
+                                      "spent": total, "lossless": lossless})
 
     @app.route("/api/students/me/luck", methods=["POST"])
     @require_student
@@ -1817,6 +1852,26 @@ def register_routes(app):
         return jsonify(ok=True, count=len(arr))
 
     # ── Transactions ───────────────────────────────────────────────
+    @app.route("/api/students/me/transactions", methods=["GET"])
+    @require_student
+    def my_tx():
+        """Just this camper's own ledger, newest first — what the point log
+        at the bottom of the portal renders. Rows where they're only the
+        *other* party (someone else's transfer, a bank deposit funded by
+        their tax) are deliberately left out: those aren't movements of
+        their own balance and would double-count in the log."""
+        sid = g.session["studentId"]
+        try:
+            limit = max(1, min(int(request.args.get("limit") or 200), TX_MAX))
+        except (TypeError, ValueError):
+            limit = 200
+        rows = g.db.execute(
+            "SELECT * FROM transactions WHERE scope = 'student' AND subjectId = ?"
+            " ORDER BY at DESC LIMIT ?",
+            (sid, limit),
+        ).fetchall()
+        return jsonify(ok=True, data=[row_to_tx(r) for r in rows])
+
     @app.route("/api/transactions", methods=["GET"])
     def list_tx():
         rows = g.db.execute("SELECT * FROM transactions ORDER BY at ASC").fetchall()

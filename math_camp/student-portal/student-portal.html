@@ -244,26 +244,28 @@
       .class-panel-stats { grid-template-columns: 1fr; }
     }
 
-    /* ── Your Roles (read-only) ── */
+    /* ── Your Roles (read-only) ──
+       Deliberately compact: these are a footnote at the bottom of the
+       dashboard, not a headline, so the cards are chips rather than tiles. */
     .roles-panel {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 22px 26px;
-      margin-bottom: 22px;
+      padding: 16px 18px;
+      margin-bottom: 18px;
       box-shadow: var(--shadow-sm);
     }
     .roles-panel-head {
       display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
     }
     .roles-panel-head .label {
-      font-size: .72rem; font-weight: 700; color: var(--muted);
+      font-size: .66rem; font-weight: 700; color: var(--muted);
       text-transform: uppercase; letter-spacing: .08em;
     }
-    .roles-panel-head .name { font-size: 1.2rem; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+    .roles-panel-head .name { font-size: .98rem; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
     .roles-panel-head .private-tag {
-      font-size: .7rem; padding: 4px 10px;
+      font-size: .64rem; padding: 3px 8px;
       background: var(--navy); color: white;
       border-radius: 999px; font-weight: 700;
       letter-spacing: .04em;
@@ -271,32 +273,32 @@
 
     .roles-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+      gap: 8px;
     }
     .role-card {
       position: relative;
-      padding: 16px 14px;
-      border-radius: 12px;
+      padding: 9px 10px;
+      border-radius: 10px;
       text-align: center;
       color: white;
       font-weight: 700;
-      box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,.07);
       overflow: hidden;
     }
     .role-card .role-icon {
-      font-size: 2.2rem; line-height: 1; margin-bottom: 8px;
+      font-size: 1.25rem; line-height: 1; margin-bottom: 3px;
       display: block;
-      filter: drop-shadow(0 3px 8px rgba(0,0,0,.18));
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,.18));
     }
+    .role-card .role-icon svg { width: 1.25rem; height: 1.25rem; }
     .role-card .role-name {
-      font-size: .98rem; letter-spacing: -.01em;
-      margin-bottom: 4px;
+      font-size: .78rem; letter-spacing: -.01em;
+      margin-bottom: 0;
     }
-    .role-card .role-desc {
-      font-size: .74rem; font-weight: 500;
-      opacity: .88; line-height: 1.4;
-    }
+    /* The blurb is what made these tiles huge. Keep it for hover/long-press
+       (title attribute) and off the card itself. */
+    .role-card .role-desc { display: none; }
 
     /* MazeWiz role gets the purple signature styling */
     .role-card.mazewiz {
@@ -311,16 +313,16 @@
 
     /* Empty slot shown to classmates of the MazeWiz winner */
     .role-empty {
-      padding: 16px 14px;
-      border-radius: 12px;
+      padding: 9px 10px;
+      border-radius: 10px;
       text-align: center;
       border: 2px dashed var(--border);
       background: var(--surface2);
       color: var(--muted);
       cursor: pointer;
       transition: all .15s;
-      font-size: .82rem;
-      line-height: 1.4;
+      font-size: .72rem;
+      line-height: 1.3;
       text-decoration: none;
     }
     .role-empty:hover {
@@ -330,9 +332,65 @@
       transform: translateY(-2px);
     }
     .role-empty .empty-ic {
-      font-size: 2rem; display: block; margin-bottom: 6px;
+      font-size: 1.25rem; display: block; margin-bottom: 3px;
       filter: grayscale(1); opacity: .5;
     }
+    .role-empty .empty-ic svg { width: 1.25rem; height: 1.25rem; }
+
+    /* ── Point log ── */
+    .tx-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .tx-panel-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
+    }
+    .tx-panel-head .label {
+      font-size: .66rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em;
+    }
+    .tx-panel-head .name { font-size: .98rem; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+    .tx-list { display: flex; flex-direction: column; }
+    .tx-row {
+      display: grid;
+      grid-template-columns: 26px 1fr auto;
+      gap: 10px; align-items: center;
+      padding: 9px 2px;
+      border-top: 1px solid var(--border);
+    }
+    .tx-row:first-child { border-top: none; }
+    .tx-ic { font-size: 1.05rem; text-align: center; line-height: 1; }
+    .tx-main { min-width: 0; }
+    .tx-label { font-size: .84rem; font-weight: 700; color: var(--text); }
+    .tx-desc {
+      font-size: .76rem; color: var(--muted); line-height: 1.4;
+      margin-top: 1px; overflow-wrap: anywhere;
+    }
+    .tx-when { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+    .tx-amt {
+      font-size: .92rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .tx-amt.pos { color: #0E9F6E; }
+    .tx-amt.neg { color: #C0392B; }
+    .tx-amt.zero { color: var(--muted); }
+    .tx-empty {
+      font-size: .84rem; color: var(--muted);
+      text-align: center; padding: 16px 4px; font-style: italic;
+    }
+    .tx-more {
+      margin-top: 10px; width: 100%;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 9px; padding: 8px 12px;
+      font-size: .8rem; font-weight: 700; color: var(--text-mid);
+      cursor: pointer;
+    }
+    .tx-more:hover { border-color: var(--blush); color: var(--blush); }
 
     /* ── Action cards ── */
     .actions-grid {
@@ -652,12 +710,6 @@
     <!-- Filled by JS -->
   </div>
 
-  <!-- My Roles (read-only, only you + admin can see these) -->
-  <div class="roles-panel" id="roles-panel" style="display:none;">
-    <!-- Filled by JS -->
-  </div>
-
-
   <!-- Action cards -->
   <div class="actions-grid">
 
@@ -678,7 +730,7 @@
     <div class="action-card">
       <div class="ac-head">
         <h3><i data-icon="refresh" style="color:var(--blush);"></i> Transfer Points</h3>
-        <p class="ac-sub">Send points to a classmate. <strong>50% is lost in the transfer</strong> — choose wisely.</p>
+        <p class="ac-sub">Send points to a classmate. <strong>50% is lost in the transfer</strong> — or pay <strong>400 pts</strong> to send the full amount.</p>
       </div>
       <div class="xfer-form">
         <div>
@@ -689,6 +741,13 @@
           <label for="xfer-amt">Amount to send</label>
           <input type="number" id="xfer-amt" min="1" placeholder="e.g. 100" />
         </div>
+        <label for="xfer-lossless" style="display:flex; gap:9px; align-items:flex-start; cursor:pointer; margin-top:10px; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; background:var(--surface2);">
+          <input type="checkbox" id="xfer-lossless" style="margin-top:2px; flex:none; width:16px; height:16px; cursor:pointer;" />
+          <span style="font-size:.82rem; line-height:1.45; color:var(--text-mid);">
+            <strong style="color:var(--text);">Lossless transfer — 400 pts</strong><br>
+            Skip the 50% tax so your classmate receives <strong>100%</strong> of what you send. The fee is charged on top of the amount.
+          </span>
+        </label>
         <div class="xfer-preview" id="xfer-preview">
           Recipient will receive <strong>0 pts</strong> · <strong>0 pts</strong> lost in transfer.
         </div>
@@ -786,8 +845,26 @@
   </div>
 
   <!-- Note about point awards -->
-  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; font-size: .88rem; color: var(--text-mid); line-height: 1.6;">
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; font-size: .88rem; color: var(--text-mid); line-height: 1.6; margin-bottom: 22px;">
     <strong>Heads up:</strong> You can't give yourself points directly — camp instructors award points based on class participation, perfect scores, and other in-person activities. Ask your instructor if you're wondering how to earn more!
+  </div>
+
+  <!-- My Roles (read-only, only you + admin can see these) -->
+  <div class="roles-panel" id="roles-panel" style="display:none;">
+    <!-- Filled by JS -->
+  </div>
+
+  <!-- Point log — every point in and out, newest first -->
+  <div class="tx-panel" id="tx-panel">
+    <div class="tx-panel-head">
+      <div>
+        <div class="label">Point Log</div>
+        <div class="name">Where your points came from &amp; went</div>
+      </div>
+      <span class="private-tag" style="font-size:.64rem; padding:3px 8px; background:var(--navy); color:#fff; border-radius:999px; font-weight:700; letter-spacing:.04em;">Only you &amp; admin can see this</span>
+    </div>
+    <div class="tx-list" id="tx-list"></div>
+    <button type="button" class="tx-more" id="tx-more" style="display:none;">Show more</button>
   </div>
 </div>
 
@@ -1047,6 +1124,85 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderCraneHintsCard(s);
     renderInfinityCard(s);
     renderContribCard(s);
+    renderPointLog(s);
+  }
+
+  /* ─── Point log — every point in and out, newest first ─── */
+  const TX_PAGE = 15;
+  const txList = document.getElementById('tx-list');
+  const txMore = document.getElementById('tx-more');
+  let txRows = [];
+  let txShown = TX_PAGE;
+  let txLoadedFor = null;
+  let txFetchedAt = 0;
+  // renderDashboard() runs on every clicker tap, so the log can't refetch
+  // unconditionally. It refreshes at most every TX_MIN_REFETCH ms, and any
+  // action that actually moves points sets txForceNext to jump the queue.
+  const TX_MIN_REFETCH = 5000;
+  let txForceNext = false;
+
+  function txWhen(ms) {
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      + ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function paintPointLog() {
+    if (!txList) return;
+    if (!txRows.length) {
+      txList.innerHTML = '<div class="tx-empty">No point activity yet — once an instructor awards you points, every change shows up here.</div>';
+      if (txMore) txMore.style.display = 'none';
+      return;
+    }
+    txList.innerHTML = txRows.slice(0, txShown).map(t => {
+      // TX_TYPES is a top-level `const` in students-data.js, so it's a
+      // script-scope global — reachable by name, but not off `window`.
+      const meta = (typeof TX_TYPES !== 'undefined' && TX_TYPES[t.type])
+        || { label: t.type, icon: '•' };
+      const amt = Number(t.amount) || 0;
+      const cls = amt > 0 ? 'pos' : (amt < 0 ? 'neg' : 'zero');
+      const sign = amt > 0 ? '+' : (amt < 0 ? '−' : '');
+      return `
+        <div class="tx-row">
+          <div class="tx-ic">${esc(meta.icon || '•')}</div>
+          <div class="tx-main">
+            <div class="tx-label">${esc(meta.label || t.type)}</div>
+            ${t.description ? `<div class="tx-desc">${esc(t.description)}</div>` : ''}
+            <div class="tx-when">${esc(txWhen(t.at))}</div>
+          </div>
+          <div class="tx-amt ${cls}">${sign}${Math.abs(amt).toLocaleString()}</div>
+        </div>`;
+    }).join('');
+    if (txMore) {
+      const left = txRows.length - txShown;
+      txMore.style.display = left > 0 ? '' : 'none';
+      txMore.textContent = left > 0 ? `Show ${Math.min(left, TX_PAGE)} more (${left} older)` : '';
+    }
+  }
+
+  async function renderPointLog(s) {
+    if (!txList) return;
+    const switched = txLoadedFor !== s.id;
+    if (switched) {
+      txLoadedFor = s.id;
+      txShown = TX_PAGE;
+      txList.innerHTML = '<div class="tx-empty">Loading…</div>';
+    }
+    const now = Date.now();
+    const stale = now - txFetchedAt >= TX_MIN_REFETCH;
+    if (!switched && !txForceNext && !stale) {
+      paintPointLog();   // repaint from what we already have
+      return;
+    }
+    txForceNext = false;
+    txFetchedAt = now;
+    txRows = typeof getMyTransactions === 'function' ? await getMyTransactions(200) : [];
+    paintPointLog();
+  }
+
+  if (txMore) {
+    txMore.addEventListener('click', () => { txShown += TX_PAGE; paintPointLog(); });
   }
 
   /* ─── Infinity Mode card — visible after beating the dungeon ─── */
@@ -1142,8 +1298,11 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const cards = studentRoles.map(r => {
       const special = r.id === MAZEWIZ_ROLE_ID ? 'mazewiz' : '';
       const customBg = (!special && r.color) ? `style="background: linear-gradient(135deg, ${r.color}, ${r.color});"` : '';
+      // The blurb is a tooltip now — the cards are compact chips at the
+      // bottom of the page rather than full tiles.
+      const tip = r.description ? ` title="${esc(r.description)}"` : '';
       return `
-        <div class="role-card ${special}" ${customBg}>
+        <div class="role-card ${special}" ${customBg}${tip}>
           <span class="role-icon">${r.icon || (window.Icons ? Icons.svg('medal') : '')}</span>
           <div class="role-name">${esc(r.name)}</div>
           <div class="role-desc">${esc(r.description || '')}</div>
@@ -1248,6 +1407,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     flashBanner(luckSuccess, `Luck is now ${res.data.newLuck}! ${res.data.remaining.toLocaleString()} pts remaining.`);
     // Refresh /auth/me so currentStudent() picks up the new stats
     if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
+    txForceNext = true;
     renderDashboard();
   });
 
@@ -1258,6 +1418,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   const xferPreview = document.getElementById('xfer-preview');
   const xferError   = document.getElementById('xfer-error');
   const xferSuccess = document.getElementById('xfer-success');
+  const xferLossless = document.getElementById('xfer-lossless');
 
   function renderTransferCard(s) {
     const others = getStudents().filter(x => x.id !== s.id);
@@ -1267,25 +1428,41 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   }
   function updatePreview() {
     const amt = parseInt(xferAmt.value, 10) || 0;
-    const received = Math.floor(amt * TRANSFER_KEEP_RATIO);
+    const lossless = !!(xferLossless && xferLossless.checked);
+    const received = lossless ? amt : Math.floor(amt * TRANSFER_KEEP_RATIO);
     const lost = amt - received;
-    xferPreview.innerHTML = `Recipient will receive <strong>${received.toLocaleString()} pts</strong> · <strong>${lost.toLocaleString()} pts</strong> lost in transfer.`;
+    const fee = lossless ? LOSSLESS_TRANSFER_COST : 0;
+    if (lossless) {
+      const total = amt + fee;
+      xferPreview.innerHTML =
+        `Recipient will receive <strong>${received.toLocaleString()} pts</strong> — the full amount. ` +
+        `Costs you <strong>${total.toLocaleString()} pts</strong> (${amt.toLocaleString()} sent + ${fee.toLocaleString()} fee).`;
+    } else {
+      xferPreview.innerHTML = `Recipient will receive <strong>${received.toLocaleString()} pts</strong> · <strong>${lost.toLocaleString()} pts</strong> lost in transfer.`;
+    }
   }
   xferAmt.addEventListener('input', updatePreview);
+  if (xferLossless) xferLossless.addEventListener('change', updatePreview);
 
   xferBtn.addEventListener('click', async () => {
     const s = currentStudent(); if (!s) return;
     const toId = xferTo.value;
     const amt = parseInt(xferAmt.value, 10);
+    const lossless = !!(xferLossless && xferLossless.checked);
     if (!toId) { flashBanner(xferError, 'Pick a classmate to send points to.'); return; }
-    const res = await transferPoints(s.id, toId, amt);
+    const res = await transferPoints(s.id, toId, amt, lossless);
     if (!res.ok) { flashBanner(xferError, res.error); xferSuccess.classList.remove('show'); return; }
     xferError.classList.remove('show');
     const toStudent = getStudents().find(x => x.id === toId);
-    flashBanner(xferSuccess, `Sent ${res.data.sent} pts. ${studentFullName(toStudent)} received ${res.data.received} pts (${res.data.lost} lost).`);
+    const name = studentFullName(toStudent);
+    flashBanner(xferSuccess, res.data.lossless
+      ? `Sent ${res.data.sent} pts. ${name} received all ${res.data.received} pts — ${res.data.fee} pt lossless fee paid.`
+      : `Sent ${res.data.sent} pts. ${name} received ${res.data.received} pts (${res.data.lost} lost).`);
     xferAmt.value = '';
+    if (xferLossless) xferLossless.checked = false;
     updatePreview();
     if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
+    txForceNext = true;
     renderDashboard();
   });
 
@@ -1447,6 +1624,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     if (!res.ok) { flashBanner(mtErr, res.error); mtOk.classList.remove('show'); mtActivate.disabled = false; return; }
     mtErr.classList.remove('show');
     flashBanner(mtOk, `Activated! Private points now ${res.data.newPrivatePoints.toLocaleString()}.`);
+    txForceNext = true;
     renderDashboard();
   });
 
@@ -1461,6 +1639,7 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     if (!res.ok) { flashBanner(mtErr, res.error); mtOk.classList.remove('show'); return; }
     mtErr.classList.remove('show');
     flashBanner(mtOk, `Money Tree gifted to ${studentFullName(toStudent)}.`);
+    txForceNext = true;
     renderDashboard();
   });
 
