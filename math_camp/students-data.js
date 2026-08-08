@@ -170,7 +170,16 @@ async function _bootstrap() {
     _api('/transactions').catch(() => ({ data: [] })),
     _api('/staff').catch(() => ({ data: [] })),
   ]);
-  HG.cache.me            = { kind: me.kind || null, student: me.student || null };
+  HG.cache.me            = { kind: me.kind || null, student: me.student || null,
+                             playtest: !!me.playtest };
+  // Keep the per-tab playtest flag honest — playtest.js paints its banner
+  // from it, and this is what recovers the banner in a tab that was opened
+  // straight into a playtest session (sessionStorage doesn't carry over).
+  try {
+    if (me.playtest) sessionStorage.setItem('hg_playtest', '1');
+    else sessionStorage.removeItem('hg_playtest');
+  } catch (_) { /* private mode */ }
+  if (window.HGPlaytest && window.HGPlaytest.sync) window.HGPlaytest.sync(!!me.playtest);
   _hgAutoFrozenCheck();
   HG.cache.students      = students.data || [];
   HG.cache.classes       = classes.data || [];
@@ -347,8 +356,16 @@ async function setLoggedInStudent(id) {
   // The server is the source of truth; this helper exists for
   // call-sites that want to toggle the session manually.
   if (!id) {
-    await _api('/auth/student/logout', { method: 'POST' });
-    HG.cache.me = { kind: null, student: null };
+    const out = await _api('/auth/student/logout', { method: 'POST' });
+    HG.cache.me = { kind: null, student: null, playtest: false };
+    if (out && out.playtest) {
+      // We were an admin in playtest mode — signing out of the camper
+      // account hands the cookie back to the admin session, so go there
+      // instead of painting a login screen we're not actually locked out of.
+      try { sessionStorage.removeItem('hg_playtest'); } catch (_) {}
+      window.location.href = out.returnTo || '/admin/admin.html';
+      return;
+    }
     _hgAutoFrozenCheck();
     return;
   }

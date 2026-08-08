@@ -220,6 +220,13 @@ def _migrate(conn):
                 conn.execute(f"ALTER TABLE homework_submissions ADD COLUMN {_col} {_type}")
         except sqlite3.OperationalError:
             pass
+    # Playtest mode — a student session minted by an admin remembers the
+    # admin token it came from so Esc can hand the cookie back.
+    try:
+        if _has_column("sessions", "token") and not _has_column("sessions", "adminToken"):
+            conn.execute("ALTER TABLE sessions ADD COLUMN adminToken TEXT")
+    except sqlite3.OperationalError:
+        pass
     # Staff transcript file uploads — added after launch.
     try:
         if _has_column("staff", "id") and not _has_column("staff", "transcriptFile"):

@@ -873,11 +873,21 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   loginBtn.addEventListener('click', tryLogin);
   loginPwd.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
 
-  /* ─── Hidden staff sign-in: click the Sign-in button EXACTLY 9 times,
+  /* ─── Hidden staff sign-in: press the Sign-in button EXACTLY 9 times,
          then drag the student login card out of the way.
-         Click 10+ re-locks the drag. Counter persists via sessionStorage
+         Press 10+ re-locks the drag. Counter persists via sessionStorage
          and only resets when the user visits the home page.
-         Silent — no visual hint at any point. ─── */
+         Silent — no visual hint at any point.
+
+         The count is of PRESSES, not of failed logins. It's incremented
+         on pointerdown, before tryLogin() even fires, so it never
+         depends on how fast the login request comes back — a slow
+         device or a slow connection used to make you press far more
+         than nine times to get nine rejections. One physical press is
+         one increment: we listen on pointerdown where it exists, and
+         fall back to mousedown/touchstart only on ancient browsers,
+         with a guard so a touch that also emits a synthetic mousedown
+         can't count twice. ─── */
   (function () {
     const CLICKS_NEEDED = 9;
     const STORE_KEY = 'highergrade_signin_clicks';
@@ -905,10 +915,35 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     }
     applyLockState();
 
-    loginBtn.addEventListener('click', () => {
+    function countPress() {
       clicks++;
-      sessionStorage.setItem(STORE_KEY, String(clicks));
+      try { sessionStorage.setItem(STORE_KEY, String(clicks)); } catch (_) {}
       applyLockState();
+    }
+
+    if (window.PointerEvent) {
+      loginBtn.addEventListener('pointerdown', e => {
+        // Primary press only — a right-click or a second finger isn't a press.
+        if (e.button !== 0 || e.isPrimary === false) return;
+        countPress();
+      });
+    } else {
+      let touched = 0;
+      loginBtn.addEventListener('touchstart', () => {
+        touched = Date.now();
+        countPress();
+      }, { passive: true });
+      loginBtn.addEventListener('mousedown', () => {
+        // Mobile fires a synthetic mousedown ~300ms after touchstart for
+        // the same tap — don't count that press twice.
+        if (Date.now() - touched < 700) return;
+        countPress();
+      });
+    }
+    // Keyboard activation of the focused button — pointerdown never fires
+    // for these, and they'd otherwise silently not count.
+    loginBtn.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') countPress();
     });
 
     function getPoint(e) {
@@ -1498,5 +1533,6 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   update();
 })();
 </script>
+<script src="/playtest.js"></script>
 </body>
 </html>

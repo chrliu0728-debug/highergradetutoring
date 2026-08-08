@@ -125,12 +125,20 @@ DOOR_REWARD_TIERS = [
 ]
 DOOR_REWARD_FLOOR = 300
 
-# ── Reserved easter-egg email ────────────────────────────────────────
+# ── Playtest account ─────────────────────────────────────────────────
+# "HGT TEST" is the throwaway camper an admin becomes when they enter
+# playtest mode from the admin panel. It's a real students row (so every
+# student feature behaves exactly as it does for a camper) but it has a
+# fixed id, is never registerable, and is hidden from other campers.
+PLAYTEST_STUDENT_ID = "hgt-test"
+PLAYTEST_EMAIL      = "playtest@highergradetutoring.ca"
+
+# ── Reserved emails ──────────────────────────────────────────────────
 # burntout@gmail.com is a hidden door (the bedroom scene at /bedroom.html),
-# not a real camper. Block it everywhere a student record could be
-# created or matched so it can never accidentally end up in the students
-# table — nor be wiped by an admin reset.
-RESERVED_STUDENT_EMAILS = {"burntout@gmail.com"}
+# not a real camper, and PLAYTEST_EMAIL belongs to the account above.
+# Block both everywhere a student record could be created or matched so
+# neither can accidentally end up registered — nor be wiped by a reset.
+RESERVED_STUDENT_EMAILS = {"burntout@gmail.com", PLAYTEST_EMAIL}
 
 
 def _is_reserved_email(email):
@@ -632,6 +640,23 @@ def _current_session():
     return dict(row) if row else None
 
 
+def _playtest_admin_token(sess):
+    """If `sess` is a playtest session (an admin wearing the student view),
+    return the admin token to hand the cookie back to. Returns None for
+    ordinary sessions, and also when the parent admin session has since
+    expired or been logged out — in that case there's nothing to go back
+    to and the playtest session is just a plain student session."""
+    if not sess:
+        return None
+    token = sess.get("adminToken") if isinstance(sess, dict) else None
+    if not token:
+        return None
+    row = g.db.execute(
+        "SELECT token FROM sessions WHERE token = ? AND kind = 'admin'", (token,),
+    ).fetchone()
+    return row["token"] if row else None
+
+
 def require_admin(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
@@ -894,11 +919,13 @@ def register_routes(app):
     def auth_me():
         s = _current_session()
         if not s:
-            return jsonify(ok=True, kind=None, student=None)
+            return jsonify(ok=True, kind=None, student=None, playtest=False)
+        playtest = bool(_playtest_admin_token(s))
         if s["kind"] == "student":
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (s["studentId"],)).fetchone()
-            return jsonify(ok=True, kind="student", student=row_to_student(row))
-        return jsonify(ok=True, kind=s["kind"], student=None)
+            return jsonify(ok=True, kind="student", student=row_to_student(row),
+                           playtest=playtest)
+        return jsonify(ok=True, kind=s["kind"], student=None, playtest=playtest)
 
     @app.route("/api/auth/student/login", methods=["POST"])
     def auth_student_login():
@@ -933,9 +960,48 @@ def register_routes(app):
     @app.route("/api/auth/student/logout", methods=["POST"])
     def auth_student_logout():
         token = request.cookies.get(COOKIE_NAME)
-        if token:
-            g.db.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        if not token:
+            return _clear_session_cookie(make_response(jsonify(ok=True)))
+        sess = _current_session()
+        back = _playtest_admin_token(sess)
+        g.db.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        if back:
+            # Playtest session — "Log out" drops the admin back into the
+            # admin panel rather than signing them out of everything.
+            resp = make_response(jsonify(ok=True, playtest=True, returnTo="/admin/admin.html"))
+            return _set_session_cookie(resp, back)
         return _clear_session_cookie(make_response(jsonify(ok=True)))
+
+    # ── Playtest mode ──────────────────────────────────────────────
+    # Lets an admin see the site exactly as a camper does, signed in as
+    # the reserved "HGT TEST" account, without giving up their admin
+    # session — pressing Esc anywhere swaps the cookie straight back.
+    @app.route("/api/auth/playtest/start", methods=["POST"])
+    @require_admin
+    def auth_playtest_start():
+        admin_token = request.cookies.get(COOKIE_NAME)
+        row = _ensure_playtest_student()
+        token = _new_token()
+        g.db.execute(
+            "INSERT INTO sessions (token, kind, studentId, createdAt, adminToken)"
+            " VALUES (?, 'student', ?, ?, ?)",
+            (token, PLAYTEST_STUDENT_ID, int(time.time()), admin_token),
+        )
+        resp = make_response(jsonify(ok=True, student=row_to_student(row), playtest=True))
+        return _set_session_cookie(resp, token)
+
+    @app.route("/api/auth/playtest/stop", methods=["POST"])
+    def auth_playtest_stop():
+        sess = _current_session()
+        back = _playtest_admin_token(sess)
+        if not back:
+            # Not in playtest (or the admin session expired while we were
+            # in there). Nothing to restore — say so and let the client
+            # send the user to the passcode gate.
+            return jsonify(ok=False, error="Not in playtest mode"), 409
+        g.db.execute("DELETE FROM sessions WHERE token = ?", (sess["token"],))
+        resp = make_response(jsonify(ok=True, returnTo="/admin/admin.html"))
+        return _set_session_cookie(resp, back)
 
     @app.route("/api/auth/admin/unlock", methods=["POST"])
     def auth_admin_unlock():
@@ -981,6 +1047,11 @@ def register_routes(app):
         out = []
         for r in rows:
             d = row_to_student(r)
+            # The playtest camper is staff scaffolding, not a real entrant —
+            # keep it off the leaderboard and out of every roster except the
+            # admin's own and the playtest session's view of itself.
+            if d["id"] == PLAYTEST_STUDENT_ID and not is_admin and d["id"] != my_id:
+                continue
             if not is_admin and d["id"] != my_id:
                 # Public view — strip sensitive fields
                 for k in ("password", "parentEmail", "parentPhone",
@@ -4483,6 +4554,37 @@ def _insert_student(s):
             :stats, :roles, :baseStats, :extras, :emailIndex, :frozen)""",
         s,
     )
+
+
+def _ensure_playtest_student():
+    """Return the "HGT TEST" students row, creating it if it's missing.
+
+    It's a completely ordinary camper record — that's the whole point, so
+    playtest mode exercises the real student code paths — except that it
+    has a fixed id, an unguessable password on a reserved email (so it can
+    never be signed into from the login form), and starts unfrozen so the
+    payment overlay doesn't block the very thing we're trying to look at.
+    Recreated on demand, so an admin reset or bulk student replace that
+    drops it is harmless."""
+    row = g.db.execute(
+        "SELECT * FROM students WHERE id = ?", (PLAYTEST_STUDENT_ID,),
+    ).fetchone()
+    if row:
+        return row
+    _insert_student(_normalize_student({
+        "id":           PLAYTEST_STUDENT_ID,
+        "firstName":    "HGT",
+        "lastName":     "TEST",
+        "studentEmail": PLAYTEST_EMAIL,
+        "password":     secrets.token_urlsafe(32),
+        "school":       "Playtest account",
+        "grade":        "—",
+        "registeredAt": str(int(time.time())),
+        "frozen":       0,
+    }))
+    return g.db.execute(
+        "SELECT * FROM students WHERE id = ?", (PLAYTEST_STUDENT_ID,),
+    ).fetchone()
 
 
 def _email_clause(email):

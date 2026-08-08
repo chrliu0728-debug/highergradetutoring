@@ -98,7 +98,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   token           TEXT PRIMARY KEY,
   kind            TEXT NOT NULL,
   studentId       TEXT,
-  createdAt       INTEGER NOT NULL
+  createdAt       INTEGER NOT NULL,
+  -- Playtest mode: when an admin drops into the student view, we mint a
+  -- normal student session but remember the admin session token it came
+  -- from. Pressing Esc swaps the cookie back to that token, so the admin
+  -- never has to re-enter the passcode. NULL on every ordinary session.
+  adminToken      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_kind ON sessions(kind);
 
