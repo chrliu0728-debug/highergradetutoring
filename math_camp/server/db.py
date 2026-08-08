@@ -320,6 +320,22 @@ DEFAULT_ROLES = [
         "description": "Hidden mini-game role. Receive secret hints and updates from camp instructors that point you toward the next puzzle. Only 11 cranes ever exist across the camp.",
         "special": 1,
     },
+    {
+        "id": "calamity_catalyst",
+        "name": "Calamity Catalyst",
+        "icon": "🍋",
+        "color": "#84CC16",
+        "description": "The key to the shattered blade. Holders see a lime bubble drifting through the Support Us page — and only they can take the trial hidden behind it.",
+        "special": 1,
+    },
+    {
+        "id": "lime_sword",
+        "name": "Lime Sword",
+        "icon": "🗡",
+        "color": "#65A30D",
+        "description": "Reforged by cutting 140 of 150 limes out of the air in a single minute. The blade points toward the spider.",
+        "special": 1,
+    },
 ]
 
 # Base stats are entirely admin-defined now. A fresh database starts

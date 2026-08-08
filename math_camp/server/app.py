@@ -89,6 +89,16 @@ MONEY_TREE_ROLE_ID     = "money_tree"
 CLICKER_ROLE_ID        = "clicker"
 CRANE_ROLE_ID          = "crane"
 CRANE_GLOBAL_LIMIT     = None    # unlimited — any student who completes the claim flow gets one
+# The lime trial: holders of the Calamity Catalyst see a lime bubble on the
+# Support Us page, and cutting 140 of the 150 limes reforges the Lime Sword.
+CALAMITY_ROLE_ID       = "calamity_catalyst"
+LIME_SWORD_ROLE_ID     = "lime_sword"
+LIME_TOTAL             = 150
+LIME_TARGET            = 140
+# Per-lime score runs 1000 (cut the instant it appears) down to 400 (cut just
+# before it fades), so these bracket any honest run of `hits` limes.
+LIME_MIN_PER_HIT       = 400
+LIME_MAX_PER_HIT       = 1000
 DOOR_MAZE_LENGTH       = 310
 MONEY_TREE_COST        = 6000
 
@@ -1680,6 +1690,52 @@ def register_routes(app):
                     subjectName=_full_name(my_row), amount=0,
                     description="🕊 Claimed the Paper Crane")
         return jsonify(ok=True, data={"remaining": None})
+
+    @app.route("/api/students/me/claim-lime-sword", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def claim_lime_sword():
+        """Awarded for clearing the lime trial behind the Calamity Catalyst
+        bubble on the Support Us page. The browser reports the run, so the
+        numbers are sanity-checked rather than trusted: only a Catalyst
+        holder can claim, the hit count has to clear the bar without
+        exceeding the number of limes that exist, and the score has to sit
+        inside what those hits could actually have earned."""
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        try:
+            hits  = int(d.get("hits") or 0)
+            score = int(d.get("score") or 0)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="hits and score must be whole numbers."), 400
+        if not (LIME_TARGET <= hits <= LIME_TOTAL):
+            return jsonify(
+                ok=False,
+                error=f"You need {LIME_TARGET} of the {LIME_TOTAL} limes — that run had {hits}.",
+            ), 400
+        if not (hits * LIME_MIN_PER_HIT <= score <= hits * LIME_MAX_PER_HIT):
+            return jsonify(ok=False, error="That score doesn't match that many limes."), 400
+
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            roles = json.loads(row["roles"] or "[]")
+            if CALAMITY_ROLE_ID not in roles:
+                return jsonify(
+                    ok=False,
+                    error="The blade only answers to a Calamity Catalyst.",
+                ), 403
+            already = LIME_SWORD_ROLE_ID in roles
+            if not already:
+                roles.append(LIME_SWORD_ROLE_ID)
+                g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
+                             (json.dumps(roles), sid))
+                _log_tx(type="role_assigned", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=0,
+                        description=(f"🗡 Reforged the Lime Sword — {hits}/{LIME_TOTAL} limes "
+                                     f"cut for {score:,} points"))
+        return jsonify(ok=True, data={"alreadyHeld": already, "hits": hits, "score": score})
 
     # ── Mini-game hints ────────────────────────────────────────────
     @app.route("/api/hints", methods=["GET"])
