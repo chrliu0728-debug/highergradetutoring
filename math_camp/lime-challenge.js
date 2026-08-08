@@ -551,6 +551,22 @@
     document.body.appendChild(b);
   }
 
+  /* Role ids that count as `name`. Staff often create a role by hand before
+     the code that uses it ships, and the roles table keys NAME as unique —
+     so the seeded id can lose the race and never exist. Matching on the
+     name as well means whichever row actually exists is the one that
+     counts. Mirrors _role_ids_named() on the server. */
+  function idsNamed(name, seededId) {
+    const want = String(name).toLowerCase().replace(/\s+/g, '');
+    const out = new Set([seededId]);
+    const all = (window.HG && window.HG.cache && window.HG.cache.roles) || [];
+    for (const r of all) {
+      if (String(r && r.name || '').toLowerCase().replace(/\s+/g, '') === want) out.add(r.id);
+    }
+    return out;
+  }
+  const holds = (roles, ids) => roles.some(id => ids.has(id));
+
   /* ── Boot ───────────────────────────────────────────────────── */
   (async function boot() {
     if (window.dataReady) { try { await window.dataReady; } catch (_) {} }
@@ -558,10 +574,10 @@
       ? window.HG.cache.me.student : null;
     if (!me) return;                                    // signed out — no bubble
     const roles = Array.isArray(me.roles) ? me.roles : [];
-    if (roles.indexOf(CATALYST_ROLE) === -1) return;    // not a Catalyst — no bubble
+    if (!holds(roles, idsNamed('Calamity Catalyst', CATALYST_ROLE))) return;
     // Already reforged it? The bubble stays — the trial is replayable for a
     // better score, and claiming again is a no-op server-side.
-    REFORGED = roles.indexOf(SWORD_ROLE) !== -1;
+    REFORGED = holds(roles, idsNamed('Lime Sword', SWORD_ROLE));
     injectStyles();
     addBubble();
   })();

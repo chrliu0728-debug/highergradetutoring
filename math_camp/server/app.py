@@ -1691,6 +1691,16 @@ def register_routes(app):
                     description="🕊 Claimed the Paper Crane")
         return jsonify(ok=True, data={"remaining": None})
 
+    def _role_ids_named(*names):
+        """Every role id whose NAME matches one of `names`, ignoring case and
+        spacing. Staff routinely create a role by hand before the code that
+        uses it ships, and roles.name is UNIQUE — so a seeded row with the
+        tidy id loses the race and never gets inserted at all. Matching on
+        the name means the hand-made role works exactly the same."""
+        want = {"".join((n or "").lower().split()) for n in names}
+        return {r["id"] for r in g.db.execute("SELECT id, name FROM roles").fetchall()
+                if "".join((r["name"] or "").lower().split()) in want}
+
     @app.route("/api/students/me/claim-lime-sword", methods=["POST"])
     @require_student
     @block_when_frozen
@@ -1721,12 +1731,14 @@ def register_routes(app):
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
             roles = json.loads(row["roles"] or "[]")
-            if CALAMITY_ROLE_ID not in roles:
+            catalyst = _role_ids_named("Calamity Catalyst") | {CALAMITY_ROLE_ID}
+            if not catalyst.intersection(roles):
                 return jsonify(
                     ok=False,
                     error="The blade only answers to a Calamity Catalyst.",
                 ), 403
-            already = LIME_SWORD_ROLE_ID in roles
+            swords = _role_ids_named("Lime Sword") | {LIME_SWORD_ROLE_ID}
+            already = bool(swords.intersection(roles))
             if not already:
                 roles.append(LIME_SWORD_ROLE_ID)
                 g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
