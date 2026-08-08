@@ -199,7 +199,12 @@ CREATE TABLE IF NOT EXISTS discord_chests (
   -- Minimum seconds between one person's passcode attempts on this chest.
   -- Stops someone brute-forcing a short code by hammering the button.
   -- 0 disables the wait.
-  cooldownSeconds INTEGER NOT NULL DEFAULT 15
+  cooldownSeconds INTEGER NOT NULL DEFAULT 15,
+  -- JSON array of {name, size} for every file hung off this chest. The
+  -- files themselves live in the Discord message (re-uploaded, so they
+  -- don't rot when the original upload's signed URL expires); this is the
+  -- record of what's there, and what /chest-attach appends to.
+  attachments  TEXT NOT NULL DEFAULT '[]'
 );
 
 -- Last passcode attempt per (chest, person), for the cooldown above.

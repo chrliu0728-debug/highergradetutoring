@@ -17,8 +17,9 @@ confirmed — are refused, and lose their roles again if re-frozen later.
 
 Admin-only (Manage Roles permission):
 
-  /chest-create code role description [answer_cooldown]
+  /chest-create code role description [answer_cooldown] [image…image10]
   /chest-list              → paged; ◀ ▶ walk every chest in the server
+  /chest-attach chest file → hang more files off a chest, ten at a time
   /chest-delete chest_id
 
 Admin-only (Administrator):
@@ -241,7 +242,8 @@ class CampAPI:
                            bonus_count: int = 0,
                            ignore_case: bool = False,
                            ignore_spaces: bool = False,
-                           cooldown_seconds: int = DEFAULT_CHEST_COOLDOWN) -> Dict[str, Any]:
+                           cooldown_seconds: int = DEFAULT_CHEST_COOLDOWN,
+                           attachments: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         return await self._post("/api/bot/chests", {
             "guildId": guild_id, "code": code, "roleId": role_id, "roleName": role_name,
             "description": description, "createdBy": created_by,
@@ -252,7 +254,13 @@ class CampAPI:
             "bonusPoints": bonus_points, "bonusCount": bonus_count,
             "ignoreCase": ignore_case, "ignoreSpaces": ignore_spaces,
             "cooldownSeconds": cooldown_seconds,
+            "attachments": attachments or [],
         })
+
+    async def chest_add_attachments(self, chest_id: str,
+                                    attachments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        return await self._post(f"/api/bot/chests/{chest_id}/attachments",
+                                {"attachments": attachments})
 
     async def chest_set_message(self, chest_id: str, channel_id: str, message_id: str) -> Dict[str, Any]:
         return await self._post(f"/api/bot/chests/{chest_id}/message", {
@@ -501,10 +509,13 @@ def _missing_channel_perms(channel: Any, *names: str) -> List[str]:
     return [n for n in names if not getattr(perms, n, False)]
 
 
-def _can_post(channel: Any, where: str, *, embeds: bool = False) -> bool:
+def _can_post(channel: Any, where: str, *, embeds: bool = False,
+              files: bool = False) -> bool:
     """Preflight for anything that posts a message. Warns once and returns
     False when the bot can't see or speak in the channel."""
-    need = ["view_channel", "send_messages"] + (["embed_links"] if embeds else [])
+    need = (["view_channel", "send_messages"]
+            + (["embed_links"] if embeds else [])
+            + (["attach_files"] if files else []))
     missing = _missing_channel_perms(channel, *need)
     if missing:
         _warn_once(f"post:{getattr(channel, 'id', '?')}:{','.join(missing)}",
@@ -1329,7 +1340,7 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
                  remove_role_name: Optional[str] = None,
                  bonus_points: int = 0, bonus_count: int = 0,
                  ignore_caps: bool = False, ignore_spaces: bool = False,
-                 cooldown: int = 0) -> discord.Embed:
+                 cooldown: int = 0, attachment_count: int = 0) -> discord.Embed:
     """First (or only) embed of a chest message. Long descriptions are
     carried on by _chest_overflow_embeds."""
     body = _chunk(description, EMBED_DESC_LIMIT)
@@ -1363,6 +1374,8 @@ def _chest_embed(description: str, image_url: Optional[str] = None,
     # Warn up front so a wrong guess followed by a refusal isn't a mystery.
     if cooldown > 0:
         bits.append(f"{cooldown}s between tries.")
+    if attachment_count > 1:
+        bits.append(f"📎 {attachment_count} files attached.")
     e.set_footer(text=" ".join(bits))
     return e
 
@@ -1371,6 +1384,67 @@ def _chest_overflow_embeds(description: str) -> List[discord.Embed]:
     """Continuation embeds for descriptions past the first 4096 characters."""
     return [discord.Embed(description=part, color=discord.Color.purple())
             for part in _chunk(description, EMBED_DESC_LIMIT)[1:]]
+
+
+# ── Chest attachments ────────────────────────────────────────────────
+# Discord caps a single message at 10 files, so that's the batch size. A
+# chest can carry more than that — /chest-attach posts further batches
+# under the chest message, as many times as you like.
+FILES_PER_MESSAGE = 10
+
+_SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_attachment_name(name: str) -> str:
+    """A filename that survives the attachment:// URI scheme, which the
+    embed's hero image is addressed by. Spaces and unicode in a real
+    filename would break the reference and silently show no image."""
+    cleaned = _SAFE_NAME_RE.sub("_", (name or "").strip()) or "file"
+    return cleaned[-100:].lstrip("._-") or "file"
+
+
+def _is_image_attachment(a: Any) -> bool:
+    if (getattr(a, "content_type", "") or "").startswith("image/"):
+        return True
+    return (getattr(a, "filename", "") or "").lower().endswith(
+        (".png", ".jpg", ".jpeg", ".gif", ".webp"))
+
+
+def _batched_files(meta: List[Dict[str, Any]], blobs: List[bytes],
+                   size: int = FILES_PER_MESSAGE) -> List[List[discord.File]]:
+    """Fresh discord.File batches of at most `size` each — one message's
+    worth per batch. discord.File is single-use, so these are built once
+    per send."""
+    return [
+        [discord.File(io.BytesIO(b), filename=m["name"])
+         for m, b in zip(meta[i:i + size], blobs[i:i + size])]
+        for i in range(0, len(meta), size)
+    ]
+
+
+async def _post_chest_files(channel: Any, meta: List[Dict[str, Any]],
+                            blobs: List[bytes],
+                            reference: Optional[discord.Message] = None,
+                            note: Optional[str] = None) -> int:
+    """Post attachments under a chest, 10 per message. Returns how many
+    landed. A batch that fails doesn't abort the rest — partial delivery
+    beats none, and the caller reports the shortfall."""
+    sent = 0
+    first = True
+    for batch in _batched_files(meta, blobs):
+        try:
+            await channel.send(
+                content=(note if (first and note) else None),
+                files=batch,
+                reference=reference if first else None,
+                mention_author=False,
+            )
+            sent += len(batch)
+        except discord.HTTPException:
+            log.exception("chest attachment batch failed in #%s",
+                          getattr(channel, "name", "?"))
+        first = False
+    return sent
 
 
 # ── Verification & onboarding ────────────────────────────────────────
@@ -2147,12 +2221,13 @@ async def _dm_feedback(data: Dict[str, Any],
         return False
 
 
-async def _grab_files(attachments: List[Any]) -> tuple[List[Dict[str, Any]], List[bytes]]:
+async def _grab_files(attachments: List[Any],
+                      limit: int = 3) -> tuple[List[Dict[str, Any]], List[bytes]]:
     """Read attachments into memory so they can be re-sent to the camper and
     kept on the marking card. Oversized files are skipped, not fatal."""
     meta: List[Dict[str, Any]] = []
     blobs: List[bytes] = []
-    for a in attachments[:3]:
+    for a in attachments[:limit]:
         if getattr(a, "size", 0) > MAX_UPLOAD_BYTES:
             log.info("skipping oversized return file %s", getattr(a, "filename", "?"))
             continue
@@ -2669,6 +2744,7 @@ async def cmd_help(interaction: discord.Interaction) -> None:
     chest_tools = [
         ("chest-create", "Place a locked chest in this channel."),
         ("chest-list", "List every chest in this server."),
+        ("chest-attach", "Hang more files off an existing chest."),
         ("chest-delete", "Remove a chest by id."),
     ]
     campaign_cmds = [
@@ -2753,6 +2829,7 @@ async def cmd_unlock(interaction: discord.Interaction, code: str) -> None:
 # /perms-grant. Anything not in this list is implicitly admin/owner-only
 # (or open, depending on the command).
 RESTRICTABLE_COMMANDS: List[str] = ["chest-create", "chest-list", "chest-delete",
+                                    "chest-attach",
                                     "mark-homework", "award-points", "attendance"]
 
 
@@ -3357,10 +3434,12 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                  remove_role: Optional[discord.Role] = None,
                  bonus_points: int = 0, bonus_count: int = 0,
                  ignore_caps: bool = False, ignore_spaces: bool = False,
-                 cooldown: int = DEFAULT_CHEST_COOLDOWN) -> None:
+                 cooldown: int = DEFAULT_CHEST_COOLDOWN,
+                 attachments: Optional[List[Any]] = None) -> None:
         super().__init__()
         self.role = role
         self.image_url = image_url
+        self.attachments = attachments or []
         self.remove_role = remove_role
         self.bonus_points = bonus_points
         self.bonus_count = bonus_count
@@ -3462,6 +3541,22 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                 "Give it a role, or set points above 0.", ephemeral=True)
             return
 
+        # Pull every attached file into memory and re-upload it with the
+        # chest, rather than pointing the embed at the uploader's own copy:
+        # Discord's attachment URLs are signed and expire, so a stored URL
+        # would leave the chest with a dead image in a day or so.
+        meta, blobs = await _grab_files(self.attachments, limit=len(self.attachments))
+        skipped = len(self.attachments) - len(meta)
+        hero_url = self.image_url
+        if meta:
+            # The first file becomes the embed's picture when it's an image;
+            # attachment:// needs a filename the URI scheme can carry.
+            if _is_image_attachment(self.attachments[0]):
+                meta[0]["name"] = _safe_attachment_name(meta[0]["name"])
+                hero_url = f"attachment://{meta[0]['name']}"
+            else:
+                hero_url = None
+
         desc = str(self.description.value).strip()
         res = await api.chest_create(
             str(interaction.guild.id), str(self.code.value).strip(),
@@ -3472,7 +3567,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             remove_role_name=self.remove_role.name if self.remove_role else "",
             bonus_points=bonus_pts or 0, bonus_count=bonus_cnt or 0,
             ignore_case=self.ignore_caps, ignore_spaces=self.ignore_spaces,
-            cooldown_seconds=self.cooldown,
+            cooldown_seconds=self.cooldown, attachments=meta,
         )
         if not res.get("ok"):
             await interaction.followup.send(f"❌ {res.get('error') or 'Failed.'}", ephemeral=True)
@@ -3482,7 +3577,7 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
             await interaction.followup.send("❌ Server didn't return a chest id.", ephemeral=True)
             return
 
-        embeds = [_chest_embed(desc, image_url=self.image_url,
+        embeds = [_chest_embed(desc, image_url=hero_url,
                                role_name=role.name if role else None,
                                points=pts, max_claims=cap,
                                remove_role_name=self.remove_role.name if self.remove_role else None,
@@ -3490,24 +3585,35 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
                                ignore_caps=self.ignore_caps,
                                ignore_spaces=self.ignore_spaces,
                                cooldown=self.cooldown,
+                               attachment_count=len(meta),
                                )] + _chest_overflow_embeds(desc)
 
         # Post the public chest message into the channel the command was run
         # in. The button is persistent, so this message keeps working forever
         # (until the chest is deleted). Discord caps a message at 6000 chars
-        # across all its embeds, so overflow goes into follow-up messages.
+        # across all its embeds, so overflow goes into follow-up messages,
+        # and at 10 files per message, so extra files do the same.
+        batches = _batched_files(meta, blobs)
         posted = None
         try:
-            posted = await interaction.channel.send(embed=embeds[0], view=_chest_view(chest_id))
+            posted = await interaction.channel.send(
+                embed=embeds[0], view=_chest_view(chest_id),
+                files=batches[0] if batches else None,
+            )
             for extra in embeds[1:]:
                 await interaction.channel.send(embed=extra)
         except discord.Forbidden:
             await interaction.followup.send(
                 "❌ I can't send messages in this channel — give me Send Messages + "
-                "Embed Links permission and try again.", ephemeral=True)
+                "Embed Links + Attach Files permission and try again.", ephemeral=True)
             # Roll back the chest record so we don't leave a phantom entry.
             await api.chest_delete(chest_id)
             return
+        # Files past the first ten ride along in follow-up messages.
+        if len(batches) > 1:
+            await _post_chest_files(
+                interaction.channel, meta[FILES_PER_MESSAGE:], blobs[FILES_PER_MESSAGE:],
+                reference=posted)
 
         if posted:
             try:
@@ -3535,6 +3641,12 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
         summary += ("\n• Answer cooldown: **none** — guesses can be spammed"
                     if self.cooldown <= 0 else
                     f"\n• Answer cooldown: **{self.cooldown}s** between tries per person")
+        if meta:
+            summary += f"\n• 📎 **{len(meta)}** file(s) attached"
+            if skipped:
+                summary += (f" — **{skipped}** skipped, over the "
+                            f"{MAX_UPLOAD_BYTES // (1024*1024)} MB limit")
+            summary += "\n  Add more any time with `/chest-attach`."
         if self.remove_role:
             summary += f"\n• Removes: **{self.remove_role.name}** on open"
             # Camp-mirrored roles get re-asserted from the website, so a
@@ -3556,7 +3668,11 @@ class ChestCreateModal(discord.ui.Modal, title="📦 Place a chest"):
 @bot.tree.command(name="chest-create", description="Place a locked chest in this channel.")
 @app_commands.describe(
     role="Role granted on unlock. Leave blank (or pick a role named N/A) for a points-only chest.",
-    image="Optional image to embed in the chest message",
+    image="File to hang off the chest. If it's an image it becomes the chest's picture.",
+    image2="Another file", image3="Another file", image4="Another file",
+    image5="Another file", image6="Another file", image7="Another file",
+    image8="Another file", image9="Another file",
+    image10="Another file — need more? Add them later with /chest-attach.",
     remove_role="Optional role taken away on unlock, so roles swap instead of stacking",
     bonus_points="Extra points for the earliest openers, on top of the normal reward",
     bonus_for_first="How many of the first openers get that bonus",
@@ -3575,6 +3691,15 @@ async def cmd_chest_create(
     ignore_caps: bool = False,
     ignore_spaces: bool = False,
     answer_cooldown: Optional[int] = None,
+    image2: Optional[discord.Attachment] = None,
+    image3: Optional[discord.Attachment] = None,
+    image4: Optional[discord.Attachment] = None,
+    image5: Optional[discord.Attachment] = None,
+    image6: Optional[discord.Attachment] = None,
+    image7: Optional[discord.Attachment] = None,
+    image8: Optional[discord.Attachment] = None,
+    image9: Optional[discord.Attachment] = None,
+    image10: Optional[discord.Attachment] = None,
 ) -> None:
     # No defer() here — a modal has to be the FIRST response to the
     # interaction, so only cheap local checks can run before we reply.
@@ -3595,11 +3720,17 @@ async def cmd_chest_create(
             ephemeral=True,
         )
         return
-    if image is not None and not (image.content_type or "").startswith("image/"):
+    # Any file type is welcome — a chest can carry a PDF worksheet as
+    # happily as a picture. Only the first one, and only when it IS an
+    # image, becomes the embed's picture.
+    files = [a for a in (image, image2, image3, image4, image5,
+                         image6, image7, image8, image9, image10)
+             if a is not None]
+    too_big = [a.filename for a in files if (a.size or 0) > MAX_UPLOAD_BYTES]
+    if too_big:
         await interaction.response.send_message(
-            "❌ The `image` attachment doesn't look like an image file.",
-            ephemeral=True,
-        )
+            f"❌ Too large to re-upload (limit {MAX_UPLOAD_BYTES // (1024*1024)} MB): "
+            + ", ".join(f"`{n}`" for n in too_big), ephemeral=True)
         return
     if remove_role is not None:
         if me and remove_role >= me.top_role:
@@ -3659,7 +3790,7 @@ async def cmd_chest_create(
                          remove_role=remove_role,
                          bonus_points=bp, bonus_count=bc,
                          ignore_caps=ignore_caps, ignore_spaces=ignore_spaces,
-                         cooldown=cd))
+                         cooldown=cd, attachments=files))
 
 
 def _chest_list_entry(c: Dict[str, Any]) -> str:
@@ -3677,9 +3808,11 @@ def _chest_list_entry(c: Dict[str, Any]) -> str:
              if c.get("bonusPoints") and c.get("bonusCount") else "")
     cd = int(c.get("cooldownSeconds") or 0)
     wait = f" · ⏳ {cd}s" if cd else " · ⏳ none"
+    nfiles = int(c.get("attachmentCount") or 0)
+    clip = f" · 📎 {nfiles}" if nfiles else ""
     return (
         f"• code **{c['code']}** → {grants}{swap} "
-        f"· {opens} opens · {pts} pts{bonus}{wait}{when}\n"
+        f"· {opens} opens · {pts} pts{bonus}{wait}{clip}{when}\n"
         f"  `{c['id']}` · {blurb[:70]}{'…' if len(blurb) > 70 else ''}"
     )
 
@@ -3869,6 +4002,123 @@ async def _chest_delete_choices(interaction: discord.Interaction,
         if len(out) >= 25:      # Discord's hard cap on autocomplete options
             break
     return out
+
+
+@bot.tree.command(name="chest-attach",
+                  description="Hang more files off an existing chest.")
+@app_commands.describe(
+    chest="Newest first. Start typing to filter by code, role, or text.",
+    file="A file to add", file2="Another file", file3="Another file",
+    file4="Another file", file5="Another file", file6="Another file",
+    file7="Another file", file8="Another file", file9="Another file",
+    file10="Another file — run the command again for more.",
+)
+@app_commands.autocomplete(chest=_chest_delete_choices)
+async def cmd_chest_attach(
+    interaction: discord.Interaction,
+    chest: str,
+    file: discord.Attachment,
+    file2: Optional[discord.Attachment] = None,
+    file3: Optional[discord.Attachment] = None,
+    file4: Optional[discord.Attachment] = None,
+    file5: Optional[discord.Attachment] = None,
+    file6: Optional[discord.Attachment] = None,
+    file7: Optional[discord.Attachment] = None,
+    file8: Optional[discord.Attachment] = None,
+    file9: Optional[discord.Attachment] = None,
+    file10: Optional[discord.Attachment] = None,
+) -> None:
+    """Ten files per run, run it as often as you like — that's how a chest
+    ends up with more attachments than a slash command can carry."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    if not interaction.guild:
+        await interaction.followup.send("Run this in a server.", ephemeral=True)
+        return
+    if not await _user_can_run(interaction, "chest-attach"):
+        await interaction.followup.send(
+            "🚫 You don't have permission to run **chest-attach**. "
+            "Ask a server admin to grant your role with `/perms-grant`.",
+            ephemeral=True,
+        )
+        return
+
+    chest_id = chest.strip()
+    chests = await _chests_cached(interaction.guild.id)
+    match = next((c for c in chests if str(c.get("id")) == chest_id), None)
+    if match is None:
+        match = next((c for c in chests
+                      if str(c.get("code", "")).lower() == chest_id.lower()), None)
+    if match is None:
+        await interaction.followup.send(
+            f"❌ No chest matching `{chest_id}` in this server. Pick one from the "
+            "dropdown, or run `/chest-list` to see what's there.", ephemeral=True)
+        return
+
+    picked = [a for a in (file, file2, file3, file4, file5,
+                          file6, file7, file8, file9, file10) if a is not None]
+    too_big = [a.filename for a in picked if (a.size or 0) > MAX_UPLOAD_BYTES]
+    if too_big:
+        await interaction.followup.send(
+            f"❌ Too large to re-upload (limit {MAX_UPLOAD_BYTES // (1024*1024)} MB): "
+            + ", ".join(f"`{n}`" for n in too_big), ephemeral=True)
+        return
+
+    # Post them under the chest's own message so they read as part of it.
+    # If that message is gone (or was never recorded), fall back to the
+    # channel the command was run in and say so.
+    channel = None
+    anchor = None
+    if match.get("channelId"):
+        channel = interaction.guild.get_channel(int(match["channelId"]))
+    if channel and match.get("messageId"):
+        try:
+            anchor = await channel.fetch_message(int(match["messageId"]))
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            anchor = None
+    where_note = ""
+    if channel is None:
+        channel = interaction.channel
+        where_note = ("\n⚠️ I couldn't find the chest's own message, so the files "
+                      "went here instead.")
+    if not _can_post(channel, "chest-attach", files=True):
+        await interaction.followup.send(
+            f"❌ I can't post in {getattr(channel, 'mention', 'that channel')} — "
+            "I need Send Messages and Attach Files there.", ephemeral=True)
+        return
+
+    meta, blobs = await _grab_files(picked, limit=len(picked))
+    if not meta:
+        await interaction.followup.send(
+            "❌ None of those files could be read. Try re-uploading them.",
+            ephemeral=True)
+        return
+
+    sent = await _post_chest_files(
+        channel, meta, blobs, reference=anchor,
+        note=f"📎 More for the **{match.get('code')}** chest:")
+    if not sent:
+        await interaction.followup.send(
+            "❌ Discord refused every upload — nothing was posted.", ephemeral=True)
+        return
+
+    res = await api.chest_add_attachments(str(match["id"]), meta[:sent])
+    _CHEST_CACHE.pop(str(interaction.guild.id), None)
+    total = ((res.get("data") or {}).get("count")
+             if res.get("ok") else None)
+
+    msg = (f"📎 Added **{sent}** file(s) to chest **{match.get('code')}** "
+           f"in {getattr(channel, 'mention', 'the channel')}.")
+    if total is not None:
+        msg += f" It now carries **{total}** in total."
+    if sent < len(meta):
+        msg += f"\n⚠️ {len(meta) - sent} couldn't be uploaded."
+    if len(meta) < len(picked):
+        msg += f"\n⚠️ {len(picked) - len(meta)} couldn't be read and were skipped."
+    msg += where_note
+    if not res.get("ok"):
+        msg += ("\n⚠️ The files are posted, but I couldn't update the chest's "
+                "record — `/chest-list` will show a stale count.")
+    await interaction.followup.send(msg, ephemeral=True)
 
 
 @bot.tree.command(name="chest-delete", description="Remove a chest — pick it from the list.")

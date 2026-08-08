@@ -113,7 +113,8 @@ Run from any text channel the bot can see. All replies are ephemeral
 | `/unlink` | Anyone | Removes your link and revokes the bot-managed roles. |
 | `/unlock code:<passcode>` | Anyone | Opens the chest with that code and grants its hidden role. |
 | `/chest-create [role:<@role>] [image:<file>] [remove_role:<@role>] [answer_cooldown:<secs>]` | Manage Roles | Opens a form for the passcode, reveal text, points reward, and opener cap. `role` is optional — skip it for a points-only chest. |
-| `/chest-list` | Manage Roles | Every chest with its code, role, opens/cap, points, cooldown, and description. Paged — use ◀ ▶ to walk the whole list. |
+| `/chest-list` | Manage Roles | Every chest with its code, role, opens/cap, points, cooldown, file count, and description. Paged — use ◀ ▶ to walk the whole list. |
+| `/chest-attach chest:<pick> file:<file> [file2…file10]` | Manage Roles | Adds up to ten more files to an existing chest, posted under its message. Run it again for more. |
 | `/chest-delete chest:<pick>` | Manage Roles | Pick a chest from a dropdown, newest first. No IDs to copy. |
 | `/onboard` | Anyone | Re-opens the onboarding questions. |
 | `/submit title:<…> file:<…>` | Verified campers | Hands homework in for marking. |
@@ -203,13 +204,28 @@ The command options are all optional:
 | Option | Default | Notes |
 | --- | --- | --- |
 | `role` | *none* | Skip for a points-only chest. |
-| `image` | *none* | Embedded in the chest message. |
+| `image` … `image10` | *none* | Files hung off the chest. The first becomes the chest's picture if it's an image. |
 | `remove_role` | *none* | Stripped on unlock, so roles swap. |
 | `bonus_points` | *none* | Extra points for the earliest openers. |
 | `bonus_for_first` | *none* | How many openers get that bonus. |
 | `ignore_caps` | off | Accept the passcode in any capitalisation. |
 | `ignore_spaces` | off | Accept it with spaces anywhere, or none. |
 | `answer_cooldown` | `15` | Seconds one person must wait between passcode tries. `0` for no wait. |
+
+**Attachments.** A chest carries as many files as you want, of any type —
+images, PDFs, whatever. Ten fit in one `/chest-create` (`image` through
+`image10`, Discord's per-message limit), and `/chest-attach` adds another
+ten each time you run it, under the chest's own message. There's no ceiling
+short of the 200-file record cap.
+
+Files are **re-uploaded** into the chest message rather than linked. That
+matters: Discord's upload URLs are signed and expire within about a day, so
+a chest that merely pointed at the original would show a dead image by the
+next morning. The re-uploaded copies live in the message for good.
+
+The first file becomes the embed's picture when it's an image; anything
+else attaches below. Oversized files are refused up front, by name, rather
+than silently dropped, and the footer says how many are attached.
 
 **Answer cooldown.** Without a wait, a short passcode can simply be
 brute-forced by hammering the button. Each chest enforces a per-person

@@ -74,6 +74,9 @@ LOSSLESS_TRANSFER_COST = 400
 # by hammering the button.
 CHEST_DEFAULT_COOLDOWN = 15
 CHEST_MAX_COOLDOWN     = 3600
+# Ceiling on how many files one chest's record tracks. Well past anything
+# reasonable — it exists so a runaway loop can't grow a row without bound.
+CHEST_MAX_ATTACHMENTS  = 200
 SPIDER_THRESHOLD       = 20
 CLASS_POINT_TO_INDIV   = 10
 CLASS_BANK_DAILY_RATE  = 0.05
@@ -3792,6 +3795,33 @@ def register_routes(app):
             return jsonify(ok=True, data={"channelId": cid})
         return jsonify(ok=True, data={"channelId": link["feedbackChannelId"]})
 
+    def _clean_attachments(raw):
+        """Normalize the bot's attachment manifest to [{name, size}, …].
+        Returns (list, error). Anything unusable is an error rather than a
+        silent drop, so a bug in the bot shows up instead of losing files
+        from the record."""
+        if raw in (None, ""):
+            return [], None
+        if not isinstance(raw, list):
+            return None, "attachments must be a list."
+        if len(raw) > CHEST_MAX_ATTACHMENTS:
+            return None, f"At most {CHEST_MAX_ATTACHMENTS} attachments per chest."
+        out = []
+        for item in raw:
+            if isinstance(item, str):
+                item = {"name": item}
+            if not isinstance(item, dict):
+                return None, "Each attachment must be an object with a name."
+            name = (item.get("name") or "").strip()
+            if not name:
+                return None, "Each attachment needs a name."
+            try:
+                size = int(item.get("size") or 0)
+            except (TypeError, ValueError):
+                size = 0
+            out.append({"name": name[:200], "size": max(0, size)})
+        return out, None
+
     @app.route("/api/bot/chests", methods=["POST"])
     @require_bot
     def bot_chest_create():
@@ -3879,6 +3909,10 @@ def register_routes(app):
                       f"({CHEST_MAX_COOLDOWN // 60} minutes).",
             ), 400
 
+        attachments, err = _clean_attachments(d.get("attachments"))
+        if err:
+            return jsonify(ok=False, error=err), 400
+
         cid = "chest-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         g.db.execute(
             """INSERT INTO discord_chests
@@ -3886,8 +3920,8 @@ def register_routes(app):
                 channelId, messageId, createdBy, createdAt, claimedBy,
                 points, maxClaims, removeRoleId, removeRoleName,
                 bonusPoints, bonusCount, ignoreCase, ignoreSpaces,
-                cooldownSeconds)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                cooldownSeconds, attachments)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cid, code,
                 (d.get("description") or "").strip() or None,
@@ -3904,14 +3938,43 @@ def register_routes(app):
                 (d.get("removeRoleName") or "").strip() or None,
                 bonus_points, bonus_count,
                 1 if ignore_case else 0, 1 if ignore_spaces else 0,
-                cooldown,
+                cooldown, json.dumps(attachments),
             ),
         )
         return jsonify(ok=True, data={"id": cid, "points": points, "maxClaims": max_claims,
                                       "bonusPoints": bonus_points, "bonusCount": bonus_count,
                                       "ignoreCase": ignore_case,
                                       "ignoreSpaces": ignore_spaces,
-                                      "cooldownSeconds": cooldown})
+                                      "cooldownSeconds": cooldown,
+                                      "attachments": attachments})
+
+    @app.route("/api/bot/chests/<cid>/attachments", methods=["POST"])
+    @require_bot
+    def bot_chest_add_attachments(cid):
+        """Append files to a chest's record. The bot has already re-uploaded
+        them into the channel — this just keeps the tally honest so
+        /chest-list can say how many are hanging off each chest."""
+        d = request.get_json(silent=True) or {}
+        extra, err = _clean_attachments(d.get("attachments"))
+        if err:
+            return jsonify(ok=False, error=err), 400
+        if not extra:
+            return jsonify(ok=False, error="No attachments supplied."), 400
+        row = g.db.execute("SELECT attachments FROM discord_chests WHERE id = ?",
+                           (cid,)).fetchone()
+        if not row:
+            return jsonify(ok=False, error="That chest no longer exists."), 404
+        try:
+            have = json.loads(row["attachments"] or "[]")
+            if not isinstance(have, list):
+                have = []
+        except Exception:  # noqa: BLE001
+            have = []
+        merged = (have + extra)[:CHEST_MAX_ATTACHMENTS]
+        g.db.execute("UPDATE discord_chests SET attachments = ? WHERE id = ?",
+                     (json.dumps(merged), cid))
+        return jsonify(ok=True, data={"attachments": merged, "count": len(merged),
+                                      "added": len(merged) - len(have)})
 
     @app.route("/api/bot/chests/<cid>/message", methods=["POST"])
     @require_bot
@@ -3946,6 +4009,12 @@ def register_routes(app):
                 claimed = []
             d["claimedBy"]    = claimed
             d["claimedCount"] = len(claimed)
+            try:
+                files = json.loads(d.get("attachments") or "[]")
+            except Exception:  # noqa: BLE001
+                files = []
+            d["attachments"]      = files if isinstance(files, list) else []
+            d["attachmentCount"]  = len(d["attachments"])
             # None when uncapped, so the bot can render "3 / ∞" vs "3 / 10".
             d["remaining"] = (None if d.get("maxClaims") is None
                               else max(0, int(d["maxClaims"]) - len(claimed)))
