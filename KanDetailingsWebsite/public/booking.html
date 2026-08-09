@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Book a Detail — Kan Detailings</title>
+<meta name="description" content="Find your exact vehicle, pick a package, and rank four three-hour service windows." />
+<link rel="icon" href="/logo.jpg" />
+<link rel="stylesheet" href="/css/styles.css" />
+<style>
+  .booking-grid { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 1.6rem; align-items: start; }
+  @media (max-width: 1000px) { .booking-grid { grid-template-columns: 1fr; } }
+  .step-section { margin-bottom: 2.2rem; }
+  .step-section.locked { opacity: .38; pointer-events: none; filter: saturate(0); }
+  .step-title { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; margin-bottom: .3rem; }
+  .step-title h2 { font-size: 1.4rem; margin: 0; }
+  .step-title .n {
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .18em;
+    color: var(--grey-3); border: 1px solid var(--line); border-radius: 100px; padding: .1rem .55rem;
+  }
+  .step-note { color: var(--grey-3); font-size: .88rem; margin: 0 0 1.1rem; }
+</style>
+</head>
+<body>
+<header data-site-nav></header>
+
+<main>
+
+  <section class="hero" style="padding-bottom:2rem">
+    <div class="wrap">
+      <span class="eyebrow" data-tag="booking.hero.eyebrow">Book a detail</span>
+      <h1 style="font-size:clamp(2rem,4.6vw,3rem)" data-tag="booking.hero.title">Plot your launch window</h1>
+      <p class="lede" data-tag="booking.hero.lede">
+        Placeholder paragraph about the five steps below. Find your exact car with the four filters,
+        choose a service profile, tell us where the car lives, then rank four three-hour windows.
+        Windows open 36 hours from now and close 16 days out.
+      </p>
+    </div>
+  </section>
+
+  <section class="wrap" style="padding-bottom:5rem">
+
+    <div class="steps" id="steps"></div>
+
+    <div class="booking-grid">
+      <div>
+
+        <!-- ============================================ STEP 1 · VEHICLE == -->
+        <section class="step-section" id="step-vehicle">
+          <div class="step-title">
+            <span class="n">Step 01</span>
+            <h2 data-tag="booking.step1.title">Find your exact car</h2>
+          </div>
+          <p class="step-note" data-tag="booking.step1.note">
+            Tick at least one option in <strong>all four</strong> columns. The columns filter each
+            other, so the more you tick the shorter the list gets. Keep going until your exact
+            model-year appears below.
+          </p>
+
+          <div class="finder" id="finder"></div>
+
+          <div class="match-bar" id="match-bar">
+            <span class="headline" id="match-headline">Start ticking boxes above</span>
+            <span class="small muted" id="match-sub">All four columns need at least one selection.</span>
+            <button class="btn ghost small" id="reset-finder" style="margin-left:auto" type="button">Reset filters</button>
+          </div>
+
+          <div class="result-list" id="result-list" hidden></div>
+        </section>
+
+        <!-- ============================================ STEP 2 · SERVICE == -->
+        <section class="step-section locked" id="step-service">
+          <div class="step-title">
+            <span class="n">Step 02</span>
+            <h2 data-tag="booking.step2.title">Choose a service profile</h2>
+          </div>
+          <p class="step-note" data-tag="booking.step2.note">
+            Prices scale with the size of the vehicle you picked in step one. Add-ons are flat rate.
+          </p>
+
+          <div class="grid two" id="packages"></div>
+
+          <h3 style="margin:1.8rem 0 .8rem" data-tag="booking.step2.addons.title">Add-ons</h3>
+          <div class="grid two" id="addons"></div>
+        </section>
+
+        <!-- ============================================ STEP 3 · ADDRESS == -->
+        <section class="step-section locked" id="step-address">
+          <div class="step-title">
+            <span class="n">Step 03</span>
+            <h2 data-tag="booking.step3.title">Where is the car</h2>
+          </div>
+          <p class="step-note" data-tag="booking.step3.note">
+            Placeholder note about needing a driveway, a parking stall, or somewhere the crew can work
+            for the length of the window.
+          </p>
+
+          <div class="panel">
+            <div class="field">
+              <label for="addr-line1">Street address</label>
+              <input id="addr-line1" type="text" autocomplete="address-line1" placeholder="1 Placeholder Way" required />
+            </div>
+            <div class="field">
+              <label for="addr-line2">Unit / buzzer / stall <span class="muted">(optional)</span></label>
+              <input id="addr-line2" type="text" autocomplete="address-line2" />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="addr-city">City</label>
+                <input id="addr-city" type="text" autocomplete="address-level2" required />
+              </div>
+              <div class="field">
+                <label for="addr-region">Province / state</label>
+                <input id="addr-region" type="text" autocomplete="address-level1" required />
+              </div>
+              <div class="field">
+                <label for="addr-postal">Postal / ZIP</label>
+                <input id="addr-postal" type="text" autocomplete="postal-code" required />
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label for="addr-notes">Access notes <span class="muted">(optional)</span></label>
+              <textarea id="addr-notes" style="min-height:80px" placeholder="Gate code, which side of the building, where the outdoor tap is…"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== STEP 4 · SLOTS == -->
+        <section class="step-section locked" id="step-slots">
+          <div class="step-title">
+            <span class="n">Step 04</span>
+            <h2 data-tag="booking.step4.title">Rank four service windows</h2>
+          </div>
+          <p class="step-note" data-tag="booking.step4.note">
+            Pick <strong>four different</strong> three-hour windows in the order you would prefer them.
+            The first one you tap becomes your first choice. Everything shown is at least 36 hours away
+            and inside the next 16 days.
+          </p>
+
+          <div class="grid two" style="align-items:start">
+            <div>
+              <div class="label">Available windows</div>
+              <div class="slot-scroll" id="slot-scroll">
+                <p class="muted small">Loading windows…</p>
+              </div>
+            </div>
+            <div>
+              <div class="label">Your ranked choices</div>
+              <div class="picked-list" id="picked-list"></div>
+              <p class="hint" id="slot-hint"></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================ STEP 5 · DETAILS == -->
+        <section class="step-section locked" id="step-details">
+          <div class="step-title">
+            <span class="n">Step 05</span>
+            <h2 data-tag="booking.step5.title">Your details</h2>
+          </div>
+          <p class="step-note" data-tag="booking.step5.note">
+            We use these to confirm the window and to open your message thread with the crew.
+          </p>
+
+          <div class="panel">
+            <div class="field-row">
+              <div class="field">
+                <label for="cust-name">Full name</label>
+                <input id="cust-name" type="text" autocomplete="name" required />
+              </div>
+              <div class="field">
+                <label for="cust-email">Email</label>
+                <input id="cust-email" type="email" autocomplete="email" required />
+              </div>
+              <div class="field">
+                <label for="cust-phone">Phone</label>
+                <input id="cust-phone" type="tel" autocomplete="tel" required />
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="veh-colour">Vehicle colour <span class="muted">(optional)</span></label>
+                <input id="veh-colour" type="text" placeholder="Eclipse black" />
+              </div>
+              <div class="field">
+                <label for="veh-plate">Licence plate <span class="muted">(optional)</span></label>
+                <input id="veh-plate" type="text" placeholder="ABC 123" />
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label for="cust-notes">Anything the crew should know <span class="muted">(optional)</span></label>
+              <textarea id="cust-notes" style="min-height:90px" placeholder="Dog hair in the back, a scuff on the rear quarter, the boot latch sticks…"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <div id="submit-error" hidden></div>
+
+      </div>
+
+      <!-- ================================================== SUMMARY ====== -->
+      <aside class="sticky-side">
+        <div class="panel" id="summary">
+          <span class="eyebrow">Flight plan</span>
+          <div id="summary-body">
+            <p class="muted small">Your booking will build up here as you go.</p>
+          </div>
+          <button class="btn block" id="submit-booking" style="margin-top:1.2rem" disabled>
+            Confirm booking
+          </button>
+          <p class="hint center" id="submit-hint">Complete every step to unlock this.</p>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ================================================= CONFIRMED ====== -->
+    <section id="confirmation" hidden style="margin-top:2rem"></section>
+
+  </section>
+
+  <!-- ==================================================== PACKAGES ====== -->
+  <section class="section" id="packages-info">
+    <div class="wrap">
+      <span class="eyebrow" data-tag="booking.pricing.eyebrow">Pricing</span>
+      <h2 data-tag="booking.pricing.title">What each profile covers</h2>
+      <p class="lede" data-tag="booking.pricing.lede">
+        Placeholder paragraph about base prices being for a compact vehicle. Bigger ships cost more to
+        clean; the quote in your flight plan is the number that counts.
+      </p>
+      <div class="grid four" id="pricing-cards" style="margin-top:2.2rem"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer data-site-footer></footer>
+<script type="module" src="/js/booking.js"></script>
+</body>
+</html>

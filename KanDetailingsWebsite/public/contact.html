@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contact — Kan Detailings</title>
+<meta name="description" content="Placeholder description about getting in touch with the crew." />
+<link rel="icon" href="/logo.jpg" />
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<header data-site-nav></header>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow" data-tag="contact.hero.eyebrow">Contact us</span>
+      <h1 data-tag="contact.hero.title">Open a channel<span>we monitor it.</span></h1>
+      <p class="lede" data-tag="contact.hero.lede">
+        Placeholder paragraph about how messages get read by a person, usually within a placeholder
+        number of hours. If you already have a booking, use the thread on your booking instead — it
+        is faster.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="grid two" style="align-items:start">
+
+        <div class="panel">
+          <span class="eyebrow" data-tag="contact.form.eyebrow">Send a message</span>
+          <h2 data-tag="contact.form.title">Tell us what you need</h2>
+          <form id="contact-form" novalidate>
+            <div class="field-row">
+              <div class="field">
+                <label for="c-name">Your name</label>
+                <input id="c-name" name="name" type="text" autocomplete="name" required />
+              </div>
+              <div class="field">
+                <label for="c-email">Email</label>
+                <input id="c-email" name="email" type="email" autocomplete="email" required />
+              </div>
+            </div>
+            <div class="field">
+              <label for="c-topic">What is this about</label>
+              <select id="c-topic" name="topic">
+                <option value="general">General question</option>
+                <option value="booking">An existing booking</option>
+                <option value="quote">A quote for something unusual</option>
+                <option value="fleet">Fleet or commercial work</option>
+                <option value="careers">Joining the crew</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="c-body">Message</label>
+              <textarea id="c-body" name="body" placeholder="Placeholder prompt: tell us about the car, the mess, and the deadline." required></textarea>
+            </div>
+            <div id="contact-status" hidden></div>
+            <button class="btn block" type="submit">Transmit</button>
+          </form>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <span class="eyebrow" data-tag="contact.details.eyebrow">Direct lines</span>
+            <div class="summary-line" data-tag="contact.details.email"><span class="muted">Email</span><span class="mono">hello@kandetailings.example</span></div>
+            <div class="summary-line" data-tag="contact.details.phone"><span class="muted">Phone</span><span class="mono">(000) 000-0000</span></div>
+            <div class="summary-line" data-tag="contact.details.discord"><span class="muted">Discord</span><span class="mono">placeholder-invite</span></div>
+            <div class="summary-line" data-tag="contact.details.instagram"><span class="muted">Instagram</span><span class="mono">@placeholder</span></div>
+          </div>
+
+          <div class="panel">
+            <span class="eyebrow" data-tag="contact.hours.eyebrow">Operating hours</span>
+            <div class="summary-line" data-tag="contact.hours.weekdays"><span class="muted">Mon – Fri</span><span>08:00 – 20:00</span></div>
+            <div class="summary-line" data-tag="contact.hours.saturday"><span class="muted">Saturday</span><span>08:00 – 20:00</span></div>
+            <div class="summary-line" data-tag="contact.hours.sunday"><span class="muted">Sunday</span><span>Closed</span></div>
+            <p class="hint" data-tag="contact.hours.note">
+              Placeholder note: service windows are three hours long and start at 8am, 11am, 2pm and 5pm.
+            </p>
+          </div>
+
+          <div class="panel">
+            <span class="eyebrow" data-tag="contact.area.eyebrow">Service area</span>
+            <p class="small" data-tag="contact.area.body">
+              Placeholder paragraph about the radius the crew covers and the placeholder travel fee
+              beyond it. Swap in the real cities and boundaries.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="wrap">
+      <span class="eyebrow" data-tag="contact.faq.eyebrow">Frequently asked</span>
+      <h2 data-tag="contact.faq.title">Questions that come up every week</h2>
+      <div class="grid two" style="margin-top:2rem">
+        <article class="panel" data-tag="contact.faq.one">
+          <h3>How far ahead can I book?</h3>
+          <p class="small">Placeholder answer: windows open 36 hours from the moment you register and run 16 days out.</p>
+        </article>
+        <article class="panel" data-tag="contact.faq.two">
+          <h3>Why do I pick four time slots?</h3>
+          <p class="small">Placeholder answer: you rank four windows and the crew locks in the first one that works, so nobody plays phone tag.</p>
+        </article>
+        <article class="panel" data-tag="contact.faq.three">
+          <h3>Do you need power and water?</h3>
+          <p class="small">Placeholder answer about being self-contained, or not, depending on the job.</p>
+        </article>
+        <article class="panel" data-tag="contact.faq.four">
+          <h3>What if my car is not in the list?</h3>
+          <p class="small">Placeholder answer: send a message here and the crew will add it and quote it manually.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer data-site-footer></footer>
+<script type="module">
+  import { api } from '/js/site.js';
+
+  const form = document.getElementById('contact-form');
+  const status = document.getElementById('contact-status');
+
+  function show(message, kind) {
+    status.hidden = false;
+    status.className = `notice ${kind}`;
+    status.textContent = message;
+    status.style.marginBottom = '1rem';
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const data = Object.fromEntries(new FormData(form).entries());
+    button.disabled = true;
+    try {
+      await api('/api/contact', { method: 'POST', body: data });
+      form.reset();
+      show('Message received. Someone will reply to the email you gave us.', 'ok');
+    } catch (err) {
+      show(err.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

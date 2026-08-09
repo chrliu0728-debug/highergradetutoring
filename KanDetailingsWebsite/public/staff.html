@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Staff dashboard — Kan Detailings</title>
+<meta name="robots" content="noindex" />
+<link rel="icon" href="/logo.jpg" />
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<header data-site-nav></header>
+
+<main>
+  <section class="wrap" style="padding:2.5rem 0 5rem">
+
+    <div class="panel" id="login" style="max-width:420px;margin-inline:auto">
+      <span class="eyebrow">Crew only</span>
+      <h2 style="font-size:1.4rem">Staff dashboard</h2>
+      <div class="field">
+        <label for="s-pass">Staff password</label>
+        <input id="s-pass" type="password" autocomplete="current-password" />
+      </div>
+      <div id="s-error" hidden></div>
+      <button class="btn block" id="s-login">Sign in</button>
+    </div>
+
+    <div id="dash" hidden>
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.2rem">
+        <h1 style="font-size:1.6rem;margin:0">Bookings</h1>
+        <span class="badge" id="discord-state">discord: ?</span>
+        <select id="filter" style="width:auto;margin-left:auto">
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="in_progress">In progress</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button class="btn ghost small" id="refresh">Refresh</button>
+      </div>
+
+      <div class="staff-layout">
+        <div class="booking-list" id="list"></div>
+        <div id="detail" class="panel">
+          <p class="muted small">Pick a booking on the left.</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<footer data-site-footer></footer>
+<script type="module">
+  import { api, el, money, timeAgo } from '/js/site.js';
+  import { mountChat } from '/js/chat.js';
+
+  const $ = (id) => document.getElementById(id);
+
+  let key = sessionStorage.getItem('kan.staffKey') || '';
+  let bookings = [];
+  let activeId = null;
+  let chat = null;
+
+  const headers = () => ({ 'x-staff-key': key });
+
+  async function signIn() {
+    const password = $('s-pass').value;
+    try {
+      await api('/api/staff/login', { method: 'POST', body: { password } });
+    } catch (err) {
+      const box = $('s-error');
+      box.hidden = false;
+      box.className = 'notice error';
+      box.style.marginBottom = '.8rem';
+      box.textContent = err.message;
+      return;
+    }
+    key = password;
+    sessionStorage.setItem('kan.staffKey', key);
+    $('login').hidden = true;
+    $('dash').hidden = false;
+    load();
+  }
+
+  async function load() {
+    const status = $('filter').value;
+    const data = await api(`/api/staff/bookings${status ? `?status=${status}` : ''}`, { headers: headers() });
+    bookings = data.bookings;
+    $('discord-state').textContent = `discord: ${data.discord ? 'linked' : 'off'}`;
+    renderList();
+    if (activeId && bookings.some((b) => b.id === activeId)) renderDetail(activeId);
+  }
+
+  function renderList() {
+    const host = $('list');
+    host.innerHTML = '';
+    if (!bookings.length) {
+      host.append(el('p', { class: 'muted small', text: 'Nothing here yet.' }));
+      return;
+    }
+    for (const b of bookings) {
+      const item = el('button', { class: `booking-item${b.id === activeId ? ' active' : ''}`, type: 'button' }, [
+        el('div', { style: 'display:flex;gap:.5rem;align-items:center' }, [
+          el('span', { class: 'ref', text: b.reference }),
+          el('span', { class: `badge ${b.status}`, style: 'margin-left:auto', text: b.status.replace('_', ' ') }),
+        ]),
+        el('div', { class: 'who', text: b.customer.fullName }),
+        el('div', { class: 'small muted', text: `${b.vehicle.year} ${b.vehicle.make} ${b.vehicle.name}` }),
+        el('div', { class: 'small muted', text: `${b.service.packageLabel} · ${money(b.service.quotedTotal)} · ${timeAgo(b.createdAt)}` }),
+      ]);
+      item.addEventListener('click', () => {
+        activeId = b.id;
+        renderList();
+        renderDetail(b.id);
+      });
+      host.append(item);
+    }
+  }
+
+  function renderDetail(id) {
+    const b = bookings.find((x) => x.id === id);
+    if (!b) return;
+    const host = $('detail');
+    if (chat) chat.destroy();
+    host.innerHTML = '';
+
+    const address = [b.address.line1, b.address.line2, `${b.address.city}, ${b.address.region} ${b.address.postalCode}`]
+      .filter(Boolean)
+      .join('\n');
+
+    const slotButtons = el('div', { class: 'picked-list' },
+      b.slots.map((s) => {
+        const confirmed = b.confirmedSlot === s.start;
+        const button = el('button', {
+          class: `slot${confirmed ? ' picked' : ''}`,
+          type: 'button',
+        }, [
+          el('span', { class: 'rank', text: `${s.preference}` }),
+          el('span', { text: s.label }),
+          el('span', { class: 'left', text: confirmed ? 'confirmed' : 'confirm' }),
+        ]);
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            await api(`/api/staff/bookings/${b.id}/confirm`, {
+              method: 'POST',
+              headers: headers(),
+              body: { preference: s.preference },
+            });
+            await load();
+            if (chat) chat.refresh();
+          } catch (err) {
+            alert(err.message);
+            button.disabled = false;
+          }
+        });
+        return button;
+      })
+    );
+
+    const statusSelect = el('select', { style: 'width:auto' },
+      ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'].map((s) =>
+        el('option', { value: s, selected: s === b.status, text: s.replace('_', ' ') })
+      )
+    );
+    statusSelect.addEventListener('change', async () => {
+      try {
+        await api(`/api/staff/bookings/${b.id}/status`, {
+          method: 'POST',
+          headers: headers(),
+          body: { status: statusSelect.value },
+        });
+        await load();
+        if (chat) chat.refresh();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    const chatBox = el('div');
+
+    host.append(
+      el('div', { style: 'display:flex;align-items:center;gap:.7rem;flex-wrap:wrap' }, [
+        el('h2', { style: 'margin:0;font-size:1.3rem', text: b.reference }),
+        el('span', { class: `badge ${b.status}`, text: b.status.replace('_', ' ') }),
+        el('span', { style: 'margin-left:auto' }, [statusSelect]),
+      ]),
+      el('div', { class: 'grid two', style: 'margin:1.1rem 0' }, [
+        el('div', {}, [
+          el('div', { class: 'label', text: 'Customer' }),
+          el('p', { class: 'small', style: 'white-space:pre-wrap', text:
+            `${b.customer.fullName}\n${b.customer.email}\n${b.customer.phone}` }),
+          el('div', { class: 'label', text: 'Address' }),
+          el('p', { class: 'small', style: 'white-space:pre-wrap', text: address }),
+          b.address.notes ? el('p', { class: 'small muted', text: `Access: ${b.address.notes}` }) : null,
+        ]),
+        el('div', {}, [
+          el('div', { class: 'label', text: 'Vehicle' }),
+          el('p', { class: 'small', text:
+            `${b.vehicle.year} ${b.vehicle.make} ${b.vehicle.name}\n${b.vehicle.brand} · ${b.vehicle.size}` ,
+            style: 'white-space:pre-wrap' }),
+          el('div', { class: 'label', text: 'Service' }),
+          el('p', { class: 'small', text: `${b.service.packageLabel} · ${money(b.service.quotedTotal)}` }),
+          b.service.addons.length
+            ? el('p', { class: 'small muted', text: `Add-ons: ${b.service.addons.join(', ')}` })
+            : null,
+          b.notes ? el('p', { class: 'small muted', text: `Notes: ${b.notes}` }) : null,
+        ]),
+      ]),
+      el('div', { class: 'label', text: 'Ranked windows — click one to confirm it' }),
+      slotButtons,
+      el('div', { class: 'label', style: 'margin-top:1.2rem', text: 'Thread' }),
+      chatBox
+    );
+
+    chat = mountChat(chatBox, {
+      mineIs: 'staff',
+      load: (since) => api(`/api/staff/bookings/${b.id}/messages?since=${since}`, { headers: headers() }),
+      send: (body) =>
+        api(`/api/staff/bookings/${b.id}/messages`, {
+          method: 'POST',
+          headers: headers(),
+          body: { body, authorName: 'Kan Detailings' },
+        }),
+    });
+  }
+
+  $('s-login').addEventListener('click', signIn);
+  $('s-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') signIn(); });
+  $('filter').addEventListener('change', load);
+  $('refresh').addEventListener('click', load);
+
+  if (key) {
+    $('s-pass').value = key;
+    signIn();
+  }
+</script>
+</body>
+</html>
