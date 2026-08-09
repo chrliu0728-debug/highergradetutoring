@@ -4,8 +4,11 @@
    A lime bubble drifts up the page, but only for a signed-in
    camper holding the Calamity Catalyst role. Clicking it floats
    the broken Lime Sword up out of the bubble, explains itself,
-   and drops the player into a one-minute cutting trial: 150 limes
-   fade in and out, and 140 have to be cut to reforge the blade.
+   and drops the player into a one-minute cutting trial: 90 limes
+   fade in and out, and 70 have to be cut to reforge the blade.
+
+   Limes only land within arm's reach of the cursor, and never
+   under the fixed sidenav — which draws over the stage.
 
    The sponsor bubbles behind stay live on purpose. Clicking one
    opens its sponsorship package right over the top of the run —
@@ -17,26 +20,32 @@
   const CATALYST_ROLE = 'calamity_catalyst';
   const SWORD_ROLE    = 'lime_sword';
 
-  const TOTAL     = 150;      // limes that appear across the run
-  const TARGET    = 140;      // limes that have to be cut to pass
+  const TOTAL     = 90;       // limes that appear across the run
+  const TARGET    = 70;       // limes that have to be cut to pass
   const LIMIT_MS  = 60000;    // the minute — a ceiling, not the pace
-  const LIFE_MS   = 1500;     // how long one lime stays cuttable
+  const LIFE_MS   = 2600;     // how long one lime stays cuttable
   const BEST_HIT  = 1000;     // cut it the instant it lands
   const WORST_HIT = 400;      // cut it as it fades
 
-  /* Spawn rate ramps 1 → 7 limes per second. Phases are written as a
+  /* How far from the cursor a lime is allowed to land. Limes used to drop
+     anywhere on the page, so passing meant flinging the mouse corner to
+     corner inside one lifetime. Now they land in a ring around wherever
+     the cursor already is — close enough to reach, far enough that you
+     still have to aim. */
+  const REACH_MIN = 70;
+  const REACH_MAX = 320;
+
+  /* Spawn rate ramps 1 → 3.5 limes per second. Phases are written as a
      COUNT rather than a duration so the run always totals exactly TOTAL;
-     each phase's length falls out as count / cps. That puts 21.2s of the
-     39.2s run in the 4–6 cps band — the majority, as intended — and
-     leaves the last lime fading well inside the minute. */
+     each phase's length falls out as count / cps. The run lands around
+     41s, leaving the last lime fading well inside the minute. */
   const PHASES = [
-    { cps: 1, count: 5 },     //  5.00s
-    { cps: 2, count: 10 },    //  5.00s
-    { cps: 3, count: 15 },    //  5.00s
-    { cps: 4, count: 40 },    // 10.00s  ┐
-    { cps: 5, count: 40 },    //  8.00s  ├ 21.17s of 39.17s
-    { cps: 6, count: 19 },    //  3.17s  ┘
-    { cps: 7, count: 21 },    //  3.00s — the sprint finish
+    { cps: 1,   count: 5 },   //  5.00s
+    { cps: 1.5, count: 10 },  //  6.67s
+    { cps: 2,   count: 20 },  // 10.00s
+    { cps: 2.5, count: 25 },  // 10.00s
+    { cps: 3,   count: 20 },  //  6.67s
+    { cps: 3.5, count: 10 },  //  2.86s — the finish
   ];
 
   let REFORGED = false;   // set at boot when the camper already holds the blade
@@ -158,6 +167,45 @@
   78%{opacity:1;transform:scale(1) rotate(0deg)}
   100%{opacity:0;transform:scale(.72) rotate(var(--r1,10deg))}}
 
+/* The cut itself. The wrapper is rotated to the slice angle, so everything
+   inside can be written along a flat horizontal axis: a blade streak sweeps
+   across the middle, and the two halves fall away perpendicular to it. */
+.lime-cut{position:absolute;pointer-events:none;transform:rotate(var(--a,0deg));
+  will-change:transform}
+.lime-cut .lime-half{position:absolute;left:0;width:100%;height:50%;overflow:hidden}
+.lime-cut .lime-half img{position:absolute;left:0;width:100%;height:200%;
+  object-fit:contain;
+  filter:drop-shadow(0 6px 16px rgba(20,50,0,.65)) drop-shadow(0 0 12px rgba(190,242,100,.5))}
+.lime-cut .lime-half.top{top:0;animation:lime-half-a .55s cubic-bezier(.2,.75,.3,1) both}
+.lime-cut .lime-half.top img{top:0}
+.lime-cut .lime-half.bot{top:50%;animation:lime-half-b .55s cubic-bezier(.2,.75,.3,1) both}
+.lime-cut .lime-half.bot img{top:-100%}
+@keyframes lime-half-a{
+  0%{transform:none;opacity:1}
+  100%{transform:translate(-10px,-40px) rotate(-26deg);opacity:0}}
+@keyframes lime-half-b{
+  0%{transform:none;opacity:1}
+  100%{transform:translate(10px,40px) rotate(22deg);opacity:0}}
+/* The blade streak, drawn edge to edge through the cut line. */
+.lime-cut .lime-slash{position:absolute;left:-30%;width:160%;height:5px;
+  top:calc(50% - 2.5px);border-radius:999px!important;transform-origin:left center;
+  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.98) 35%,
+             rgba(217,249,157,.95) 65%,rgba(190,242,100,0));
+  filter:drop-shadow(0 0 10px rgba(190,242,100,.95));
+  animation:lime-slash .42s cubic-bezier(.15,.85,.25,1) both}
+@keyframes lime-slash{
+  0%{transform:scaleX(0);opacity:0}
+  22%{transform:scaleX(1);opacity:1}
+  100%{transform:scaleX(1);opacity:0}}
+/* Juice thrown off the blade, flung along the slice. */
+.lime-drop{position:absolute;pointer-events:none;border-radius:50%!important;
+  background:radial-gradient(circle at 35% 30%,#F7FEE7,#A3E635 60%,#65A30D);
+  box-shadow:0 0 8px rgba(163,230,53,.8);
+  animation:lime-drop .5s ease-out both}
+@keyframes lime-drop{
+  0%{transform:translate(0,0) scale(1);opacity:1}
+  100%{transform:translate(var(--dx,0),var(--dy,0)) scale(.3);opacity:0}}
+
 /* Score pops and the burst left behind by a cut lime. */
 .lime-pop{position:absolute;pointer-events:none;font:900 1.05rem/1 system-ui,sans-serif;
   color:#ECFCCB;text-shadow:0 2px 10px rgba(20,50,0,.9);animation:lime-float .7s ease-out both}
@@ -186,6 +234,16 @@
     return n;
   }
 
+  /* The stage sits under the fixed sidenav (z-index 1000 vs the stage's 900),
+     so anything spawned in that strip is buried and uncuttable. Off-canvas on
+     mobile, where the rect lands at or left of zero. */
+  function navRight() {
+    const nav = document.querySelector('.sidenav');
+    if (!nav) return 0;
+    const r = nav.getBoundingClientRect();
+    return Math.max(0, Math.min(r.right, window.innerWidth * 0.4));
+  }
+
   /* Spawn offsets for all TOTAL limes, in ms from the start of the run. */
   function schedule() {
     const out = [];
@@ -203,6 +261,7 @@
     document.body.appendChild(root);
 
     let audio = null;
+    let stopTracking = null;   // set for the length of a run — see run()
     try {
       audio = new Audio(MUSIC);
       audio.loop = true;
@@ -218,6 +277,7 @@
 
     function close() {
       stopMusic();
+      if (stopTracking) { stopTracking(); stopTracking = null; }
       root.remove();
       document.removeEventListener('keydown', onKey, true);
       if (onDone) onDone();
@@ -249,7 +309,8 @@
           <li><strong>${TOTAL} limes</strong> will appear. Cut <strong>${TARGET}</strong>.</li>
           <li>The sooner you cut one, the more it's worth — <strong>${BEST_HIT}</strong>
               down to <strong>${WORST_HIT}</strong> as it fades.</li>
-          <li>They come faster the longer you last.</li>
+          <li>They fall within reach of your cursor — and come faster the
+              longer you last.</li>
           <li>⚠️ The sponsor bubbles are still live. Hit one and its package
               lands right on top of you — the clock won't wait.</li>
         </ul>
@@ -295,21 +356,56 @@
       let next = 0, hits = 0, score = 0, best = 0, sumMs = 0, done = false;
       const t0 = performance.now();
 
+      /* Where the limes spawn around. Starts at the middle of the playfield
+         until the pointer says otherwise — a touch player never moves it, and
+         the centre is the fairest guess for them. */
+      let mouseX = (navRight() + window.innerWidth) / 2;
+      let mouseY = window.innerHeight / 2;
+      function track(e) { mouseX = e.clientX; mouseY = e.clientY; }
+      window.addEventListener('pointermove', track, { passive: true });
+      window.addEventListener('pointerdown', track, { passive: true });
+      function untrack() {
+        window.removeEventListener('pointermove', track);
+        window.removeEventListener('pointerdown', track);
+      }
+      stopTracking = untrack;
+
       function place(size) {
-        // Keep clear of the HUD up top and the screen edges, and try not to
-        // drop a lime straight on top of one that's already out.
+        // Keep clear of the HUD up top, the sidenav down the left, and the
+        // screen edges — then land inside a ring around the cursor so the
+        // next lime is always a short flick away, not a sprint. Also try not
+        // to drop a lime straight on top of one that's already out.
         const pad = 14;
-        const minX = pad, maxX = Math.max(pad, window.innerWidth  - size - pad);
-        const minY = 104,  maxY = Math.max(120, window.innerHeight - size - pad);
-        let x = 0, y = 0;
-        for (let tries = 0; tries < 14; tries++) {
-          x = rnd(minX, maxX); y = rnd(minY, maxY);
+        const minX = navRight() + pad;
+        const maxX = Math.max(minX, window.innerWidth  - size - pad);
+        const minY = 104, maxY = Math.max(minY, window.innerHeight - size - pad);
+
+        // Shrink the reach on small windows so the ring still fits on screen.
+        const span = Math.min(maxX - minX, maxY - minY);
+        const far  = Math.max(REACH_MIN + 90, Math.min(REACH_MAX, span * 0.55));
+        const near = Math.min(REACH_MIN + size * 0.5, far - 40);
+
+        let x = (minX + maxX) / 2, y = (minY + maxY) / 2;
+        let placed = false;
+        for (let tries = 0; tries < 26 && !placed; tries++) {
+          const a = rnd(0, Math.PI * 2), r = rnd(near, far);
+          const cx = mouseX + Math.cos(a) * r, cy = mouseY + Math.sin(a) * r;
+          const nx = cx - size / 2, ny = cy - size / 2;
+          if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
           let clash = false;
           for (const n of live) {
-            const dx = n._x - x, dy = n._y - y;
-            if (Math.hypot(dx, dy) < size * 0.94) { clash = true; break; }
+            if (Math.hypot(n._x - nx, n._y - ny) < size * 0.94) { clash = true; break; }
           }
-          if (!clash) break;
+          // Last few tries, take anything on screen rather than fall through
+          // to the clamp — an overlap beats a lime pinned to the cursor.
+          if (clash && tries < 20) continue;
+          x = nx; y = ny; placed = true;
+        }
+        if (!placed) {
+          // Cursor jammed into a corner with no room in the ring: clamp the
+          // last candidate back on screen.
+          x = Math.min(maxX, Math.max(minX, mouseX - size / 2 + rnd(-far, far)));
+          y = Math.min(maxY, Math.max(minY, mouseY - size / 2 + rnd(-far, far)));
         }
         return { x, y };
       }
@@ -346,6 +442,40 @@
         if (worth > best) best = worth;
 
         const size = parseFloat(node.style.getPropertyValue('--s')) || 78;
+
+        // The slice. The blade comes in along a random angle, the lime falls
+        // open into two halves either side of it, and a little juice flies
+        // off down the same line.
+        const ang = rnd(0, 180);
+        const rad = ang * Math.PI / 180;
+        const slice = el('div', 'lime-cut', `
+          <div class="lime-half top"><img src="${IMG_LIME}" alt="" draggable="false" /></div>
+          <div class="lime-half bot"><img src="${IMG_LIME}" alt="" draggable="false" /></div>
+          <div class="lime-slash"></div>`);
+        slice.style.left = node._x + 'px';
+        slice.style.top  = node._y + 'px';
+        slice.style.width = size + 'px';
+        slice.style.height = size + 'px';
+        slice.style.setProperty('--a', ang.toFixed(1) + 'deg');
+        root.appendChild(slice);
+        setTimeout(() => slice.remove(), 620);
+
+        for (let i = 0; i < 6; i++) {
+          const d = el('div', 'lime-drop');
+          const w = rnd(5, 11);
+          // Thrown along the cut, either direction, with a bit of scatter.
+          const spread = rnd(-0.5, 0.5) + (i % 2 ? 0 : Math.PI);
+          const dist = rnd(30, 78);
+          d.style.width = d.style.height = w.toFixed(1) + 'px';
+          d.style.left = (node._x + size / 2 - w / 2) + 'px';
+          d.style.top  = (node._y + size / 2 - w / 2) + 'px';
+          d.style.setProperty('--dx', (Math.cos(rad + spread) * dist).toFixed(1) + 'px');
+          d.style.setProperty('--dy', (Math.sin(rad + spread) * dist).toFixed(1) + 'px');
+          d.style.animationDelay = (i * 12) + 'ms';
+          root.appendChild(d);
+          setTimeout(() => d.remove(), 600);
+        }
+
         const burst = el('div', 'lime-burst');
         burst.style.left = node._x + 'px';
         burst.style.top  = node._y + 'px';
@@ -396,6 +526,8 @@
         if ((next >= TOTAL && live.size === 0) || t >= LIMIT_MS) {
           done = true;
           stopMusic();
+          untrack();
+          stopTracking = null;
           setTimeout(() => results({
             hits, score,
             avgMs: hits ? Math.round(sumMs / hits) : 0,
@@ -512,8 +644,12 @@
     b.type = 'button';
     b.setAttribute('aria-label', 'A lime bubble — the Calamity Catalyst trial');
     b.title = 'Something is broken in here…';
-    b.style.setProperty('--lx', rnd(8, 78).toFixed(1) + 'vw');
-    b.style.setProperty('--lsize', Math.round(rnd(96, 124)) + 'px');
+    const size = Math.round(rnd(96, 124));
+    // Same sidenav problem as the limes — it draws over the bubble, so a
+    // bubble that drifts up the left strip is invisible and unclickable.
+    const lo = navRight() + 60;   // + the drift the rise animation adds
+    b.style.setProperty('--lx', Math.round(rnd(lo, Math.max(lo, window.innerWidth - size - 60))) + 'px');
+    b.style.setProperty('--lsize', size + 'px');
     b.style.setProperty('--ldur', rnd(30, 40).toFixed(1) + 's');
     b.style.setProperty('--ldelay', (-rnd(2, 14)).toFixed(1) + 's');
     b.style.setProperty('--ldrift', rnd(-40, 40).toFixed(0) + 'px');
