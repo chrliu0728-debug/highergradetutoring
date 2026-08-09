@@ -24,6 +24,12 @@ TAX_RATE              = 0.13    # withheld on every earn AND every spend
 FLOOR_BASE            = 100
 FLOOR_TIER_STEP       = 10      # tier bumps every 10 floors...
 FLOOR_TIER_GROWTH     = 1.30    # ...and each tier pays 30% more, compounding
+# ...but only so far. Compounding forever is fine while runs end early, and
+# a runaway once they don't: a near-perfect camper who threads 300 floors
+# would be earning six figures per door. The cap sits at floor 121, past
+# the p90 depth of a 97% player, so it never touches ordinary play — it
+# only stops the rare flawless run from printing money.
+FLOOR_TIER_CAP        = 12
 FLOOR_TIME_LIMIT_MS   = 10 * 60 * 1000   # 10 min, then you're moved on for free
 
 # ── Speed ─────────────────────────────────────────────────────────────
@@ -34,9 +40,18 @@ SPEED_FLOOR_S         = 150.0   # where the curve bottoms out at ×0.5
 
 # ── Health ────────────────────────────────────────────────────────────
 BASE_MAX_HP           = 1000
-DAMAGE_FAST_WRONG     = 120     # wrong door inside the window
+DAMAGE_FAST_WRONG     = 120     # wrong door inside the window, on floor 1
 DAMAGE_WRONG          = 60      # wrong door after it, and every later one
 FAST_WRONG_CUTOFF_S   = 2.0
+# Deeper floors hit harder. Without this a strong camper never dies: at the
+# ~97% accuracy these players actually have, a flat 120 means one mistake
+# every ~33 floors and death somewhere past floor 280 — by which point a
+# single floor pays six figures, because the reward curve compounds 30%
+# every ten floors and nothing was stopping it. Scaling damage ends runs
+# around floor 60–90 and, as a side effect, keeps rewards bounded: nobody
+# survives long enough to reach the runaway tiers.
+DAMAGE_FLOOR_STEP_FAST = 12     # extra damage per floor on a fast wrong door
+DAMAGE_FLOOR_STEP_SLOW = 6      # ...and on every later one
 DEFENSE_SOFTCAP       = 600     # defense/(defense+600) — approaches, never hits 100%
 WRONG_DOOR_SHARD_LOSS = 0.90    # of what that door would actually have paid
 
@@ -181,9 +196,10 @@ ARROWS = ("basic_arrow", "drill_needle_arrow")
 
 # ── Floors ────────────────────────────────────────────────────────────
 def base_shards(floor):
-    """Base payout for clearing `floor`. Tier bumps land on 11, 21, 31…"""
+    """Base payout for clearing `floor`. Tier bumps land on 11, 21, 31…
+    and stop climbing at FLOOR_TIER_CAP."""
     tier = max(0, (int(floor) - 1) // FLOOR_TIER_STEP)
-    return round(FLOOR_BASE * (FLOOR_TIER_GROWTH ** tier))
+    return round(FLOOR_BASE * (FLOOR_TIER_GROWTH ** min(tier, FLOOR_TIER_CAP)))
 
 
 # ── Speed ─────────────────────────────────────────────────────────────
@@ -303,6 +319,19 @@ def wrong_door_loss(floor, seconds, gear, luck=0):
 
 
 # ── Damage ────────────────────────────────────────────────────────────
+def wrong_door_damage(floor, fast):
+    """Raw damage for a wrong door on `floor`, before armour.
+
+    Floor 1 is the spec's 120 / 60. Every floor after adds to it, so the
+    dungeon gets genuinely dangerous the deeper you push rather than being
+    a formality for anyone who knows the answers.
+    """
+    f = max(1, int(floor)) - 1
+    if fast:
+        return DAMAGE_FAST_WRONG + DAMAGE_FLOOR_STEP_FAST * f
+    return DAMAGE_WRONG + DAMAGE_FLOOR_STEP_SLOW * f
+
+
 def damage_reduction(total_defense):
     d = max(0, int(total_defense))
     return d / (d + DEFENSE_SOFTCAP)

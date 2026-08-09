@@ -121,6 +121,35 @@
   .flash{position:fixed; inset:0; background:rgba(220,38,38,.34); pointer-events:none;
          opacity:0; transition:opacity .1s}
   .flash.on{opacity:1}
+
+  /* ── How it works ── */
+  .helpwrap{position:fixed; inset:0; z-index:500; display:none;
+            align-items:center; justify-content:center; padding:20px;
+            background:rgba(4,8,16,.8); -webkit-backdrop-filter:blur(5px);
+            backdrop-filter:blur(5px)}
+  .helpwrap.open{display:flex}
+  .helpcard{width:min(640px,100%); max-height:86vh; overflow-y:auto;
+            background:linear-gradient(180deg,#101d31,#0a1220);
+            border:1px solid var(--line); border-radius:20px; padding:26px 26px 22px;
+            box-shadow:0 30px 90px rgba(0,0,0,.6)}
+  .helpcard h2{margin:0 0 4px; font-size:1.35rem}
+  .helpcard h3{margin:20px 0 6px; font-size:.95rem; color:var(--gem)}
+  .helpcard p, .helpcard li{color:#C6D4E4; font-size:.9rem; line-height:1.65}
+  .helpcard ul{padding-left:20px; margin:6px 0}
+  .helpcard table{width:100%; border-collapse:collapse; font-size:.85rem; margin:8px 0}
+  .helpcard th{text-align:left; font-size:.66rem; text-transform:uppercase;
+               letter-spacing:.09em; color:var(--dim); padding:6px 8px 6px 0;
+               border-bottom:1px solid var(--line)}
+  .helpcard td{padding:6px 8px 6px 0; border-bottom:1px solid rgba(148,180,220,.10);
+               color:#C6D4E4}
+  .helpcard td.n{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .helpclose{position:sticky; top:0; float:right; background:none; border:0;
+             color:var(--dim); font-size:1.5rem; cursor:pointer; line-height:1}
+  .helpclose:hover{color:var(--ink)}
+  .warn{background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.32);
+        border-radius:12px; padding:12px 14px; margin-top:10px}
+  .good{background:rgba(163,230,53,.10); border:1px solid rgba(163,230,53,.3);
+        border-radius:12px; padding:12px 14px; margin-top:10px}
   a.back{color:var(--dim); font-size:.82rem; text-decoration:none}
   a.back:hover{color:var(--gem)}
   @media(max-width:560px){
@@ -132,6 +161,81 @@
 <body>
 
 <div class="flash" id="flash"></div>
+
+<!-- ─────────── How the dungeon works ─────────── -->
+<div class="helpwrap" id="helpwrap">
+  <div class="helpcard" role="dialog" aria-modal="true" aria-label="How the dungeon works">
+    <button class="helpclose" id="help-x" aria-label="Close">×</button>
+    <h2>How the dungeon works</h2>
+    <p>Answer the question, pick the door with the right answer. Do that
+    over and over, going one floor deeper each time.</p>
+
+    <h3>💎 Getting paid</h3>
+    <p>Every floor you clear pays shards, and deeper floors pay more —
+    they go up 30% every ten floors.</p>
+    <p><b>Answer speed matters more than anything else.</b> Your reward is
+    multiplied by how fast you were:</p>
+    <table>
+      <tr><th>You answered in</th><th class="n">You get</th></tr>
+      <tr><td>Under 2 seconds</td><td class="n"><b>×2.00</b> — double</td></tr>
+      <tr><td>10 seconds</td><td class="n">×1.86</td></tr>
+      <tr><td>30 seconds</td><td class="n">×1.54</td></tr>
+      <tr><td>1 minute</td><td class="n">×1.16</td></tr>
+      <tr><td>2½ minutes or slower</td><td class="n">×0.50 — half</td></tr>
+    </table>
+    <p>That 2-second head start is your <b>window</b>. Some weapons make it
+    wider — a cheap long sword gives you 3.5 seconds at full double. If you
+    switch tabs the clock stops, so nothing is lost if you get pulled away.</p>
+
+    <h3>❤️ Getting hurt</h3>
+    <p>Pick the wrong door and it costs you health <em>and</em> most of what
+    that floor was worth. <b>The deeper you are, the harder it hits.</b></p>
+    <table>
+      <tr><th>Floor</th><th class="n">A wrong door costs</th></tr>
+      <tr><td>1</td><td class="n">120 HP</td></tr>
+      <tr><td>25</td><td class="n">408 HP</td></tr>
+      <tr><td>50</td><td class="n">708 HP</td></tr>
+      <tr><td>75</td><td class="n">1,008 HP — more than you start with</td></tr>
+    </table>
+    <p>You start on 1,000 health. Early on a mistake is a scratch; past floor
+    50 or so one slip can end the whole run. Armour reduces every hit and
+    adds to your maximum health, which is what lets you go deeper.</p>
+    <div class="warn"><b>Answering fast is a gamble.</b> A wrong door inside
+    your window hits for the full amount and costs 90% of the <em>doubled</em>
+    reward you were reaching for. Fast and right is the best outcome; fast and
+    wrong is the worst.</div>
+
+    <h3>🎒 Walking out</h3>
+    <p>Shards you earn are <b>carried</b>, not banked. Nothing is actually
+    yours until you leave.</p>
+    <ul>
+      <li><b>Walk out alive</b> — you keep 100% of what you're carrying.</li>
+      <li><b>Die down there</b> — the dungeon keeps 30% and sends you home
+          with the rest.</li>
+    </ul>
+    <div class="good">So the real question every floor is: <b>push on, or
+    cash out?</b> The deeper you go the more each floor pays — and the more
+    you stand to lose.</div>
+
+    <h3>⏳ The ten-minute rule</h3>
+    <p>Sit on one floor for ten minutes and you're moved to the next one
+    automatically. You get no shards for that floor, but you take no damage
+    either — so going quiet is never a way to farm, and never a way to die.</p>
+
+    <h3>🏹 Bows</h3>
+    <p>If you've got a bow equipped, <b>right-click a door</b> to draw it. The
+    bonus lands on the <em>next</em> room and spends one arrow. No arrows just
+    means no bonus — nothing bad happens.</p>
+
+    <h3>🧾 Tax</h3>
+    <p>13% is withheld from everything you bank, and you get a receipt for it.
+    Add your receipts up in your inventory and file a return to claim every
+    shard of it back. There's a full guide in the Tax tab.</p>
+
+    <div class="row"><button class="btn btn-go" id="help-ok">Got it</button></div>
+  </div>
+</div>
+
 <div class="wrap">
   <!-- Entry / death / summary screens all render here -->
   <div id="screen"></div>
@@ -145,6 +249,8 @@
         <div class="hpbar" id="hpbar"><i style="width:100%"></i></div>
       </div>
       <div class="stat"><div class="k">Carrying</div><div class="v" id="s-esc">0</div></div>
+      <div class="stat" id="danger-stat" title="What a wrong door costs on this floor. It climbs the deeper you go.">
+        <div class="k">Wrong door</div><div class="v" id="s-danger">−120</div></div>
       <div class="stat" id="clock-stat"><div class="k">Floor time</div><div class="v" id="s-clock">10:00</div></div>
     </div>
 
@@ -163,6 +269,8 @@
       <div class="fb" id="fb"></div>
       <div class="row">
         <button class="btn btn-out" id="leave">Leave with your shards</button>
+        <button class="btn btn-out" id="help-btn" aria-label="How the dungeon works"
+                style="padding:11px 16px">?</button>
       </div>
       <div class="hint" id="hint" style="margin-top:10px"></div>
     </div>
@@ -264,10 +372,14 @@
           <button class="btn btn-go" id="enter" ${needStarter ? 'disabled' : ''}>
             ${needStarter ? 'Choose your kit first' : 'Enter the dungeon →'}
           </button>
+          <button class="btn btn-out" id="help-entry">? How it works</button>
           <a class="btn btn-out" href="/student-portal/student-portal.html"
              style="text-decoration:none">Back to dashboard</a>
         </div>
       </div>`);
+
+    const he = $('help-entry');
+    if (he) he.addEventListener('click', () => $('helpwrap').classList.add('open'));
 
     let picked = null;
     document.querySelectorAll('[data-pick]').forEach(b => {
@@ -330,6 +442,14 @@
     $('s-floor').textContent = fmt(run.floor);
     $('s-hp').textContent = fmt(run.hp);
     $('s-esc').innerHTML = gem() + ' ' + fmt(run.escrow);
+    // Rising danger, spelled out. Turns red once a single wrong door on
+    // this floor could take more than half of what's left.
+    if (run.dangerFast != null) {
+      $('s-danger').textContent = '−' + fmt(run.dangerFast);
+      $('danger-stat').classList.toggle('danger', run.dangerFast >= run.hp * 0.5);
+      $('danger-stat').title = `A wrong door here costs ${fmt(run.dangerFast)} HP if you ` +
+        `answer fast, ${fmt(run.dangerSlow)} after that. It climbs every floor.`;
+    }
     const pct = Math.max(0, Math.min(100, (run.hp / run.maxHp) * 100));
     const bar = $('hpbar');
     bar.querySelector('i').style.width = pct + '%';
@@ -396,6 +516,11 @@
     const r = await api('/api/dungeon/run/question', {});
     if (!r.ok) { feedback('err', r.error); return; }
     q = r.data;
+    // The question payload carries this floor's danger, so the HUD updates
+    // as you descend rather than only after a hit.
+    run.dangerFast = q.dangerFast; run.dangerSlow = q.dangerSlow;
+    run.floor = q.floor;
+    paintHud();
     askedAt = Date.now(); blurMs = 0; hiddenSince = document.hidden ? Date.now() : null;
     $('eyebrow').textContent = 'Floor ' + q.floor + ' · choose a door';
     $('q').textContent = q.question;
@@ -467,6 +592,20 @@
         : `🏹 ${r.data.reason}`);
     });
   }
+
+  /* ── How it works ── */
+  const help = $('helpwrap');
+  const openHelp = () => { help.classList.add('open'); };
+  const closeHelp = () => { help.classList.remove('open'); };
+  $('help-btn').addEventListener('click', openHelp);
+  $('help-x').addEventListener('click', closeHelp);
+  $('help-ok').addEventListener('click', closeHelp);
+  help.addEventListener('click', e => { if (e.target === help) closeHelp(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && help.classList.contains('open')) closeHelp();
+    // "?" anywhere opens it, as long as you're not typing.
+    if (e.key === '?' && !/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) openHelp();
+  });
 
   $('leave').addEventListener('click', async () => {
     if (!run) return;

@@ -2126,6 +2126,13 @@ def register_routes(app):
             d["gear"] = {k: v for k, v in gear.items() if k != "items"}
         d["floorLimitMs"] = dungeon.FLOOR_TIME_LIMIT_MS
         d["floorBase"] = dungeon.base_shards(d["floor"])
+        # What a wrong door on THIS floor would cost, after armour — the
+        # number climbs with depth, and players should see it climbing.
+        if gear:
+            for key, fast in (("dangerFast", True), ("dangerSlow", False)):
+                raw = dungeon.wrong_door_damage(d["floor"], fast=fast)
+                d[key] = round(raw * (1 - dungeon.damage_reduction(gear["defense"]))
+                               * (1 - gear["flatNegate"]))
         return d
 
     def _active_run(sid):
@@ -2223,12 +2230,18 @@ def register_routes(app):
                 " WHERE id = ?",
                 (now, q["id"], "L" if left_correct else "R", run["id"]))
             floor_start = run["floorStart"] or now
+        row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        gear, _, _ = _gear_for(row)
+        cut = (1 - dungeon.damage_reduction(gear["defense"])) * (1 - gear["flatNegate"])
         return jsonify(ok=True, data={
             "questionId": q["id"], "question": q["question"],
             "left":  q["answer"] if left_correct else q["wrongAnswer"],
             "right": q["wrongAnswer"] if left_correct else q["answer"],
             "floor": run["floor"], "askedAt": now,
             "floorDeadline": floor_start + dungeon.FLOOR_TIME_LIMIT_MS,
+            "dangerFast": round(dungeon.wrong_door_damage(run["floor"], True) * cut),
+            "dangerSlow": round(dungeon.wrong_door_damage(run["floor"], False) * cut),
+            "floorBase": dungeon.base_shards(run["floor"]),
         })
 
     @app.route("/api/dungeon/run/answer", methods=["POST"])
@@ -2307,9 +2320,8 @@ def register_routes(app):
             # later mistake on the same floor. Loss is 90% of what that door
             # would actually have paid at this speed.
             first = int(run["wrongCount"] or 0) == 0
-            raw = (dungeon.DAMAGE_FAST_WRONG
-                   if (first and elapsed <= dungeon.FAST_WRONG_CUTOFF_S)
-                   else dungeon.DAMAGE_WRONG)
+            raw = dungeon.wrong_door_damage(
+                floor, fast=(first and elapsed <= dungeon.FAST_WRONG_CUTOFF_S))
             dealt, why = dungeon.apply_damage(raw, gear, luck)
             if damage_soften and dealt:
                 dealt = round(dealt * (1.0 - damage_soften))
