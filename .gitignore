@@ -7,6 +7,9 @@
 # AP Simulator — separate project, not part of this repo
 ap_simulator/
 
+# Kan Detailings website — has its own git repo
+KanDetailingsWebsite/
+
 # OS / editor junk
 .DS_Store
 Thumbs.db
