@@ -355,7 +355,15 @@ DEFAULT_ROLES = [
         "name": "Lime Sword",
         "icon": "🗡",
         "color": "#65A30D",
-        "description": "Reforged by cutting 140 of 150 limes out of the air in a single minute. The blade points toward the spider.",
+        "description": "Reforged by cutting half of the 200 limes out of the air in a single minute. The blade points toward the spider.",
+        "special": 1,
+    },
+    {
+        "id": "osu_champion",
+        "name": "osu Champion",
+        "icon": "🎯",
+        "color": "#FF66AA",
+        "description": "Full combo. Every one of the 200 limes cut out of the air in a single trial, not one missed. Paid a one-time 1000-point bounty on the way out.",
         "special": 1,
     },
 ]
@@ -467,6 +475,13 @@ def _seed(conn):
     conn.executemany(
         "INSERT OR IGNORE INTO roles (id, name, icon, color, description, special) VALUES (:id, :name, :icon, :color, :description, :special)",
         DEFAULT_ROLES,
+    )
+    # INSERT OR IGNORE never touches a row that already exists, so a built-in
+    # whose text went stale has to be corrected by hand. The Lime Sword's
+    # description quoted the old 140-of-150 bar.
+    conn.execute(
+        "UPDATE roles SET description = ? WHERE id = 'lime_sword' AND description LIKE '%140 of 150%'",
+        (next(r["description"] for r in DEFAULT_ROLES if r["id"] == "lime_sword"),),
     )
 
     cur = conn.execute("SELECT COUNT(*) AS n FROM base_stat_categories")

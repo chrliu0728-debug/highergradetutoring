@@ -4,8 +4,10 @@
    A lime bubble drifts up the page, but only for a signed-in
    camper holding the Calamity Catalyst role. Clicking it floats
    the broken Lime Sword up out of the bubble, explains itself,
-   and drops the player into a one-minute cutting trial: 90 limes
-   fade in and out, and 70 have to be cut to reforge the blade.
+   and drops the player into a one-minute cutting trial: 200 limes
+   fade in and out fast, and half of them have to be cut to reforge
+   the blade. Missing is expected — the pass bar is a percentage,
+   not a near-perfect run.
 
    Limes only land within arm's reach of the cursor, and never
    under the fixed sidenav — which draws over the stage.
@@ -20,32 +22,38 @@
   const CATALYST_ROLE = 'calamity_catalyst';
   const SWORD_ROLE    = 'lime_sword';
 
-  const TOTAL     = 90;       // limes that appear across the run
-  const TARGET    = 70;       // limes that have to be cut to pass
+  const TOTAL     = 200;      // limes that appear across the run
+  const PASS_PCT  = 0.5;      // the bar: cut half of whatever falls
+  const TARGET    = Math.ceil(TOTAL * PASS_PCT);
   const LIMIT_MS  = 60000;    // the minute — a ceiling, not the pace
-  const LIFE_MS   = 2600;     // how long one lime stays cuttable
+  const LIFE_MS   = 1000;     // how long one lime stays cuttable
   const BEST_HIT  = 1000;     // cut it the instant it lands
   const WORST_HIT = 400;      // cut it as it fades
+  const FC_POINTS = 1000;     // the full-combo bounty — mirrors LIME_FC_POINTS
 
   /* How far from the cursor a lime is allowed to land. Limes used to drop
      anywhere on the page, so passing meant flinging the mouse corner to
-     corner inside one lifetime. Now they land in a ring around wherever
-     the cursor already is — close enough to reach, far enough that you
-     still have to aim. */
+     corner inside one lifetime — impossible at a 1s lifetime. Landing them
+     in a ring around the cursor is what keeps a hard run fair: everything
+     is reachable, you just can't reach all of it. */
   const REACH_MIN = 70;
-  const REACH_MAX = 320;
+  const REACH_MAX = 360;
 
-  /* Spawn rate ramps 1 → 3.5 limes per second. Phases are written as a
+  /* Spawn rate ramps 2 → 6 limes per second. Phases are written as a
      COUNT rather than a duration so the run always totals exactly TOTAL;
      each phase's length falls out as count / cps. The run lands around
-     41s, leaving the last lime fading well inside the minute. */
+     43s, leaving the last lime fading well inside the minute.
+
+     The peak stops at 6 rather than 8 on purpose. Six limes sharing the
+     ring for one second each is already past what most people can clear,
+     but it stays inside what a hand can physically do — which matters now
+     that a full combo pays out. A bar nobody can reach isn't a bar. */
   const PHASES = [
-    { cps: 1,   count: 5 },   //  5.00s
-    { cps: 1.5, count: 10 },  //  6.67s
-    { cps: 2,   count: 20 },  // 10.00s
-    { cps: 2.5, count: 25 },  // 10.00s
-    { cps: 3,   count: 20 },  //  6.67s
-    { cps: 3.5, count: 10 },  //  2.86s — the finish
+    { cps: 2, count: 10 },    //  5.00s
+    { cps: 3, count: 15 },    //  5.00s
+    { cps: 4, count: 30 },    //  7.50s
+    { cps: 5, count: 45 },    //  9.00s
+    { cps: 6, count: 100 },   // 16.67s — the blender
   ];
 
   let REFORGED = false;   // set at boot when the camper already holds the blade
@@ -131,6 +139,22 @@
 .lime-btn:hover{filter:brightness(1.08);transform:translateY(-2px)}
 .lime-btn.ghost{background:none;color:#A3E635;border:2px solid rgba(163,230,53,.5);
   box-shadow:none;margin-left:8px;padding:12px 24px}
+/* Full-combo dressing on the results and bestowal cards. Pink, because the
+   role on the line is osu Champion and nothing else on this page is. */
+.lime-fc-banner{display:inline-block;margin:0 0 10px;padding:7px 18px;
+  border-radius:999px!important;font:900 .78rem/1 system-ui,sans-serif;
+  letter-spacing:.16em;text-transform:uppercase;color:#3B0620;
+  background:linear-gradient(135deg,#FFD1E8,#FF66AA);
+  box-shadow:0 8px 24px rgba(255,102,170,.45);
+  animation:lime-fc-glow 1.8s ease-in-out infinite}
+@keyframes lime-fc-glow{0%,100%{box-shadow:0 8px 24px rgba(255,102,170,.4)}
+  50%{box-shadow:0 8px 34px rgba(255,102,170,.9)}}
+.lime-champ{margin:16px 0 4px;padding:14px 16px;border-radius:14px!important;
+  background:rgba(255,102,170,.1);border:1px solid rgba(255,102,170,.45)}
+.lime-champ-title{font:900 1.05rem/1 system-ui,sans-serif;color:#FF8FC5;
+  letter-spacing:.02em;margin-bottom:8px}
+.lime-champ p{margin:0;color:#FFD9EC;font-size:.9rem;line-height:1.55}
+
 .lime-rules{list-style:none;padding:0;margin:14px 0 4px;font-size:.88rem;color:#D9F99D}
 .lime-rules li{padding:7px 0;border-top:1px solid rgba(163,230,53,.2)}
 .lime-rules li:first-child{border-top:0}
@@ -145,6 +169,29 @@
 .lime-stat span{font-size:.64rem;text-transform:uppercase;letter-spacing:.12em;
   font-weight:800;color:#A3E635;opacity:.9}
 .lime-stat.danger b{color:#FCA5A5}
+/* The combo stat, which is also the full-combo tracker. Pink while the FC is
+   still alive (osu's colour — that's the role on the line), grey once it's
+   gone, and it shatters on every streak break. */
+.lime-stat.lime-fc.alive b{color:#FF8FC5;text-shadow:0 0 16px rgba(255,102,170,.8)}
+.lime-stat.lime-fc.alive span{color:#FF8FC5}
+.lime-stat.lime-fc.dead b{color:#A8B79A}
+.lime-stat.lime-fc.dead span{color:#8DA07E}
+.lime-stat.lime-fc.shatter{animation:lime-shatter .34s ease-out}
+@keyframes lime-shatter{
+  0%{transform:translateX(0) scale(1.12)}
+  25%{transform:translateX(-5px) scale(1.04)}
+  55%{transform:translateX(4px) scale(.98)}
+  100%{transform:none}}
+.lime-fclost{position:absolute;left:50%;top:120px;transform:translateX(-50%);
+  pointer-events:none;font:900 .82rem/1 system-ui,sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;color:#FFC7E0;background:rgba(80,10,40,.55);
+  border:1px solid rgba(255,102,170,.5);padding:8px 16px;border-radius:999px!important;
+  animation:lime-fclost 1.4s ease-out both}
+@keyframes lime-fclost{
+  0%{opacity:0;transform:translateX(-50%) scale(.8)}
+  12%{opacity:1;transform:translateX(-50%) scale(1)}
+  70%{opacity:1}
+  100%{opacity:0;transform:translateX(-50%) translateY(-14px)}}
 .lime-bar{position:absolute;left:0;right:0;top:0;height:4px;background:rgba(163,230,53,.18)}
 .lime-bar i{display:block;height:100%;background:linear-gradient(90deg,#BEF264,#65A30D);
   width:100%;transform-origin:left center}
@@ -306,7 +353,13 @@
         <p>Cut them out of the air before they rot away and the sword reforges
         itself in your hand.</p>
         <ul class="lime-rules">
-          <li><strong>${TOTAL} limes</strong> will appear. Cut <strong>${TARGET}</strong>.</li>
+          <li><strong>${TOTAL} limes</strong> will appear, fast. Cut
+              <strong>${Math.round(PASS_PCT * 100)}%</strong> of them —
+              that's ${TARGET}.</li>
+          <li>You are <em>not</em> meant to get them all. Half is the blade's price.</li>
+          <li>🎯 Cut <strong>every single one</strong> and it's a full combo —
+              <strong>+${FC_POINTS.toLocaleString()} points</strong> and the
+              <strong>osu Champion</strong> role, once, ever.</li>
           <li>The sooner you cut one, the more it's worth — <strong>${BEST_HIT}</strong>
               down to <strong>${WORST_HIT}</strong> as it fades.</li>
           <li>They fall within reach of your cursor — and come faster the
@@ -337,6 +390,7 @@
       const hud = el('div', 'lime-hud', `
         <div class="lime-stat"><b data-time>60.0</b><span>seconds</span></div>
         <div class="lime-stat"><b data-hits>0</b><span>of ${TARGET} cut</span></div>
+        <div class="lime-stat lime-fc"><b data-combo>0</b><span data-combolab>combo</span></div>
         <div class="lime-stat"><b data-score>0</b><span>score</span></div>
         <div class="lime-stat"><b data-left>${TOTAL}</b><span>limes left</span></div>`);
       const bar = el('div', 'lime-bar', '<i></i>');
@@ -348,12 +402,18 @@
       const elHits  = hud.querySelector('[data-hits]');
       const elScore = hud.querySelector('[data-score]');
       const elLeft  = hud.querySelector('[data-left]');
+      const elCombo = hud.querySelector('[data-combo]');
+      const elComboLab = hud.querySelector('[data-combolab]');
       const elBar   = bar.querySelector('i');
       const hitsBox = elHits.parentElement;
+      const comboBox = elCombo.parentElement;
 
       const times = schedule();
       const live = new Set();
       let next = 0, hits = 0, score = 0, best = 0, sumMs = 0, done = false;
+      // combo is the current unbroken streak; maxCombo is the run's best.
+      // A full combo means nothing was ever missed — hits === TOTAL.
+      let combo = 0, maxCombo = 0, missed = 0;
       const t0 = performance.now();
 
       /* Where the limes spawn around. Starts at the middle of the playfield
@@ -439,6 +499,8 @@
         const age = Math.min(LIFE_MS, Math.max(0, performance.now() - node._born));
         const worth = Math.round(BEST_HIT - (BEST_HIT - WORST_HIT) * (age / LIFE_MS));
         hits += 1; score += worth; sumMs += age;
+        combo += 1;
+        if (combo > maxCombo) maxCombo = combo;
         if (worth > best) best = worth;
 
         const size = parseFloat(node.style.getPropertyValue('--s')) || 78;
@@ -494,13 +556,34 @@
         paint();
       }
 
+      /* Restart the shatter animation on the combo stat — removing the class
+         and forcing a reflow is what makes it replay on a back-to-back break. */
+      function breakCombo() {
+        comboBox.classList.remove('shatter');
+        void comboBox.offsetWidth;
+        comboBox.classList.add('shatter');
+      }
+
+      /* Said once, on the miss that ends the full combo, so nobody has to
+         work out why the counter went grey. */
+      function fcLost() {
+        const note = el('div', 'lime-fclost', 'Full combo lost');
+        root.appendChild(note);
+        setTimeout(() => note.remove(), 1400);
+      }
+
       function paint() {
         elHits.textContent = hits;
         elScore.textContent = score.toLocaleString();
         elLeft.textContent = Math.max(0, TOTAL - next);
+        elCombo.textContent = combo;
+        // The combo readout doubles as the full-combo tracker: it stays lit
+        // while nothing has been missed, and goes dead the moment one is.
+        elComboLab.textContent = missed ? 'combo · best ' + maxCombo : 'combo · FC alive';
+        comboBox.classList.toggle('alive', !missed);
+        comboBox.classList.toggle('dead', !!missed);
         // Once more limes have been missed than the run can afford, the
         // pass is already out of reach — turn the counter red.
-        const missed = (next - live.size) - hits;
         hitsBox.classList.toggle('danger', missed > TOTAL - TARGET);
       }
 
@@ -511,7 +594,14 @@
         while (next < TOTAL && times[next] <= t) { spawn(); next += 1; }
 
         for (const n of Array.from(live)) {
-          if (now - n._born >= LIFE_MS) { live.delete(n); n.remove(); }
+          if (now - n._born >= LIFE_MS) {
+            live.delete(n); n.remove();
+            missed += 1;
+            if (missed === 1) fcLost();
+            if (combo) breakCombo();
+            combo = 0;
+            paint();
+          }
         }
 
         const remain = Math.max(0, LIMIT_MS - t);
@@ -531,7 +621,8 @@
           setTimeout(() => results({
             hits, score,
             avgMs: hits ? Math.round(sumMs / hits) : 0,
-            best,
+            best, maxCombo,
+            fullCombo: hits >= TOTAL,
           }), 420);
           return;
         }
@@ -548,12 +639,17 @@
       const acc = Math.round((r.hits / TOTAL) * 100);
       const panel = el('div', 'lime-panel');
       panel.appendChild(el('div', 'lime-card', passed ? `
+        ${r.fullCombo ? '<div class="lime-fc-banner">🎯 Full combo</div>' : ''}
         <div class="lime-sub">Trial cleared</div>
-        <h2>The blade answers 🍋</h2>
-        <p>${r.hits} of ${TOTAL} limes cut. The pieces are moving on their own now.</p>
+        <h2>${r.fullCombo ? 'Not one lime touched the ground' : 'The blade answers 🍋'}</h2>
+        <p>${r.fullCombo
+          ? `All ${TOTAL} of them, in a single minute. Claim the blade and the
+             bounty comes with it.`
+          : `${r.hits} of ${TOTAL} limes cut. The pieces are moving on their own now.`}</p>
         <ul class="lime-rules">
           <li>Score <strong>${r.score.toLocaleString()}</strong></li>
           <li>Limes cut <strong>${r.hits} / ${TOTAL}</strong> · ${acc}%</li>
+          <li>Best combo <strong>${r.maxCombo}</strong>${r.fullCombo ? ' — unbroken' : ''}</li>
           <li>Average reaction <strong>${r.avgMs} ms</strong></li>
           <li>Best single cut <strong>${r.best}</strong></li>
         </ul>
@@ -565,6 +661,7 @@
         <ul class="lime-rules">
           <li>Score <strong>${r.score.toLocaleString()}</strong></li>
           <li>Accuracy <strong>${acc}%</strong></li>
+          <li>Best combo <strong>${r.maxCombo}</strong></li>
           <li>Average reaction <strong>${r.avgMs || '—'} ms</strong></li>
         </ul>
         <p>The limes are still falling. Go again.</p>
@@ -586,6 +683,7 @@
       btn.disabled = true;
       btn.textContent = 'Reforging…';
       let err = null;
+      let got = null;    // what the server actually granted
       try {
         const res = await fetch('/api/students/me/claim-lime-sword', {
           method: 'POST',
@@ -595,6 +693,7 @@
         });
         const j = await res.json().catch(() => null);
         if (!res.ok || !j || !j.ok) err = (j && j.error) || 'The forge went cold. Try claiming again.';
+        else got = j.data || {};
       } catch (_) {
         err = 'Could not reach the forge — check your connection and claim again.';
       }
@@ -616,6 +715,23 @@
         if (window.HG && window.HG.refresh) await window.HG.refresh();
       } catch (_) {}
 
+      // The server decides what a full combo is worth — the bounty is
+      // one-time, so a second perfect run says so instead of promising
+      // points that were already paid.
+      const fc = got && got.fullCombo;
+      const paid = (got && got.pointsAwarded) || 0;
+      const champBlock = !fc ? '' : `
+        <div class="lime-champ">
+          <div class="lime-champ-title">🎯 osu Champion</div>
+          <p>${paid
+            ? `Full combo. All ${TOTAL} limes, nothing missed — the role is on
+               your profile and <strong>+${paid.toLocaleString()} points</strong>
+               are in your balance.`
+            : `Full combo again. The role is already yours and the
+               ${FC_POINTS.toLocaleString()}-point bounty only pays once —
+               this one was for the record.`}</p>
+        </div>`;
+
       clear();
       const done = el('div', 'lime-panel');
       done.appendChild(el('div', 'lime-card', `
@@ -626,6 +742,7 @@
         <p>${r.score.toLocaleString()} points, ${r.hits} limes, one blade.
         ${REFORGED ? 'It was already yours — consider that a sharper edge.'
                    : 'It\'s on your camper profile now.'}</p>
+        ${champBlock}
         <p style="font-size:1.12rem;color:#ECFCCB;margin-top:16px">
           Time to go on a spider <strong>hunt</strong>.</p>
         <button class="lime-btn" type="button" data-close>Done</button>`));

@@ -94,11 +94,18 @@ CLICKER_ROLE_ID        = "clicker"
 CRANE_ROLE_ID          = "crane"
 CRANE_GLOBAL_LIMIT     = None    # unlimited — any student who completes the claim flow gets one
 # The lime trial: holders of the Calamity Catalyst see a lime bubble on the
-# Support Us page, and cutting 140 of the 150 limes reforges the Lime Sword.
+# Support Us page, and cutting half of the 200 limes reforges the Lime Sword.
+# Keep LIME_TOTAL/LIME_TARGET in step with TOTAL/TARGET in lime-challenge.js —
+# a client that passes on numbers the server doesn't accept can't claim.
 CALAMITY_ROLE_ID       = "calamity_catalyst"
 LIME_SWORD_ROLE_ID     = "lime_sword"
-LIME_TOTAL             = 150
-LIME_TARGET            = 140
+LIME_TOTAL             = 200
+LIME_TARGET            = 100
+# Cut every single one and the run is a full combo: a one-time 1000-point
+# bounty and the osu Champion role. Awarded once — the role is the receipt,
+# so a second perfect run re-earns nothing.
+OSU_ROLE_ID            = "osu_champion"
+LIME_FC_POINTS         = 1000
 # Per-lime score runs 1000 (cut the instant it appears) down to 400 (cut just
 # before it fades), so these bracket any honest run of `hits` limes.
 LIME_MIN_PER_HIT       = 400
@@ -1731,6 +1738,7 @@ def register_routes(app):
         if not (hits * LIME_MIN_PER_HIT <= score <= hits * LIME_MAX_PER_HIT):
             return jsonify(ok=False, error="That score doesn't match that many limes."), 400
 
+        full_combo = hits >= LIME_TOTAL
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
@@ -1744,15 +1752,50 @@ def register_routes(app):
                 ), 403
             swords = _role_ids_named("Lime Sword") | {LIME_SWORD_ROLE_ID}
             already = bool(swords.intersection(roles))
+            champs = _role_ids_named("osu Champion") | {OSU_ROLE_ID}
+            champ_already = bool(champs.intersection(roles))
+            # The bounty is one-time, and holding the role is what says it was
+            # already paid. Everything else about a full combo is repeatable.
+            pay_bounty = full_combo and not champ_already
+            dirty = False
             if not already:
                 roles.append(LIME_SWORD_ROLE_ID)
-                g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
-                             (json.dumps(roles), sid))
+                dirty = True
                 _log_tx(type="role_assigned", scope="student", subjectId=sid,
                         subjectName=_full_name(row), amount=0,
                         description=(f"🗡 Reforged the Lime Sword — {hits}/{LIME_TOTAL} limes "
                                      f"cut for {score:,} points"))
-        return jsonify(ok=True, data={"alreadyHeld": already, "hits": hits, "score": score})
+            if pay_bounty:
+                roles.append(OSU_ROLE_ID)
+                dirty = True
+                _log_tx(type="role_assigned", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=0,
+                        description=(f"🎯 osu Champion — full combo on the lime trial, "
+                                     f"{hits}/{LIME_TOTAL} with nothing missed"))
+            if dirty:
+                g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
+                             (json.dumps(roles), sid))
+
+        # Outside the transaction above — _award_points opens its own, and
+        # sqlite3's context manager commits the outer block on the inner exit.
+        awarded = 0
+        if pay_bounty:
+            body, st = _award_points(
+                sid, LIME_FC_POINTS,
+                f"Full combo on the lime trial — {hits}/{LIME_TOTAL} limes, "
+                f"{score:,} points, nothing missed",
+                "the Lime Sword",
+            )
+            if st == 200:
+                awarded = int((body.get("data") or {}).get("applied") or 0)
+
+        return jsonify(ok=True, data={
+            "alreadyHeld": already, "hits": hits, "score": score,
+            "fullCombo": full_combo,
+            "champion": full_combo or champ_already,
+            "championIsNew": pay_bounty,
+            "pointsAwarded": awarded,
+        })
 
     # ══ Dungeon economy ════════════════════════════════════════════
     # Shards, the shop, the inventory, the run loop and the tax cycle.
