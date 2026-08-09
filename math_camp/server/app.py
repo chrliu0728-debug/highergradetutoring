@@ -19,6 +19,7 @@ from functools import wraps
 from flask import Flask, g, jsonify, request, make_response
 
 import crypto
+import dungeon
 import stripe_pay
 from db import (
     connect, init_db,
@@ -61,6 +62,9 @@ STAT_FIELD_KEYS = [
     "privatePoints", "totalPointsEarned", "luck", "perfectScores",
     "classAnswers", "pointExchanges", "bathroomVisits", "badWords",
     "clickerClicks", "clickerPointsEarned", "spiderShown",
+    # Dungeon economy. `shards` is the dungeon currency; `luckSpent` is the
+    # running total of points sunk into luck, which the discovery roll needs.
+    "shards", "luckSpent",
 ]
 LUCK_COST              = 800
 CLICKER_RATE           = 100
@@ -223,6 +227,7 @@ def default_stats():
         "perfectScores": 0, "classAnswers": 0, "pointExchanges": 0,
         "bathroomVisits": 0, "badWords": 0,
         "clickerClicks": 0, "clickerPointsEarned": 0, "spiderShown": False,
+        "shards": 0, "luckSpent": 0,
     }
 
 
@@ -1748,6 +1753,758 @@ def register_routes(app):
                         description=(f"🗡 Reforged the Lime Sword — {hits}/{LIME_TOTAL} limes "
                                      f"cut for {score:,} points"))
         return jsonify(ok=True, data={"alreadyHeld": already, "hits": hits, "score": score})
+
+    # ══ Dungeon economy ════════════════════════════════════════════
+    # Shards, the shop, the inventory, the run loop and the tax cycle.
+    # The run is server-authoritative: the browser is never told which
+    # door is correct, and the clock the speed multiplier is measured
+    # against is the server's, not the tab's.
+
+    def _wallet(row):
+        return {**default_stats(), **json.loads(row["stats"] or "{}")}
+
+    def _save_stats(sid, stats):
+        g.db.execute("UPDATE students SET stats = ? WHERE id = ?",
+                     (json.dumps(stats), sid))
+
+    def _owned(row):
+        """{itemId: qty} across inventory AND equipped, so the counterpart
+        discount still applies to gear you're currently wearing."""
+        out = {}
+        try:
+            for e in json.loads(row["inventory"] or "[]"):
+                if isinstance(e, dict) and e.get("id"):
+                    out[e["id"]] = out.get(e["id"], 0) + int(e.get("qty") or 0)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            for item_id in (json.loads(row["equipped"] or "{}") or {}).values():
+                if item_id:
+                    out[item_id] = out.get(item_id, 0) + 1
+        except Exception:  # noqa: BLE001
+            pass
+        return out
+
+    def _save_inventory(sid, owned_map, equipped):
+        inv = [{"id": k, "qty": v} for k, v in sorted(owned_map.items()) if v > 0]
+        g.db.execute("UPDATE students SET inventory = ?, equipped = ? WHERE id = ?",
+                     (json.dumps(inv), json.dumps(equipped), sid))
+
+    def _receipt(sid, kind, description, gross, tax, net, reclaimed=0):
+        rid = "rcpt-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        g.db.execute(
+            "INSERT INTO receipts"
+            " (id, studentId, at, kind, description, gross, tax, net, reclaimed)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (rid, sid, int(time.time() * 1000), kind, description,
+             int(gross), int(tax), int(net), int(reclaimed)),
+        )
+        return rid
+
+    def _gear_for(row):
+        stats = _wallet(row)
+        try:
+            equipped = json.loads(row["equipped"] or "{}") or {}
+        except Exception:  # noqa: BLE001
+            equipped = {}
+        return dungeon.loadout(equipped, stats.get("luck", 0)), equipped, stats
+
+    @app.route("/api/dungeon/catalogue", methods=["GET"])
+    def dungeon_catalogue():
+        """The shop shelf. Prices come back per-student where a counterpart
+        discount applies, and locked items say why they're locked rather
+        than being hidden."""
+        sess = _current_session()
+        owned, deepest, shards = {}, 0, 0
+        if sess and sess["kind"] == "student":
+            row = g.db.execute("SELECT * FROM students WHERE id = ?",
+                               (sess["studentId"],)).fetchone()
+            if row:
+                owned = _owned(row)
+                shards = _wallet(row).get("shards", 0)
+                dr = g.db.execute(
+                    "SELECT MAX(deepest) AS d FROM dungeon_runs WHERE studentId = ?",
+                    (sess["studentId"],)).fetchone()
+                deepest = int((dr["d"] if dr else 0) or 0)
+        unlocked = deepest >= dungeon.INTERMEDIATE_UNLOCK_FLOOR
+        out = []
+        for it in dungeon.ITEMS.values():
+            p = dungeon.price_for(it["id"], owned.keys())
+            locked = it["tier"] == "intermediate" and not unlocked
+            out.append({
+                **{k: it[k] for k in ("id", "name", "tier", "slot", "blurb",
+                                      "shardBonus", "maxHp", "defense", "window",
+                                      "evadeChance", "negateChance", "flatNegate",
+                                      "stackable", "capacity", "consumable",
+                                      "reveals", "counterpart", "realWorld")},
+                "full": p["full"], "price": p["price"], "saved": p["saved"],
+                "owned": owned.get(it["id"], 0),
+                "locked": locked,
+                "lockReason": (f"Reach floor {dungeon.INTERMEDIATE_UNLOCK_FLOOR} to unlock"
+                               if locked else None),
+            })
+        return jsonify(ok=True, data={
+            "items": out, "shards": shards, "deepest": deepest,
+            "taxRate": dungeon.TAX_RATE,
+            "slots": list(dungeon.SLOTS),
+            "starterChoices": list(dungeon.STARTER_CHOICES),
+            "unlockFloor": dungeon.INTERMEDIATE_UNLOCK_FLOOR,
+            "discount": dungeon.COUNTERPART_DISCOUNT,
+        })
+
+    @app.route("/api/students/me/dungeon", methods=["GET"])
+    @require_student
+    def dungeon_me():
+        """Everything the inventory screen needs in one call."""
+        sid = g.session["studentId"]
+        row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        if not row:
+            return jsonify(ok=False, error="Student not found."), 404
+        gear, equipped, stats = _gear_for(row)
+        owned = _owned(row)
+        inv = json.loads(row["inventory"] or "[]")
+        extras = json.loads(row["extras"] or "{}")
+        run = g.db.execute(
+            "SELECT * FROM dungeon_runs WHERE studentId = ? AND endedAt IS NULL"
+            " ORDER BY startedAt DESC LIMIT 1", (sid,)).fetchone()
+        dr = g.db.execute("SELECT MAX(deepest) AS d FROM dungeon_runs WHERE studentId = ?",
+                          (sid,)).fetchone()
+        owed = g.db.execute(
+            "SELECT COALESCE(SUM(tax),0) AS t, COUNT(*) AS n FROM receipts"
+            " WHERE studentId = ? AND reclaimed = 0", (sid,)).fetchone()
+        return jsonify(ok=True, data={
+            "shards": stats.get("shards", 0),
+            "points": stats.get("privatePoints", 0),
+            "luck": stats.get("luck", 0),
+            "luckSpent": stats.get("luckSpent", 0),
+            "nextLuckCost": (dungeon.luck_level_cost(stats.get("luck", 0) + 1)
+                             if stats.get("luck", 0) < dungeon.LUCK_MAX else None),
+            "luckMax": dungeon.LUCK_MAX,
+            "luckEffectiveness": dungeon.luck_effectiveness(stats.get("luck", 0)),
+            "inventory": inv, "equipped": equipped, "owned": owned,
+            "gear": {k: v for k, v in gear.items() if k != "items"},
+            "starterClaimed": bool(extras.get("dungeonStarterClaimed")),
+            "deepest": int((dr["d"] if dr else 0) or 0),
+            "activeRun": bool(run),
+            "unclaimedTax": int(owed["t"] or 0),
+            "openReceipts": int(owed["n"] or 0),
+        })
+
+    @app.route("/api/students/me/dungeon/starter", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_starter():
+        """One free beginner item, once. Everything else is bought — points
+        convert into shards, and gear only makes the run easier."""
+        sid = g.session["studentId"]
+        item_id = (request.get_json(silent=True) or {}).get("itemId") or ""
+        if item_id not in dungeon.STARTER_CHOICES:
+            return jsonify(ok=False, error="Pick one of the starter items."), 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            extras = json.loads(row["extras"] or "{}")
+            if extras.get("dungeonStarterClaimed"):
+                return jsonify(ok=False, error="You've already taken your free pick."), 400
+            owned = _owned(row)
+            owned[item_id] = owned.get(item_id, 0) + 1
+            extras["dungeonStarterClaimed"] = item_id
+            equipped = json.loads(row["equipped"] or "{}") or {}
+            _save_inventory(sid, owned, equipped)
+            g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                         (json.dumps(extras), sid))
+        return jsonify(ok=True, data={"itemId": item_id,
+                                      "name": dungeon.ITEMS[item_id]["name"]})
+
+    @app.route("/api/students/me/dungeon/buy", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_buy():
+        d = request.get_json(silent=True) or {}
+        item_id = (d.get("itemId") or "").strip()
+        try:
+            qty = max(1, min(int(d.get("qty") or 1), 500))
+        except (TypeError, ValueError):
+            qty = 1
+        it = dungeon.ITEMS.get(item_id)
+        if not it:
+            return jsonify(ok=False, error="No such item."), 404
+        if not it["stackable"]:
+            qty = 1
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            owned = _owned(row)
+            if it["tier"] == "intermediate":
+                dr = g.db.execute(
+                    "SELECT MAX(deepest) AS d FROM dungeon_runs WHERE studentId = ?",
+                    (sid,)).fetchone()
+                if int((dr["d"] if dr else 0) or 0) < dungeon.INTERMEDIATE_UNLOCK_FLOOR:
+                    return jsonify(
+                        ok=False,
+                        error=(f"Locked — reach floor "
+                               f"{dungeon.INTERMEDIATE_UNLOCK_FLOOR} first."),
+                    ), 403
+            if not it["stackable"] and owned.get(item_id):
+                return jsonify(ok=False, error=f"You already own the {it['name']}."), 400
+
+            p = dungeon.price_for(item_id, owned.keys())
+            shelf = p["price"] * qty
+            total, tax = dungeon.purchase_total(shelf)
+            stats = _wallet(row)
+            have = int(stats.get("shards", 0))
+            if have < total:
+                return jsonify(
+                    ok=False, shortfall=total - have,
+                    error=(f"That costs {total:,} shards with tax and you have "
+                           f"{have:,} — {total - have:,} short."),
+                ), 400
+
+            stats["shards"] = have - total
+            _save_stats(sid, stats)
+            owned[item_id] = owned.get(item_id, 0) + qty
+            _save_inventory(sid, owned, json.loads(row["equipped"] or "{}") or {})
+            label = it["name"] + (f" ×{qty}" if qty > 1 else "")
+            rid = _receipt(sid, "purchase", f"Purchased {label}", shelf, tax, shelf)
+        return jsonify(ok=True, data={
+            "itemId": item_id, "qty": qty, "shelf": shelf, "tax": tax,
+            "paid": total, "saved": p["saved"] * qty,
+            "shards": stats["shards"], "receiptId": rid,
+        })
+
+    @app.route("/api/students/me/dungeon/equip", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_equip():
+        """Equip or unequip. Passing a null itemId clears the slot."""
+        d = request.get_json(silent=True) or {}
+        slot = (d.get("slot") or "").strip()
+        item_id = (d.get("itemId") or "").strip() or None
+        if slot not in dungeon.SLOTS:
+            return jsonify(ok=False, error="No such equipment slot."), 400
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            equipped = json.loads(row["equipped"] or "{}") or {}
+            if item_id:
+                it = dungeon.ITEMS.get(item_id)
+                if not it:
+                    return jsonify(ok=False, error="No such item."), 404
+                if it["slot"] != slot:
+                    return jsonify(ok=False,
+                                   error=f"The {it['name']} doesn't go in that slot."), 400
+                if not _owned(row).get(item_id):
+                    return jsonify(ok=False, error="You don't own that."), 400
+                equipped[slot] = item_id
+            else:
+                equipped.pop(slot, None)
+            owned = _owned(row)
+            # _owned counts equipped items, so recompute the split cleanly.
+            for s, i in equipped.items():
+                if i in owned:
+                    owned[i] -= 1
+            _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+            gear = dungeon.loadout(equipped, _wallet(row).get("luck", 0))
+        return jsonify(ok=True, data={"equipped": equipped,
+                                      "gear": {k: v for k, v in gear.items()
+                                               if k != "items"}})
+
+    @app.route("/api/students/me/dungeon/convert", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_convert():
+        """Shards ⇄ points. The 20% round-trip loss is shown before the
+        student confirms; this just enforces it."""
+        d = request.get_json(silent=True) or {}
+        direction = (d.get("direction") or "").strip()
+        try:
+            amount = int(d.get("amount") or 0)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Enter a whole number."), 400
+        if amount <= 0:
+            return jsonify(ok=False, error="Enter an amount above zero."), 400
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            stats = _wallet(row)
+            if direction == "shards-to-points":
+                if stats.get("shards", 0) < amount:
+                    return jsonify(ok=False, error="You don't have that many shards."), 400
+                pts, spent = dungeon.shards_to_points(amount)
+                if pts <= 0:
+                    return jsonify(
+                        ok=False,
+                        error=f"{dungeon.SHARDS_PER_POINT} shards make 1 point — "
+                              f"you need at least that many.",
+                    ), 400
+                net, tax = dungeon.split_tax(pts)
+                stats["shards"] -= spent
+                stats["privatePoints"] = stats.get("privatePoints", 0) + net
+                stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + net
+                _save_stats(sid, stats)
+                rid = _receipt(sid, "conversion",
+                               f"Converted {spent:,} shards → {pts:,} points", pts, tax, net)
+                _log_tx(type="earn", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=net,
+                        description=f"💎 {spent:,} shards → {net:,} pts (after {tax:,} tax)")
+                return jsonify(ok=True, data={"gross": pts, "tax": tax, "net": net,
+                                              "shards": stats["shards"],
+                                              "points": stats["privatePoints"],
+                                              "receiptId": rid})
+            if direction == "points-to-shards":
+                if stats.get("privatePoints", 0) < amount:
+                    return jsonify(ok=False, error="You don't have that many points."), 400
+                gross = dungeon.points_to_shards(amount)
+                net, tax = dungeon.split_tax(gross)
+                stats["privatePoints"] -= amount
+                stats["shards"] = stats.get("shards", 0) + net
+                _save_stats(sid, stats)
+                rid = _receipt(sid, "conversion",
+                               f"Converted {amount:,} points → {gross:,} shards",
+                               gross, tax, net)
+                _log_tx(type="spend", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=-amount,
+                        description=f"💎 {amount:,} pts → {net:,} shards (after {tax:,} tax)")
+                return jsonify(ok=True, data={"gross": gross, "tax": tax, "net": net,
+                                              "shards": stats["shards"],
+                                              "points": stats["privatePoints"],
+                                              "receiptId": rid})
+        return jsonify(ok=False, error="Pick a direction."), 400
+
+    @app.route("/api/students/me/dungeon/luck", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_buy_luck():
+        """Luck costs points and the price climbs 12% a level, so the
+        guaranteed double at 40 is a camp-long project rather than a
+        weekend one."""
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            stats = _wallet(row)
+            lv = int(stats.get("luck", 0))
+            if lv >= dungeon.LUCK_MAX:
+                return jsonify(ok=False,
+                               error=f"Luck is maxed at {dungeon.LUCK_MAX}."), 400
+            cost = dungeon.luck_level_cost(lv + 1)
+            have = int(stats.get("privatePoints", 0))
+            if have < cost:
+                return jsonify(
+                    ok=False, shortfall=cost - have,
+                    error=(f"Luck {lv + 1} costs {cost:,} points and you have "
+                           f"{have:,} — {cost - have:,} short."),
+                ), 400
+            stats["privatePoints"] = have - cost
+            stats["luck"] = lv + 1
+            stats["luckSpent"] = int(stats.get("luckSpent", 0)) + cost
+            _save_stats(sid, stats)
+            _log_tx(type="luck", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=-cost,
+                    description=f"🍀 Luck {lv} → {lv + 1} for {cost:,} pts")
+        return jsonify(ok=True, data={
+            "luck": stats["luck"], "spent": cost,
+            "points": stats["privatePoints"],
+            "effectiveness": dungeon.luck_effectiveness(stats["luck"]),
+            "nextCost": (dungeon.luck_level_cost(stats["luck"] + 1)
+                         if stats["luck"] < dungeon.LUCK_MAX else None),
+        })
+
+    # ── The run ────────────────────────────────────────────────────
+    def _run_state(run, gear=None):
+        d = dict(run)
+        d.pop("correctSide", None)      # never leaves the server
+        if gear:
+            d["gear"] = {k: v for k, v in gear.items() if k != "items"}
+        d["floorLimitMs"] = dungeon.FLOOR_TIME_LIMIT_MS
+        d["floorBase"] = dungeon.base_shards(d["floor"])
+        return d
+
+    def _active_run(sid):
+        return g.db.execute(
+            "SELECT * FROM dungeon_runs WHERE studentId = ? AND endedAt IS NULL"
+            " ORDER BY startedAt DESC LIMIT 1", (sid,)).fetchone()
+
+    def _arrows(owned):
+        """Which arrow the bow will fire — the fancy one first."""
+        for aid in ("drill_needle_arrow", "basic_arrow"):
+            if owned.get(aid, 0) > 0:
+                return aid
+        return None
+
+    def _bank(sid, run, alive):
+        """End a run and pay out. Walk out and you keep everything; die and
+        30% stays in the dungeon."""
+        gross = int(run["escrow"] or 0)
+        kept = gross if alive else round(gross * dungeon.DEATH_KEEP_FRACTION)
+        net, tax = dungeon.split_tax(kept)
+        row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        stats = _wallet(row)
+        stats["shards"] = int(stats.get("shards", 0)) + net
+        _save_stats(sid, stats)
+        g.db.execute(
+            "UPDATE dungeon_runs SET endedAt = ?, outcome = ? WHERE id = ?",
+            (int(time.time() * 1000), "alive" if alive else "dead", run["id"]))
+        rid = None
+        if kept > 0:
+            label = (f"Dungeon run — floors 1–{run['deepest']}" if alive else
+                     f"Died on floor {run['floor']} — 70% of {gross:,} recovered")
+            rid = _receipt(sid, "earning", label, kept, tax, net)
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=0,
+                    description=(f"💎 {label} · +{net:,} shards after {tax:,} tax"))
+        return {"gross": gross, "kept": kept, "tax": tax, "net": net,
+                "shards": stats["shards"], "alive": alive,
+                "deepest": run["deepest"], "receiptId": rid}
+
+    @app.route("/api/dungeon/run", methods=["GET"])
+    @require_student
+    def dungeon_run_get():
+        run = _active_run(g.session["studentId"])
+        if not run:
+            return jsonify(ok=True, data=None)
+        row = g.db.execute("SELECT * FROM students WHERE id = ?",
+                           (g.session["studentId"],)).fetchone()
+        gear, _, _ = _gear_for(row)
+        return jsonify(ok=True, data=_run_state(run, gear))
+
+    @app.route("/api/dungeon/run/start", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_start():
+        sid = g.session["studentId"]
+        with g.db:
+            if _active_run(sid):
+                return jsonify(ok=False, error="You're already in the dungeon."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            gear, _, _ = _gear_for(row)
+            rid = "run-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+            now = int(time.time() * 1000)
+            g.db.execute(
+                "INSERT INTO dungeon_runs"
+                " (id, studentId, startedAt, floor, deepest, hp, maxHp, escrow, floorStart)"
+                " VALUES (?, ?, ?, 1, 1, ?, ?, 0, ?)",
+                (rid, sid, now, gear["maxHp"], gear["maxHp"], now))
+            run = g.db.execute("SELECT * FROM dungeon_runs WHERE id = ?", (rid,)).fetchone()
+        return jsonify(ok=True, data=_run_state(run, gear))
+
+    @app.route("/api/dungeon/run/question", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_question():
+        """Serve the current floor's question. The server decides which door
+        is right and starts the clock — the browser is told neither."""
+        sid = g.session["studentId"]
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=False, error="You're not in the dungeon."), 400
+            rows = g.db.execute(
+                "SELECT * FROM infinity_questions WHERE TRIM(wrongAnswer) <> ''"
+            ).fetchall()
+            if not rows:
+                return jsonify(ok=False,
+                               error="No questions in the bank yet — ask staff."), 503
+            q = rows[secrets.randbelow(len(rows))]
+            left_correct = secrets.randbelow(2) == 0
+            now = int(time.time() * 1000)
+            g.db.execute(
+                "UPDATE dungeon_runs SET questionAt = ?, questionId = ?, correctSide = ?"
+                " WHERE id = ?",
+                (now, q["id"], "L" if left_correct else "R", run["id"]))
+            floor_start = run["floorStart"] or now
+        return jsonify(ok=True, data={
+            "questionId": q["id"], "question": q["question"],
+            "left":  q["answer"] if left_correct else q["wrongAnswer"],
+            "right": q["wrongAnswer"] if left_correct else q["answer"],
+            "floor": run["floor"], "askedAt": now,
+            "floorDeadline": floor_start + dungeon.FLOOR_TIME_LIMIT_MS,
+        })
+
+    @app.route("/api/dungeon/run/answer", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_answer():
+        """Resolve a door. Elapsed time comes from the server's own clock, so
+        the speed multiplier can't be edited from the tab."""
+        sid = g.session["studentId"]
+        body = request.get_json(silent=True) or {}
+        side = (body.get("side") or "").upper()
+        if side not in ("L", "R"):
+            return jsonify(ok=False, error="Pick a door."), 400
+        # The spec asks for the clock to stop while the tab is hidden, which
+        # only the browser can observe. We take its word for it but clamp
+        # hard: never more than the time that actually passed, and never
+        # more than BLUR_CREDIT_CAP_MS in total. Worst case a tampered
+        # client claims a ×2.0 — which is exactly what an honest fast
+        # answer already earns, so the ceiling is the same either way.
+        BLUR_CREDIT_CAP_MS = 5 * 60 * 1000
+        try:
+            blur_ms = max(0, min(int(body.get("blurMs") or 0), BLUR_CREDIT_CAP_MS))
+        except (TypeError, ValueError):
+            blur_ms = 0
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=False, error="You're not in the dungeon."), 400
+            if not run["correctSide"] or not run["questionAt"]:
+                return jsonify(ok=False, error="No question is open."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            gear, equipped, stats = _gear_for(row)
+            owned = _owned(row)
+            luck = int(stats.get("luck", 0))
+            now = int(time.time() * 1000)
+            raw_ms = now - int(run["questionAt"])
+            elapsed = max(0.0, (raw_ms - min(blur_ms, max(0, raw_ms))) / 1000.0)
+            floor = int(run["floor"])
+            correct = (side == run["correctSide"])
+
+            # A drawn bow spends an arrow and may proc on the drill needle.
+            arrow_bonus, proc = 1.0, None
+            damage_soften = 0.0
+            if run["bowDrawn"]:
+                aid = run["arrowType"] or _arrows(owned)
+                if aid and owned.get(aid, 0) > 0:
+                    owned[aid] -= 1
+                    if aid == "drill_needle_arrow" and secrets.randbelow(1000) < 30:
+                        if secrets.randbelow(2) == 0:
+                            arrow_bonus, proc = 1.1, "shards"
+                        else:
+                            damage_soften, proc = 0.20, "damage"
+                _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+
+            payload = {"correct": correct, "elapsed": round(elapsed, 2),
+                       "speed": round(dungeon.speed_multiplier(elapsed, gear["window"]), 3),
+                       "window": gear["window"], "proc": proc}
+
+            if correct:
+                gained = dungeon.floor_reward(floor, elapsed, gear, luck, arrow_bonus)
+                found = 0
+                if secrets.randbelow(10000) < int(dungeon.LUCK_DISCOVERY_CHANCE * 10000):
+                    found = dungeon.luck_discovery(stats.get("luckSpent", 0), floor)
+                escrow = int(run["escrow"] or 0) + gained + found
+                nxt = floor + 1
+                g.db.execute(
+                    "UPDATE dungeon_runs SET escrow = ?, floor = ?, deepest = ?,"
+                    " floorStart = ?, wrongCount = 0, questionAt = NULL,"
+                    " correctSide = NULL, bowDrawn = 0, arrowType = NULL WHERE id = ?",
+                    (escrow, nxt, max(int(run["deepest"]), nxt), now, run["id"]))
+                payload.update({"gained": gained, "found": found, "escrow": escrow,
+                                "floor": nxt, "hp": run["hp"], "maxHp": run["maxHp"]})
+                return jsonify(ok=True, data=payload)
+
+            # Wrong door: 120 inside the window, 60 after and for every
+            # later mistake on the same floor. Loss is 90% of what that door
+            # would actually have paid at this speed.
+            first = int(run["wrongCount"] or 0) == 0
+            raw = (dungeon.DAMAGE_FAST_WRONG
+                   if (first and elapsed <= dungeon.FAST_WRONG_CUTOFF_S)
+                   else dungeon.DAMAGE_WRONG)
+            dealt, why = dungeon.apply_damage(raw, gear, luck)
+            if damage_soften and dealt:
+                dealt = round(dealt * (1.0 - damage_soften))
+            lost = min(int(run["escrow"] or 0),
+                       dungeon.wrong_door_loss(floor, elapsed, gear, luck))
+            escrow = int(run["escrow"] or 0) - lost
+            hp = int(run["hp"]) - dealt
+
+            # The earring eats one killing blow, then shatters.
+            earring_used = False
+            if hp <= 0 and gear["hasEarring"] and not int(run["earringUsed"] or 0):
+                hp = 1
+                earring_used = True
+                equipped.pop("earring", None)
+                owned.pop("earring", None)
+                _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+
+            g.db.execute(
+                "UPDATE dungeon_runs SET hp = ?, escrow = ?, wrongCount = ?,"
+                " questionAt = NULL, correctSide = NULL, bowDrawn = 0, arrowType = NULL,"
+                " earringUsed = ? WHERE id = ?",
+                (max(0, hp), escrow, int(run["wrongCount"] or 0) + 1,
+                 1 if (earring_used or int(run["earringUsed"] or 0)) else 0, run["id"]))
+            payload.update({"damage": dealt, "blocked": why, "lost": lost,
+                            "escrow": escrow, "hp": max(0, hp),
+                            "maxHp": run["maxHp"], "floor": floor,
+                            "earringUsed": earring_used})
+            if hp <= 0:
+                run = g.db.execute("SELECT * FROM dungeon_runs WHERE id = ?",
+                                   (run["id"],)).fetchone()
+                payload["death"] = _bank(sid, run, alive=False)
+        return jsonify(ok=True, data=payload)
+
+    @app.route("/api/dungeon/run/skip", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_skip():
+        """The 10-minute boot. Moves you on for free: no shards for the floor
+        you stalled on, but no damage either — so idling is never a way to
+        farm, and never a way to die."""
+        sid = g.session["studentId"]
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=False, error="You're not in the dungeon."), 400
+            now = int(time.time() * 1000)
+            if now < int(run["floorStart"] or now) + dungeon.FLOOR_TIME_LIMIT_MS:
+                return jsonify(ok=False, error="There's still time on this floor."), 400
+            nxt = int(run["floor"]) + 1
+            g.db.execute(
+                "UPDATE dungeon_runs SET floor = ?, deepest = ?, floorStart = ?,"
+                " wrongCount = 0, questionAt = NULL, correctSide = NULL,"
+                " bowDrawn = 0, arrowType = NULL WHERE id = ?",
+                (nxt, max(int(run["deepest"]), nxt), now, run["id"]))
+        return jsonify(ok=True, data={"floor": nxt, "reason": "timeout"})
+
+    @app.route("/api/dungeon/run/draw", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_draw():
+        """Right-click draws the bow. The bonus lands on the NEXT room and
+        spends an arrow when it does."""
+        sid = g.session["studentId"]
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=False, error="You're not in the dungeon."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            _, equipped, _ = _gear_for(row)
+            weapon = dungeon.ITEMS.get(equipped.get("weapon") or "")
+            if not weapon or "bow" not in weapon["id"]:
+                return jsonify(ok=False, error="You don't have a bow equipped."), 400
+            aid = _arrows(_owned(row))
+            if not aid:
+                # No penalty for a dry quiver — the bow just does nothing.
+                return jsonify(ok=True, data={"drawn": False,
+                                              "reason": "No arrows in the quiver."})
+            g.db.execute("UPDATE dungeon_runs SET bowDrawn = 1, arrowType = ? WHERE id = ?",
+                         (aid, run["id"]))
+        return jsonify(ok=True, data={"drawn": True, "arrow": aid,
+                                      "name": dungeon.ITEMS[aid]["name"]})
+
+    @app.route("/api/dungeon/run/exit", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_exit():
+        sid = g.session["studentId"]
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=False, error="You're not in the dungeon."), 400
+            result = _bank(sid, run, alive=True)
+        return jsonify(ok=True, data=result)
+
+    # ── Receipts and the tax cycle ─────────────────────────────────
+    @app.route("/api/students/me/receipts", methods=["GET"])
+    @require_student
+    def dungeon_receipts():
+        sid = g.session["studentId"]
+        kind = (request.args.get("kind") or "").strip()
+        sql = "SELECT * FROM receipts WHERE studentId = ?"
+        args = [sid]
+        if kind and kind != "all":
+            sql += " AND kind = ?"; args.append(kind)
+        for field, op in (("from", ">="), ("to", "<=")):
+            raw = request.args.get(field)
+            if raw:
+                try:
+                    sql += f" AND at {op} ?"; args.append(int(raw))
+                except (TypeError, ValueError):
+                    pass
+        sql += " ORDER BY at DESC LIMIT 500"
+        rows = [dict(r) for r in g.db.execute(sql, args).fetchall()]
+        return jsonify(ok=True, data={
+            "receipts": rows,
+            "totals": {
+                "gross": sum(r["gross"] for r in rows),
+                "tax":   sum(r["tax"] for r in rows),
+                "net":   sum(r["net"] for r in rows),
+                "count": len(rows),
+            },
+            "unclaimedTax": int(g.db.execute(
+                "SELECT COALESCE(SUM(tax),0) AS t FROM receipts"
+                " WHERE studentId = ? AND reclaimed = 0", (sid,)).fetchone()["t"] or 0),
+        })
+
+    @app.route("/api/students/me/tax/file", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_file_tax():
+        """File a return. The student adds up the tax on their own receipts
+        and enters the total; get it exactly right and all of it comes back.
+        Wrong just says whether they're high or low — no penalty, no
+        deadline, retry as often as they like. The arithmetic IS the lesson."""
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        try:
+            claimed = int(d.get("claimed"))
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Enter the total tax as a whole number."), 400
+        if claimed < 0:
+            return jsonify(ok=False, error="A total can't be negative."), 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            open_rows = g.db.execute(
+                "SELECT id, tax FROM receipts WHERE studentId = ? AND reclaimed = 0",
+                (sid,)).fetchall()
+            owed = sum(int(r["tax"]) for r in open_rows)
+            if not open_rows:
+                return jsonify(ok=False, error="Nothing to claim — no unfiled receipts."), 400
+            correct = (claimed == owed)
+            fid = "file-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+            g.db.execute(
+                "INSERT INTO tax_filings (id, studentId, at, claimed, owed, correct, refunded)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (fid, sid, int(time.time() * 1000), claimed, owed,
+                 1 if correct else 0, owed if correct else 0),
+            )
+            if not correct:
+                return jsonify(ok=True, data={
+                    "correct": False, "claimed": claimed,
+                    "receiptCount": len(open_rows),
+                    "hint": ("That's higher than what was actually withheld."
+                             if claimed > owed else
+                             "That's lower than what was actually withheld."),
+                    "message": ("Not quite — add up the Tax column on every receipt "
+                                "you haven't filed yet and try again."),
+                })
+            stats = _wallet(row)
+            stats["shards"] = int(stats.get("shards", 0)) + owed
+            _save_stats(sid, stats)
+            g.db.execute(
+                "UPDATE receipts SET reclaimed = 1 WHERE studentId = ? AND reclaimed = 0",
+                (sid,))
+            # The refund itself is logged for the ledger but files as already
+            # reclaimed — it carries no tax, and leaving it open would let a
+            # student "file" an empty return afterwards.
+            _receipt(sid, "refund",
+                     f"Tax return — {len(open_rows)} receipt(s) filed", owed, 0, owed,
+                     reclaimed=1)
+        return jsonify(ok=True, data={
+            "correct": True, "refunded": owed, "receiptCount": len(open_rows),
+            "shards": stats["shards"],
+        })
+
+    @app.route("/api/students/me/tax/filings", methods=["GET"])
+    @require_student
+    def dungeon_filings():
+        sid = g.session["studentId"]
+        rows = g.db.execute(
+            "SELECT * FROM tax_filings WHERE studentId = ? ORDER BY at DESC LIMIT 50",
+            (sid,)).fetchall()
+        return jsonify(ok=True, data=[dict(r) for r in rows])
 
     # ── Mini-game hints ────────────────────────────────────────────
     @app.route("/api/hints", methods=["GET"])
@@ -4781,7 +5538,7 @@ KNOWN_STUDENT_COLS = {
     "id", "firstName", "lastName", "studentEmail", "password",
     "parentEmail", "phone", "school", "grade",
     "classId", "className", "registeredAt",
-    "frozen",
+    "frozen", "inventory", "equipped",
 }
 
 def _normalize_student(raw):
@@ -4798,6 +5555,10 @@ def _normalize_student(raw):
     s["stats"]     = json.dumps({**default_stats(), **(raw.get("stats") or {})})
     s["roles"]     = json.dumps(raw.get("roles") or [])
     s["baseStats"] = json.dumps(raw.get("baseStats") or {})
+    # These arrive decoded from row_to_student on a round-trip through the
+    # admin bulk save, so re-encode rather than storing a Python list.
+    s["inventory"] = json.dumps(raw.get("inventory") or [])
+    s["equipped"]  = json.dumps(raw.get("equipped") or {})
     extras = {k: v for k, v in raw.items()
               if k not in KNOWN_STUDENT_COLS and k not in {"stats", "roles", "baseStats"}}
     s["extras"]    = json.dumps(extras)
@@ -4815,11 +5576,13 @@ def _insert_student(s):
         """INSERT OR REPLACE INTO students
            (id, firstName, lastName, studentEmail, password, parentEmail, phone,
             school, grade, classId, className, registeredAt,
-            stats, roles, baseStats, extras, emailIndex, frozen)
+            stats, roles, baseStats, extras, emailIndex, frozen,
+            inventory, equipped)
            VALUES
            (:id, :firstName, :lastName, :studentEmail, :password, :parentEmail, :phone,
             :school, :grade, :classId, :className, :registeredAt,
-            :stats, :roles, :baseStats, :extras, :emailIndex, :frozen)""",
+            :stats, :roles, :baseStats, :extras, :emailIndex, :frozen,
+            :inventory, :equipped)""",
         s,
     )
 

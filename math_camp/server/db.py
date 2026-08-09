@@ -224,6 +224,28 @@ def _migrate(conn):
                 conn.execute(f"ALTER TABLE homework_submissions ADD COLUMN {_col} {_type}")
         except sqlite3.OperationalError:
             pass
+    # Dungeon economy: what a camper owns and what they're wearing. Kept as
+    # their own columns rather than inside `extras` so the shop can query
+    # ownership without decoding every student's blob.
+    for _col, _type in (("inventory", "TEXT NOT NULL DEFAULT '[]'"),
+                        ("equipped",  "TEXT NOT NULL DEFAULT '{}'")):
+        try:
+            if _has_column("students", "id") and not _has_column("students", _col):
+                conn.execute(f"ALTER TABLE students ADD COLUMN {_col} {_type}")
+        except sqlite3.OperationalError:
+            pass
+    # Backfill the new stat keys into students seeded before the dungeon
+    # economy existed. Server code always merges default_stats() so it reads
+    # fine either way, but the raw stats blob goes to the browser as-is and
+    # a missing key surfaces there as `undefined`.
+    for _key in ("shards", "luckSpent"):
+        try:
+            conn.execute(
+                f"UPDATE students SET stats = json_set(COALESCE(stats,'{{}}'), '$.{_key}', 0)"
+                f" WHERE json_extract(COALESCE(stats,'{{}}'), '$.{_key}') IS NULL"
+            )
+        except sqlite3.OperationalError:
+            pass      # SQLite built without JSON1 — the merge on read covers it
     # Playtest mode — a student session minted by an admin remembers the
     # admin token it came from so Esc can hand the cookie back.
     try:
@@ -487,11 +509,14 @@ def row_to_student(r):
     for k in STUDENT_ENC_FIELDS:
         if k in d:
             d[k] = crypto.dec(d[k])
-    for k in ("stats", "roles", "baseStats", "extras"):
+    for k in ("stats", "roles", "baseStats", "extras", "inventory", "equipped"):
+        if k not in d:
+            continue      # column not present on a not-yet-migrated read
+        empty = "[]" if k in ("roles", "inventory") else "{}"
         try:
-            d[k] = json.loads(d.get(k) or ("[]" if k == "roles" else "{}"))
+            d[k] = json.loads(d.get(k) or empty)
         except Exception:
-            d[k] = [] if k == "roles" else {}
+            d[k] = [] if k in ("roles", "inventory") else {}
     extras = d.pop("extras", {}) or {}
     if isinstance(extras, dict):
         for k, v in extras.items():

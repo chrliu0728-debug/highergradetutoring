@@ -808,10 +808,10 @@
     <!-- ── Infinity Mode (visible to students who beat the dungeon) ── -->
     <div class="action-card" id="infinity-card" style="display:none; background:rgba(167,139,250,.08); border-color:#A78BFA;">
       <div class="ac-head">
-        <h3 style="color:#6D28D9;">∞ Infinity Mode</h3>
-        <p class="ac-sub">You've beaten the dungeon. Keep going — every question you answer earns <strong>+6 points</strong>. The question bank is curated by camp staff and refreshed regularly.</p>
+        <h3 style="color:#6D28D9;">🗝 The Dungeon</h3>
+        <p class="ac-sub">You've beaten the door maze. Every floor now pays <strong>💎 shards</strong> — more the faster you answer, less if you take a wrong door. Walk out to keep the lot; die down there and the dungeon keeps 30%.</p>
       </div>
-      <a class="action-btn" href="/infinity/infinity.html" style="display:inline-block; text-align:center; text-decoration:none;">Enter Infinity Mode →</a>
+      <a class="action-btn" href="/infinity/infinity.html" style="display:inline-block; text-align:center; text-decoration:none;">Enter the dungeon →</a>
     </div>
 
     <!-- ── Paper Crane hints (only visible when the student holds the role) ── -->
@@ -849,6 +849,18 @@
     <strong>Heads up:</strong> You can't give yourself points directly — camp instructors award points based on class participation, perfect scores, and other in-person activities. Ask your instructor if you're wondering how to earn more!
   </div>
 
+  <!-- Dungeon: shop, inventory, receipts and the tax return. Mounted by
+       dungeon-shop.js, and hidden entirely until the dungeon is unlocked. -->
+  <div class="tx-panel" id="dungeon-section" style="display:none;">
+    <div class="tx-panel-head">
+      <div>
+        <div class="label">The Dungeon</div>
+        <div class="name">💎 Shards, gear &amp; your tax return</div>
+      </div>
+    </div>
+    <div id="dungeon-panel"></div>
+  </div>
+
   <!-- My Roles (read-only, only you + admin can see these) -->
   <div class="roles-panel" id="roles-panel" style="display:none;">
     <!-- Filled by JS -->
@@ -880,6 +892,8 @@
 <div class="toast" id="toast"></div>
 
 <script src="/icons.js"></script>
+<script src="/dungeon-icons.js"></script>
+<script src="/dungeon-shop.js"></script>
 <script src="/students-data.js"></script>
 <script>
 // Visiting this public page ends any active admin session.
@@ -1125,6 +1139,21 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderInfinityCard(s);
     renderContribCard(s);
     renderPointLog(s);
+    renderDungeon(s);
+  }
+
+  /* ─── Dungeon: shop, inventory, receipts, tax ─── */
+  let dungeonMounted = false;
+  function renderDungeon(s) {
+    const sec = document.getElementById('dungeon-section');
+    if (!sec) return;
+    // Same gate as the dungeon card: it appears once the door maze is beaten.
+    const beaten = !!(s.extras && (s.extras.doorsRewarded || s.extras.doorsCompleted >= 1))
+      || !!(s.doorsRewarded || (s.doorsCompleted || 0) >= 1);
+    sec.style.display = beaten ? '' : 'none';
+    if (!beaten || dungeonMounted || !window.DungeonShop) return;
+    dungeonMounted = true;
+    window.DungeonShop.mount().catch(() => { dungeonMounted = false; });
   }
 
   /* ─── Point log — every point in and out, newest first ─── */

@@ -35,7 +35,11 @@ CREATE TABLE IF NOT EXISTS students (
   -- Accounts start frozen on fresh installs. Admins unfreeze a student
   -- from the staff/admin-students.html page once the $75 e-Transfer
   -- payment for the camp has been confirmed.
-  frozen          INTEGER NOT NULL DEFAULT 1
+  frozen          INTEGER NOT NULL DEFAULT 1,
+  -- Dungeon economy. inventory is [{id, qty}] of everything owned but not
+  -- worn; equipped is {slot: itemId}.
+  inventory       TEXT NOT NULL DEFAULT '[]',
+  equipped        TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_students_email ON students(studentEmail);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(classId);
@@ -391,3 +395,59 @@ VALUES ('highergradereportcard', 'Higher Grade Report Card', 0.15, 1, 0, strftim
 
 -- Registration settings: registration is open by default
 INSERT OR IGNORE INTO meta (key, value) VALUES ('reg_tier', 'open');
+
+-- ── Dungeon economy ──────────────────────────────────────────────────
+-- Every taxable event writes a receipt. Students add these up to file a
+-- return and reclaim the 13% withheld, which is the whole point of the
+-- exercise, so the ledger has to be complete and immutable.
+CREATE TABLE IF NOT EXISTS receipts (
+  id          TEXT PRIMARY KEY,
+  studentId   TEXT NOT NULL,
+  at          INTEGER NOT NULL,          -- unix ms
+  kind        TEXT NOT NULL,             -- earning | purchase | conversion | refund
+  description TEXT NOT NULL,
+  gross       INTEGER NOT NULL,
+  tax         INTEGER NOT NULL,
+  net         INTEGER NOT NULL,
+  reclaimed   INTEGER NOT NULL DEFAULT 0 -- 1 once a filing has refunded this tax
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_student ON receipts(studentId, at);
+CREATE INDEX IF NOT EXISTS idx_receipts_open ON receipts(studentId, reclaimed);
+
+-- One filing attempt. Wrong answers are kept too — the retry history is
+-- what shows a student whether they're getting closer.
+CREATE TABLE IF NOT EXISTS tax_filings (
+  id         TEXT PRIMARY KEY,
+  studentId  TEXT NOT NULL,
+  at         INTEGER NOT NULL,
+  claimed    INTEGER NOT NULL,           -- what the student totalled up
+  owed       INTEGER NOT NULL,           -- what was actually withheld
+  correct    INTEGER NOT NULL,
+  refunded   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_filings_student ON tax_filings(studentId, at);
+
+-- A dungeon run. Server-authoritative: it holds the clock the speed
+-- multiplier is measured against and which door is actually correct, so
+-- neither can be edited from the browser.
+CREATE TABLE IF NOT EXISTS dungeon_runs (
+  id          TEXT PRIMARY KEY,
+  studentId   TEXT NOT NULL,
+  startedAt   INTEGER NOT NULL,
+  endedAt     INTEGER,
+  outcome     TEXT,                      -- alive | dead
+  floor       INTEGER NOT NULL DEFAULT 1,
+  deepest     INTEGER NOT NULL DEFAULT 1,
+  hp          INTEGER NOT NULL,
+  maxHp       INTEGER NOT NULL,
+  escrow      INTEGER NOT NULL DEFAULT 0,-- banked on exit: 100% alive, 70% dead
+  floorStart  INTEGER,                   -- unix ms, drives the 10-minute boot
+  questionAt  INTEGER,                   -- unix ms the question became visible
+  questionId  TEXT,
+  correctSide TEXT,                      -- 'L' | 'R', never sent to the client
+  wrongCount  INTEGER NOT NULL DEFAULT 0,-- wrong clicks on the CURRENT floor
+  earringUsed INTEGER NOT NULL DEFAULT 0,
+  bowDrawn    INTEGER NOT NULL DEFAULT 0,
+  arrowType   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_runs_student ON dungeon_runs(studentId, startedAt);

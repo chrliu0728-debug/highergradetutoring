@@ -1,279 +1,500 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Infinity Mode — HigherGrade Tutoring</title>
-  <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/webp" href="/logo.webp" />
-  <link rel="stylesheet" href="/style.css" />
-  <style>
-    body {
-      background: linear-gradient(135deg, #0E1733 0%, #2A2447 50%, #4A1B6E 100%);
-      color: #FAF0E0;
-      min-height: 100vh;
-      font-family: 'Inter', system-ui, sans-serif;
-      margin: 0;
-    }
-    body::before {
-      content: ''; position: fixed; inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(circle at 20% 30%, rgba(167,139,250,.30) 0%, transparent 40%),
-        radial-gradient(circle at 80% 70%, rgba(236,72,153,.22) 0%, transparent 38%);
-    }
-    .wrap {
-      position: relative; z-index: 1;
-      min-height: 100vh;
-      display: flex; align-items: center; justify-content: center;
-      padding: 30px 20px;
-    }
-    .card {
-      width: min(560px, 96vw);
-      background: rgba(20, 14, 40, 0.88);
-      border: 1px solid rgba(167,139,250,0.28);
-      border-radius: 18px;
-      padding: 32px 32px 28px;
-      box-shadow: 0 28px 56px rgba(0,0,0,0.55);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    .head {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .head .infinity {
-      font-size: 2rem; line-height: 1;
-      filter: drop-shadow(0 0 10px rgba(167,139,250,.55));
-    }
-    .head .points {
-      background: rgba(232, 196, 90, 0.16);
-      border: 1px solid rgba(232, 196, 90, 0.4);
-      color: #E8C45A;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-weight: 700; font-size: .82rem;
-    }
-    h1 { font-size: 1.4rem; margin: 0 0 4px; }
-    .lede { font-size: .88rem; color: rgba(250, 240, 224, 0.68); margin: 0 0 22px; line-height: 1.55; }
-    .qmeta {
-      font-size: .68rem; text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: rgba(167, 139, 250, 0.85);
-      margin-bottom: 6px;
-    }
-    .qtext {
-      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
-      font-size: 1.4rem; font-weight: 600;
-      margin-bottom: 18px;
-      word-wrap: break-word;
-      min-height: 56px;
-    }
-    .doors {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    .door {
-      position: relative;
-      padding: 28px 16px;
-      border: 2px solid rgba(167, 139, 250, 0.35);
-      background: linear-gradient(180deg, rgba(109,40,217,0.20), rgba(46,16,101,0.40));
-      color: #FAF0E0;
-      border-radius: 14px;
-      cursor: pointer;
-      transition: transform .18s, box-shadow .18s, border-color .18s;
-      font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
-      font-size: 1.6rem; font-weight: 800;
-      text-align: center;
-      letter-spacing: 0.02em;
-    }
-    .door:hover {
-      transform: translateY(-3px);
-      border-color: rgba(236, 72, 153, 0.7);
-      box-shadow: 0 12px 28px rgba(109, 40, 217, 0.45);
-    }
-    .door:disabled, .door.locked {
-      cursor: default;
-      transform: none;
-      box-shadow: none;
-      opacity: 0.7;
-    }
-    .door.right-pick {
-      border-color: #6FE08A;
-      box-shadow: 0 0 0 3px rgba(111,224,138,0.2);
-      animation: door-glow .55s ease-out;
-    }
-    .door.wrong-pick {
-      border-color: #FFA0A0;
-      box-shadow: 0 0 0 3px rgba(255,160,160,0.2);
-      animation: door-shake .35s ease;
-    }
-    @keyframes door-glow {
-      0%   { box-shadow: 0 0 0 0 rgba(111,224,138,0.4); }
-      100% { box-shadow: 0 0 0 12px rgba(111,224,138,0); }
-    }
-    @keyframes door-shake {
-      0%, 100% { transform: translateX(0); }
-      25%      { transform: translateX(-6px); }
-      75%      { transform: translateX(6px); }
-    }
-    .feedback {
-      margin-top: 10px;
-      min-height: 1.2em;
-      font-size: .9rem; font-weight: 600;
-    }
-    .feedback.ok  { color: #6FE08A; }
-    .feedback.err { color: #FFA0A0; }
-    .meta-row {
-      display: flex; justify-content: space-between;
-      margin-top: 18px;
-      font-size: .78rem;
-      color: rgba(250, 240, 224, 0.55);
-      letter-spacing: 0.04em;
-    }
-    .meta-row a { color: rgba(232, 196, 90, 0.85); text-decoration: none; }
-    .meta-row a:hover { color: rgba(232, 196, 90, 1); }
-    .empty {
-      padding: 30px 0; text-align: center;
-      color: rgba(250, 240, 224, 0.65);
-      line-height: 1.5;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Dungeon — HigherGrade Tutoring</title>
+<link rel="icon" href="/logo.webp" />
+<style>
+  :root{
+    --ink:#E8F0F7; --dim:#93A4B8; --line:rgba(148,180,220,.20);
+    --panel:rgba(12,20,34,.82); --lime:#A3E635; --gem:#7DD3FC;
+    --red:#F87171; --gold:#FBBF24;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink);
+    background:
+      radial-gradient(1100px 700px at 50% -10%, #16304d 0%, transparent 62%),
+      radial-gradient(800px 600px at 12% 110%, #2a1840 0%, transparent 58%),
+      linear-gradient(180deg,#080d16,#050810);
+    min-height:100%; display:flex; flex-direction:column;
+  }
+  .wrap{flex:1; width:min(880px,94vw); margin:0 auto; padding:16px 0 40px;
+        display:flex; flex-direction:column; gap:14px}
+
+  /* ── HUD ── */
+  .hud{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+  .stat{background:var(--panel); border:1px solid var(--line); border-radius:14px;
+        padding:10px 12px; text-align:center;
+        -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
+  .stat .k{font-size:.62rem; text-transform:uppercase; letter-spacing:.13em;
+           color:var(--dim); font-weight:800}
+  .stat .v{font-size:1.35rem; font-weight:900; font-variant-numeric:tabular-nums;
+           line-height:1.15; margin-top:2px}
+  .stat.danger .v{color:var(--red)}
+  .hpbar{height:7px; border-radius:99px; background:rgba(248,113,113,.2);
+         overflow:hidden; margin-top:7px}
+  .hpbar i{display:block; height:100%; background:linear-gradient(90deg,#4ADE80,#22C55E);
+           transition:width .35s ease, background .35s ease}
+  .hpbar.hurt i{background:linear-gradient(90deg,#FBBF24,#F87171)}
+  .hpbar.crit i{background:linear-gradient(90deg,#F87171,#DC2626)}
+
+  /* ── Question + doors ── */
+  .room{background:var(--panel); border:1px solid var(--line); border-radius:20px;
+        padding:24px 22px; -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+        box-shadow:0 24px 70px rgba(0,0,0,.45)}
+  .eyebrow{font-size:.66rem; letter-spacing:.16em; text-transform:uppercase;
+           font-weight:800; color:var(--gem); text-align:center}
+  .q{font-size:clamp(1.15rem,3.2vw,1.7rem); font-weight:800; text-align:center;
+     margin:10px 0 6px; line-height:1.35; min-height:2.4em;
+     display:flex; align-items:center; justify-content:center}
+  .doors{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px}
+  .door{
+    position:relative; border:2px solid var(--line); border-radius:16px;
+    background:linear-gradient(180deg,rgba(30,48,74,.75),rgba(14,24,40,.75));
+    color:var(--ink); font:800 1.15rem/1.3 system-ui,sans-serif;
+    padding:30px 16px; cursor:pointer; min-height:110px;
+    transition:transform .12s ease, border-color .18s, box-shadow .18s;
+    overflow-wrap:anywhere;
+  }
+  .door:hover:not(:disabled){transform:translateY(-3px); border-color:var(--gem);
+    box-shadow:0 12px 34px rgba(125,211,252,.22)}
+  .door:disabled{cursor:default; opacity:.85}
+  .door.right{border-color:var(--lime); box-shadow:0 0 0 3px rgba(163,230,53,.22)}
+  .door.wrong{border-color:var(--red); box-shadow:0 0 0 3px rgba(248,113,113,.24);
+              animation:shake .34s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}
+                   75%{transform:translateX(7px)}}
+  .door small{display:block; font-size:.62rem; letter-spacing:.14em; color:var(--dim);
+              text-transform:uppercase; font-weight:800; margin-bottom:8px}
+
+  /* ── Window meter ── */
+  .meter{margin-top:16px; text-align:center}
+  .meter .lab{font-size:.68rem; color:var(--dim); letter-spacing:.1em;
+              text-transform:uppercase; font-weight:800}
+  .meter .mult{font-size:1.5rem; font-weight:900; font-variant-numeric:tabular-nums}
+  .meter .mult.hot{color:var(--gold)}
+  .track{height:6px; border-radius:99px; background:rgba(148,180,220,.16);
+         overflow:hidden; margin-top:6px}
+  .track i{display:block; height:100%; width:100%;
+           background:linear-gradient(90deg,var(--gold),var(--lime));
+           transform-origin:left center}
+
+  .fb{min-height:1.5em; text-align:center; font-weight:800; font-size:.95rem; margin-top:12px}
+  .fb.ok{color:var(--lime)} .fb.err{color:var(--red)} .fb.info{color:var(--gem)}
+
+  .row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px}
+  .btn{border:0; cursor:pointer; border-radius:99px; padding:11px 22px;
+       font:800 .9rem system-ui,sans-serif}
+  .btn-go{background:linear-gradient(135deg,var(--lime),#65A30D); color:#12280a}
+  .btn-out{background:rgba(148,180,220,.14); color:var(--ink);
+           border:1px solid var(--line)}
+  .btn-out:hover{border-color:var(--gem); color:var(--gem)}
+  .btn:disabled{opacity:.5; cursor:default}
+
+  .hint{font-size:.76rem; color:var(--dim); text-align:center; line-height:1.6}
+  .kbd{font:700 .72rem ui-monospace,Menlo,monospace; background:rgba(148,180,220,.14);
+       border:1px solid var(--line); border-radius:5px; padding:2px 6px}
+
+  /* ── Gate / overlay screens ── */
+  .screen{background:var(--panel); border:1px solid var(--line); border-radius:20px;
+          padding:30px 26px; text-align:center;
+          -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px)}
+  .screen h1{font-size:1.7rem; margin:0 0 8px; letter-spacing:-.02em}
+  .screen p{color:var(--dim); line-height:1.65; margin:0 auto 14px; max-width:52ch}
+  .picks{display:grid; grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
+         gap:10px; margin:16px 0}
+  .pick{background:rgba(148,180,220,.08); border:2px solid var(--line);
+        border-radius:14px; padding:14px 8px; cursor:pointer; color:var(--ink);
+        font:800 .8rem system-ui,sans-serif; text-align:center}
+  .pick:hover{border-color:var(--lime)}
+  .pick.sel{border-color:var(--lime); background:rgba(163,230,53,.14)}
+  .pick .bl{display:block; font-weight:600; font-size:.68rem; color:var(--dim);
+            margin-top:5px; line-height:1.4}
+  .toll{display:flex; justify-content:space-between; gap:12px; font-size:.86rem;
+        padding:7px 0; border-top:1px solid var(--line)}
+  .toll:first-child{border-top:0}
+  .toll b{font-variant-numeric:tabular-nums}
+  .ledger{max-width:340px; margin:14px auto 0; text-align:left}
+  .flash{position:fixed; inset:0; background:rgba(220,38,38,.34); pointer-events:none;
+         opacity:0; transition:opacity .1s}
+  .flash.on{opacity:1}
+  a.back{color:var(--dim); font-size:.82rem; text-decoration:none}
+  a.back:hover{color:var(--gem)}
+  @media(max-width:560px){
+    .hud{grid-template-columns:repeat(2,1fr)}
+    .doors{grid-template-columns:1fr}
+  }
+</style>
 </head>
 <body>
 
+<div class="flash" id="flash"></div>
 <div class="wrap">
-  <div class="card" id="card">
-    <div class="head">
-      <div class="infinity">∞</div>
-      <div class="points" id="points">+0 pts this session</div>
-    </div>
-    <h1>Infinity Mode</h1>
-    <p class="lede">Endless dungeon. Every answer (right or wrong) earns +6 points. Questions are added by the camp staff.</p>
+  <!-- Entry / death / summary screens all render here -->
+  <div id="screen"></div>
 
-    <div class="qmeta" id="qmeta">Question</div>
-    <div class="qtext" id="qtext">Loading…</div>
-    <div class="doors" id="doors">
-      <button class="door" id="door-l" data-side="L">—</button>
-      <button class="door" id="door-r" data-side="R">—</button>
+  <!-- The run -->
+  <div id="game" style="display:none">
+    <div class="hud">
+      <div class="stat"><div class="k">Floor</div><div class="v" id="s-floor">1</div></div>
+      <div class="stat" id="hp-stat">
+        <div class="k">Health</div><div class="v" id="s-hp">1000</div>
+        <div class="hpbar" id="hpbar"><i style="width:100%"></i></div>
+      </div>
+      <div class="stat"><div class="k">Carrying</div><div class="v" id="s-esc">0</div></div>
+      <div class="stat" id="clock-stat"><div class="k">Floor time</div><div class="v" id="s-clock">10:00</div></div>
     </div>
-    <div class="feedback" id="feedback"></div>
-    <div class="meta-row">
-      <span id="counter">Q 0</span>
-      <a href="/student-portal/student-portal.html">← Back to dashboard</a>
+
+    <div class="room" style="margin-top:14px">
+      <div class="eyebrow" id="eyebrow">Choose a door</div>
+      <div class="q" id="q">…</div>
+      <div class="doors">
+        <button class="door" id="dL"><small>Left door</small><span id="dLt">—</span></button>
+        <button class="door" id="dR"><small>Right door</small><span id="dRt">—</span></button>
+      </div>
+      <div class="meter">
+        <div class="lab">Reward multiplier</div>
+        <div class="mult" id="mult">×2.00</div>
+        <div class="track"><i id="track"></i></div>
+      </div>
+      <div class="fb" id="fb"></div>
+      <div class="row">
+        <button class="btn btn-out" id="leave">Leave with your shards</button>
+      </div>
+      <div class="hint" id="hint" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
 
+<script src="/dungeon-icons.js"></script>
 <script>
-const ptsEl   = document.getElementById('points');
-const qmeta   = document.getElementById('qmeta');
-const qtext   = document.getElementById('qtext');
-const doorL   = document.getElementById('door-l');
-const doorR   = document.getElementById('door-r');
-const fbEl    = document.getElementById('feedback');
-const counterEl = document.getElementById('counter');
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n || 0).toLocaleString();
+  const gem = s => `<span style="vertical-align:-2px">${window.DungeonIcons.shard(s || 14)}</span>`;
 
-let questions = [];
-let asked = 0;
-let earned = 0;
-let currentQ = null;
-
-async function ensureSignedIn() {
-  try {
-    const r = await fetch('/api/auth/me', { credentials: 'same-origin' });
-    const j = await r.json();
-    if (!j || j.kind !== 'student') {
-      window.location.replace('/student-portal/student-portal.html');
-      return false;
-    }
-    return true;
-  } catch (_) {
-    window.location.replace('/student-portal/student-portal.html');
-    return false;
-  }
-}
-
-async function loadQuestions() {
-  const r = await fetch('/api/infinity-questions');
-  const j = await r.json();
-  questions = (j && j.data) || [];
-}
-
-function pickQuestion() {
-  // Skip questions without a wrong answer (legacy rows from before this
-  // feature) so students never see a single-door choice.
-  const usable = questions.filter(q => (q.wrongAnswer || '').trim().length > 0);
-  if (!usable.length) return null;
-  return usable[Math.floor(Math.random() * usable.length)];
-}
-
-let leftIsCorrect = true;
-
-function renderQuestion() {
-  const q = questions.length ? pickQuestion() : null;
-  if (!q) {
-    qmeta.textContent = 'Empty bank';
-    qtext.textContent = "No infinity-mode questions with both choices yet. Check back later.";
-    doorL.disabled = true; doorR.disabled = true;
-    doorL.textContent = '—'; doorR.textContent = '—';
-    fbEl.className = 'feedback'; fbEl.textContent = '';
-    return;
-  }
-  currentQ = q;
-  leftIsCorrect = Math.random() < 0.5;
-  qmeta.textContent = `Question · #${asked + 1}`;
-  qtext.textContent = q.question;
-  doorL.textContent = leftIsCorrect ? q.answer : q.wrongAnswer;
-  doorR.textContent = leftIsCorrect ? q.wrongAnswer : q.answer;
-  doorL.disabled = false; doorR.disabled = false;
-  doorL.classList.remove('right-pick', 'wrong-pick');
-  doorR.classList.remove('right-pick', 'wrong-pick');
-  fbEl.className = 'feedback'; fbEl.textContent = '';
-}
-
-async function pickDoor(side) {
-  if (!currentQ) return;
-  if (doorL.disabled && doorR.disabled) return;
-  doorL.disabled = true; doorR.disabled = true;
-  const isCorrect = (side === 'L') ? leftIsCorrect : !leftIsCorrect;
-  const chosenEl  = (side === 'L') ? doorL : doorR;
-  chosenEl.classList.add(isCorrect ? 'right-pick' : 'wrong-pick');
-
-  // Award +6 server-side (every submitted answer earns).
-  try {
-    const r = await fetch('/api/students/me/infinity-answer', {
-      method: 'POST',
+  const api = async (path, body) => {
+    const r = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: '{}',
+      body: body === undefined ? undefined : JSON.stringify(body || {}),
     });
-    const j = await r.json();
-    if (j && j.ok) {
-      earned += (j.data && j.data.awarded) || 6;
-      ptsEl.textContent = `+${earned} pts this session`;
-    }
-  } catch (_) {}
+    let j = null;
+    try { j = await r.json(); } catch (_) {}
+    return { status: r.status, ok: r.ok && j && j.ok, data: (j && j.data) || null,
+             error: (j && j.error) || 'Something went wrong.' };
+  };
 
-  if (isCorrect) {
-    fbEl.className = 'feedback ok';
-    fbEl.textContent = '✅ Right door · +6';
-  } else {
-    fbEl.className = 'feedback err';
-    fbEl.textContent = `Wrong door (answer: ${currentQ.answer}) · +6 anyway`;
+  let run = null, me = null, q = null, askedAt = 0, answering = false;
+  let blurMs = 0, hiddenSince = null, raf = 0, clockTimer = 0;
+
+  /* The doubling window is a real deadline, so the tab going away shouldn't
+     silently burn it. We total the hidden time and hand it to the server,
+     which clamps it before crediting. */
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenSince = Date.now(); }
+    else if (hiddenSince) { blurMs += Date.now() - hiddenSince; hiddenSince = null; }
+  });
+  const activeMs = () => Math.max(0, Date.now() - askedAt - blurMs
+                                     - (hiddenSince ? Date.now() - hiddenSince : 0));
+
+  function speedMultiplier(t, w) {
+    if (t <= w) return 2.0;
+    const span = 150 - w;
+    if (span <= 0) return 0.5;
+    return Math.max(0.5, Math.min(2.0, 2.0 * Math.pow(0.25, (t - w) / span)));
   }
-  asked++;
-  counterEl.textContent = `Q ${asked}`;
-  setTimeout(renderQuestion, 950);
-}
 
-doorL.addEventListener('click', () => pickDoor('L'));
-doorR.addEventListener('click', () => pickDoor('R'));
+  /* ── Screens ─────────────────────────────────────────────────── */
+  function showScreen(html) {
+    $('game').style.display = 'none';
+    $('screen').style.display = '';
+    $('screen').innerHTML = html;
+  }
+  function showGame() {
+    // Empty it as well as hiding it — a stale entry/summary screen sitting
+    // in the DOM confuses anything that queries by class.
+    $('screen').innerHTML = '';
+    $('screen').style.display = 'none';
+    $('game').style.display = '';
+  }
 
-(async function init() {
-  if (!(await ensureSignedIn())) return;
-  await loadQuestions();
-  renderQuestion();
+  async function entryScreen(note) {
+    me = (await api('/api/students/me/dungeon')).data;
+    if (!me) { location.replace('/student-portal/student-portal.html'); return; }
+    const needStarter = !me.starterClaimed;
+    const cat = (await api('/api/dungeon/catalogue')).data;
+    const byId = Object.fromEntries((cat.items || []).map(i => [i.id, i]));
+
+    showScreen(`
+      ${note ? `<div class="fb info" style="margin-bottom:10px">${note}</div>` : ''}
+      <div class="screen">
+        <div class="eyebrow">The Dungeon</div>
+        <h1>Every floor pays ${gem(18)} shards</h1>
+        <p>Answer the question, take the right door. The faster you answer the more
+        you carry out — up to <b>double</b> inside the first couple of seconds, down to
+        <b>half</b> if you dawdle. A wrong door costs health <em>and</em> most of what
+        that floor was worth.</p>
+        <p>Nothing you earn is yours until you <b>walk out</b>. Die down there and
+        you'll limp back to your dashboard with <b>70%</b> of it.</p>
+        <div class="ledger">
+          <div class="toll"><span>Your shards</span><b>${gem()} ${fmt(me.shards)}</b></div>
+          <div class="toll"><span>Health</span><b>${fmt(me.gear.maxHp)} HP</b></div>
+          <div class="toll"><span>Doubling window</span><b>${me.gear.window.toFixed(2)}s</b></div>
+          <div class="toll"><span>Deepest floor</span><b>${fmt(me.deepest)}</b></div>
+        </div>
+        ${needStarter ? `
+          <p style="margin-top:18px"><b>Pick one piece of kit, free.</b> Everything
+          else is bought from the shop — gear only makes the run easier, it's never
+          required.</p>
+          <div class="picks" id="picks">
+            ${(cat.starterChoices || []).map(id => `
+              <button class="pick" data-pick="${id}">
+                ${window.DungeonIcons.item(id, 38)}
+                <div>${byId[id] ? byId[id].name : id}</div>
+                <span class="bl">${byId[id] ? byId[id].blurb : ''}</span>
+              </button>`).join('')}
+          </div>` : ''}
+        <div class="row">
+          <button class="btn btn-go" id="enter" ${needStarter ? 'disabled' : ''}>
+            ${needStarter ? 'Choose your kit first' : 'Enter the dungeon →'}
+          </button>
+          <a class="btn btn-out" href="/student-portal/student-portal.html"
+             style="text-decoration:none">Back to dashboard</a>
+        </div>
+      </div>`);
+
+    let picked = null;
+    document.querySelectorAll('[data-pick]').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('[data-pick]').forEach(x => x.classList.remove('sel'));
+        b.classList.add('sel');
+        picked = b.dataset.pick;
+        $('enter').disabled = false;
+        $('enter').textContent = 'Take it and enter →';
+      });
+    });
+    $('enter').addEventListener('click', async () => {
+      $('enter').disabled = true;
+      if (picked) {
+        const r = await api('/api/students/me/dungeon/starter', { itemId: picked });
+        if (!r.ok) { $('enter').disabled = false; return alert(r.error); }
+        // Wear it immediately — nobody wants to pick a sword and start bare.
+        const slot = (byId[picked] || {}).slot;
+        if (slot) await api('/api/students/me/dungeon/equip', { slot, itemId: picked });
+      }
+      const s = await api('/api/dungeon/run/start', {});
+      if (!s.ok) { $('enter').disabled = false; return alert(s.error); }
+      run = s.data;
+      showGame(); paintHud(); nextQuestion();
+    });
+  }
+
+  function summaryScreen(b, died) {
+    const lost = b.gross - b.kept;
+    showScreen(`
+      <div class="screen">
+        <div class="eyebrow" style="color:${died ? 'var(--red)' : 'var(--lime)'}">
+          ${died ? 'You died' : 'You made it out'}</div>
+        <h1>${died ? `Floor ${fmt(b.deepest)} got you` : `Floors 1–${fmt(b.deepest)} cleared`}</h1>
+        <p>${died
+          ? 'The dungeon keeps 30% of anything you were carrying. The rest limps home with you.'
+          : 'Everything you were carrying is banked, less the 13% withheld — file a return in your inventory to claim that back.'}</p>
+        <div class="ledger">
+          <div class="toll"><span>Carried</span><b>${gem()} ${fmt(b.gross)}</b></div>
+          ${died ? `<div class="toll"><span>Lost to the dungeon</span>
+            <b style="color:var(--red)">−${fmt(lost)}</b></div>` : ''}
+          <div class="toll"><span>Tax withheld (13%)</span>
+            <b style="color:var(--gold)">−${fmt(b.tax)}</b></div>
+          <div class="toll"><span>Banked</span><b style="color:var(--lime)">
+            ${gem()} ${fmt(b.net)}</b></div>
+          <div class="toll"><span>Balance</span><b>${gem()} ${fmt(b.shards)}</b></div>
+        </div>
+        <div class="row">
+          <a class="btn btn-out" href="/student-portal/student-portal.html"
+             style="text-decoration:none">Back to dashboard</a>
+          <button class="btn btn-go" id="again">Go again</button>
+        </div>
+      </div>`);
+    $('again').addEventListener('click', () => entryScreen(null));
+  }
+
+  /* ── HUD ─────────────────────────────────────────────────────── */
+  function paintHud() {
+    if (!run) return;
+    $('s-floor').textContent = fmt(run.floor);
+    $('s-hp').textContent = fmt(run.hp);
+    $('s-esc').innerHTML = gem() + ' ' + fmt(run.escrow);
+    const pct = Math.max(0, Math.min(100, (run.hp / run.maxHp) * 100));
+    const bar = $('hpbar');
+    bar.querySelector('i').style.width = pct + '%';
+    bar.className = 'hpbar' + (pct <= 25 ? ' crit' : pct <= 60 ? ' hurt' : '');
+    $('hp-stat').classList.toggle('danger', pct <= 25);
+    const g = run.gear || {};
+    $('hint').innerHTML =
+      `Window <b>${(g.window || 2).toFixed(2)}s</b> · shard bonus
+       <b>+${Math.round((g.shardBonus || 0) * 100)}%</b> · defense <b>${g.defense || 0}</b>
+       ${g.reveals ? '· <b>next question revealed</b>' : ''}
+       ${(run.gear && run.gear.capacity) ? '<br><span class="kbd">right-click</span> a door to draw your bow' : ''}`;
+  }
+
+  function startClock(deadline) {
+    clearInterval(clockTimer);
+    clockTimer = setInterval(async () => {
+      const left = deadline - Date.now();
+      if (left <= 0) {
+        clearInterval(clockTimer);
+        $('s-clock').textContent = '0:00';
+        const r = await api('/api/dungeon/run/skip', {});
+        if (r.ok) {
+          run.floor = r.data.floor;
+          feedback('info', '⏳ Ten minutes up — moved on to floor ' + r.data.floor +
+                           '. No shards for that one, but no scratches either.');
+          paintHud(); setTimeout(nextQuestion, 1400);
+        }
+        return;
+      }
+      const s = Math.floor(left / 1000);
+      $('s-clock').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      $('clock-stat').classList.toggle('danger', s <= 60);
+    }, 250);
+  }
+
+  function startMeter() {
+    cancelAnimationFrame(raf);
+    const w = (run.gear && run.gear.window) || 2;
+    const tick = () => {
+      const t = activeMs() / 1000;
+      const m = speedMultiplier(t, w);
+      $('mult').textContent = '×' + m.toFixed(2);
+      $('mult').classList.toggle('hot', t <= w);
+      $('track').style.transform = 'scaleX(' + ((m - 0.5) / 1.5).toFixed(4) + ')';
+      if (!answering) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  function feedback(cls, html) {
+    $('fb').className = 'fb ' + cls;
+    $('fb').innerHTML = html;
+  }
+
+  function hurtFlash() {
+    const f = $('flash');
+    f.classList.add('on');
+    setTimeout(() => f.classList.remove('on'), 120);
+  }
+
+  /* ── The loop ────────────────────────────────────────────────── */
+  async function nextQuestion() {
+    answering = false;
+    const r = await api('/api/dungeon/run/question', {});
+    if (!r.ok) { feedback('err', r.error); return; }
+    q = r.data;
+    askedAt = Date.now(); blurMs = 0; hiddenSince = document.hidden ? Date.now() : null;
+    $('eyebrow').textContent = 'Floor ' + q.floor + ' · choose a door';
+    $('q').textContent = q.question;
+    $('dLt').textContent = q.left;
+    $('dRt').textContent = q.right;
+    for (const d of [$('dL'), $('dR')]) {
+      d.disabled = false; d.classList.remove('right', 'wrong');
+    }
+    feedback('', '');
+    startMeter();
+    startClock(q.floorDeadline);
+  }
+
+  async function answer(side) {
+    if (answering || !q) return;
+    answering = true;
+    cancelAnimationFrame(raf);
+    $('dL').disabled = true; $('dR').disabled = true;
+    const chosen = side === 'L' ? $('dL') : $('dR');
+
+    const r = await api('/api/dungeon/run/answer', { side, blurMs: Math.round(blurMs) });
+    if (!r.ok) { feedback('err', r.error); answering = false; return; }
+    const d = r.data;
+    chosen.classList.add(d.correct ? 'right' : 'wrong');
+
+    if (d.correct) {
+      run.floor = d.floor; run.escrow = d.escrow; run.hp = d.hp;
+      let msg = `✅ +${gem()} <b>${fmt(d.gained)}</b> · ×${d.speed.toFixed(2)} for ${d.elapsed}s`;
+      if (d.found) msg += `<br>🍀 You spot something in the rubble — <b>+${fmt(d.found)}</b>`;
+      if (d.proc === 'shards') msg += '<br>🎯 Drill needle bit deep — 10% extra';
+      feedback('ok', msg);
+      paintHud();
+      setTimeout(nextQuestion, 1050);
+      return;
+    }
+
+    // Wrong door.
+    hurtFlash();
+    run.escrow = d.escrow; run.hp = d.hp;
+    let msg = d.blocked
+      ? `🛡 Wrong door — but your ${d.blocked === 'luck' ? 'luck' :
+          d.blocked === 'evade' ? 'shield' : 'gear'} ate the hit`
+      : `❌ Wrong door · −${fmt(d.damage)} HP`;
+    if (d.lost) msg += ` · −${gem()} ${fmt(d.lost)}`;
+    if (d.earringUsed) msg += '<br>💠 Your earring shattered and kept you standing';
+    if (d.proc === 'damage') msg += '<br>🎯 Drill needle softened the blow';
+    feedback('err', msg);
+    paintHud();
+
+    if (d.death) {
+      clearInterval(clockTimer);
+      setTimeout(() => summaryScreen(d.death, true), 1400);
+      return;
+    }
+    setTimeout(nextQuestion, 1300);
+  }
+
+  $('dL').addEventListener('click', () => answer('L'));
+  $('dR').addEventListener('click', () => answer('R'));
+
+  // Right-click a door to draw the bow — the bonus lands on the next room.
+  for (const d of [$('dL'), $('dR')]) {
+    d.addEventListener('contextmenu', async e => {
+      e.preventDefault();
+      const r = await api('/api/dungeon/run/draw', {});
+      if (!r.ok) return feedback('info', r.error);
+      feedback('info', r.data.drawn
+        ? `🏹 Drawn with a ${r.data.name} — it fires on the next room`
+        : `🏹 ${r.data.reason}`);
+    });
+  }
+
+  $('leave').addEventListener('click', async () => {
+    if (!run) return;
+    if (!confirm(`Leave now and bank ${run.escrow.toLocaleString()} shards?\n\n` +
+                 `You keep all of it if you walk out. Push on and you risk 30%.`)) return;
+    clearInterval(clockTimer);
+    const r = await api('/api/dungeon/run/exit', {});
+    if (!r.ok) return alert(r.error);
+    summaryScreen(r.data, false);
+  });
+
+  /* ── Boot ────────────────────────────────────────────────────── */
+  (async function init() {
+    const who = await fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(r => r.json()).catch(() => null);
+    if (!who || who.kind !== 'student') {
+      location.replace('/student-portal/student-portal.html');
+      return;
+    }
+    // Reconnecting mid-run drops you back where you were, health and all.
+    const existing = await api('/api/dungeon/run');
+    if (existing.ok && existing.data) {
+      run = existing.data;
+      showGame(); paintHud(); nextQuestion();
+    } else {
+      entryScreen(null);
+    }
+  })();
 })();
 </script>
 <script src="/playtest.js"></script>
