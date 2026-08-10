@@ -15,6 +15,10 @@ import math
 SHARD_ICON            = "💎"
 SHARDS_PER_POINT      = 100     # cashing shards IN:  100 shards -> 1 point
 SHARDS_FROM_POINT     = 80      # cashing points OUT: 1 point   -> 80 shards
+# Every trip to the counter costs this, in points, on top of the rates and
+# the tax. Rates alone never stopped the round trip being worth doing at
+# volume — a flat fee does, because it doesn't scale with the amount.
+CONVERSION_FEE_POINTS = 150
 # The spread is intentional: a round trip loses 20%, so converting is a
 # decision rather than a free shuffle.
 

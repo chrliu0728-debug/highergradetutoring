@@ -473,17 +473,25 @@
 
   /* ── Convert ────────────────────────────────────────────────── */
   function convertBox() {
+    const fee = me.conversionFee || 0;
+    const done = !!me.cashedOut;
     return `
       <div class="dg-box">
         <h4>Exchange</h4>
-        <p class="dg-note">100 shards buy 1 point; 1 point buys 80 shards. Going
-        round the loop loses a fifth of it, so convert on purpose — and 13% tax is
-        withheld on whichever way you go.</p>
+        <p class="dg-note">100 shards buy 1 point; 1 point buys 80 shards, and 13%
+        tax is withheld whichever way you go. The counter charges a flat
+        <strong>${fmt(fee)} points</strong> per trade on top — so trading back and
+        forth costs you every time, and there's nothing to farm in the loop.</p>
+        <p class="dg-note"><strong>Cashing shards in happens once.</strong>
+        ${done
+          ? 'You\'ve already done it — your shards buy gear from here on.'
+          : 'When you take it, you take <em>all</em> of them at once, and the counter never buys shards from you again. Spend what you want on gear first.'}</p>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:10px">
-          <label style="flex:1;min-width:150px"><span class="dg-note">Amount</span>
+          <label style="flex:1;min-width:150px"><span class="dg-note">Points to spend</span>
             <input class="dg-in" id="dg-conv" type="number" min="1" step="1" placeholder="0" /></label>
-          <button class="dg-btn ghost" id="dg-s2p">Shards → points</button>
           <button class="dg-btn ghost" id="dg-p2s">Points → shards</button>
+          <button class="dg-btn ghost" id="dg-s2p" ${done ? 'disabled' : ''}>
+            ${done ? 'Already cashed out' : `Cash out all ${fmt(me.shards)} shards`}</button>
         </div>
         <div class="dg-msg" id="dg-conv-msg"></div>
       </div>`;
@@ -495,6 +503,14 @@
     if (!root) return;
     root.className = 'dg';
     const pip = me.openReceipts ? `<span class="pip">${me.openReceipts}</span>` : '';
+    // `barred` is the server's sentence on why this camper can't go in — the
+    // bag, the receipts and the tax return stay open either way, because
+    // losing access shouldn't lose you what you already earned or owe.
+    const shut = !!me.barred;
+    if (shut && (tab === 'shop')) tab = 'inv';
+    const tabs = shut ? [['inv', 'Inventory'], ['rec', 'Receipts'], ['tax', 'Tax' + pip]]
+                      : [['shop', 'Shop'], ['inv', 'Inventory'], ['rec', 'Receipts'],
+                         ['tax', 'Tax' + pip]];
     root.innerHTML = `
       <div class="dg-bal">
         <div><div class="dg-note">Shards</div>
@@ -503,12 +519,15 @@
           <div class="big" style="font-weight:900">${fmt(me.points)}</div></div>
         <div><div class="dg-note">Deepest floor</div>
           <div class="big" style="font-weight:900">${fmt(me.deepest)}</div></div>
-        <a class="dg-btn" href="/infinity/infinity.html" style="text-decoration:none">
-          ${me.activeRun ? 'Back into the dungeon →' : 'Enter the dungeon →'}</a>
+        ${shut ? '' : `<a class="dg-btn" href="/infinity/infinity.html" style="text-decoration:none">
+          ${me.activeRun ? 'Back into the dungeon →' : 'Enter the dungeon →'}</a>`}
       </div>
+      ${shut ? `<div class="dg-box" style="border-color:rgba(185,28,28,.4)">
+        <h4>🚧 The dungeon is closed</h4>
+        <p class="dg-note">${esc(me.barred)} Your bag, your receipts and your tax
+        return are all still here.</p></div>` : ''}
       <div class="dg-tabs">
-        ${[['shop', 'Shop'], ['inv', 'Inventory'], ['rec', 'Receipts'],
-           ['tax', 'Tax' + pip]].map(([k, l]) =>
+        ${tabs.map(([k, l]) =>
           `<button class="dg-tab ${tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}
       </div>
       ${tab === 'shop' ? convertBox() + shopView()
@@ -610,15 +629,19 @@
     const conv = root.querySelector('#dg-conv');
     const doConv = async direction => {
       const msg = root.querySelector('#dg-conv-msg');
-      const amount = parseInt(conv.value, 10);
-      if (!amount || amount < 1) {
+      const fee = me.conversionFee || 0;
+      // Cashing out isn't an amount — it's all of them, once. Only the
+      // points→shards direction reads the box.
+      const cashOut = direction === 'shards-to-points';
+      const amount = cashOut ? me.shards : parseInt(conv.value, 10);
+      if (!cashOut && (!amount || amount < 1)) {
         msg.className = 'dg-msg err'; msg.textContent = 'Enter an amount first.'; return;
       }
-      const preview = direction === 'shards-to-points'
-        ? `${fmt(amount)} shards → about ${fmt(Math.floor(amount / 100))} points before tax`
+      const preview = cashOut
+        ? `All ${fmt(me.shards)} of your shards → about ${fmt(Math.floor(me.shards / 100))} points before tax.\n\nThis is the only time you can do it.`
         : `${fmt(amount)} points → ${fmt(amount * 80)} shards before tax`;
-      if (!confirm(`${preview}\n\n13% is withheld on the way through, and converting ` +
-                   `back again loses a fifth. Go ahead?`)) return;
+      if (!confirm(`${preview}\n\n13% is withheld on the way through, and the counter ` +
+                   `charges ${fmt(fee)} points to trade. Go ahead?`)) return;
       const r = await api('/api/students/me/dungeon/convert', { direction, amount });
       if (!r.ok) { msg.className = 'dg-msg err'; msg.textContent = r.error; return; }
       await refresh(); render();
@@ -626,6 +649,7 @@
       if (m2) {
         m2.className = 'dg-msg ok';
         m2.textContent = `Done — gross ${fmt(r.data.gross)}, tax ${fmt(r.data.tax)}, ` +
+                         `counter fee ${fmt(r.data.fee || 0)} pts, ` +
                          `you received ${fmt(r.data.net)}.`;
       }
     };

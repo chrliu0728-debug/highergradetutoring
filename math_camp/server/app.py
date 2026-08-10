@@ -20,6 +20,7 @@ from flask import Flask, g, jsonify, request, make_response
 
 import crypto
 import dungeon
+import floors
 import stripe_pay
 from db import (
     connect, init_db,
@@ -235,6 +236,8 @@ def default_stats():
         "bathroomVisits": 0, "badWords": 0,
         "clickerClicks": 0, "clickerPointsEarned": 0, "spiderShown": False,
         "shards": 0, "luckSpent": 0,
+        # The shards→points cash-out is once per camper, all of it at once.
+        "cashedOut": False,
     }
 
 
@@ -1838,6 +1841,29 @@ def register_routes(app):
     def _wallet(row):
         return {**default_stats(), **json.loads(row["stats"] or "{}")}
 
+    def _extras(row):
+        try:
+            e = json.loads(row["extras"] or "{}")
+            return e if isinstance(e, dict) else {}
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _dungeon_barred(row):
+        """Why this camper can't be in the dungeon right now, or None.
+
+        Access is its own flag rather than a reading of the maze history.
+        Staff need to be able to take the dungeon away without also
+        un-completing the door maze — `doorsRewarded` is what stops a
+        second claim of the maze's points, so clearing it to lock someone
+        out would hand them the reward again."""
+        e = _extras(row)
+        if e.get("dungeonBanned"):
+            return "The dungeon is closed to you right now — ask a camp instructor."
+        beaten = bool(e.get("doorsRewarded")) or int(e.get("doorsCompleted") or 0) >= 1
+        if not beaten:
+            return "Finish the door maze first — the dungeon is behind it."
+        return None
+
     def _save_stats(sid, stats):
         g.db.execute("UPDATE students SET stats = ? WHERE id = ?",
                      (json.dumps(stats), sid))
@@ -1861,25 +1887,35 @@ def register_routes(app):
         return out
 
     def _save_inventory(sid, owned_map, equipped):
-        inv = [{"id": k, "qty": v} for k, v in sorted(owned_map.items()) if v > 0]
+        """Write the split. `owned_map` is TOTAL ownership — the same shape
+        `_owned` returns, inventory plus whatever is worn — and the equipped
+        copies are taken back out here before the loose inventory is stored.
+
+        Doing the subtraction at the single place that writes is the whole
+        point. Callers used to hand `_owned(row)` straight back in, which
+        counts an equipped helmet once for the slot and once for the bag; on
+        every buy, every starter pick and every answered door in the dungeon
+        the worn gear was written into the inventory again, so a run cloned a
+        camper's whole loadout one floor at a time."""
+        equipped = equipped or {}
+        loose = dict(owned_map)
+        for worn in equipped.values():
+            if worn in loose:
+                loose[worn] -= 1
+        inv = [{"id": k, "qty": v} for k, v in sorted(loose.items()) if v > 0]
         g.db.execute("UPDATE students SET inventory = ?, equipped = ? WHERE id = ?",
                      (json.dumps(inv), json.dumps(equipped), sid))
 
     def _grant_items(sid, row, additions):
         """Drop items straight into a camper's bag, no shop involved.
 
-        `_owned` folds equipped gear back in with the loose inventory, so the
-        worn copies are subtracted again before the split is written —
-        otherwise granting anything would also clone whatever is equipped
-        into the bag."""
+        `_save_inventory` takes total ownership and splits off what's worn,
+        so the additions go on top of `_owned` untouched."""
         equipped = json.loads(row["equipped"] or "{}") or {}
         owned = _owned(row)
         for item_id, qty in additions.items():
             owned[item_id] = owned.get(item_id, 0) + int(qty)
-        for worn in equipped.values():
-            if worn in owned:
-                owned[worn] -= 1
-        _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+        _save_inventory(sid, owned, equipped)
 
     def _receipt(sid, kind, description, gross, tax, net, reclaimed=0):
         rid = "rcpt-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
@@ -1973,6 +2009,11 @@ def register_routes(app):
                              if stats.get("luck", 0) < dungeon.LUCK_MAX else None),
             "luckMax": dungeon.LUCK_MAX,
             "luckEffectiveness": dungeon.luck_effectiveness(stats.get("luck", 0)),
+            "cashedOut": bool(stats.get("cashedOut")),
+            "conversionFee": dungeon.CONVERSION_FEE_POINTS,
+            # The bag stays readable when the dungeon is closed — losing
+            # access shouldn't lose you the things you already earned.
+            "barred": _dungeon_barred(row),
             "inventory": inv, "equipped": equipped, "owned": owned,
             "gear": {k: v for k, v in gear.items() if k != "items"},
             "starterClaimed": bool(extras.get("dungeonStarterClaimed")),
@@ -1996,6 +2037,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            barred = _dungeon_barred(row)
+            if barred:
+                return jsonify(ok=False, error=barred), 403
             extras = json.loads(row["extras"] or "{}")
             if extras.get("dungeonStarterClaimed"):
                 return jsonify(ok=False, error="You've already taken your free pick."), 400
@@ -2033,6 +2077,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            barred = _dungeon_barred(row)
+            if barred:
+                return jsonify(ok=False, error=barred), 403
             owned = _owned(row)
             if it["tier"] == "intermediate":
                 dr = g.db.execute(
@@ -2099,12 +2146,9 @@ def register_routes(app):
                 equipped[slot] = item_id
             else:
                 equipped.pop(slot, None)
-            owned = _owned(row)
-            # _owned counts equipped items, so recompute the split cleanly.
-            for s, i in equipped.items():
-                if i in owned:
-                    owned[i] -= 1
-            _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+            # _owned is total ownership; _save_inventory splits off the worn
+            # copies against the equipped map we just changed.
+            _save_inventory(sid, _owned(row), equipped)
             gear = dungeon.loadout(equipped, _wallet(row).get("luck", 0))
         return jsonify(ok=True, data={"equipped": equipped,
                                       "gear": {k: v for k, v in gear.items()
@@ -2114,25 +2158,52 @@ def register_routes(app):
     @require_student
     @block_when_frozen
     def dungeon_convert():
-        """Shards ⇄ points. The 20% round-trip loss is shown before the
-        student confirms; this just enforces it."""
+        """Shards ⇄ points, across a counter that charges to be used.
+
+        Two rules keep the counter from being a machine you can run in a
+        loop. Every conversion, either direction, costs a flat
+        CONVERSION_FEE_POINTS up front — flat, so it doesn't scale away at
+        volume the way a percentage does. And cashing shards in is a
+        once-ever, all-of-it decision: `stats.cashedOut` is the receipt, and
+        the amount isn't the camper's to choose. Shards go one way after
+        that, which is the direction the dungeon pays in anyway."""
         d = request.get_json(silent=True) or {}
         direction = (d.get("direction") or "").strip()
         try:
             amount = int(d.get("amount") or 0)
         except (TypeError, ValueError):
             return jsonify(ok=False, error="Enter a whole number."), 400
-        if amount <= 0:
-            return jsonify(ok=False, error="Enter an amount above zero."), 400
         sid = g.session["studentId"]
+        fee = dungeon.CONVERSION_FEE_POINTS
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            barred = _dungeon_barred(row)
+            if barred:
+                return jsonify(ok=False, error=barred), 403
             stats = _wallet(row)
+            have_pts = int(stats.get("privatePoints", 0))
+            if direction not in ("shards-to-points", "points-to-shards"):
+                return jsonify(ok=False, error="Pick a direction."), 400
+            if have_pts < fee:
+                return jsonify(
+                    ok=False,
+                    error=(f"The counter charges {fee:,} points to trade, and you "
+                           f"have {have_pts:,}."),
+                ), 400
+
             if direction == "shards-to-points":
-                if stats.get("shards", 0) < amount:
-                    return jsonify(ok=False, error="You don't have that many shards."), 400
+                if stats.get("cashedOut"):
+                    return jsonify(
+                        ok=False,
+                        error="You've already cashed your shards in. That one only "
+                              "happens once — shards buy gear from here on.",
+                    ), 400
+                # All of them, whatever the browser asked for.
+                amount = int(stats.get("shards", 0))
+                if amount <= 0:
+                    return jsonify(ok=False, error="You have no shards to cash in."), 400
                 pts, spent = dungeon.shards_to_points(amount)
                 if pts <= 0:
                     return jsonify(
@@ -2142,33 +2213,48 @@ def register_routes(app):
                     ), 400
                 net, tax = dungeon.split_tax(pts)
                 stats["shards"] -= spent
-                stats["privatePoints"] = stats.get("privatePoints", 0) + net
+                # Fee first, then the proceeds — a camper who can't cover the
+                # fee never gets here, so this can't push anyone negative.
+                stats["privatePoints"] = have_pts - fee + net
                 stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + net
+                stats["cashedOut"] = True
                 _save_stats(sid, stats)
                 rid = _receipt(sid, "conversion",
-                               f"Converted {spent:,} shards → {pts:,} points", pts, tax, net)
+                               f"Cashed out {spent:,} shards → {pts:,} points"
+                               f" (−{fee:,} pt counter fee)", pts, tax, net)
                 _log_tx(type="earn", scope="student", subjectId=sid,
-                        subjectName=_full_name(row), amount=net,
-                        description=f"💎 {spent:,} shards → {net:,} pts (after {tax:,} tax)")
+                        subjectName=_full_name(row), amount=net - fee,
+                        description=(f"💎 cashed out {spent:,} shards → {net:,} pts"
+                                     f" (after {tax:,} tax, −{fee:,} fee)"))
                 return jsonify(ok=True, data={"gross": pts, "tax": tax, "net": net,
+                                              "fee": fee, "cashedOut": True,
                                               "shards": stats["shards"],
                                               "points": stats["privatePoints"],
                                               "receiptId": rid})
             if direction == "points-to-shards":
-                if stats.get("privatePoints", 0) < amount:
-                    return jsonify(ok=False, error="You don't have that many points."), 400
+                if amount <= 0:
+                    return jsonify(ok=False, error="Enter an amount above zero."), 400
+                if have_pts - fee < amount:
+                    return jsonify(
+                        ok=False,
+                        error=(f"That's {amount:,} points plus the {fee:,}-point "
+                               f"counter fee, and you have {have_pts:,}."),
+                    ), 400
                 gross = dungeon.points_to_shards(amount)
                 net, tax = dungeon.split_tax(gross)
-                stats["privatePoints"] -= amount
+                stats["privatePoints"] = have_pts - fee - amount
                 stats["shards"] = stats.get("shards", 0) + net
                 _save_stats(sid, stats)
                 rid = _receipt(sid, "conversion",
-                               f"Converted {amount:,} points → {gross:,} shards",
+                               f"Converted {amount:,} points → {gross:,} shards"
+                               f" (−{fee:,} pt counter fee)",
                                gross, tax, net)
                 _log_tx(type="spend", scope="student", subjectId=sid,
-                        subjectName=_full_name(row), amount=-amount,
-                        description=f"💎 {amount:,} pts → {net:,} shards (after {tax:,} tax)")
+                        subjectName=_full_name(row), amount=-(amount + fee),
+                        description=(f"💎 {amount:,} pts → {net:,} shards"
+                                     f" (after {tax:,} tax, −{fee:,} fee)"))
                 return jsonify(ok=True, data={"gross": gross, "tax": tax, "net": net,
+                                              "fee": fee,
                                               "shards": stats["shards"],
                                               "points": stats["privatePoints"],
                                               "receiptId": rid})
@@ -2290,6 +2376,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            barred = _dungeon_barred(row)
+            if barred:
+                return jsonify(ok=False, error=barred), 403
             gear, _, _ = _gear_for(row)
             rid = "run-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
             now = int(time.time() * 1000)
@@ -2306,33 +2395,38 @@ def register_routes(app):
     @block_when_frozen
     def dungeon_run_question():
         """Serve the current floor's question. The server decides which door
-        is right and starts the clock — the browser is told neither."""
+        is right and starts the clock — the browser is told neither.
+
+        The floor generates its own Grade 9 question (see floors.py). It used
+        to draw from `infinity_questions`, which is the post-maze extra-practice
+        bank staff fill in by hand — so every floor of an endless dungeon asked
+        whatever few questions happened to be in there, and with one row in the
+        table that meant the same question all the way down. The units cycle
+        with depth now, so the descent walks the Grade 9 course."""
         sid = g.session["studentId"]
         with g.db:
             run = _active_run(sid)
             if not run:
                 return jsonify(ok=False, error="You're not in the dungeon."), 400
-            rows = g.db.execute(
-                "SELECT * FROM infinity_questions WHERE TRIM(wrongAnswer) <> ''"
-            ).fetchall()
-            if not rows:
-                return jsonify(ok=False,
-                               error="No questions in the bank yet — ask staff."), 503
-            q = rows[secrets.randbelow(len(rows))]
+            floor_no = int(run["floor"] or 1)
+            question, correct, wrong, unit_label = floors.generate(floor_no)
             left_correct = secrets.randbelow(2) == 0
             now = int(time.time() * 1000)
+            # questionId is only a ledger breadcrumb — the answer lives in
+            # correctSide, which is the only thing the resolve step checks.
             g.db.execute(
                 "UPDATE dungeon_runs SET questionAt = ?, questionId = ?, correctSide = ?"
                 " WHERE id = ?",
-                (now, q["id"], "L" if left_correct else "R", run["id"]))
+                (now, f"floor-{floor_no}", "L" if left_correct else "R", run["id"]))
             floor_start = run["floorStart"] or now
         row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
         gear, _, _ = _gear_for(row)
         cut = (1 - dungeon.damage_reduction(gear["defense"])) * (1 - gear["flatNegate"])
         return jsonify(ok=True, data={
-            "questionId": q["id"], "question": q["question"],
-            "left":  q["answer"] if left_correct else q["wrongAnswer"],
-            "right": q["wrongAnswer"] if left_correct else q["answer"],
+            "questionId": f"floor-{floor_no}", "question": question,
+            "unit": unit_label,
+            "left":  str(correct if left_correct else wrong),
+            "right": str(wrong if left_correct else correct),
             "floor": run["floor"], "askedAt": now,
             "floorDeadline": floor_start + dungeon.FLOOR_TIME_LIMIT_MS,
             "dangerFast": round(dungeon.wrong_door_damage(run["floor"], True) * cut),
@@ -2613,6 +2707,210 @@ def register_routes(app):
             "SELECT * FROM tax_filings WHERE studentId = ? ORDER BY at DESC LIMIT 50",
             (sid,)).fetchall()
         return jsonify(ok=True, data=[dict(r) for r in rows])
+
+    # ══ Dungeon administration ═════════════════════════════════════
+    # One screen for staff: who is in the dungeon economy, what they're
+    # carrying, and what their shard balance is. Everything here is
+    # admin-only and everything that moves shards writes to the ledger.
+
+    def _item_name(item_id):
+        it = dungeon.ITEMS.get(item_id)
+        return it["name"] if it else item_id
+
+    @app.route("/api/admin/dungeon/overview", methods=["GET"])
+    @require_admin
+    def admin_dungeon_overview():
+        """Every camper's shards, bag and dungeon standing, in one read."""
+        rows = g.db.execute("SELECT * FROM students ORDER BY firstName, lastName").fetchall()
+        deepest = {r["studentId"]: r["d"] for r in g.db.execute(
+            "SELECT studentId, MAX(deepest) AS d FROM dungeon_runs GROUP BY studentId"
+        ).fetchall()}
+        active = {r["studentId"] for r in g.db.execute(
+            "SELECT DISTINCT studentId FROM dungeon_runs WHERE endedAt IS NULL"
+        ).fetchall()}
+        owed = {r["studentId"]: (r["t"] or 0) for r in g.db.execute(
+            "SELECT studentId, SUM(tax) AS t FROM receipts WHERE reclaimed = 0"
+            " GROUP BY studentId"
+        ).fetchall()}
+        out = []
+        for row in rows:
+            stats = _wallet(row)
+            extras = _extras(row)
+            equipped = {}
+            try:
+                equipped = json.loads(row["equipped"] or "{}") or {}
+            except Exception:  # noqa: BLE001
+                equipped = {}
+            inv = []
+            try:
+                inv = json.loads(row["inventory"] or "[]") or []
+            except Exception:  # noqa: BLE001
+                inv = []
+            items = [{"id": e.get("id"), "name": _item_name(e.get("id")),
+                      "qty": int(e.get("qty") or 0),
+                      "quest": bool((dungeon.ITEMS.get(e.get("id")) or {}).get("quest"))}
+                     for e in inv if isinstance(e, dict) and e.get("id")]
+            worn = [{"slot": k, "id": v, "name": _item_name(v)}
+                    for k, v in equipped.items() if v]
+            beaten = (bool(extras.get("doorsRewarded"))
+                      or int(extras.get("doorsCompleted") or 0) >= 1)
+            out.append({
+                "id": row["id"],
+                "name": _full_name(row),
+                "frozen": bool(row["frozen"]),
+                "shards": int(stats.get("shards", 0)),
+                "points": int(stats.get("privatePoints", 0)),
+                "luck": int(stats.get("luck", 0)),
+                "cashedOut": bool(stats.get("cashedOut")),
+                "mazeBeaten": beaten,
+                "banned": bool(extras.get("dungeonBanned")),
+                "hasAccess": beaten and not extras.get("dungeonBanned"),
+                "deepest": int(deepest.get(row["id"]) or 0),
+                "inRun": row["id"] in active,
+                "unclaimedTax": int(owed.get(row["id"]) or 0),
+                "items": items,
+                "equipped": worn,
+                "itemCount": sum(i["qty"] for i in items) + len(worn),
+            })
+        return jsonify(ok=True, data={
+            "students": out,
+            "conversionFee": dungeon.CONVERSION_FEE_POINTS,
+        })
+
+    @app.route("/api/admin/dungeon/shards", methods=["POST"])
+    @require_admin
+    def admin_set_shards():
+        """Set or adjust one camper's shards.
+
+        `mode` is "set" or "add" — add takes a negative to remove. Balances
+        floor at zero rather than going negative, and every change lands on
+        the transaction log with the staff reason attached, because a shard
+        balance that moves with no paper trail is the thing staff will be
+        asked about later."""
+        d = request.get_json(silent=True) or {}
+        sid = (d.get("studentId") or "").strip()
+        mode = (d.get("mode") or "set").strip()
+        reason = (d.get("reason") or "").strip() or "Staff adjustment"
+        try:
+            amount = int(d.get("amount"))
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="Amount must be a whole number."), 400
+        if mode not in ("set", "add"):
+            return jsonify(ok=False, error="mode must be 'set' or 'add'."), 400
+        if abs(amount) > 100_000_000:
+            return jsonify(ok=False, error="That number is out of range."), 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            stats = _wallet(row)
+            before = int(stats.get("shards", 0))
+            after = max(0, amount if mode == "set" else before + amount)
+            stats["shards"] = after
+            _save_stats(sid, stats)
+            delta = after - before
+            _log_tx(type="admin_shards", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=0,
+                    description=(f"💎 Shards {before:,} → {after:,} "
+                                 f"({delta:+,}) · {reason}"))
+        return jsonify(ok=True, data={"studentId": sid, "before": before,
+                                      "after": after, "delta": delta})
+
+    @app.route("/api/admin/dungeon/access", methods=["POST"])
+    @require_admin
+    def admin_dungeon_access():
+        """Open or close the dungeon for one camper, or for everyone.
+
+        Closing sets extras.dungeonBanned and leaves the maze history
+        alone, so nobody gets to re-claim the maze reward on the way back
+        in. Any run currently in progress is banked as a walk-out rather
+        than deleted — the camper keeps what they'd earned to that point,
+        which is what they'd have got by leaving on their own."""
+        d = request.get_json(silent=True) or {}
+        allow = bool(d.get("allow"))
+        target = (d.get("studentId") or "").strip()
+        everyone = bool(d.get("everyone"))
+        if not target and not everyone:
+            return jsonify(ok=False, error="Name a student, or pass everyone."), 400
+        changed, banked = [], 0
+        with g.db:
+            if everyone:
+                rows = g.db.execute("SELECT * FROM students").fetchall()
+            else:
+                rows = g.db.execute("SELECT * FROM students WHERE id = ?",
+                                    (target,)).fetchall()
+                if not rows:
+                    return jsonify(ok=False, error="Student not found."), 404
+            for row in rows:
+                extras = _extras(row)
+                was = bool(extras.get("dungeonBanned"))
+                if was == (not allow):
+                    continue                      # already in the wanted state
+                if allow:
+                    extras.pop("dungeonBanned", None)
+                else:
+                    extras["dungeonBanned"] = True
+                g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                             (json.dumps(extras), row["id"]))
+                changed.append(row["id"])
+                if not allow:
+                    run = g.db.execute(
+                        "SELECT * FROM dungeon_runs WHERE studentId = ? AND endedAt IS NULL"
+                        " ORDER BY startedAt DESC LIMIT 1", (row["id"],)).fetchone()
+                    if run:
+                        _bank(row["id"], run, alive=True)
+                        banked += 1
+                _log_tx(type="role_assigned", scope="student", subjectId=row["id"],
+                        subjectName=_full_name(row), amount=0,
+                        description=("🗝 Dungeon access restored by staff" if allow
+                                     else "🚧 Dungeon access closed by staff"))
+        return jsonify(ok=True, data={"changed": len(changed), "banked": banked,
+                                      "allow": allow})
+
+    @app.route("/api/admin/dungeon/repair-inventories", methods=["POST"])
+    @require_admin
+    def admin_repair_inventories():
+        """Undo the duplication.
+
+        Every buy, starter pick and answered door used to write equipped
+        gear back into the loose inventory, so a run cloned a camper's
+        loadout a floor at a time. The fix is in _save_inventory; this
+        cleans up what the bug already wrote: anything currently worn is
+        dropped from the loose bag (it can't be in both), and anything
+        non-stackable is clamped to one. Stackable items — arrows — are
+        left alone, since a real stack of 80 is legitimate."""
+        fixed = []
+        with g.db:
+            for row in g.db.execute("SELECT * FROM students").fetchall():
+                try:
+                    inv = json.loads(row["inventory"] or "[]") or []
+                    equipped = json.loads(row["equipped"] or "{}") or {}
+                except Exception:  # noqa: BLE001
+                    continue
+                worn = {v for v in equipped.values() if v}
+                out, dropped = [], 0
+                for e in inv:
+                    if not isinstance(e, dict) or not e.get("id"):
+                        continue
+                    iid = e["id"]
+                    qty = int(e.get("qty") or 0)
+                    if qty <= 0:
+                        continue
+                    it = dungeon.ITEMS.get(iid) or {}
+                    if iid in worn:
+                        dropped += qty          # the worn copy is the only one
+                        continue
+                    if not it.get("stackable") and qty > 1:
+                        dropped += qty - 1
+                        qty = 1
+                    out.append({"id": iid, "qty": qty})
+                if dropped:
+                    g.db.execute("UPDATE students SET inventory = ? WHERE id = ?",
+                                 (json.dumps(sorted(out, key=lambda x: x["id"])), row["id"]))
+                    fixed.append({"id": row["id"], "name": _full_name(row),
+                                  "removed": dropped})
+        return jsonify(ok=True, data={"students": fixed,
+                                      "totalRemoved": sum(f["removed"] for f in fixed)})
 
     # ── Mini-game hints ────────────────────────────────────────────
     @app.route("/api/hints", methods=["GET"])

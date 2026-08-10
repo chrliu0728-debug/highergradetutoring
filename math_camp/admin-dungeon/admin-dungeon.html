@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dungeon Admin — HigherGrade Tutoring</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { background: var(--surface2); }
+
+    .gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+      padding: 20px;
+    }
+    .gate-box {
+      background: var(--surface); border-radius: 18px;
+      padding: 44px 36px; max-width: 400px; width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); text-align: center;
+    }
+    .gate-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .gate-box p  { font-size: .9rem; color: var(--muted); margin-bottom: 22px; }
+    .gate-box input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none; margin-bottom: 14px;
+    }
+    .gate-box input:focus { border-color: var(--blush); }
+    .gate-error { color: #c0392b; font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+
+    .admin-shell { display: none; max-width: 1240px; margin: 0 auto; padding: 30px 20px 60px; }
+    .admin-shell.unlocked { display: block; }
+
+    .admin-nav {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 8px; margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-nav a {
+      padding: 10px 16px; font-size: .9rem; font-weight: 600;
+      color: var(--text-mid); text-decoration: none; border-radius: 8px;
+      transition: background .15s, color .15s;
+    }
+    .admin-nav a:hover { background: var(--surface2); color: var(--text); }
+    .admin-nav a.active { background: var(--blush); color: white; }
+    .admin-nav .spacer { flex: 1; }
+
+    .admin-welcome {
+      display: flex; gap: 18px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px 28px; margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-welcome-icon { font-size: 2rem; }
+    .admin-welcome h1 { font-size: 1.3rem; margin-bottom: 2px; }
+    .admin-welcome p  { font-size: .92rem; color: var(--muted); margin: 0; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 22px 24px;
+      box-shadow: var(--shadow-sm); margin-bottom: 22px;
+    }
+    .panel h2 { font-size: 1.1rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .panel .panel-desc { font-size: .85rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+
+    /* Summary strip */
+    .dstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .dstat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow-sm);
+    }
+    .dstat .k { font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 800; }
+    .dstat .v { font-size: 1.35rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .toolbar input[type="search"] {
+      flex: 1; min-width: 190px; padding: 10px 13px; font-size: .92rem;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--surface2); outline: none;
+    }
+    .toolbar input[type="search"]:focus { border-color: var(--blush); background: white; }
+    .chip {
+      border: 1px solid var(--border); background: var(--surface);
+      border-radius: 99px; padding: 7px 14px; font-size: .78rem;
+      font-weight: 700; cursor: pointer; color: var(--muted);
+    }
+    .chip.on { background: var(--navy); color: white; border-color: transparent; }
+
+    .btn-sm {
+      border: 0; border-radius: 99px; padding: 7px 14px;
+      font-size: .78rem; font-weight: 800; cursor: pointer;
+      background: var(--navy); color: white; white-space: nowrap;
+    }
+    .btn-sm.ghost { background: none; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm.danger { background: #B91C1C; }
+    .btn-sm:disabled { opacity: .45; cursor: default; }
+
+    table.dtable { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    table.dtable th {
+      text-align: left; font-size: .64rem; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--muted); font-weight: 800;
+      padding: 8px 8px; border-bottom: 1.5px solid var(--border); white-space: nowrap;
+    }
+    table.dtable td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    table.dtable td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.dtable tr.barred { background: rgba(185,28,28,.045); }
+    .who { font-weight: 700; }
+    .tagline { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+    .tag {
+      font-size: .64rem; font-weight: 800; padding: 2px 7px; border-radius: 99px;
+      background: rgba(148,163,184,.22); color: #334155;
+    }
+    .tag.ok    { background: rgba(34,197,94,.18);  color: #15803d; }
+    .tag.warn  { background: rgba(251,191,36,.22); color: #92400e; }
+    .tag.bad   { background: rgba(185,28,28,.14);  color: #B91C1C; }
+    .tag.quest { background: rgba(163,230,53,.25); color: #3f6212; }
+
+    .bag { font-size: .78rem; color: var(--text-mid); line-height: 1.6; }
+    .bag .none { color: var(--muted); font-style: italic; }
+    .bag .worn { color: #0b5f80; font-weight: 700; }
+
+    .shardbox { display: flex; gap: 5px; align-items: center; }
+    .shardbox input {
+      width: 92px; padding: 6px 9px; font-size: .84rem;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      background: var(--surface2); outline: none; font-variant-numeric: tabular-nums;
+    }
+    .shardbox input:focus { border-color: var(--blush); background: white; }
+
+    .danger-zone { border-color: rgba(185,28,28,.4); background: rgba(185,28,28,.03); }
+    .msg { font-size: .85rem; font-weight: 700; margin-top: 10px; }
+    .msg.ok { color: #15803d; } .msg.err { color: #B91C1C; }
+    .empty { text-align: center; color: var(--muted); font-style: italic; padding: 26px; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--navy); color: white; padding: 12px 22px; border-radius: 99px;
+      font-size: .88rem; font-weight: 700; box-shadow: 0 12px 34px rgba(0,0,0,.3);
+      opacity: 0; transition: transform .25s, opacity .25s; z-index: 900;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    @media (max-width: 760px) {
+      table.dtable thead { display: none; }
+      table.dtable tr { display: block; border-bottom: 1px solid var(--border); padding: 10px 0; }
+      table.dtable td { display: block; border: 0; padding: 3px 4px; }
+      table.dtable td.num { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────── Passcode gate ─────────── -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <h1>🔒 Admin Access</h1>
+    <p>Enter passcode to manage the dungeon economy.</p>
+    <input type="password" id="passcode" placeholder="Passcode" autocomplete="off" autofocus />
+    <div class="gate-error" id="gate-error"></div>
+    <button class="btn btn-blue btn-full" id="unlock" style="justify-content:center;">Unlock →</button>
+    <p style="margin-top:18px;font-size:.78rem;color:var(--muted);">
+      <a href="/index.html" style="color:var(--muted);">← Back to site</a>
+    </p>
+  </div>
+</div>
+
+<div class="admin-shell" id="admin-shell">
+
+  <nav class="admin-nav">
+    <a href="/admin/admin.html">Staff</a>
+    <a href="/admin-students/admin-students.html">Students</a>
+    <a href="/admin-attendance/admin-attendance.html">Attendance</a>
+    <a href="/admin-base-stats/admin-base-stats.html">Base Stats</a>
+    <a href="/admin-transactions/admin-transactions.html">Transactions</a>
+    <a href="/admin-hints/admin-hints.html">Game</a>
+    <a href="/admin-dungeon/admin-dungeon.html" class="active">Dungeon</a>
+    <a href="/admin-trail/admin-trail.html">Trail</a>
+    <a href="/admin-sponsors/admin-sponsors.html">Sponsors</a>
+    <a href="/admin-registrations/admin-registrations.html">Registrations</a>
+    <a href="/admin-messages/admin-messages.html">Messages</a>
+    <a href="/leaderboard/leaderboard.html" target="_blank" rel="noopener">Leaderboard ↗</a>
+    <a href="#" data-playtest-start title="See the site exactly as a camper does, signed in as HGT TEST. Press Esc to come back.">🎮 Playtest</a>
+    <span class="spacer"></span>
+    <a href="/index.html" data-admin-logout>Log out</a>
+  </nav>
+
+  <div class="admin-welcome">
+    <div class="admin-welcome-icon">💎</div>
+    <div>
+      <h1>Dungeon</h1>
+      <p>Shard balances, what every camper is carrying, and who's allowed in.</p>
+    </div>
+  </div>
+
+  <div class="dstats" id="dstats"></div>
+
+  <!-- ── Access ── -->
+  <div class="panel danger-zone">
+    <h2>🚧 Access</h2>
+    <p class="panel-desc">
+      Closing the dungeon stops entry, the shop, the starter pick and the exchange.
+      It does <strong>not</strong> touch anyone's maze history, so nobody gets to
+      re-claim the maze reward on the way back in, and it does not take anyone's
+      bag away — inventories stay readable below. Anyone mid-run is banked as if
+      they'd walked out, so they keep what they'd earned.
+    </p>
+    <div class="toolbar">
+      <button class="btn-sm danger" id="close-all">Close the dungeon for everyone</button>
+      <button class="btn-sm ghost" id="open-all">Re-open for everyone</button>
+    </div>
+    <div class="msg" id="access-msg"></div>
+  </div>
+
+  <!-- ── Duplication repair ── -->
+  <div class="panel">
+    <h2>🧹 Inventory repair</h2>
+    <p class="panel-desc">
+      Clears out the copies left behind by the duplication bug: anything currently
+      worn is removed from the loose bag, and non-stackable gear is clamped to one.
+      Stacks of arrows are left alone. Safe to run more than once.
+    </p>
+    <button class="btn-sm ghost" id="repair">Sweep every inventory</button>
+    <div class="msg" id="repair-msg"></div>
+  </div>
+
+  <!-- ── The roster ── -->
+  <div class="panel">
+    <h2>🎒 Campers</h2>
+    <p class="panel-desc">
+      Shards are editable in place — type a number and pick <em>Set</em> or
+      <em>Add</em> (a negative number takes shards away). Every change lands on the
+      transaction log.
+    </p>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search by name…" />
+      <button class="chip on"  data-filter="all">Everyone</button>
+      <button class="chip"     data-filter="access">In the dungeon</button>
+      <button class="chip"     data-filter="barred">Closed out</button>
+      <button class="chip"     data-filter="carrying">Carrying something</button>
+      <button class="chip"     data-filter="shards">Has shards</button>
+    </div>
+    <div id="roster"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/students-data.js"></script>
+<script>
+/* ─────────── Passcode gate (server-validated) ─────────── */
+const gate      = document.getElementById('gate');
+const shell     = document.getElementById('admin-shell');
+const passInput = document.getElementById('passcode');
+const unlockBtn = document.getElementById('unlock');
+const gateError = document.getElementById('gate-error');
+
+async function unlock() {
+  const entered = (passInput.value || '').trim();
+  try {
+    const r = await fetch('/api/auth/admin/unlock', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: entered }),
+    });
+    if (r.ok) {
+      sessionStorage.setItem('hg_admin_unlocked', '1');
+      gate.style.display = 'none';
+      shell.classList.add('unlocked');
+      load();
+      return;
+    }
+  } catch (_) {}
+  gateError.textContent = 'Incorrect passcode. Try again — capitalization and spaces are ignored.';
+  passInput.value = '';
+  passInput.focus();
+}
+unlockBtn.addEventListener('click', unlock);
+passInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+// Optimistic-unlock — the API rejects anything unauthorised anyway, so a
+// stale flag shows an empty page rather than data.
+if (sessionStorage.getItem('hg_admin_unlocked') === '1') {
+  gate.style.display = 'none';
+  shell.classList.add('unlocked');
+  load();
+}
+
+/* ─────────── Data ─────────── */
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const fmt = n => Number(n || 0).toLocaleString();
+
+let rows = [], filter = 'all', query = '';
+
+const toast = document.getElementById('toast');
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body === undefined ? 'GET' : 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body || {}),
+  });
+  let j = null;
+  try { j = await r.json(); } catch (_) {}
+  return { ok: r.ok && j && j.ok, data: (j && j.data) || null,
+           error: (j && j.error) || 'Something went wrong.' };
+}
+
+async function load() {
+  const r = await api('/api/admin/dungeon/overview');
+  if (!r.ok) { document.getElementById('roster').innerHTML =
+    `<div class="empty">${esc(r.error)}</div>`; return; }
+  rows = r.data.students || [];
+  renderStats();
+  renderRoster();
+}
+
+function renderStats() {
+  const withAccess = rows.filter(s => s.hasAccess).length;
+  const barred     = rows.filter(s => s.banned).length;
+  const shards     = rows.reduce((a, s) => a + s.shards, 0);
+  const items      = rows.reduce((a, s) => a + s.itemCount, 0);
+  const inRun      = rows.filter(s => s.inRun).length;
+  document.getElementById('dstats').innerHTML = [
+    ['Campers',        fmt(rows.length)],
+    ['In the dungeon', fmt(withAccess)],
+    ['Closed out',     fmt(barred)],
+    ['Mid-run',        fmt(inRun)],
+    ['Shards in camp', fmt(shards)],
+    ['Items held',     fmt(items)],
+  ].map(([k, v]) => `<div class="dstat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function matches(s) {
+  if (query && !s.name.toLowerCase().includes(query)) return false;
+  if (filter === 'access')   return s.hasAccess;
+  if (filter === 'barred')   return s.banned;
+  if (filter === 'carrying') return s.itemCount > 0;
+  if (filter === 'shards')   return s.shards > 0;
+  return true;
+}
+
+function bagHtml(s) {
+  const bits = [];
+  s.equipped.forEach(e =>
+    bits.push(`<span class="worn">${esc(e.name)}</span> <span style="opacity:.6">(${esc(e.slot)})</span>`));
+  s.items.forEach(i =>
+    bits.push(`${esc(i.name)}${i.qty > 1 ? ' ×' + i.qty : ''}${i.quest ? ' <span class="tag quest">quest</span>' : ''}`));
+  return bits.length ? bits.join(' · ') : '<span class="none">empty</span>';
+}
+
+function renderRoster() {
+  const list = rows.filter(matches);
+  const root = document.getElementById('roster');
+  if (!list.length) { root.innerHTML = '<div class="empty">Nobody matches that.</div>'; return; }
+  root.innerHTML = `
+    <div style="overflow-x:auto"><table class="dtable">
+      <thead><tr>
+        <th>Camper</th><th class="num">Shards</th><th class="num">Points</th>
+        <th class="num">Deepest</th><th>Carrying</th><th>Shards</th><th>Access</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(s => `
+          <tr class="${s.banned ? 'barred' : ''}" data-id="${esc(s.id)}">
+            <td>
+              <div class="who">${esc(s.name)}</div>
+              <div class="tagline">
+                ${s.banned ? '<span class="tag bad">closed out</span>' : ''}
+                ${!s.mazeBeaten ? '<span class="tag">maze unfinished</span>' : ''}
+                ${s.inRun ? '<span class="tag warn">mid-run</span>' : ''}
+                ${s.cashedOut ? '<span class="tag">cashed out</span>' : ''}
+                ${s.frozen ? '<span class="tag bad">frozen</span>' : ''}
+                ${s.unclaimedTax ? `<span class="tag">${fmt(s.unclaimedTax)} tax open</span>` : ''}
+              </div>
+            </td>
+            <td class="num">${fmt(s.shards)}</td>
+            <td class="num">${fmt(s.points)}</td>
+            <td class="num">${fmt(s.deepest)}</td>
+            <td class="bag">${bagHtml(s)}</td>
+            <td>
+              <div class="shardbox">
+                <input type="number" step="1" placeholder="0" data-amt="${esc(s.id)}" />
+                <button class="btn-sm ghost" data-set="${esc(s.id)}">Set</button>
+                <button class="btn-sm ghost" data-add="${esc(s.id)}">Add</button>
+              </div>
+            </td>
+            <td>
+              <button class="btn-sm ${s.banned ? '' : 'ghost'}" data-access="${esc(s.id)}"
+                      data-allow="${s.banned ? '1' : '0'}">
+                ${s.banned ? 'Re-open' : 'Close'}</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  wireRoster(root);
+}
+
+function wireRoster(root) {
+  const amountFor = id => {
+    const el = root.querySelector(`[data-amt="${CSS.escape(id)}"]`);
+    const v = parseInt(el && el.value, 10);
+    return Number.isFinite(v) ? v : null;
+  };
+  const move = async (id, mode) => {
+    const amount = amountFor(id);
+    if (amount === null) { showToast('Type a number first.'); return; }
+    const who = (rows.find(r => r.id === id) || {}).name || 'this camper';
+    const what = mode === 'set' ? `set ${who}'s shards to ${fmt(amount)}`
+                                : `${amount < 0 ? 'take' : 'give'} ${fmt(Math.abs(amount))} shards ${amount < 0 ? 'from' : 'to'} ${who}`;
+    if (!confirm(`Really ${what}?`)) return;
+    const reason = prompt('Reason for the log:', 'Staff adjustment');
+    if (reason === null) return;
+    const r = await api('/api/admin/dungeon/shards', { studentId: id, mode, amount, reason });
+    if (!r.ok) { showToast(r.error); return; }
+    showToast(`${who}: ${fmt(r.data.before)} → ${fmt(r.data.after)} shards.`);
+    await load();
+  };
+  root.querySelectorAll('[data-set]').forEach(b =>
+    b.addEventListener('click', () => move(b.dataset.set, 'set')));
+  root.querySelectorAll('[data-add]').forEach(b =>
+    b.addEventListener('click', () => move(b.dataset.add, 'add')));
+  root.querySelectorAll('[data-access]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const allow = b.dataset.allow === '1';
+      const r = await api('/api/admin/dungeon/access', { studentId: b.dataset.access, allow });
+      if (!r.ok) { showToast(r.error); return; }
+      showToast(allow ? 'Dungeon re-opened.' : 'Dungeon closed.');
+      await load();
+    }));
+}
+
+/* ─────────── Filters ─────────── */
+document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-filter]').forEach(x => x.classList.toggle('on', x === b));
+  filter = b.dataset.filter;
+  renderRoster();
+}));
+document.getElementById('search').addEventListener('input', e => {
+  query = (e.target.value || '').trim().toLowerCase();
+  renderRoster();
+});
+
+/* ─────────── Bulk actions ─────────── */
+document.getElementById('close-all').addEventListener('click', async () => {
+  if (!confirm('Close the dungeon for EVERY camper?\n\nEntry, the shop, the starter '
+             + 'pick and the exchange all stop. Bags and maze history are left alone, '
+             + 'and anyone mid-run is banked as a walk-out.')) return;
+  const msg = document.getElementById('access-msg');
+  const r = await api('/api/admin/dungeon/access', { everyone: true, allow: false });
+  if (!r.ok) { msg.className = 'msg err'; msg.textContent = r.error; return; }
+  msg.className = 'msg ok';
+  msg.textContent = `Closed for ${r.data.changed} camper(s)`
+    + (r.data.banked ? `, ${r.data.banked} run(s) banked on the way out.` : '.');
+  await load();
+});
+document.getElementById('open-all').addEventListener('click', async () => {
+  if (!confirm('Re-open the dungeon for everyone who finished the maze?')) return;
+  const msg = document.getElementById('access-msg');
+  const r = await api('/api/admin/dungeon/access', { everyone: true, allow: true });
+  if (!r.ok) { msg.className = 'msg err'; msg.textContent = r.error; return; }
+  msg.className = 'msg ok';
+  msg.textContent = `Re-opened for ${r.data.changed} camper(s).`;
+  await load();
+});
+document.getElementById('repair').addEventListener('click', async () => {
+  const msg = document.getElementById('repair-msg');
+  const r = await api('/api/admin/dungeon/repair-inventories', {});
+  if (!r.ok) { msg.className = 'msg err'; msg.textContent = r.error; return; }
+  msg.className = 'msg ok';
+  msg.textContent = r.data.totalRemoved
+    ? `Removed ${fmt(r.data.totalRemoved)} duplicate item(s) across ${r.data.students.length} camper(s).`
+    : 'Nothing to clean up — no duplicates found.';
+  await load();
+});
+</script>
+<script src="/playtest.js"></script>
+</body>
+</html>

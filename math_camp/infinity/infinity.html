@@ -522,7 +522,10 @@
     run.floor = q.floor;
     paintHud();
     askedAt = Date.now(); blurMs = 0; hiddenSince = document.hidden ? Date.now() : null;
-    $('eyebrow').textContent = 'Floor ' + q.floor + ' · choose a door';
+    // The unit comes from the floor itself now, so the descent reads as the
+    // Grade 9 course rather than an anonymous stack of questions.
+    $('eyebrow').textContent = 'Floor ' + q.floor
+      + (q.unit ? ' · ' + q.unit : '') + ' · choose a door';
     $('q').textContent = q.question;
     $('dLt').textContent = q.left;
     $('dRt').textContent = q.right;
