@@ -4,19 +4,26 @@
    A camper who opened the Discord chest walks away with the Calamity
    Catalyst role and no idea what to do with it. Marcus is the fix: a
    VN-style dialogue box that turns up when a Catalyst holder is signed
-   in, tells them what they let out, and walks them to the trial.
+   in and walks them to the trial.
 
-   Three scenes, one per stop, held in localStorage per student:
+   He already introduced himself in the chest, so he doesn't do it again
+   here — he opens pleased that they actually turned up, and fills in
+   what he left out about the spider.
+
+   Stops, held in localStorage per student:
 
      stage 0  intro    — wherever they are when they sign in. Ends by
                          pointing at Home.
      stage 1  home     — the sword is hidden in a bubble, in plain
                          sight, with all the other bubbles. Points at
                          Support.
-     stage 2  support  — the small thing he forgot to mention: the
-                         sword is in pieces. Points at the lime bubble.
+     stage 2  support  — that's the bubble; pop it. Points at it.
      stage 3  done     — he stays quiet, but still points at the bubble
                          on the Support page.
+
+   Plus one scene outside the stage machine: `shattered` fires when the
+   bubble is popped, called in by lime-challenge.js between the sword
+   flying out and the briefing opening.
 
    Off the target page, Marcus doesn't talk — the nav link for the stop
    he wants just pulses until they take it. A scene the camper has
@@ -37,42 +44,49 @@
   const PAUSE_MS = 110;  // extra beat after a sentence ends
 
   /* ── The script ─────────────────────────────────────────────
-     *asterisks* italicise a word. Keep his voice: breezy, guilty,
-     over-explains, apologises for none of it. */
+     *asterisks* italicise a word. Keep his voice: breezy, chill, jokes
+     his way through genuinely alarming information.
+
+     He already did the introductions in the Discord chest — who he is,
+     what got out, the quest — so none of that is repeated here. This
+     picks up at the moment the camper actually turns up. */
   const SCENES = {
     intro: [
-      "Oh — you're up. Good. I was starting to think she'd got you already.",
-      "So. That chest you opened. I think you might've just released the world spider, man.",
-      "She'd been locked in there for ages. Centuries, probably. Nobody writes these things down properly, which is its own kind of crime.",
-      "Yeah — *she*. Everyone says he. She thinks that's very funny, right up until the moment she stops thinking things are funny.",
-      "Here's the bit I'd rather you heard from me than from, you know. Experience.",
-      "She spins people. Into cocoons. Tidy ones, actually — there's real craft in it, I'd compliment her if she wasn't going to eat me.",
-      "And then she drinks them. For breakfast. Which is the rudest possible meal to pick, because you can't even skip it.",
-      "...You're not *into* that, are you? The cocoon thing. Being someone's breakfast.",
-      "Because if you are, I'd like it on the record that I'll be standing quite far away from you for the rest of this quest~",
-      "Anyway! Name's Marcus. I'll be helping you on this one. It is, I suppose, *technically* my fault you were standing near that chest to begin with~",
-      "Well. It is what it is. You'd be down to make up for your mistakes, right? I mean. I hope so. At the very least.",
-      "There's a sword. It cuts her up a decent bit. That's the technical description, I checked.",
-      "And to get a legendary weapon, we must take on legendary methods. Called: exploration!",
-      "Common common, let's go — back to the home page. I'll light the button up for you.",
-      "And don't log out. I'm not doing this speech twice.",
+      "Oh — you actually came. You came!",
+      "I want you to know I had you at about a forty percent chance. I've never been so happy to be wrong about a person.",
+      "Right, so, since you're here and can't easily leave: some things about her I left out of the chest. The chest had a word limit and I had a lot of feelings.",
+      "First one. She's a *she*. Everyone assumes otherwise, and she finds that very funny, in the way that something with eight legs finds anything funny.",
+      "Second one. She spins people. Full cocoon, head to toe. Beautiful work honestly — if she weren't planning to drink me I'd ask her to do my curtains.",
+      "Ah — and that's the third one. She drinks them. For breakfast.",
+      "Not lunch. Not dinner. *Breakfast.* The one meal you cannot talk your way out of.",
+      "Which does mean she's a morning person, and I'd say that's the single most frightening fact about her.",
+      "...You're not into that, are you? The cocoon thing. Being someone's first meal of the day.",
+      "Because if you are, I'd like it noted that I'll be doing my half of this quest from several rooms away~",
+      "No? Good. Excellent. Love that for us both.",
+      "Then let's go get the thing that cuts her up a decent bit. Home page — I'll be right behind you.",
     ],
     home: [
-      "There we go. The home page. Smaller than I remember, but then so is everything.",
-      "Right. The sword. I hid it.",
-      "In a bubble.",
-      "...With all the other bubbles. Over on the support page. Right out in plain sight, where nobody would ever look — because nobody ever looks at the thing that's already in front of them.",
-      "I'd call that genius, except I then spent a *very* long afternoon failing to find it again, and I've been told genius doesn't usually involve that.",
-      "You'll know the one. It's the bubble that looks like it's hiding something, which in hindsight rather undermines the whole plan.",
-      "Support page. I'll flash the button. Off you go~",
+      "There it is. Hasn't changed since I hid something on it, which is either reassuring or a bad sign about the traffic.",
+      "So. The sword. I hid it in a bubble.",
+      "...With all the other bubbles. Over on the support page.",
+      "Right out in plain sight, because nobody ever looks at the thing that's already in front of them. That's not a dig at you. It applies to everyone. It applied to *me* for one very long afternoon.",
+      "You'll know the one when you see it. It's the bubble that looks like it's hiding something, which I admit rather undercuts the whole scheme.",
+      "Support page. After you~",
     ],
     support: [
-      "See? Bubbles. Told you. Right out in the open the whole time.",
-      "Now. Small thing. Tiny, really. I've been meaning to bring it up since the chest and the moment kept not arriving.",
-      "The sword's broken.",
-      "Not *broken* broken. Shattered. Into limes. It's a long story and you were, arguably, a participant.",
-      "So before you can point it at anything with eight legs and an appetite, it has to be put back together. By you. I'll supervise, which is the hard part.",
-      "Pop the bubble when you're ready. The pieces fall fast and they rot faster — cut them out of the air and the blade remembers its own shape.",
+      "See? Bubbles. Out in the open this entire time.",
+      "That one. The drifting one, the one practically waving. Go on — pop it.",
+      "I'd do it myself, but I'm providing moral support, which is the harder job and pays worse.",
+    ],
+    /* Plays the moment they pop the bubble and the blade comes out — the
+       reveal lands better once they've actually seen the state of it. */
+    shattered: [
+      "...Ah.",
+      "Right. Yes. So there's a thing I've been putting off since roughly the chest.",
+      "It's shattered.",
+      "Not *broken* broken. Shattered. Into limes. There was a calamity, you were arguably present for it, and I'd rather not go around assigning blame — but it wasn't me.",
+      "Which means it doesn't cut anything, least of all her, until it's whole again.",
+      "The pieces fall fast and they rot faster. Cut them out of the air and the blade remembers its own shape.",
       "Cut *all* of them and, well. People notice that sort of thing~",
       "Go on. She's not getting any less hungry while we chat.",
     ],
@@ -182,9 +196,18 @@
   0%,100%{background:rgba(163,230,53,.10);box-shadow:inset 0 0 12px rgba(163,230,53,.25)}
   50%{background:rgba(163,230,53,.26);box-shadow:inset 0 0 26px rgba(163,230,53,.7)}}
 
-/* The lime bubble, once he's pointed at it. */
-.marcus-target{animation:marcus-target 1.2s ease-in-out infinite!important}
-@keyframes marcus-target{0%,100%{filter:none}50%{filter:brightness(1.25) drop-shadow(0 0 26px rgba(190,242,100,1))}}
+/* The lime bubble, once he's pointed at it. NEVER set an animation property
+   here: the bubble's drift up the page IS its animation, and overriding it
+   parks the thing at its start position (bottom:-160px) where it can never
+   be seen or clicked again. The pulse lives on a ring element inside. */
+.marcus-target{filter:drop-shadow(0 0 20px rgba(190,242,100,.9))}
+.marcus-ring{position:absolute;inset:-9px;border-radius:50%!important;
+  border:3px solid rgba(190,242,100,.9);pointer-events:none;
+  animation:marcus-ring 1.5s ease-out infinite}
+@keyframes marcus-ring{
+  0%{transform:scale(.92);opacity:.95}
+  70%{transform:scale(1.35);opacity:0}
+  100%{transform:scale(1.35);opacity:0}}
 .marcus-chip{position:fixed;right:20px;bottom:20px;z-index:2147482000;
   max-width:min(300px,calc(100% - 40px));
   background:linear-gradient(180deg,rgba(20,34,10,.97),rgba(9,18,4,.98));
@@ -203,7 +226,7 @@
   .marcus-name{font-size:.72rem;padding:7px 12px;left:14px}
 }
 @media (prefers-reduced-motion:reduce){
-  .marcus-face,.marcus-next,.marcus-flash,.marcus-target{animation:none!important}
+  .marcus-face,.marcus-next,.marcus-flash,.marcus-ring{animation:none!important}
 }`;
     document.head.appendChild(s);
   }
@@ -404,6 +427,11 @@
       if (b) {
         clearInterval(tick);
         b.classList.add('marcus-target');
+        if (!b.querySelector('.marcus-ring')) {
+          const ring = document.createElement('span');
+          ring.className = 'marcus-ring';
+          b.appendChild(ring);
+        }
         chip('Marcus is pointing', 'The drifting lime bubble. That\'s the one — pop it.');
       } else if (++tries > 40) {
         clearInterval(tick);
@@ -427,6 +455,25 @@
   }
 
   /* ── The router ─────────────────────────────────────────────── */
+  /* Popping the bubble is lime-challenge.js's event, not ours, so it calls
+     in here between the sword flying out and the trial briefing opening.
+     Always call `next` — if Marcus can't speak, the trial still has to
+     start. */
+  function installBubbleHook(sid, state) {
+    window.HGMarcus = {
+      bubbleOpened(next) {
+        const go = typeof next === 'function' ? next : function () {};
+        try {
+          play(SCENES.shattered, { skippable: !!state.seen.shattered }, () => {
+            state.seen.shattered = 1;
+            save(sid, state);
+            go();
+          });
+        } catch (_) { go(); }
+      },
+    };
+  }
+
   function router(sid, state) {
     function step() {
       const stop = STOPS[state.stage];
@@ -484,7 +531,9 @@
       if (!me) return false;
       started = true;
       injectStyles();
-      router(me.id, load(me.id));
+      const state = load(me.id);
+      installBubbleHook(me.id, state);
+      router(me.id, state);
       return true;
     }
     if (check()) return;

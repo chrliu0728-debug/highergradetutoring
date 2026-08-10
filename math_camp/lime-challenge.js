@@ -797,7 +797,16 @@
         fly.style.transition = 'opacity .4s ease';
         fly.style.opacity = '0';
         setTimeout(() => fly.remove(), 420);
-        LimeTrial(() => { b.style.display = ''; });
+        // Marcus gets to react to the state of the blade before the briefing
+        // opens — the "it's shattered" line lands better once they've seen
+        // it. He always hands control back; if he isn't on the page at all,
+        // the trial just starts.
+        const start = () => LimeTrial(() => { b.style.display = ''; });
+        if (window.HGMarcus && window.HGMarcus.bubbleOpened) {
+          window.HGMarcus.bubbleOpened(start);
+        } else {
+          start();
+        }
       }, 1050);
     });
 
