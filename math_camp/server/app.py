@@ -2422,6 +2422,7 @@ def register_routes(app):
         row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
         gear, _, _ = _gear_for(row)
         cut = (1 - dungeon.damage_reduction(gear["defense"])) * (1 - gear["flatNegate"])
+        misses = int(run["wrongCount"] or 0)
         return jsonify(ok=True, data={
             "questionId": f"floor-{floor_no}", "question": question,
             "unit": unit_label,
@@ -2429,8 +2430,9 @@ def register_routes(app):
             "right": str(wrong if left_correct else correct),
             "floor": run["floor"], "askedAt": now,
             "floorDeadline": floor_start + dungeon.FLOOR_TIME_LIMIT_MS,
-            "dangerFast": round(dungeon.wrong_door_damage(run["floor"], True) * cut),
-            "dangerSlow": round(dungeon.wrong_door_damage(run["floor"], False) * cut),
+            "dangerFast": round(dungeon.wrong_door_damage(run["floor"], True, misses) * cut),
+            "dangerSlow": round(dungeon.wrong_door_damage(run["floor"], False, misses) * cut),
+            "misses": misses,
             "floorBase": dungeon.base_shards(run["floor"]),
         })
 
@@ -2509,9 +2511,11 @@ def register_routes(app):
             # Wrong door: 120 inside the window, 60 after and for every
             # later mistake on the same floor. Loss is 90% of what that door
             # would actually have paid at this speed.
-            first = int(run["wrongCount"] or 0) == 0
+            repeats = int(run["wrongCount"] or 0)
+            first = repeats == 0
             raw = dungeon.wrong_door_damage(
-                floor, fast=(first and elapsed <= dungeon.FAST_WRONG_CUTOFF_S))
+                floor, fast=(first and elapsed <= dungeon.FAST_WRONG_CUTOFF_S),
+                repeats=repeats)
             dealt, why = dungeon.apply_damage(raw, gear, luck)
             if damage_soften and dealt:
                 dealt = round(dealt * (1.0 - damage_soften))

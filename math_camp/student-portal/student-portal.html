@@ -851,8 +851,23 @@
     <strong>Heads up:</strong> You can't give yourself points directly — camp instructors award points based on class participation, perfect scores, and other in-person activities. Ask your instructor if you're wondering how to earn more!
   </div>
 
-  <!-- Dungeon: shop, inventory, receipts and the tax return. Mounted by
-       dungeon-shop.js, and hidden entirely until the dungeon is unlocked. -->
+  <!-- Your bag. Its own panel, mounted by dungeon-shop.js in bag-only mode
+       and shown to every signed-in camper — the dungeon is one way to fill
+       it, not the only one, and things earned elsewhere (the Lime Sword and
+       the note that comes with it) land here too. Nothing in this panel
+       depends on dungeon access. -->
+  <div class="tx-panel" id="inventory-section">
+    <div class="tx-panel-head">
+      <div>
+        <div class="label">Your things</div>
+        <div class="name">🎒 Inventory</div>
+      </div>
+    </div>
+    <div id="inventory-panel"></div>
+  </div>
+
+  <!-- The dungeon proper: shop, exchange, receipts and the tax return.
+       Hidden until the dungeon is open to this camper. -->
   <div class="tx-panel" id="dungeon-section" style="display:none;">
     <div class="tx-panel-head">
       <div>
@@ -919,11 +934,9 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   // Straight from the dashboard header to the bag, whether or not the camper
   // has ever been near the dungeon.
   if (inventoryJump) inventoryJump.addEventListener('click', () => {
-    if (window.DungeonShop && window.DungeonShop.show) window.DungeonShop.show('inv');
-    else {
-      const sec = document.getElementById('dungeon-section');
-      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    const sec = document.getElementById('inventory-section');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else if (window.DungeonShop && window.DungeonShop.show) window.DungeonShop.show('inv');
   });
   const spider       = document.getElementById('spider-overlay');
 
@@ -1155,26 +1168,31 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   }
 
   /* ─── Dungeon: shop, inventory, receipts, tax ─── */
-  let dungeonMounted = false;
+  let dungeonMounted = false, bagMounted = false;
   function renderDungeon(s) {
+    if (!window.DungeonShop) return;
+
+    // The bag is everyone's, always. It doesn't belong to the dungeon —
+    // things earned anywhere in camp land in it.
+    if (!bagMounted && document.getElementById('inventory-panel')) {
+      bagMounted = true;
+      window.DungeonShop.mountBag().catch(() => { bagMounted = false; });
+    }
+    const jump = document.getElementById('inventory-jump');
+    if (jump) jump.style.display = '';
+
+    // The dungeon panel — shop, exchange, receipts, tax — needs access:
+    // the maze finished, and staff not having closed it.
     const sec = document.getElementById('dungeon-section');
     if (!sec) return;
-    // Same gate as the dungeon card: it appears once the door maze is beaten.
-    const beaten = !!(s.extras && (s.extras.doorsRewarded || s.extras.doorsCompleted >= 1))
-      || !!(s.doorsRewarded || (s.doorsCompleted || 0) >= 1);
-    // ...but carrying something opens it too. The Lime Sword and the note that
-    // comes with it land in the bag long before anyone touches the door maze,
-    // and a bag you can't open is just a bag you don't have.
-    const carrying = (Array.isArray(s.inventory) && s.inventory.some(e => e && e.qty > 0))
-      || Object.keys(s.equipped || {}).length > 0;
-    const open = beaten || carrying;
+    const ex = s.extras || s;
+    const beaten = !!(ex.doorsRewarded || (ex.doorsCompleted || 0) >= 1);
+    const banned = !!ex.dungeonBanned;
+    const open = beaten && !banned;
     sec.style.display = open ? '' : 'none';
-    const jump = document.getElementById('inventory-jump');
-    if (jump) jump.style.display = open ? '' : 'none';
-    if (!open || dungeonMounted || !window.DungeonShop) return;
+    if (!open || dungeonMounted) return;
     dungeonMounted = true;
-    // Someone who's only here for the bag has nothing to shop for yet.
-    window.DungeonShop.mount({ tab: beaten ? 'shop' : 'inv' })
+    window.DungeonShop.mount({ tab: 'shop' })
       .catch(() => { dungeonMounted = false; });
   }
 

@@ -681,18 +681,100 @@
   }
 
   /* ── Boot ───────────────────────────────────────────────────── */
+  /* ── The bag, on its own ────────────────────────────────────────
+     The inventory is not a dungeon feature. Campers pick things up
+     elsewhere — the Lime Sword and its note arrive from the Support page
+     — and a bag you can only open by finishing a maze is a bag you don't
+     have. This renders the equipment slots, the carried items and the
+     readable notes into #inventory-panel, with no tabs, no shop, no
+     exchange and no way in or out of the dungeon attached. */
+  function bagView() {
+    const eq = me.equipped || {};
+    const inv = (me.inventory || []).filter(e => e.qty > 0);
+    return `
+      <div class="dg-slots">
+        ${Object.keys(SLOT_LABEL).map(slot => {
+          const id = eq[slot];
+          return `<div class="dg-slot ${id ? 'filled' : ''}">
+            ${id ? window.DungeonIcons.item(id, 30) : window.DungeonIcons.slot(slot, 30)}
+            <div class="sl">${SLOT_LABEL[slot]}</div>
+            <div class="in">${id ? esc(item(id).name) : '—'}</div>
+            ${id ? `<button data-unequip="${slot}">Take off</button>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+      <h4 style="margin:0 0 8px;font-size:.95rem">Carrying (${inv.length})</h4>
+      ${inv.length ? `<div class="dg-grid">${inv.map(e => {
+        const i = item(e.id);
+        return `<div class="dg-card ${i.quest ? 'quest' : ''}">
+          <div class="top">${window.DungeonIcons.item(e.id, 34)}
+            <div><div class="nm">${esc(i.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}</div>
+              ${i.quest ? '<div class="dg-tagrow" style="margin:4px 0"><span class="dg-tag quest">Quest</span></div>' : ''}
+              <div class="bl">${esc(i.blurb || '')}</div></div></div>
+          ${i.note ? `<div class="dg-price"><span></span>
+            <button class="dg-btn ghost" data-read="${e.id}">Read it →</button>
+          </div>` : ''}
+          ${i.slot ? `<div class="dg-price"><span></span>
+            <button class="dg-btn" data-equip="${e.id}" data-eslot="${i.slot}">Equip</button>
+          </div>` : ''}
+        </div>`;
+      }).join('')}</div>`
+        : '<div class="dg-empty">Nothing here yet. Things you earn around camp end up in here.</div>'}`;
+  }
+
+  function renderBag() {
+    const root = $('#inventory-panel');
+    if (!root || !cat || !me) return;
+    root.className = 'dg';
+    root.innerHTML = bagView();
+    // Equip / unequip / read all work from here; refresh both panels after,
+    // since the dungeon panel shows the same slots.
+    root.querySelectorAll('[data-read]').forEach(b => b.addEventListener('click', () => {
+      openNote(b.dataset.read);
+    }));
+    root.querySelectorAll('[data-equip]').forEach(b => b.addEventListener('click', async () => {
+      const r = await api('/api/students/me/dungeon/equip',
+                          { slot: b.dataset.eslot, itemId: b.dataset.equip });
+      if (!r.ok) return alert(r.error);
+      await refresh(); renderBag(); if ($('#dungeon-panel')) render();
+    }));
+    root.querySelectorAll('[data-unequip]').forEach(b => b.addEventListener('click', async () => {
+      const r = await api('/api/students/me/dungeon/equip',
+                          { slot: b.dataset.unequip, itemId: null });
+      if (!r.ok) return alert(r.error);
+      await refresh(); renderBag(); if ($('#dungeon-panel')) render();
+    }));
+  }
+
   window.DungeonShop = {
-    /** opts.tab opens straight onto a tab — 'shop' | 'inv' | 'rec' | 'tax'. */
+    /** opts.tab opens straight onto a tab — 'shop' | 'inv' | 'rec' | 'tax'.
+        opts.bagOnly renders just the bag, into #inventory-panel. */
     async mount(opts) {
       styles();
       if (opts && opts.tab) tab = opts.tab;
       if (!(await refresh())) return false;
-      render();
+      if (opts && opts.bagOnly) renderBag(); else render();
       return true;
     },
-    refresh: async () => { if (await refresh()) render(); },
-    /** Jump to a tab from outside — the dashboard's Inventory shortcut. */
+    /** Bag panel only — every camper gets this, dungeon or no dungeon. */
+    async mountBag() {
+      styles();
+      if (!(await refresh())) return false;
+      renderBag();
+      return true;
+    },
+    refresh: async () => {
+      if (!(await refresh())) return;
+      if ($('#inventory-panel')) renderBag();
+      if ($('#dungeon-panel')) render();
+    },
+    /** Scroll to the bag — the dashboard's Inventory shortcut. */
     show(which) {
+      const bag = $('#inventory-panel');
+      if (bag && bag.innerHTML) {
+        bag.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       tab = which || 'inv';
       if (cat && me) render();
       const root = $('#dungeon-panel');

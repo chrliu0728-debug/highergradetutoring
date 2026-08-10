@@ -34,7 +34,9 @@ FLOOR_TIER_GROWTH     = 1.30    # ...and each tier pays 30% more, compounding
 # the p90 depth of a 97% player, so it never touches ordinary play — it
 # only stops the rare flawless run from printing money.
 FLOOR_TIER_CAP        = 12
-FLOOR_TIME_LIMIT_MS   = 10 * 60 * 1000   # 10 min, then you're moved on for free
+FLOOR_TIME_LIMIT_MS   = 3 * 60 * 1000    # 3 min, then you're moved on for free
+# Three minutes is long enough to actually work a Grade 9 problem out on
+# paper and far too short to sit on a floor waiting for inspiration.
 
 # ── Speed ─────────────────────────────────────────────────────────────
 BASE_WINDOW_S         = 2.0     # full ×2.0 inside this many seconds
@@ -56,6 +58,14 @@ FAST_WRONG_CUTOFF_S   = 2.0
 # survives long enough to reach the runaway tiers.
 DAMAGE_FLOOR_STEP_FAST = 12     # extra damage per floor on a fast wrong door
 DAMAGE_FLOOR_STEP_SLOW = 6      # ...and on every later one
+# Two doors means a coin flip clears half of them, and a flat penalty for
+# a wrong door made guessing a viable strategy: 1000 HP at 60 a miss is
+# sixteen free guesses on floor 1. Each REPEAT mistake on the same floor
+# now hits harder than the last, so standing at one door guessing burns
+# you out in four or five tries. Someone who knows the answer and slips
+# once pays the old price — the escalation only bites the second mistake
+# on the same floor onward.
+WRONG_REPEAT_GROWTH   = 1.6
 DEFENSE_SOFTCAP       = 600     # defense/(defense+600) — approaches, never hits 100%
 WRONG_DOOR_SHARD_LOSS = 0.90    # of what that door would actually have paid
 
@@ -346,17 +356,23 @@ def wrong_door_loss(floor, seconds, gear, luck=0):
 
 
 # ── Damage ────────────────────────────────────────────────────────────
-def wrong_door_damage(floor, fast):
+def wrong_door_damage(floor, fast, repeats=0):
     """Raw damage for a wrong door on `floor`, before armour.
 
     Floor 1 is the spec's 120 / 60. Every floor after adds to it, so the
     dungeon gets genuinely dangerous the deeper you push rather than being
     a formality for anyone who knows the answers.
+
+    `repeats` is how many times this camper has already picked wrong on
+    THIS floor. Each one multiplies the hit, which is what makes guessing
+    at a two-door question a losing strategy rather than a slow one.
     """
     f = max(1, int(floor)) - 1
     if fast:
-        return DAMAGE_FAST_WRONG + DAMAGE_FLOOR_STEP_FAST * f
-    return DAMAGE_WRONG + DAMAGE_FLOOR_STEP_SLOW * f
+        base = DAMAGE_FAST_WRONG + DAMAGE_FLOOR_STEP_FAST * f
+    else:
+        base = DAMAGE_WRONG + DAMAGE_FLOOR_STEP_SLOW * f
+    return round(base * (WRONG_REPEAT_GROWTH ** max(0, int(repeats))))
 
 
 def damage_reduction(total_defense):
