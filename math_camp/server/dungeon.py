@@ -95,6 +95,8 @@ def _item(**kw):
         "reveals": None,        # 'before-animation' | 'on-door-click'
         "counterpart": None,    # beginner item whose ownership discounts this
         "realWorld": False,
+        "quest": False,         # handed out by the story; never on a shelf
+        "note": None,           # readable text, re-openable from the inventory
     }
     base.update(kw)
     return base
@@ -183,7 +185,28 @@ ITEMS = {i["id"]: i for i in [
     _item(id="phone_privileges", name="Phone Privileges", tier="reward", cost=100000,
           realWorld=True,
           blurb="One class period with your phone. Staff will confirm it with you."),
+
+    # ── Quest items ──
+    # Earned, never bought. `quest` is what keeps them off the shop shelf and
+    # out of the buy endpoint — they carry no cost, so without it they'd be
+    # free for the taking. They sit in the bag as trophies and reminders
+    # rather than gear, which is why neither takes an equipment slot.
+    _item(id="lime_sword", name="Lime Sword", tier="quest", quest=True,
+          blurb="Deals 3000 damage per swing to Arachnids."),
+    _item(id="spider_hunt_note", name="A note, in the blade's hand", tier="quest",
+          quest=True,
+          blurb="Fell out of the Lime Sword the moment it reforged.",
+          note="Time to go on a spider **hunt**."),
 ]}
+
+# Whatever the story hands over for reforging the Lime Sword. Kept here so
+# the claim endpoint doesn't hard-code ids the catalogue already owns.
+LIME_SWORD_REWARD = ("lime_sword", "spider_hunt_note")
+
+# A cleared trial pays shards on the run's score. 200 limes cut perfectly is
+# 200k points, so a flawless run is worth ~333 shards — real money at the
+# bottom of the shop, nowhere near a shortcut past it.
+LIME_SCORE_PER_SHARD = 600
 
 # Items a brand-new camper may pick ONE of, free, on first entry. Everything
 # else is bought — points convert to shards, and gear is a convenience rather

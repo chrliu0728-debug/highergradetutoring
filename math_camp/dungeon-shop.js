@@ -18,6 +18,10 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const gem = (n) => `<span class="dg-gem">${window.DungeonIcons.shard(13)}${fmt(n)}</span>`;
+  /* Note text is authored server-side with **stars** around the word that
+     matters. Escape first, then promote the stars — so the emphasis is the
+     only markup that ever survives into the page. */
+  const bold = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
   const SLOT_LABEL = {
     helmet: 'Helmet', chestplate: 'Chestplate', leggings: 'Leggings', boots: 'Boots',
@@ -116,6 +120,29 @@
 .dg-help h5{margin:14px 0 4px;font-size:.86rem}
 .dg-help table{border-collapse:collapse;margin:8px 0;font-size:.82rem}
 .dg-help td{padding:3px 10px 3px 0}
+/* Quest items — earned, unsellable, and visibly not shop stock. */
+.dg-tag.quest{background:rgba(163,230,53,.25);color:#3f6212}
+.dg-card.quest{border-color:rgba(163,230,53,.65);
+  background:linear-gradient(160deg,rgba(163,230,53,.09),var(--surface,#fff) 62%)}
+/* The note itself, opened out of the bag. Deliberately paper rather than a
+   dialog box: it's a thing they were handed, not a system message. */
+.dg-noteveil{position:fixed;inset:0;z-index:4000;display:flex;align-items:center;
+  justify-content:center;padding:22px;background:rgba(10,16,6,.62);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  animation:dg-note-in .22s ease both}
+@keyframes dg-note-in{from{opacity:0}to{opacity:1}}
+.dg-notepaper{width:min(430px,100%);text-align:center;padding:30px 26px 24px;
+  border-radius:6px;color:#3a3223;
+  background:linear-gradient(170deg,#FBF6E4,#F1E7C8);
+  border:1px solid rgba(120,100,50,.35);
+  box-shadow:0 26px 60px rgba(0,0,0,.45);
+  animation:dg-note-pop .3s cubic-bezier(.2,.9,.3,1.25) both}
+@keyframes dg-note-pop{from{transform:scale(.92) rotate(-1.5deg);opacity:0}
+  to{transform:rotate(-.6deg);opacity:1}}
+.dg-notehead{font-size:.66rem;text-transform:uppercase;letter-spacing:.16em;
+  font-weight:800;color:#8a7a4e;margin-bottom:14px}
+.dg-notebody{font:600 1.28rem/1.55 Georgia,"Times New Roman",serif;margin:0 0 20px}
+.dg-notebody strong{font-weight:900;text-decoration:underline;text-underline-offset:4px}
 @media(max-width:520px){.dg-grid{grid-template-columns:1fr}}`;
     document.head.appendChild(el);
   }
@@ -137,7 +164,9 @@
                    ['intermediate', 'Intermediate'], ['reward', 'Real rewards']];
     const slots = [['all', 'Any slot']].concat(
       Object.entries(SLOT_LABEL), [['none', 'Consumables']]);
-    const list = (cat.items || []).filter(i =>
+    // Quest items ride along in the catalogue so the inventory can name and
+    // describe them, but they have no price and no shelf — skip them here.
+    const list = (cat.items || []).filter(i => !i.quest &&
       (shopTier === 'all' || i.tier === shopTier) &&
       (shopSlot === 'all' || (shopSlot === 'none' ? !i.slot : i.slot === shopSlot)));
 
@@ -247,15 +276,44 @@
       <h4 style="margin:0 0 8px;font-size:.95rem">Carrying (${inv.length})</h4>
       ${inv.length ? `<div class="dg-grid">${inv.map(e => {
         const i = item(e.id);
-        return `<div class="dg-card">
+        return `<div class="dg-card ${i.quest ? 'quest' : ''}">
           <div class="top">${window.DungeonIcons.item(e.id, 34)}
             <div><div class="nm">${esc(i.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}</div>
+              ${i.quest ? '<div class="dg-tagrow" style="margin:4px 0"><span class="dg-tag quest">Quest</span></div>' : ''}
               <div class="bl">${esc(i.blurb || '')}</div></div></div>
+          ${i.note ? `<div class="dg-price"><span></span>
+            <button class="dg-btn ghost" data-read="${e.id}">Read it →</button>
+          </div>` : ''}
           ${i.slot ? `<div class="dg-price"><span></span>
             <button class="dg-btn" data-equip="${e.id}" data-eslot="${i.slot}">Equip</button>
           </div>` : ''}
         </div>`;
       }).join('')}</div>` : '<div class="dg-empty">Nothing here yet — the shop is one tab over.</div>'}`;
+  }
+
+  /* Anything with a `note` can be re-read from the bag, as many times as
+     the camper wants — the point of the note is that it's a standing
+     instruction, not a one-off popup they might have clicked past. */
+  function openNote(id) {
+    const i = item(id);
+    if (!i.note) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'dg-noteveil';
+    wrap.innerHTML = `
+      <div class="dg-notepaper" role="dialog" aria-modal="true" aria-label="${esc(i.name)}">
+        <div class="dg-notehead">${esc(i.name)}</div>
+        <p class="dg-notebody">${bold(i.note)}</p>
+        <button class="dg-btn" data-shut>Fold it back up</button>
+      </div>`;
+    const shut = () => wrap.remove();
+    wrap.addEventListener('click', ev => { if (ev.target === wrap) shut(); });
+    wrap.querySelector('[data-shut]').addEventListener('click', shut);
+    document.addEventListener('keydown', function esckey(ev) {
+      if (ev.key !== 'Escape') return;
+      document.removeEventListener('keydown', esckey);
+      shut();
+    });
+    document.body.appendChild(wrap);
   }
 
   /* ── Receipts ───────────────────────────────────────────────── */
@@ -528,6 +586,9 @@
                           { slot: b.dataset.eslot, itemId: b.dataset.equip });
       if (!r.ok) return alert(r.error);
       await refresh(); render();
+    }));
+    root.querySelectorAll('[data-read]').forEach(b => b.addEventListener('click', () => {
+      openNote(b.dataset.read);
     }));
     root.querySelectorAll('[data-unequip]').forEach(b => b.addEventListener('click', async () => {
       const r = await api('/api/students/me/dungeon/equip',

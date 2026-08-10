@@ -1722,7 +1722,13 @@ def register_routes(app):
         numbers are sanity-checked rather than trusted: only a Catalyst
         holder can claim, the hit count has to clear the bar without
         exceeding the number of limes that exist, and the score has to sit
-        inside what those hits could actually have earned."""
+        inside what those hits could actually have earned.
+
+        A cleared run pays out three ways: the Lime Sword and the note that
+        falls out of it land in the inventory (once each), the score converts
+        to shards (every run, taxed like any other earning), and a full combo
+        — every one of the limes, nothing missed — adds the osu Champion role
+        and its one-time bounty."""
         sid = g.session["studentId"]
         d = request.get_json(silent=True) or {}
         try:
@@ -1776,6 +1782,27 @@ def register_routes(app):
                 g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
                              (json.dumps(roles), sid))
 
+            # The blade and the note it hides go into the bag, one copy each
+            # — the trial is replayable, and nobody needs a stack of notes.
+            have = _owned(row)
+            missing = {i: 1 for i in dungeon.LIME_SWORD_REWARD if not have.get(i)}
+            if missing:
+                _grant_items(sid, row, missing)
+
+            # Score converts to shards on every cleared run, taxed like any
+            # other earning so it shows up on the tax return with the rest.
+            gross = score // dungeon.LIME_SCORE_PER_SHARD
+            net, tax = dungeon.split_tax(gross)
+            if gross > 0:
+                stats = _wallet(row)
+                stats["shards"] = int(stats.get("shards", 0)) + net
+                _save_stats(sid, stats)
+                label = (f"Lime trial — {hits}/{LIME_TOTAL} limes for {score:,} points")
+                _receipt(sid, "earning", label, gross, tax, net)
+                _log_tx(type="earn", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=0,
+                        description=f"💎 {label} · +{net:,} shards after {tax:,} tax")
+
         # Outside the transaction above — _award_points opens its own, and
         # sqlite3's context manager commits the outer block on the inner exit.
         awarded = 0
@@ -1789,12 +1816,17 @@ def register_routes(app):
             if st == 200:
                 awarded = int((body.get("data") or {}).get("applied") or 0)
 
+        note = dungeon.ITEMS["spider_hunt_note"]
         return jsonify(ok=True, data={
             "alreadyHeld": already, "hits": hits, "score": score,
             "fullCombo": full_combo,
             "champion": full_combo or champ_already,
             "championIsNew": pay_bounty,
             "pointsAwarded": awarded,
+            "itemsGranted": sorted(missing.keys()),
+            "shards": net, "shardsGross": gross, "shardTax": tax,
+            "note": {"id": "spider_hunt_note", "name": note["name"],
+                     "text": note["note"]},
         })
 
     # ══ Dungeon economy ════════════════════════════════════════════
@@ -1832,6 +1864,22 @@ def register_routes(app):
         inv = [{"id": k, "qty": v} for k, v in sorted(owned_map.items()) if v > 0]
         g.db.execute("UPDATE students SET inventory = ?, equipped = ? WHERE id = ?",
                      (json.dumps(inv), json.dumps(equipped), sid))
+
+    def _grant_items(sid, row, additions):
+        """Drop items straight into a camper's bag, no shop involved.
+
+        `_owned` folds equipped gear back in with the loose inventory, so the
+        worn copies are subtracted again before the split is written —
+        otherwise granting anything would also clone whatever is equipped
+        into the bag."""
+        equipped = json.loads(row["equipped"] or "{}") or {}
+        owned = _owned(row)
+        for item_id, qty in additions.items():
+            owned[item_id] = owned.get(item_id, 0) + int(qty)
+        for worn in equipped.values():
+            if worn in owned:
+                owned[worn] -= 1
+        _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
 
     def _receipt(sid, kind, description, gross, tax, net, reclaimed=0):
         rid = "rcpt-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
@@ -1879,7 +1927,8 @@ def register_routes(app):
                                       "shardBonus", "maxHp", "defense", "window",
                                       "evadeChance", "negateChance", "flatNegate",
                                       "stackable", "capacity", "consumable",
-                                      "reveals", "counterpart", "realWorld")},
+                                      "reveals", "counterpart", "realWorld",
+                                      "quest", "note")},
                 "full": p["full"], "price": p["price"], "saved": p["saved"],
                 "owned": owned.get(it["id"], 0),
                 "locked": locked,
@@ -1973,6 +2022,10 @@ def register_routes(app):
         it = dungeon.ITEMS.get(item_id)
         if not it:
             return jsonify(ok=False, error="No such item."), 404
+        # Quest items are listed so the inventory can name them, but they
+        # cost nothing — buying one would be a free grant.
+        if it["quest"]:
+            return jsonify(ok=False, error="That one isn't for sale — go and earn it."), 400
         if not it["stackable"]:
             qty = 1
         sid = g.session["studentId"]

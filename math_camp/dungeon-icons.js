@@ -22,7 +22,8 @@
     wood:    '#8A5A2B', woodDark:  '#5E3C1B',
     grip:    '#4A3524',
     gem:     '#7DD3FC', gemDark:   '#2C7BA0',
-    lime:    '#A3E635',
+    lime:    '#A3E635', limeDark:  '#4D7C0F',
+    paper:   '#F1E7C8', ink:       '#8A7A4E',
     grey:    '#94A3B8', greyDark:  '#64748B',
     red:     '#EF4444',
   };
@@ -100,6 +101,12 @@
     shard: (a, b) => `
       <path d="M32 4 L52 24 L32 60 L12 24 Z" fill="${a}"/>
       <path d="M32 4 L32 60 L12 24 Z" fill="${b}" opacity=".5"/>`,
+    // A folded note, dog-eared corner and three lines of handwriting.
+    note: (a, b) => `
+      <path d="M14 8 H42 L52 18 V56 H14 Z" fill="${a}"/>
+      <path d="M42 8 L52 18 H42 Z" fill="${b}"/>
+      <path d="M21 26 H43 M21 34 H43 M21 42 H35" stroke="${b}" stroke-width="3"
+            stroke-linecap="round"/>`,
   };
 
   // itemId -> [family, main, accent]
@@ -131,6 +138,8 @@
     basic_arrow:         ['arrow',    C.grey,    C.greyDark],
     drill_needle_arrow:  ['arrow',    C.gold,    C.red],
     phone_privileges:    ['phone',    C.greyDark, C.gem],
+    lime_sword:          ['sword',    C.lime,    C.limeDark],
+    spider_hunt_note:    ['note',     C.paper,   C.ink],
   };
 
   // Empty equipment slots get a faint outline of what belongs there.

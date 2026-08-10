@@ -30,6 +30,7 @@
   const BEST_HIT  = 1000;     // cut it the instant it lands
   const WORST_HIT = 400;      // cut it as it fades
   const FC_POINTS = 1000;     // the full-combo bounty — mirrors LIME_FC_POINTS
+  const SCORE_PER_SHARD = 600; // mirrors dungeon.LIME_SCORE_PER_SHARD
 
   /* How far from the cursor a lime is allowed to land. Limes used to drop
      anywhere on the page, so passing meant flinging the mouse corner to
@@ -155,6 +156,29 @@
   letter-spacing:.02em;margin-bottom:8px}
 .lime-champ p{margin:0;color:#FFD9EC;font-size:.9rem;line-height:1.55}
 
+/* What the run paid in shards, on the bestowal card. */
+.lime-shards{margin:14px 0 4px;padding:11px 14px;border-radius:12px!important;
+  background:rgba(125,211,252,.12);border:1px solid rgba(125,211,252,.4);
+  color:#CFF2FF;font-size:.88rem;line-height:1.5}
+
+/* The note, on its own beat after the blade. Paper, not another green
+   panel — it's a thing they were handed, and it has to read that way. */
+.lime-card.lime-paper{background:linear-gradient(170deg,#FBF6E4,#F1E7C8);
+  border:1px solid rgba(120,100,50,.4);border-radius:8px!important;
+  color:#3a3223;padding:34px 28px 26px;
+  /* Its own keyframes: lime-pop lands on transform:none and would flatten
+     the tilt the moment it finished. */
+  animation:lime-paper-pop .4s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes lime-paper-pop{from{transform:scale(.92) rotate(-3deg);opacity:0}
+  to{transform:rotate(-.6deg);opacity:1}}
+.lime-notehead{font-size:.68rem;text-transform:uppercase;letter-spacing:.16em;
+  font-weight:800;color:#8a7a4e;margin-bottom:16px}
+/* Beats .lime-card p, which would otherwise repaint this pale green. */
+.lime-card.lime-paper p.lime-notebody{font:600 1.5rem/1.5 Georgia,"Times New Roman",serif;
+  margin:0 0 18px;color:#3a3223;opacity:1}
+.lime-notebody strong{font-weight:900;text-decoration:underline;text-underline-offset:5px}
+.lime-notefoot{font-size:.78rem;color:#7a6b45;line-height:1.55;margin-bottom:6px}
+
 .lime-rules{list-style:none;padding:0;margin:14px 0 4px;font-size:.88rem;color:#D9F99D}
 .lime-rules li{padding:7px 0;border-top:1px solid rgba(163,230,53,.2)}
 .lime-rules li:first-child{border-top:0}
@@ -274,6 +298,13 @@
   /* ── Small helpers ──────────────────────────────────────────── */
   const rnd = (a, b) => a + Math.random() * (b - a);
 
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  /* The note is authored server-side with **stars** around the word that
+     matters. Escape first, then promote the stars — the emphasis is the only
+     markup that ever survives into the page. */
+  const bold = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
   function el(tag, cls, html) {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -361,7 +392,9 @@
               <strong>+${FC_POINTS.toLocaleString()} points</strong> and the
               <strong>osu Champion</strong> role, once, ever.</li>
           <li>The sooner you cut one, the more it's worth — <strong>${BEST_HIT}</strong>
-              down to <strong>${WORST_HIT}</strong> as it fades.</li>
+              down to <strong>${WORST_HIT}</strong> as it fades. Every
+              <strong>${SCORE_PER_SHARD}</strong> points of score pays a
+              <strong>shard</strong>, taxed like any other earning.</li>
           <li>They fall within reach of your cursor — and come faster the
               longer you last.</li>
           <li>⚠️ The sponsor bubbles are still live. Hit one and its package
@@ -711,8 +744,14 @@
       }
 
       // Refresh the cached student so the portal's roles panel has it.
+      // Deliberately not awaited: it refetches the whole bootstrap, and the
+      // reward the camper just earned shouldn't sit behind it — a slow or
+      // stalled refresh used to mean the blade and the note never appeared.
       try {
-        if (window.HG && window.HG.refresh) await window.HG.refresh();
+        if (window.HG && window.HG.refresh) {
+          const p = window.HG.refresh();
+          if (p && p.catch) p.catch(() => {});
+        }
       } catch (_) {}
 
       // The server decides what a full combo is worth — the bounty is
@@ -732,6 +771,13 @@
                this one was for the record.`}</p>
         </div>`;
 
+      const shards = (got && got.shards) || 0;
+      const shardLine = shards ? `
+        <div class="lime-shards">💎 <strong>+${shards.toLocaleString()} shards</strong>
+          — ${r.score.toLocaleString()} points of limes at
+          ${SCORE_PER_SHARD} a shard${(got && got.shardTax)
+            ? `, after ${got.shardTax.toLocaleString()} withheld in tax` : ''}.</div>` : '';
+
       clear();
       const done = el('div', 'lime-panel');
       done.appendChild(el('div', 'lime-card', `
@@ -741,13 +787,36 @@
         <h2>Whole again</h2>
         <p>${r.score.toLocaleString()} points, ${r.hits} limes, one blade.
         ${REFORGED ? 'It was already yours — consider that a sharper edge.'
-                   : 'It\'s on your camper profile now.'}</p>
+                   : 'It\'s on your camper profile, and in your bag.'}</p>
+        <ul class="lime-rules">
+          <li>🗡 <strong>Lime Sword</strong> — deals 3000 damage per swing to Arachnids.</li>
+          <li>📜 Something fell out of the blade as it closed up.</li>
+        </ul>
+        ${shardLine}
         ${champBlock}
-        <p style="font-size:1.12rem;color:#ECFCCB;margin-top:16px">
-          Time to go on a spider <strong>hunt</strong>.</p>
-        <button class="lime-btn" type="button" data-close>Done</button>`));
+        <button class="lime-btn" type="button" data-note>Read it →</button>`));
       root.appendChild(done);
-      done.querySelector('[data-close]').addEventListener('click', close);
+      done.querySelector('[data-note]').addEventListener('click', () => noteCard(got));
+    }
+
+    /* ── 5. The note ── */
+    /* Its own beat rather than a line at the bottom of the bestowal card —
+       it's the handoff to whatever comes next, and it was getting read as
+       flavour text and clicked past. The copy comes from the server so the
+       note in the bag and the note here can never drift apart. */
+    function noteCard(got) {
+      const n = (got && got.note) || {};
+      const text = n.text || 'Time to go on a spider **hunt**.';
+      clear();
+      const panel = el('div', 'lime-panel');
+      panel.appendChild(el('div', 'lime-card lime-paper', `
+        <div class="lime-notehead">${esc(n.name || 'A note, in the blade\'s hand')}</div>
+        <p class="lime-notebody">${bold(text)}</p>
+        <div class="lime-notefoot">It's in your bag — Dungeon → Inventory,
+          any time you want to read it again.</div>
+        <button class="lime-btn" type="button" data-close>Fold it back up</button>`));
+      root.appendChild(panel);
+      panel.querySelector('[data-close]').addEventListener('click', close);
     }
 
     briefing();
