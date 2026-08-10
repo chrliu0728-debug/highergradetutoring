@@ -886,14 +886,16 @@ html:has(.team-modal.open),
 html:has(.unit-modal.open),
 html:has(.edit-modal.open),
 html:has(.spider-overlay.show),
-html:has(#sponsor-modal.open) {
+html:has(#sponsor-modal.open),
+html:has(#hg-title-sponsor-modal.open) {
   overflow: hidden;
 }
 body:has(.team-modal.open),
 body:has(.unit-modal.open),
 body:has(.edit-modal.open),
 body:has(.spider-overlay.show),
-body:has(#sponsor-modal.open) {
+body:has(#sponsor-modal.open),
+body:has(#hg-title-sponsor-modal.open) {
   overflow: hidden;
 }
 .team-modal-backdrop {

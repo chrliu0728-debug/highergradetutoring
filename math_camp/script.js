@@ -438,12 +438,16 @@ document.querySelectorAll('.faq-q').forEach(btn => {
   const bottom = nav.querySelector('.sidenav-bottom');
   if (bottom) nav.insertBefore(wrap, bottom); else nav.appendChild(wrap);
 
-  // Detail modal → body (once).
-  let modal = document.getElementById('sponsor-modal');
+  // Detail modal → body (once). The id is ours alone: the Support page has
+  // its own #sponsor-modal (the "Become a Partner" form), and adopting that
+  // one as if it were this carousel left every #sm-* lookup below null —
+  // which threw on the first addEventListener and killed the rest of this
+  // block, so the Title Sponsor slots rendered but did nothing.
+  let modal = document.getElementById('hg-title-sponsor-modal');
   if (!modal) {
     modal = document.createElement('div');
     modal.className = 'sponsor-modal';
-    modal.id = 'sponsor-modal';
+    modal.id = 'hg-title-sponsor-modal';
     modal.setAttribute('aria-hidden', 'true');
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
@@ -514,9 +518,11 @@ document.querySelectorAll('.faq-q').forEach(btn => {
     [...elDots.children].forEach((d, i) => d.classList.toggle('active', i === slide));
   }
   function go(n) { const c = elTrack.children.length || 1; slide = (n + c) % c; update(); }
-  elPrev.addEventListener('click', () => go(slide - 1));
-  elNext.addEventListener('click', () => go(slide + 1));
-  elDots.addEventListener('click', e => { const d = e.target.closest('.sponsor-dot'); if (d) go(+d.dataset.i); });
+  // Guarded: a missing arrow is a cosmetic loss, but throwing here takes the
+  // slot click handler and the modal's close button down with it.
+  if (elPrev) elPrev.addEventListener('click', () => go(slide - 1));
+  if (elNext) elNext.addEventListener('click', () => go(slide + 1));
+  if (elDots) elDots.addEventListener('click', e => { const d = e.target.closest('.sponsor-dot'); if (d) go(+d.dataset.i); });
 
   function open(s) {
     elCard.style.setProperty('--sponsor-accent', s.brandColor || 'var(--blush)');

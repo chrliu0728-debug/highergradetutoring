@@ -680,6 +680,8 @@
     </div>
     <div class="dash-header-actions">
       <a class="btn" href="/index.html">← Home</a>
+      <!-- Shown by renderDungeon() once there's anything in the bag. -->
+      <button class="btn" id="inventory-jump" style="display:none;">🎒 Inventory</button>
       <a class="btn" href="/leaderboard/leaderboard.html?from=portal"><i data-icon="trophy"></i> Leaderboard</a>
       <button class="btn" id="logout-btn">Log out</button>
     </div>
@@ -912,7 +914,17 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   const pointsValEl  = document.getElementById('points-val');
   const luckValEl    = document.getElementById('luck-val');
   const logoutBtn    = document.getElementById('logout-btn');
+  const inventoryJump = document.getElementById('inventory-jump');
   const toast        = document.getElementById('toast');
+  // Straight from the dashboard header to the bag, whether or not the camper
+  // has ever been near the dungeon.
+  if (inventoryJump) inventoryJump.addEventListener('click', () => {
+    if (window.DungeonShop && window.DungeonShop.show) window.DungeonShop.show('inv');
+    else {
+      const sec = document.getElementById('dungeon-section');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
   const spider       = document.getElementById('spider-overlay');
 
   function esc(s) {
@@ -1150,10 +1162,20 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     // Same gate as the dungeon card: it appears once the door maze is beaten.
     const beaten = !!(s.extras && (s.extras.doorsRewarded || s.extras.doorsCompleted >= 1))
       || !!(s.doorsRewarded || (s.doorsCompleted || 0) >= 1);
-    sec.style.display = beaten ? '' : 'none';
-    if (!beaten || dungeonMounted || !window.DungeonShop) return;
+    // ...but carrying something opens it too. The Lime Sword and the note that
+    // comes with it land in the bag long before anyone touches the door maze,
+    // and a bag you can't open is just a bag you don't have.
+    const carrying = (Array.isArray(s.inventory) && s.inventory.some(e => e && e.qty > 0))
+      || Object.keys(s.equipped || {}).length > 0;
+    const open = beaten || carrying;
+    sec.style.display = open ? '' : 'none';
+    const jump = document.getElementById('inventory-jump');
+    if (jump) jump.style.display = open ? '' : 'none';
+    if (!open || dungeonMounted || !window.DungeonShop) return;
     dungeonMounted = true;
-    window.DungeonShop.mount().catch(() => { dungeonMounted = false; });
+    // Someone who's only here for the bag has nothing to shop for yet.
+    window.DungeonShop.mount({ tab: beaten ? 'shop' : 'inv' })
+      .catch(() => { dungeonMounted = false; });
   }
 
   /* ─── Point log — every point in and out, newest first ─── */

@@ -107,9 +107,18 @@
   filter:drop-shadow(0 12px 30px rgba(60,110,10,.5));transition:none}
 
 /* Stage. pointer-events:none is load-bearing — it's what keeps the
-   sponsor bubbles behind the trial clickable (and dangerous). */
+   sponsor bubbles behind the trial clickable (and dangerous).
+
+   During the run the stage sits at 900, UNDER the sidenav and the sponsor
+   package modal, so the hazard can land on top of the player as designed.
+   A panel is different: .front lifts the stage over every overlay on the
+   page (the sidenav at 1000, the donation modal at 1000, the sponsor
+   package at 1200, the splat at 1500). A results card that renders
+   underneath an overlay is a dead page — the camper is looking at a dark
+   screen with no way forward and no idea the panel is even there. */
 .lime-stage{position:fixed;inset:0;z-index:900;pointer-events:none;
   font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.lime-stage.front{z-index:1600}
 .lime-stage.dim::before{content:'';position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(120% 80% at 50% 50%,rgba(12,26,4,.30),rgba(8,18,2,.68));
   animation:lime-fade .5s ease both}
@@ -340,6 +349,7 @@
 
     let audio = null;
     let stopTracking = null;   // set for the length of a run — see run()
+    let stopGuard = null;      // ditto — see guardClicks()
     try {
       audio = new Audio(MUSIC);
       audio.loop = true;
@@ -351,11 +361,44 @@
       try { audio.pause(); audio.currentTime = 0; } catch (_) {}
     }
 
-    function clear() { root.innerHTML = ''; root.classList.remove('dim'); }
+    function clear() {
+      root.innerHTML = '';
+      root.classList.remove('dim', 'front');
+    }
+
+    /* Panels are modal, so they go over everything. Called after clear() by
+       each of the four cards. */
+    function panelUp() { root.classList.add('front'); }
+
+    /* Two hundred limes in a minute means a lot of missed clicks, and the
+       stage lets every one of them through to the live page underneath.
+       That's on purpose for the sponsor bubbles — the package landing on
+       top of the run is the hazard — but a miss used to be able to open the
+       mobile nav (which scroll-locks the page and draws over the trial),
+       open a donation card, or follow a nav link and navigate out of the run
+       entirely. So: during the run, swallow every click that isn't a lime or
+       one of the things the player has to be able to reach.
+
+       Capture phase on window, so it lands before any page handler, and
+       preventDefault is what stops a stray click on a link from leaving. */
+    const REACHABLE = '.lime-target, .lime-panel, .sp-bubble, ' +
+                      '#sp-modal, .sponsor-modal, .team-modal, .marcus-wrap';
+    function guardClicks() {
+      function guard(ev) {
+        const t = ev.target;
+        if (t && t.closest && t.closest(REACHABLE)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      const kinds = ['pointerdown', 'mousedown', 'mouseup', 'click', 'touchstart'];
+      kinds.forEach(k => window.addEventListener(k, guard, true));
+      return () => kinds.forEach(k => window.removeEventListener(k, guard, true));
+    }
 
     function close() {
       stopMusic();
       if (stopTracking) { stopTracking(); stopTracking = null; }
+      if (stopGuard) { stopGuard(); stopGuard = null; }
       root.remove();
       document.removeEventListener('keydown', onKey, true);
       if (onDone) onDone();
@@ -372,6 +415,7 @@
     /* ── 1. The briefing ── */
     function briefing() {
       clear();
+      panelUp();
       const panel = el('div', 'lime-panel');
       panel.appendChild(el('div', 'lime-card', `
         <img class="lime-art" src="${REFORGED ? IMG_WHOLE : IMG_BROKEN}"
@@ -411,6 +455,8 @@
     function run() {
       clear();
       root.classList.add('dim');
+      if (stopGuard) stopGuard();
+      stopGuard = guardClicks();
       if (audio) {
         try {
           audio.currentTime = 0;
@@ -651,6 +697,8 @@
           stopMusic();
           untrack();
           stopTracking = null;
+          // The results card is a panel — hand the page back its clicks.
+          if (stopGuard) { stopGuard(); stopGuard = null; }
           setTimeout(() => results({
             hits, score,
             avgMs: hits ? Math.round(sumMs / hits) : 0,
@@ -668,6 +716,7 @@
     /* ── 3. Results ── */
     function results(r) {
       clear();
+      panelUp();
       const passed = r.hits >= TARGET;
       const acc = Math.round((r.hits / TOTAL) * 100);
       const panel = el('div', 'lime-panel');
@@ -779,6 +828,7 @@
             ? `, after ${got.shardTax.toLocaleString()} withheld in tax` : ''}.</div>` : '';
 
       clear();
+      panelUp();
       const done = el('div', 'lime-panel');
       done.appendChild(el('div', 'lime-card', `
         <img class="lime-art" src="${IMG_WHOLE}" alt="The Lime Sword, whole again"
@@ -808,6 +858,7 @@
       const n = (got && got.note) || {};
       const text = n.text || 'Time to go on a spider **hunt**.';
       clear();
+      panelUp();
       const panel = el('div', 'lime-panel');
       panel.appendChild(el('div', 'lime-card lime-paper', `
         <div class="lime-notehead">${esc(n.name || 'A note, in the blade\'s hand')}</div>

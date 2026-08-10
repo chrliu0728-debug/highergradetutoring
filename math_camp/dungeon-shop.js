@@ -658,12 +658,21 @@
 
   /* ── Boot ───────────────────────────────────────────────────── */
   window.DungeonShop = {
-    async mount() {
+    /** opts.tab opens straight onto a tab — 'shop' | 'inv' | 'rec' | 'tax'. */
+    async mount(opts) {
       styles();
+      if (opts && opts.tab) tab = opts.tab;
       if (!(await refresh())) return false;
       render();
       return true;
     },
     refresh: async () => { if (await refresh()) render(); },
+    /** Jump to a tab from outside — the dashboard's Inventory shortcut. */
+    show(which) {
+      tab = which || 'inv';
+      if (cat && me) render();
+      const root = $('#dungeon-panel');
+      if (root) root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
   };
 })();
