@@ -91,6 +91,40 @@
       z-index: 1;
     }
 
+    /* ── The inscription on the back wall ──────────────────────────
+       Cut into the stone lintel under the archway, on one floor of the
+       descent and no other. It is meant to be missed: the colour sits a
+       few percent off the stone it's carved into, the brick mortar lines
+       run straight through it, and there is no label, no glow and no
+       animation drawing the eye down there. Someone who has been told to
+       read the walls between two floors will find it. Nobody else will.
+
+       Left selectable on purpose — dragging across the stone is a fair
+       way to earn it once you suspect something is there. */
+    .mw-wall-mark {
+      position: absolute;
+      left: -38px; right: -38px; bottom: -21px;
+      height: 21px;
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 1;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .34em;
+      white-space: nowrap;
+      overflow: hidden;
+      color: rgba(226, 218, 245, .075);
+      text-shadow: 0 1px 0 rgba(0,0,0,.55), 0 -1px 0 rgba(255,255,255,.02);
+      user-select: text;
+      pointer-events: auto;
+    }
+    .mw-wall-mark.show { display: flex; }
+    @media (max-width: 560px) {
+      /* The lintel is the same 21px on a phone, so the string has to give. */
+      .mw-wall-mark { font-size: 8px; letter-spacing: .14em; }
+    }
+
     .mw-card {
       position: relative;
       z-index: 2;
@@ -251,6 +285,13 @@
       font-size: .85rem;
       color: #FEF3C7;
       line-height: 1.5;
+    }
+    /* The chest hint reads as stone rather than treasure — it's pointing
+       back up the maze, not at anything in this room. */
+    .mw-chest-box {
+      background: rgba(167, 139, 250, .14);
+      border-color: rgba(167, 139, 250, .55);
+      color: #EDE9FE;
     }
 
     /* Money Tree mode — body background swaps to a sunlit yellow scene */
@@ -662,6 +703,8 @@
 
     <!-- Main door: the claim card framed by a stone archway -->
     <div class="mw-portal">
+  <!-- Carved into the lintel. Shown on exactly one floor — see WALL_MARK_AT. -->
+  <div class="mw-wall-mark" id="mw-wall-mark" aria-hidden="true">Thank You HigherGradeTutoring</div>
   <div class="mw-card" id="mw-card">
     <!-- Claim form -->
     <div class="mw-claim" id="mw-claim">
@@ -735,6 +778,8 @@
 
       <div class="mw-msg" id="mw-end-msg"></div>
       <div class="mw-hint-box" id="mw-end-hint" style="display:none;"></div>
+      <!-- Where the Discord chest's passcode is. Filled in on claim. -->
+      <div class="mw-hint-box mw-chest-box" id="mw-end-chest" style="display:none;"></div>
 
       <button class="mw-claim-btn" id="mw-end-btn">Take the coins →</button>
       <p class="mw-footer"><a href="/index.html">← Back to home</a></p>
@@ -908,6 +953,8 @@ const mazeBarFill   = document.getElementById('mw-maze-bar-fill');
 const mazeBack      = document.getElementById('mw-maze-back');
 const mazeEndSub    = document.getElementById('mw-maze-end-sub');
 const endHint       = document.getElementById('mw-end-hint');
+const endChest      = document.getElementById('mw-end-chest');
+const wallMark      = document.getElementById('mw-wall-mark');
 const endBtn        = document.getElementById('mw-end-btn');
 const endMsg        = document.getElementById('mw-end-msg');
 const doorL         = document.getElementById('mw-door-left');
@@ -924,6 +971,14 @@ const mtMsg         = document.getElementById('mw-mt-msg');
 const MAZE_LENGTH        = 310;
 const ALARM_AT           = 300;     // alarm sounds + spider awakens at this floor
 const MONEY_TREE_PATTERN = 'RWRWRWRWR';
+
+// The Discord chest's passcode, carved into the wall on one floor of the
+// descent. The hint handed out at the chest at the bottom only narrows it to
+// floors 100–250, so finding it means walking that stretch reading stone.
+// Keep WALL_MARK_AT inside WALL_HINT_LO..WALL_HINT_HI or the hint is a lie.
+const WALL_MARK_AT  = 220;
+const WALL_HINT_LO  = 100;
+const WALL_HINT_HI  = 250;
 
 // Each Grade 9 unit gets an equal slice of the descent: 62 doors each.
 const UNIT_LABELS = [
@@ -1177,6 +1232,9 @@ function updateMazeUI() {
   const playerPct = (mazeClicks / MAZE_LENGTH) * 100;
   depthPlayer.style.top = playerPct + '%';
   depthFillEl.style.height = playerPct + '%';
+
+  // The one floor whose wall has something written on it.
+  if (wallMark) wallMark.classList.toggle('show', doorNum === WALL_MARK_AT);
 }
 
 function enterMaze() {
@@ -1508,6 +1566,7 @@ newQuestion();
 async function tryMazeClaim() {
   endMsg.className = 'mw-msg'; endMsg.textContent = '';
   endHint.style.display = 'none';
+  endChest.style.display = 'none';
   endBtn.disabled = true;
   endBtn.textContent = 'Opening the chest…';
   try {
@@ -1528,8 +1587,22 @@ async function tryMazeClaim() {
       endHint.style.display = '';
       endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you seek is hidden in the <strong>first 9 doors</strong>. Try alternating <em>right answer</em>, then <em>wrong answer</em>, all the way through — starting with right. Get the criss-cross right and the chamber opens.`;
     }
-    endBtn.textContent = 'Reward claimed';
-    setTimeout(() => { location.href = '/student-portal/student-portal.html'; }, 2400);
+    // The chest at the bottom knows where the OTHER chest's passcode is —
+    // but only roughly. The rest is a walk back up with your eyes open.
+    endChest.style.display = '';
+    endChest.innerHTML = `🗝️ <strong>Scratched inside the chest lid:</strong>
+      the passcode to the locked chest is written on a wall somewhere between
+      <strong>floor ${WALL_HINT_LO}</strong> and <strong>floor ${WALL_HINT_HI}</strong>.
+      Whoever carved it didn't want it read — you'll have to look at the stone
+      itself, not the doors.`;
+    // Hints are up: don't yank the page away while they're still reading.
+    // The button becomes the way out instead of a 2.4s countdown.
+    endBtn.disabled = false;
+    endBtn.textContent = 'Go to my dashboard →';
+    endBtn.removeEventListener('click', tryMazeClaim);
+    endBtn.addEventListener('click', () => {
+      location.href = '/student-portal/student-portal.html';
+    });
   } catch (e) {
     endMsg.className = 'mw-msg err';
     endMsg.textContent = e.message || 'Something went wrong. Please try again.';
