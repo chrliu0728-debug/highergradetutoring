@@ -702,7 +702,7 @@
       <div>
         <div class="summary-label">Luck Stat</div>
         <div class="summary-value" id="luck-val">0</div>
-        <div class="summary-sub">Invest 800 pts to gain +1 luck.</div>
+        <div class="summary-sub" id="luck-sub">Invest 200 pts to gain +1 luck.</div>
       </div>
     </div>
   </div>
@@ -719,13 +719,13 @@
     <div class="action-card">
       <div class="ac-head">
         <h3><i data-icon="leaf" style="color:var(--mint-dark);"></i> Invest in Luck</h3>
-        <p class="ac-sub">Spend <strong>800 points</strong> to permanently raise your luck by <strong>+1</strong>.</p>
+        <p class="ac-sub">Spend <strong id="luck-price">200 points</strong> to permanently raise your luck by <strong>+1</strong>.</p>
       </div>
-      <div class="luck-progress-label"><span id="luck-progress-text">0 / 800 points saved</span></div>
+      <div class="luck-progress-label"><span id="luck-progress-text">0 / 200 points saved</span></div>
       <div class="luck-progress-bar"><div class="luck-progress-fill" id="luck-progress-fill" style="width:0%"></div></div>
       <div class="action-error" id="luck-error"></div>
       <div class="action-success" id="luck-success"></div>
-      <button class="action-btn" id="luck-btn">Invest 800 pts → +1 luck</button>
+      <button class="action-btn" id="luck-btn">Invest 200 pts → +1 luck</button>
     </div>
 
     <!-- ── Transfer ── -->
@@ -1466,6 +1466,13 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     luckProgressFill.style.width = pct + '%';
     luckProgressText.textContent = `${pts.toLocaleString()} / ${LUCK_COST} points saved`;
     luckBtn.disabled = pts < LUCK_COST;
+    // Every price on this card comes off the one constant — the markup's
+    // numbers are only there so the card isn't blank before this runs.
+    luckBtn.textContent = `Invest ${LUCK_COST} pts → +1 luck`;
+    const sub = document.getElementById('luck-sub');
+    if (sub) sub.textContent = `Invest ${LUCK_COST} pts to gain +1 luck.`;
+    const price = document.getElementById('luck-price');
+    if (price) price.textContent = `${LUCK_COST} points`;
   }
 
   luckBtn.addEventListener('click', async () => {

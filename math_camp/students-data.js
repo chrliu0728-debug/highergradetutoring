@@ -33,7 +33,7 @@ const CLICKER_META_DEFAULTS = {
   spiderShown: false,
 };
 
-const LUCK_COST = 800;
+const LUCK_COST = 200;
 const CLICKER_RATE = 100;
 const CLICKER_COOLDOWN_MS = 60;
 const TRANSFER_KEEP_RATIO = 0.5;

@@ -74,8 +74,8 @@ DEATH_KEEP_FRACTION   = 0.70    # die -> keep 70% of the run; walk out -> 100%
 
 # ── Luck ──────────────────────────────────────────────────────────────
 LUCK_MAX              = 40
-LUCK_BASE_COST        = 800     # points, matching the pre-existing luck buy
-LUCK_COST_GROWTH      = 1.12    # 800 × 1.12^(L-1); ~610k points to reach 40
+LUCK_BASE_COST        = 200     # points, matching the pre-existing luck buy
+LUCK_COST_GROWTH      = 1.12    # 200 × 1.12^(L-1); ~153k points to reach 40
 LUCK_AMPLIFY_PER_LEVEL = 0.05   # +5% to other effects per level
 LUCK_WINDOW_MS_PER_LEVEL = 1    # +1ms to the doubling window per level
 LUCK_DISCOVERY_CHANCE = 0.02    # 2% per floor

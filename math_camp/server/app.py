@@ -67,7 +67,7 @@ STAT_FIELD_KEYS = [
     # running total of points sunk into luck, which the discovery roll needs.
     "shards", "luckSpent",
 ]
-LUCK_COST              = 800
+LUCK_COST              = 200
 CLICKER_RATE           = 100
 TRANSFER_KEEP_RATIO    = 0.5
 # Pay this flat fee on a transfer and the recipient gets 100% instead of
