@@ -485,6 +485,25 @@ const AUTO_INTERVAL_MIN       = 6;         // passive accrual cadence (minutes p
 const AUTO_INTERVAL_MS        = AUTO_INTERVAL_MIN * 60 * 1000;
 // Backwards-compat alias kept while the portal page is still loading old code paths
 const AUTO_CLICK_INTERVAL_MS  = AUTO_INTERVAL_MS;
+// The clicker settles on this cadence. Production is continuous and the
+// remainder is banked server-side, so polling more often only makes points
+// APPEAR sooner — it never changes how many arrive.
+const CLICKER_POLL_MS         = 60 * 1000;
+
+/* Thin wrappers so the portal can talk to the clicker endpoints without
+   re-implementing fetch each time. Both resolve to {ok, data, error}. */
+async function clickerRead() {
+  try { return await _api('/students/me/clicker'); }
+  catch (e) { return { ok: false, error: e.message || 'Clicker read failed.' }; }
+}
+async function clickerBuy(qty) {
+  try { return await _api('/students/me/clicker/buy', { method: 'POST', body: { qty } }); }
+  catch (e) { return { ok: false, error: e.message || 'Purchase failed.' }; }
+}
+async function clickerBuyEfficiency() {
+  try { return await _api('/students/me/clicker/efficiency', { method: 'POST', body: {} }); }
+  catch (e) { return { ok: false, error: e.message || 'Purchase failed.' }; }
+}
 const CRANE_ROLE_ID           = 'crane';
 const CRANE_GLOBAL_LIMIT      = 11;
 const CRANE_CLICKS_TO_UNLOCK  = 100;       // clicks on the about-page crane emoji to trigger claim flow

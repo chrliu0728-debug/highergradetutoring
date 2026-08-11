@@ -131,6 +131,21 @@
     .shardbox input:focus { border-color: var(--blush); background: white; }
 
     .danger-zone { border-color: rgba(185,28,28,.4); background: rgba(185,28,28,.03); }
+
+    .chest-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); background: var(--surface2);
+      border-radius: 99px; padding: 5px 11px; margin: 2px 3px 2px 0;
+      font-size: .74rem; font-weight: 700; cursor: default; color: var(--muted);
+      font-family: inherit;
+    }
+    .chest-btn.open {
+      background: rgba(251,191,36,.16); border-color: rgba(251,191,36,.6);
+      color: #92400e; cursor: pointer;
+    }
+    .chest-btn.open:hover { background: rgba(251,191,36,.32); }
+    .chest-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+    .chest-btn.open .chest-dot { background: #D97706; }
     .msg { font-size: .85rem; font-weight: 700; margin-top: 10px; }
     .msg.ok { color: #15803d; } .msg.err { color: #B91C1C; }
     .empty { text-align: center; color: var(--muted); font-style: italic; padding: 26px; }
@@ -224,6 +239,22 @@
     </p>
     <button class="btn-sm ghost" id="repair">Sweep every inventory</button>
     <div class="msg" id="repair-msg"></div>
+  </div>
+
+  <!-- ── Chests ── -->
+  <div class="panel">
+    <h2>🎁 Chests</h2>
+    <p class="panel-desc">
+      Every one-time reward in camp. Resetting one hands it back to that
+      camper so they can open it again — it clears the "already opened" flag
+      and nothing else, so nobody loses points or items they were already
+      given. Filled circles are chests they've opened.
+    </p>
+    <div class="toolbar">
+      <input type="search" id="chest-search" placeholder="Search by name…" />
+      <button class="chip" id="chest-opened-only" data-on="0">Only campers who've opened one</button>
+    </div>
+    <div id="chests"></div>
   </div>
 
   <!-- ── The roster ── -->
@@ -323,6 +354,7 @@ async function load() {
   rows = r.data.students || [];
   renderStats();
   renderRoster();
+  if (!chestData) loadChests();
 }
 
 function renderStats() {
@@ -448,6 +480,67 @@ document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('clic
 document.getElementById('search').addEventListener('input', e => {
   query = (e.target.value || '').trim().toLowerCase();
   renderRoster();
+});
+
+/* ─────────── Chests ─────────── */
+let chestData = null, chestQuery = '', chestOpenedOnly = false;
+
+async function loadChests() {
+  const r = await api('/api/admin/chests');
+  if (!r.ok) { document.getElementById('chests').innerHTML =
+    `<div class="empty">${esc(r.error)}</div>`; return; }
+  chestData = r.data;
+  renderChests();
+}
+
+function renderChests() {
+  if (!chestData) return;
+  const root = document.getElementById('chests');
+  const list = chestData.students.filter(s =>
+    (!chestQuery || s.name.toLowerCase().includes(chestQuery)) &&
+    (!chestOpenedOnly || s.openedCount > 0));
+  if (!list.length) { root.innerHTML = '<div class="empty">Nobody matches that.</div>'; return; }
+  root.innerHTML = `
+    <div style="overflow-x:auto"><table class="dtable">
+      <thead><tr><th>Camper</th><th>Chests</th></tr></thead>
+      <tbody>
+        ${list.map(s => `
+          <tr>
+            <td><div class="who">${esc(s.name)}</div>
+              <div class="tagline"><span class="tag">${s.openedCount} opened</span></div></td>
+            <td>${chestData.chests.map(c => {
+              const open = s.opened[c.key];
+              return `<button class="chest-btn ${open ? 'open' : ''}"
+                        ${open ? '' : 'disabled'}
+                        data-chest="${esc(c.key)}" data-sid="${esc(s.id)}"
+                        title="${esc(open ? 'Click to reset — ' + c.note : 'Not opened yet')}">
+                        <span class="chest-dot"></span>${esc(c.name)}</button>`;
+            }).join('')}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  root.querySelectorAll('[data-chest]').forEach(b => b.addEventListener('click', async () => {
+    const who = (chestData.students.find(x => x.id === b.dataset.sid) || {}).name || 'this camper';
+    const what = (chestData.chests.find(c => c.key === b.dataset.chest) || {});
+    if (!confirm(`Let ${who} open the ${what.name} again?\n\n${what.note}`)) return;
+    const r = await api('/api/admin/chests/reset',
+                        { studentId: b.dataset.sid, chest: b.dataset.chest });
+    if (!r.ok) { showToast(r.error); return; }
+    showToast(`${what.name} reset for ${who}.`);
+    await loadChests();
+    await load();
+  }));
+}
+
+document.getElementById('chest-search').addEventListener('input', e => {
+  chestQuery = (e.target.value || '').trim().toLowerCase();
+  renderChests();
+});
+document.getElementById('chest-opened-only').addEventListener('click', e => {
+  chestOpenedOnly = e.target.dataset.on !== '1';
+  e.target.dataset.on = chestOpenedOnly ? '1' : '0';
+  e.target.classList.toggle('on', chestOpenedOnly);
+  renderChests();
 });
 
 /* ─────────── Bulk actions ─────────── */

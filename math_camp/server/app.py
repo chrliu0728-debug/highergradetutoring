@@ -18,6 +18,7 @@ from functools import wraps
 
 from flask import Flask, g, jsonify, request, make_response
 
+import clicker as clicker_econ
 import crypto
 import dungeon
 import floors
@@ -66,19 +67,24 @@ STAT_FIELD_KEYS = [
     # Dungeon economy. `shards` is the dungeon currency; `luckSpent` is the
     # running total of points sunk into luck, which the discovery roll needs.
     "shards", "luckSpent",
+    # The clicker's fractional carry — see clicker.accrue.
+    "clickerBank",
 ]
 LUCK_COST              = 200
 CLICKER_RATE           = 100
 # Every this many clicks the clicker duplicates itself: +1 clicker level,
-# which is worth another point every AUTO_INTERVAL_MIN minutes and another
-# AUTO_DAILY_CAP_PER_LV of daily headroom. Clicking is how you earn more
-# clickers, rather than waiting for staff to hand you one.
+# which produces points continuously for as long as the camper owns it.
+# Clicking is one way to earn more clickers; buying them is the other.
 CLICKER_DUPLICATE_EVERY = 3000
 # ...but only so many times. A level is permanent passive income, and the
 # click COUNT has no daily cap (only the points do), so an unbounded ladder
 # would let one afternoon of clicking print points for the rest of camp.
 # Levels staff grant by hand are not affected by this ceiling.
 CLICKER_DUPLICATE_MAX   = 10
+# How often the open tab settles production. Production is continuous and
+# the remainder is banked, so this only affects how quickly a camper SEES
+# their points arrive — never how many they get.
+CLICKER_POLL_SEC        = 60
 TRANSFER_KEEP_RATIO    = 0.5
 # Pay this flat fee on a transfer and the recipient gets 100% instead of
 # the usual 50%. Charged on top of the amount sent, and it goes to the
@@ -235,8 +241,10 @@ def reward_for_pct(pct):
         if pct >= cutoff:
             return pts
     return DOOR_REWARD_FLOOR
+# Manual clicking keeps its daily cap. It is not a production limit — it's
+# what stops an auto-clicker script from turning a browser tab into an
+# income. The clickers you BUY have no cap; they're paced by their rate.
 MANUAL_DAILY_CAP       = 50              # max manual-clicker pts per UTC day
-AUTO_DAILY_CAP_PER_LV  = 14              # max auto-clicker pts per level per day
 
 
 def default_stats():
@@ -245,7 +253,7 @@ def default_stats():
         "perfectScores": 0, "classAnswers": 0, "pointExchanges": 0,
         "bathroomVisits": 0, "badWords": 0,
         "clickerClicks": 0, "clickerPointsEarned": 0, "spiderShown": False,
-        "shards": 0, "luckSpent": 0,
+        "shards": 0, "luckSpent": 0, "clickerBank": 0.0,
         # The shards→points cash-out is once per camper, all of it at once.
         "cashedOut": False,
     }
@@ -1282,6 +1290,7 @@ def register_routes(app):
                 stats["dailyAutoPts"]     = 0
             stats["clickerClicks"] = stats.get("clickerClicks", 0) + 1
             earned, spider, capped = 0, False, False
+            luck_label = None
 
             # ── The clicker duplicates ──
             # On every CLICKER_DUPLICATE_EVERY-th click the clicker splits
@@ -1313,11 +1322,17 @@ def register_routes(app):
                 if stats.get("dailyManualPts", 0) >= MANUAL_DAILY_CAP:
                     capped = True   # would have earned, but you've hit today's manual cap
                 else:
-                    earned = 1
+                    # Luck rides the manual point the same way it rides a
+                    # staff award. It counts as ONE against the daily cap
+                    # however it multiplies — the cap is there to bound
+                    # clicking, not to tax being lucky.
+                    mult, luck_label = dungeon.luck_point_multiplier(
+                        stats.get("luck", 0))
+                    earned = 1 * mult
                     stats["dailyManualPts"]      = stats.get("dailyManualPts", 0) + 1
-                    stats["privatePoints"]       = stats.get("privatePoints", 0) + 1
-                    stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + 1
-                    stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + 1
+                    stats["privatePoints"]       = stats.get("privatePoints", 0) + earned
+                    stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + earned
+                    stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + earned
                     if stats["clickerPointsEarned"] >= SPIDER_THRESHOLD and not stats.get("spiderShown"):
                         spider = True
                         stats["spiderShown"] = True
@@ -1325,13 +1340,16 @@ def register_routes(app):
             if earned > 0:
                 _log_tx(type="clicker", scope="student", subjectId=sid,
                         subjectName=_full_name(row), amount=earned,
-                        description=f"Earned {earned} pt from clicker ({stats['clickerClicks']} total clicks)")
+                        description=(f"Earned {earned} pt from clicker "
+                                     f"({stats['clickerClicks']} total clicks)"
+                                     + (f" · 🍀 luck {luck_label}d it" if luck_label else "")))
         return jsonify(ok=True, data={
             "clicks": stats["clickerClicks"], "earned": earned, "spider": spider,
             "clickerPointsEarned": stats["clickerPointsEarned"],
             "capped": capped,
             "dailyManualPts": stats.get("dailyManualPts", 0),
             "manualCap": MANUAL_DAILY_CAP,
+            "luckLabel": luck_label,
             "duplicated": duplicated,
             "clickerLevel": int(extras.get("clickerLevel") or 0),
             "duplicateEvery": CLICKER_DUPLICATE_EVERY,
@@ -1341,96 +1359,218 @@ def register_routes(app):
                                - (stats["clickerClicks"] % CLICKER_DUPLICATE_EVERY),
         })
 
+    def _clicker_state(row):
+        """(clickers, efficiency, luck effectiveness) for this camper."""
+        extras = json.loads(row["extras"] or "{}") or {}
+        stats  = {**default_stats(), **json.loads(row["stats"] or "{}")}
+        return (int(extras.get("clickerLevel") or 0),
+                int(extras.get("clickerEfficiency") or 0),
+                dungeon.luck_effectiveness(stats.get("luck", 0)))
+
+    def _clicker_payload(row, **extra):
+        """The panel's whole view of the clicker, straight off the row."""
+        n, eff, luck_eff = _clicker_state(row)
+        stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+        out = clicker_econ.summary(n, eff, luck_eff, stats.get("privatePoints", 0))
+        # Prices are what THIS camper pays — luck haggles here like it does
+        # everywhere else, and a price quoted before the discount is a lie.
+        luck = stats.get("luck", 0)
+        out["nextClickerCost"], out["clickerLuckOff"] = dungeon.discounted(
+            out["nextClickerCost"], luck)
+        if out["nextEfficiencyCost"] is not None:
+            out["nextEfficiencyCost"], out["efficiencyLuckOff"] = dungeon.discounted(
+                out["nextEfficiencyCost"], luck)
+        else:
+            out["efficiencyLuckOff"] = 0
+        # The bulk button needs its own quote — ten clickers priced one at a
+        # time as the count climbs, then discounted like everything else.
+        out["tenCost"], out["tenLuckOff"] = dungeon.discounted(
+            clicker_econ.clickers_cost(n, 10), luck)
+        out["points"] = stats.get("privatePoints", 0)
+        out["bank"] = round(float(stats.get("clickerBank") or 0.0), 4)
+        out["dailyAutoPts"] = stats.get("dailyAutoPts", 0)
+        out.update(extra)
+        return out
+
+    def _accrue_clickers(sid, row, now_ms):
+        """Pay out whatever the camper's clickers have produced since we
+        last looked, and bank the fraction that's left over.
+
+        Returns (earned, stats, extras) with both dicts already updated in
+        memory — the caller writes them. Splitting it out this way means
+        every entry point (the poll, a purchase, opening the panel) settles
+        production first, so a camper can never buy a clicker with points
+        their existing clickers had already earned but not been paid.
+        """
+        stats  = {**default_stats(), **json.loads(row["stats"] or "{}")}
+        extras = json.loads(row["extras"] or "{}") or {}
+        today  = time.strftime("%Y-%m-%d", time.gmtime())
+        if stats.get("dailyClickerDate") != today:
+            stats["dailyClickerDate"] = today
+            stats["dailyManualPts"]   = 0
+            stats["dailyAutoPts"]     = 0
+
+        n   = int(extras.get("clickerLevel") or 0)
+        eff = int(extras.get("clickerEfficiency") or 0)
+        luck_eff = dungeon.luck_effectiveness(stats.get("luck", 0))
+        last = int(extras.get("lastAutoAt") or 0)
+
+        if last <= 0 or n <= 0:
+            # No baseline yet, or nothing producing: start the clock now so
+            # the first stretch isn't paid retroactively from epoch zero.
+            extras["lastAutoAt"] = now_ms
+            return 0, stats, extras
+
+        earned, bank = clicker_econ.accrue(
+            n, eff, luck_eff, now_ms - last, stats.get("clickerBank") or 0.0)
+        stats["clickerBank"] = bank
+        extras["lastAutoAt"] = now_ms
+        if earned > 0:
+            stats["dailyAutoPts"]        = stats.get("dailyAutoPts", 0) + earned
+            stats["privatePoints"]       = stats.get("privatePoints", 0) + earned
+            stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + earned
+            stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + earned
+        return earned, stats, extras
+
     @app.route("/api/students/me/auto-click", methods=["POST"])
     @require_student
     @block_when_frozen
     def auto_click():
-        """Time-based passive auto-accrual. Replaces the old per-minute
-        UI-click trigger — the 'clickers don't actually click' issue.
+        """Settle whatever the camper's clickers have produced.
 
-        Each clicker level grants the student 1 point every AUTO_INTERVAL_MIN
-        (=6) minutes of real time, regardless of whether the portal tab is
-        open. When the student hits this endpoint we look at the elapsed
-        time since their last accrual, work out how many ticks they've
-        earned, multiply by their level, then cap at the per-day ceiling
-        (AUTO_DAILY_CAP_PER_LV * level). The lastAutoAt timestamp is
-        always advanced to now so they can't stockpile across the cap."""
-        AUTO_INTERVAL_MIN = 6
-        AUTO_INTERVAL_MS  = AUTO_INTERVAL_MIN * 60 * 1000
-
+        Production is continuous and uncapped: a clicker earns
+        BASE_POINTS_PER_DAY a day, forever, whether or not the tab is open.
+        Polling more often does not earn more — the fractional remainder is
+        banked and carried, so the same wall-clock time always pays the same
+        amount. See clicker.py for the arithmetic and why it's lossless.
+        """
         sid = g.session["studentId"]
         now_ms = int(time.time() * 1000)
-        today  = time.strftime("%Y-%m-%d", time.gmtime())
-
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
-            if not row: return jsonify(ok=False, error="Student not found."), 404
-            roles = json.loads(row["roles"] or "[]")
-            if CLICKER_ROLE_ID not in roles:
-                return jsonify(ok=False, error="No clicker role."), 400
-            extras = json.loads(row["extras"] or "{}")
-            level = int(extras.get("clickerLevel") or 0)
-            if level <= 0:
-                return jsonify(ok=False, error="Clicker level is 0."), 400
-
-            cap = AUTO_DAILY_CAP_PER_LV * level
-
-            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
-            if stats.get("dailyClickerDate") != today:
-                stats["dailyClickerDate"] = today
-                stats["dailyManualPts"]   = 0
-                stats["dailyAutoPts"]     = 0
-
-            last = int(extras.get("lastAutoAt") or 0)
-            if last <= 0:
-                # First accrual — set baseline; nothing earned yet.
-                extras["lastAutoAt"] = now_ms
-                g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
-                             (json.dumps(extras), sid))
-                return jsonify(ok=True, data={
-                    "earned": 0, "level": level,
-                    "dailyAutoPts": stats.get("dailyAutoPts", 0),
-                    "autoCap": cap,
-                    "nextTickInSec": AUTO_INTERVAL_MIN * 60,
-                    "intervalMin": AUTO_INTERVAL_MIN,
-                })
-
-            elapsed = max(0, now_ms - last)
-            ticks   = elapsed // AUTO_INTERVAL_MS
-            potential = int(ticks) * level
-
-            remaining_cap = max(0, cap - stats.get("dailyAutoPts", 0))
-            earned = min(potential, remaining_cap)
-
-            if earned > 0:
-                stats["dailyAutoPts"]        = stats.get("dailyAutoPts", 0) + earned
-                stats["privatePoints"]       = stats.get("privatePoints", 0) + earned
-                stats["totalPointsEarned"]   = stats.get("totalPointsEarned", 0) + earned
-                stats["clickerPointsEarned"] = stats.get("clickerPointsEarned", 0) + earned
-
-            # Always advance the timestamp to "now" so partial intervals don't
-            # accumulate across the cap. The next tick window starts fresh.
-            extras["lastAutoAt"] = now_ms
-
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            earned, stats, extras = _accrue_clickers(sid, row, now_ms)
             g.db.execute("UPDATE students SET stats = ?, extras = ? WHERE id = ?",
                          (json.dumps(stats), json.dumps(extras), sid))
-
             if earned > 0:
                 _log_tx(type="clicker", scope="student", subjectId=sid,
                         subjectName=_full_name(row), amount=earned,
-                        description=f"Auto-clicker (Lv {level}) +{earned} pt"
-                                    + (" · cap reached" if earned >= remaining_cap and earned < potential else ""))
+                        description=(f"Clickers ×{extras.get('clickerLevel', 0)} "
+                                     f"+{earned} pt"))
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        return jsonify(ok=True, data=_clicker_payload(
+            row, earned=earned, pollSec=CLICKER_POLL_SEC))
 
-        next_tick_sec = AUTO_INTERVAL_MIN * 60
-        return jsonify(ok=True, data={
-            "earned": earned,
-            "level":  level,
-            "dailyAutoPts": stats.get("dailyAutoPts", 0),
-            "autoCap": cap,
-            "nextTickInSec": next_tick_sec,
-            "intervalMin": AUTO_INTERVAL_MIN,
-            "capped": (earned >= remaining_cap and potential > remaining_cap),
-        })
+    @app.route("/api/students/me/clicker", methods=["GET"])
+    @require_student
+    def clicker_state():
+        """The panel's read. Settles production on the way through so the
+        numbers on screen are never stale."""
+        sid = g.session["studentId"]
+        now_ms = int(time.time() * 1000)
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            earned, stats, extras = _accrue_clickers(sid, row, now_ms)
+            g.db.execute("UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                         (json.dumps(stats), json.dumps(extras), sid))
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        return jsonify(ok=True, data=_clicker_payload(
+            row, earned=earned, pollSec=CLICKER_POLL_SEC))
+
+    @app.route("/api/students/me/clicker/buy", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def clicker_buy():
+        """Buy clickers with points. Each one costs 15% more than the last,
+        so `qty` is priced one at a time as the count climbs — buying five
+        at once costs exactly what buying five separately would."""
+        d = request.get_json(silent=True) or {}
+        raw = d.get("qty")
+        try:
+            # `or 1` would turn an explicit 0 into a purchase of 1 — ask for
+            # none, get charged for one. Default only when it's absent.
+            qty = 1 if raw is None else int(raw)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="How many?"), 400
+        if qty < 1 or qty > 100:
+            return jsonify(ok=False, error="Buy between 1 and 100 at a time."), 400
+
+        sid = g.session["studentId"]
+        now_ms = int(time.time() * 1000)
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            # Settle production first — those points are already earned.
+            _, stats, extras = _accrue_clickers(sid, row, now_ms)
+            owned = int(extras.get("clickerLevel") or 0)
+            listed = clicker_econ.clickers_cost(owned, qty)
+            cost, luck_off = dungeon.discounted(listed, stats.get("luck", 0))
+            have = int(stats.get("privatePoints", 0))
+            if have < cost:
+                return jsonify(ok=False, error=(
+                    f"{qty} more clicker{'s' if qty > 1 else ''} costs {cost:,} points "
+                    f"and you have {have:,}."), shortfall=cost - have), 400
+
+            stats["privatePoints"] = have - cost
+            extras["clickerLevel"] = owned + qty
+            roles = json.loads(row["roles"] or "[]")
+            if CLICKER_ROLE_ID not in roles:
+                roles.append(CLICKER_ROLE_ID)
+                g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
+                             (json.dumps(roles), sid))
+            g.db.execute("UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                         (json.dumps(stats), json.dumps(extras), sid))
+            _log_tx(type="clicker", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=-cost,
+                    description=(f"🖱 Bought {qty} clicker{'s' if qty > 1 else ''} "
+                                 f"for {cost:,} pts → ×{extras['clickerLevel']}"
+                                 + (f" (🍀 {luck_off:,} off)" if luck_off else "")))
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        return jsonify(ok=True, data=_clicker_payload(
+            row, bought=qty, paid=cost, luckOff=luck_off, pollSec=CLICKER_POLL_SEC))
+
+    @app.route("/api/students/me/clicker/efficiency", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def clicker_efficiency():
+        """One efficiency level. Applies to every clicker owned, so it's
+        worth more the bigger the farm — which is what makes the choice
+        between another clicker and another level an actual choice."""
+        sid = g.session["studentId"]
+        now_ms = int(time.time() * 1000)
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            _, stats, extras = _accrue_clickers(sid, row, now_ms)
+            level = int(extras.get("clickerEfficiency") or 0)
+            listed = clicker_econ.efficiency_cost(level)
+            if listed is None:
+                return jsonify(ok=False, error="Your clickers are as fast as they get."), 400
+            cost, luck_off = dungeon.discounted(listed, stats.get("luck", 0))
+            have = int(stats.get("privatePoints", 0))
+            if have < cost:
+                return jsonify(ok=False, error=(
+                    f"Efficiency {level + 1} costs {cost:,} points and you have "
+                    f"{have:,}."), shortfall=cost - have), 400
+
+            stats["privatePoints"] = have - cost
+            extras["clickerEfficiency"] = level + 1
+            g.db.execute("UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                         (json.dumps(stats), json.dumps(extras), sid))
+            _log_tx(type="clicker", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=-cost,
+                    description=(f"🖱 Clicking efficiency → Lv {level + 1} "
+                                 f"for {cost:,} pts"
+                                 + (f" (🍀 {luck_off:,} off)" if luck_off else "")))
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        return jsonify(ok=True, data=_clicker_payload(
+            row, efficiencyBought=True, paid=cost, luckOff=luck_off,
+            pollSec=CLICKER_POLL_SEC))
 
     # Admin grant/revoke endpoints removed — Paper Crane has no cap any more,
     # so any interested student can just claim it themselves.
@@ -2980,6 +3120,145 @@ def register_routes(app):
                                   "removed": dropped})
         return jsonify(ok=True, data={"students": fixed,
                                       "totalRemoved": sum(f["removed"] for f in fixed)})
+
+    # ══ Chests ═════════════════════════════════════════════════════
+    # Every one-time reward in camp is a "chest": something a camper can
+    # open exactly once, with a flag somewhere saying they already did.
+    # Staff need to be able to hand one back — a camper who lost a claim
+    # to a bug, a demo that needs re-running, a reward given by mistake.
+    #
+    # Each entry says where the flag lives and how to clear it. Adding a
+    # new one-time reward means adding a row here, and nothing else.
+    CHESTS = {
+        "maze": {
+            "name": "Door maze chest",
+            "note": "The coin pile at door 310. Re-opening lets the camper "
+                    "claim the maze reward points again.",
+            "extras": ["doorsRewarded", "doors_claimed"],
+        },
+        "dungeon_starter": {
+            "name": "Dungeon starter pick",
+            "note": "The one free beginner item. Re-opening lets them pick "
+                    "again — it does not take the first item back.",
+            "extras": ["dungeonStarterClaimed"],
+        },
+        "lime_sword": {
+            "name": "Lime Sword",
+            "note": "The reforged blade and the note that falls out of it. "
+                    "Re-opening removes the role so the trial can grant it again.",
+            "roles": [LIME_SWORD_ROLE_ID],
+            "roleNames": ["Lime Sword"],
+        },
+        "osu_champion": {
+            "name": "osu Champion bounty",
+            "note": "The full-combo role and its one-time point bounty. "
+                    "Re-opening lets a perfect run pay out again.",
+            "roles": [OSU_ROLE_ID],
+            "roleNames": ["osu Champion"],
+        },
+        "money_tree": {
+            "name": "Money Tree",
+            "note": "The criss-cross chamber. Re-opening lets this camper "
+                    "claim it again — it stays one-per-camp otherwise.",
+            "roles": [MONEY_TREE_ROLE_ID],
+            "roleNames": ["Money Tree"],
+        },
+        "paper_crane": {
+            "name": "Paper Crane",
+            "note": "Re-opening removes the role so it can be claimed again.",
+            "roles": [CRANE_ROLE_ID],
+            "roleNames": ["Paper Crane"],
+        },
+        "spider": {
+            "name": "Spider jumpscare",
+            "note": "The one-time spider popup on the clicker.",
+            "stats": ["spiderShown"],
+        },
+    }
+
+    def _chest_open(row, spec):
+        """Has this camper opened this chest?"""
+        extras = _extras(row)
+        stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+        roles = set(json.loads(row["roles"] or "[]"))
+        for k in spec.get("extras", []):
+            if extras.get(k):
+                return True
+        for k in spec.get("stats", []):
+            if stats.get(k):
+                return True
+        wanted = set(spec.get("roles", []))
+        for nm in spec.get("roleNames", []):
+            wanted |= _role_ids_named(nm)
+        return bool(wanted & roles)
+
+    @app.route("/api/admin/chests", methods=["GET"])
+    @require_admin
+    def admin_chests():
+        """Who has opened what."""
+        rows = g.db.execute(
+            "SELECT * FROM students ORDER BY firstName, lastName").fetchall()
+        out = []
+        for row in rows:
+            opened = {k: _chest_open(row, spec) for k, spec in CHESTS.items()}
+            out.append({
+                "id": row["id"], "name": _full_name(row),
+                "opened": opened,
+                "openedCount": sum(1 for v in opened.values() if v),
+            })
+        return jsonify(ok=True, data={
+            "students": out,
+            "chests": [{"key": k, "name": v["name"], "note": v["note"]}
+                       for k, v in CHESTS.items()],
+        })
+
+    @app.route("/api/admin/chests/reset", methods=["POST"])
+    @require_admin
+    def admin_chest_reset():
+        """Hand one chest back to one camper so they can open it again.
+
+        Clears only the flag that says "already opened" — it does not undo
+        the reward. A camper who re-opens the maze chest keeps the points
+        they were paid the first time and can be paid again; re-opening the
+        Lime Sword removes the role so the trial can grant it, but leaves
+        the sword sitting in their bag. That's deliberate: staff asked for
+        a way to let someone open a chest again, not a way to confiscate.
+        """
+        d = request.get_json(silent=True) or {}
+        sid = (d.get("studentId") or "").strip()
+        key = (d.get("chest") or "").strip()
+        spec = CHESTS.get(key)
+        if not spec:
+            return jsonify(ok=False, error="No such chest."), 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            if not _chest_open(row, spec):
+                return jsonify(ok=False, error=(
+                    f"{_full_name(row)} hasn't opened the {spec['name']} yet — "
+                    f"there's nothing to reset.")), 400
+
+            extras = _extras(row)
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            roles = json.loads(row["roles"] or "[]")
+            for k in spec.get("extras", []):
+                extras.pop(k, None)
+            for k in spec.get("stats", []):
+                stats[k] = False
+            drop = set(spec.get("roles", []))
+            for nm in spec.get("roleNames", []):
+                drop |= _role_ids_named(nm)
+            roles = [r for r in roles if r not in drop]
+
+            g.db.execute(
+                "UPDATE students SET extras = ?, stats = ?, roles = ? WHERE id = ?",
+                (json.dumps(extras), json.dumps(stats), json.dumps(roles), sid))
+            _log_tx(type="role_assigned", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=0,
+                    description=f"🎁 {spec['name']} reset by staff — can be opened again")
+        return jsonify(ok=True, data={"studentId": sid, "chest": key,
+                                      "name": spec["name"]})
 
     # ── Mini-game hints ────────────────────────────────────────────
     @app.route("/api/hints", methods=["GET"])
