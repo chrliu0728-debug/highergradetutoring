@@ -1171,7 +1171,9 @@ def register_routes(app):
             if cur == 0: return jsonify(ok=False, error="You have 0 points!"), 400
             # The lossless fee is charged ON TOP of the amount sent, so the
             # sender needs to cover both.
-            fee = LOSSLESS_TRANSFER_COST if lossless else 0
+            fee, fee_off = dungeon.discounted(
+                LOSSLESS_TRANSFER_COST if lossless else 0,
+                from_stats.get("luck", 0))
             total = amount + fee
             if cur < total:
                 if fee:
@@ -1942,13 +1944,14 @@ def register_routes(app):
         discount applies, and locked items say why they're locked rather
         than being hidden."""
         sess = _current_session()
-        owned, deepest, shards = {}, 0, 0
+        owned, deepest, shards, luck = {}, 0, 0, 0
         if sess and sess["kind"] == "student":
             row = g.db.execute("SELECT * FROM students WHERE id = ?",
                                (sess["studentId"],)).fetchone()
             if row:
                 owned = _owned(row)
                 shards = _wallet(row).get("shards", 0)
+                luck = _wallet(row).get("luck", 0)
                 dr = g.db.execute(
                     "SELECT MAX(deepest) AS d FROM dungeon_runs WHERE studentId = ?",
                     (sess["studentId"],)).fetchone()
@@ -1957,6 +1960,10 @@ def register_routes(app):
         out = []
         for it in dungeon.ITEMS.values():
             p = dungeon.price_for(it["id"], owned.keys())
+            # The shelf shows what this camper pays, luck included — a
+            # discount you only find out about at the till isn't a discount,
+            # it's a surprise.
+            payable, luck_off = dungeon.discounted(p["price"], luck)
             locked = it["tier"] == "intermediate" and not unlocked
             out.append({
                 **{k: it[k] for k in ("id", "name", "tier", "slot", "blurb",
@@ -1965,7 +1972,8 @@ def register_routes(app):
                                       "stackable", "capacity", "consumable",
                                       "reveals", "counterpart", "realWorld",
                                       "quest", "note")},
-                "full": p["full"], "price": p["price"], "saved": p["saved"],
+                "full": p["full"], "price": payable, "saved": p["saved"],
+                "listed": p["price"], "luckOff": luck_off,
                 "owned": owned.get(it["id"], 0),
                 "locked": locked,
                 "lockReason": (f"Reach floor {dungeon.INTERMEDIATE_UNLOCK_FLOOR} to unlock"
@@ -1978,6 +1986,7 @@ def register_routes(app):
             "starterChoices": list(dungeon.STARTER_CHOICES),
             "unlockFloor": dungeon.INTERMEDIATE_UNLOCK_FLOOR,
             "discount": dungeon.COUNTERPART_DISCOUNT,
+            "luck": luck, "luckDiscount": dungeon.luck_discount(luck),
         })
 
     @app.route("/api/students/me/dungeon", methods=["GET"])
@@ -2010,7 +2019,9 @@ def register_routes(app):
             "luckMax": dungeon.LUCK_MAX,
             "luckEffectiveness": dungeon.luck_effectiveness(stats.get("luck", 0)),
             "cashedOut": bool(stats.get("cashedOut")),
-            "conversionFee": dungeon.CONVERSION_FEE_POINTS,
+            "conversionFee": dungeon.discounted(
+                dungeon.CONVERSION_FEE_POINTS, stats.get("luck", 0))[0],
+            "luckDiscount": dungeon.luck_discount(stats.get("luck", 0)),
             # The bag stays readable when the dungeon is closed — losing
             # access shouldn't lose you the things you already earned.
             "barred": _dungeon_barred(row),
@@ -2094,10 +2105,14 @@ def register_routes(app):
             if not it["stackable"] and owned.get(item_id):
                 return jsonify(ok=False, error=f"You already own the {it['name']}."), 400
 
-            p = dungeon.price_for(item_id, owned.keys())
-            shelf = p["price"] * qty
-            total, tax = dungeon.purchase_total(shelf)
             stats = _wallet(row)
+            p = dungeon.price_for(item_id, owned.keys())
+            # Luck's discount lands on the shelf price BEFORE tax, so the
+            # withholding is worked out on what the camper actually pays
+            # rather than on a price nobody was charged.
+            listed = p["price"] * qty
+            shelf, luck_off = dungeon.discounted(listed, stats.get("luck", 0))
+            total, tax = dungeon.purchase_total(shelf)
             have = int(stats.get("shards", 0))
             if have < total:
                 return jsonify(
@@ -2111,10 +2126,14 @@ def register_routes(app):
             owned[item_id] = owned.get(item_id, 0) + qty
             _save_inventory(sid, owned, json.loads(row["equipped"] or "{}") or {})
             label = it["name"] + (f" ×{qty}" if qty > 1 else "")
-            rid = _receipt(sid, "purchase", f"Purchased {label}", shelf, tax, shelf)
+            rid = _receipt(sid, "purchase",
+                           f"Purchased {label}"
+                           + (f" (🍀 {luck_off:,} off)" if luck_off else ""),
+                           shelf, tax, shelf)
         return jsonify(ok=True, data={
             "itemId": item_id, "qty": qty, "shelf": shelf, "tax": tax,
             "paid": total, "saved": p["saved"] * qty,
+            "listed": listed, "luckOff": luck_off,
             "shards": stats["shards"], "receiptId": rid,
         })
 
@@ -2174,7 +2193,6 @@ def register_routes(app):
         except (TypeError, ValueError):
             return jsonify(ok=False, error="Enter a whole number."), 400
         sid = g.session["studentId"]
-        fee = dungeon.CONVERSION_FEE_POINTS
         with g.db:
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
@@ -2184,6 +2202,9 @@ def register_routes(app):
                 return jsonify(ok=False, error=barred), 403
             stats = _wallet(row)
             have_pts = int(stats.get("privatePoints", 0))
+            # Luck haggles the counter down like any other price.
+            fee, fee_off = dungeon.discounted(dungeon.CONVERSION_FEE_POINTS,
+                                              stats.get("luck", 0))
             if direction not in ("shards-to-points", "points-to-shards"):
                 return jsonify(ok=False, error="Pick a direction."), 400
             if have_pts < fee:
@@ -3337,7 +3358,22 @@ def register_routes(app):
 
     def _award_points(sid, amount, reason, awarded_by):
         """Give (or take) points with a written reason. Returns
-        (response_dict, status). Negative amounts deduct and floor at zero."""
+        (response_dict, status). Negative amounts deduct and floor at zero.
+
+        Luck rides on both directions. An award can come out doubled or
+        tripled; a deduction can bounce off entirely. Both roll off the
+        same effectiveness curve as everything else luck touches, and
+        both are recorded on the transaction as what actually happened —
+        the log says +600 (luck tripled 200), not a silent +600, because
+        staff will be asked why the number isn't what they typed.
+
+        The roll deliberately lives here rather than at the callers, so
+        every path that awards points — staff, the Discord bot, the maze,
+        the lime trial's bounty — gets it without being told to. Points
+        arriving from a shard conversion do NOT come through here, and
+        that's the point: multiplying those would hand the exchange
+        counter back the loop the fee was there to close.
+        """
         reason = (reason or "").strip()
         if not reason:
             return {"ok": False, "error": "Give a brief reason — it goes on the transaction."}, 400
@@ -3353,11 +3389,19 @@ def register_routes(app):
             stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
             cur = int(stats.get("privatePoints") or 0)
 
+            luck = int(stats.get("luck", 0))
+            luck_note = ""
             if amount > 0:
-                applied = amount
+                mult, label = dungeon.luck_point_multiplier(luck)
+                applied = amount * mult
+                if label:
+                    luck_note = f" · 🍀 luck {label}d {amount:,}"
                 stats["privatePoints"]     = cur + applied
                 # Lifetime earned only ever goes up.
                 stats["totalPointsEarned"] = int(stats.get("totalPointsEarned") or 0) + applied
+            elif dungeon.luck_shrugs_deduction(luck):
+                applied = 0
+                luck_note = f" · 🍀 luck shrugged off −{abs(amount):,}"
             else:
                 # Never push anyone negative — take what they actually have.
                 applied = -min(cur, abs(amount))
@@ -3371,16 +3415,20 @@ def register_routes(app):
             # Sign follows what was intended, not what landed — a deduction
             # clipped to 0 by an empty balance is still a deduction.
             sign = "+" if amount > 0 else "−"
+            shortfall = (applied != amount and amount < 0 and applied != 0
+                         and not luck_note)
             _log_tx(
                 type="staff_award", scope="student", subjectId=sid, subjectName=who,
                 relatedName=by, amount=applied,
                 description=f"{sign}{abs(applied)} pts by {by} · {short}"
                             + (f" (asked for {abs(amount)}, only {cur} available)"
-                               if applied != amount else ""),
+                               if shortfall else "")
+                            + luck_note,
             )
         return {"ok": True, "data": {
             "studentId": sid, "studentName": who,
             "requested": amount, "applied": applied,
+            "luck": luck, "luckNote": luck_note.strip(" ·"),
             "newPrivatePoints": stats["privatePoints"],
             "totalPointsEarned": stats.get("totalPointsEarned", 0),
             "reason": reason, "awardedBy": by,

@@ -80,6 +80,16 @@ LUCK_AMPLIFY_PER_LEVEL = 0.05   # +5% to other effects per level
 LUCK_WINDOW_MS_PER_LEVEL = 1    # +1ms to the doubling window per level
 LUCK_DISCOVERY_CHANCE = 0.02    # 2% per floor
 LUCK_DISCOVERY_BASE   = 1200
+# Luck outside the dungeon. Every one of these scales with the same
+# effectiveness curve, so they arrive gradually rather than switching on:
+# at luck 10 (65% effective) a camper sees roughly a third of their awards
+# multiplied and a fifth off the till, and at 40 the ceilings below are the
+# real numbers. The ceilings are deliberately short of certainty — staff
+# still need a deduction to land and a shop still needs to charge.
+LUCK_DOUBLE_CHANCE_MAX   = 0.50   # of an award being doubled, at luck 40
+LUCK_TRIPLE_CHANCE_MAX   = 0.10   # ...or tripled instead, at luck 40
+LUCK_DEDUCTION_SHRUG_MAX = 0.50   # of a deduction bouncing off, at luck 40
+LUCK_DISCOUNT_MAX        = 0.30   # off anything you pay for, at luck 40
 
 # ── Shop ──────────────────────────────────────────────────────────────
 INTERMEDIATE_UNLOCK_FLOOR = 50
@@ -275,6 +285,57 @@ def luck_level_cost(next_level):
 
 def luck_total_cost(levels=LUCK_MAX):
     return sum(luck_level_cost(n) for n in range(1, int(levels) + 1))
+
+
+def luck_point_multiplier(luck, roll=None):
+    """Does this award land doubled, tripled, or as-is?
+
+    Returns (multiplier, label). One roll decides all three outcomes, so a
+    triple is a better version of a double rather than a second lottery on
+    top of it — which keeps the headline odds honest: at luck 40 half of
+    all awards are multiplied, and a fifth of those are triples.
+
+    `roll` is injectable so tests can pin it.
+    """
+    eff = luck_effectiveness(luck)
+    if eff <= 0:
+        return 1, None
+    r = _roll(roll)
+    if r < eff * LUCK_TRIPLE_CHANCE_MAX:
+        return 3, "triple"
+    if r < eff * LUCK_DOUBLE_CHANCE_MAX:
+        return 2, "double"
+    return 1, None
+
+
+def luck_shrugs_deduction(luck, roll=None):
+    """True if a deduction bounces off entirely. Caps at 50% so that a
+    maxed-out camper is lucky, not untouchable — staff need the other half
+    of their deductions to actually land."""
+    eff = luck_effectiveness(luck)
+    return eff > 0 and _roll(roll) < eff * LUCK_DEDUCTION_SHRUG_MAX
+
+
+def luck_discount(luck):
+    """Fraction off anything the camper pays for. Unlike the two rolls
+    above this one is certain — it's a standing discount, not a gamble, so
+    a price can be quoted honestly before the camper commits."""
+    return luck_effectiveness(luck) * LUCK_DISCOUNT_MAX
+
+
+def discounted(price, luck):
+    """(payable, saved) for `price` at this luck. Rounds in the camper's
+    favour and never goes below zero."""
+    p = max(0, int(price))
+    payable = max(0, round(p * (1.0 - luck_discount(luck))))
+    return payable, p - payable
+
+
+def _roll(roll=None):
+    if roll is not None:
+        return float(roll)
+    import random as _r
+    return _r.random()
 
 
 def luck_discovery(luck_points_spent, floor):

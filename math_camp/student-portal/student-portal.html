@@ -422,6 +422,14 @@
       background: var(--mint);
       transition: width .3s ease;
     }
+    .luck-what { margin: 4px 0 12px; font-size: .84rem; }
+    .luck-what summary {
+      cursor: pointer; font-weight: 700; color: var(--mint-dark);
+      font-size: .84rem; padding: 4px 0;
+    }
+    .luck-what p, .luck-what li { color: var(--text-mid); line-height: 1.55; margin: 6px 0; }
+    .luck-what ul { padding-left: 18px; margin: 6px 0 0; }
+
     .luck-progress-label {
       font-size: .82rem; color: var(--text-mid);
       margin-bottom: 12px;
@@ -721,6 +729,29 @@
         <h3><i data-icon="leaf" style="color:var(--mint-dark);"></i> Invest in Luck</h3>
         <p class="ac-sub">Spend <strong id="luck-price">200 points</strong> to permanently raise your luck by <strong>+1</strong>.</p>
       </div>
+      <details class="luck-what">
+        <summary>What does luck actually do?</summary>
+        <p>Luck is one stat, 0&nbsp;to&nbsp;40, and it works on everything. It gets
+        stronger fast at first and then levels off &mdash; level&nbsp;10 is already
+        about two-thirds of the way to maximum.</p>
+        <ul>
+          <li><strong>Points you're awarded can multiply.</strong> Every time an
+          instructor gives you points, luck rolls to make it <strong>double</strong>
+          &mdash; or, more rarely, <strong>triple</strong>. At luck&nbsp;40 half of
+          every award is multiplied.</li>
+          <li><strong>Points taken away can bounce off.</strong> A deduction has a
+          chance to miss you entirely. It never reaches certainty, so it's a
+          cushion rather than a shield.</li>
+          <li><strong>Everything costs less.</strong> A standing discount on the
+          dungeon shop, the exchange counter's fee and the lossless-transfer fee
+          &mdash; up to <strong>30% off</strong> at luck&nbsp;40. Prices you see
+          already have it taken off.</li>
+          <li><strong>In the dungeon:</strong> more shards per floor (a guaranteed
+          <em>double</em> at&nbsp;40), a chance to shrug off wrong-door damage
+          entirely (always, at&nbsp;40), +5% per level to your gear's percentages,
+          +1 HP and +1 defense per level, and 2%-per-floor treasure finds.</li>
+        </ul>
+      </details>
       <div class="luck-progress-label"><span id="luck-progress-text">0 / 200 points saved</span></div>
       <div class="luck-progress-bar"><div class="luck-progress-fill" id="luck-progress-fill" style="width:0%"></div></div>
       <div class="action-error" id="luck-error"></div>
@@ -732,7 +763,7 @@
     <div class="action-card">
       <div class="ac-head">
         <h3><i data-icon="refresh" style="color:var(--blush);"></i> Transfer Points</h3>
-        <p class="ac-sub">Send points to a classmate. <strong>50% is lost in the transfer</strong> — or pay <strong>400 pts</strong> to send the full amount.</p>
+        <p class="ac-sub">Send points to a classmate. <strong>50% is lost in the transfer</strong> — or pay <strong id="xfer-fee-a">400 pts</strong> to send the full amount.</p>
       </div>
       <div class="xfer-form">
         <div>
@@ -746,7 +777,7 @@
         <label for="xfer-lossless" style="display:flex; gap:9px; align-items:flex-start; cursor:pointer; margin-top:10px; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; background:var(--surface2);">
           <input type="checkbox" id="xfer-lossless" style="margin-top:2px; flex:none; width:16px; height:16px; cursor:pointer;" />
           <span style="font-size:.82rem; line-height:1.45; color:var(--text-mid);">
-            <strong style="color:var(--text);">Lossless transfer — 400 pts</strong><br>
+            <strong style="color:var(--text);">Lossless transfer — <span id="xfer-fee-b">400 pts</span></strong><br>
             Skip the 50% tax so your classmate receives <strong>100%</strong> of what you send. The fee is charged on top of the amount.
           </span>
         </label>
@@ -1504,15 +1535,29 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   }
   function updatePreview() {
     const amt = parseInt(xferAmt.value, 10) || 0;
+    (() => {
+      const l = (currentStudent() && currentStudent().stats
+                 && currentStudent().stats.luck) || 0;
+      const label = `${luckPrice(LOSSLESS_TRANSFER_COST, l).toLocaleString()} pts`;
+      const a = document.getElementById('xfer-fee-a');
+      const b = document.getElementById('xfer-fee-b');
+      if (a) a.textContent = label;
+      if (b) b.textContent = label;
+    })();
     const lossless = !!(xferLossless && xferLossless.checked);
     const received = lossless ? amt : Math.floor(amt * TRANSFER_KEEP_RATIO);
     const lost = amt - received;
-    const fee = lossless ? LOSSLESS_TRANSFER_COST : 0;
+    const luck = (currentStudent() && currentStudent().stats
+                  && currentStudent().stats.luck) || 0;
+    const full = LOSSLESS_TRANSFER_COST;
+    const fee = lossless ? luckPrice(full, luck) : 0;
     if (lossless) {
       const total = amt + fee;
+      const off = full - fee;
       xferPreview.innerHTML =
         `Recipient will receive <strong>${received.toLocaleString()} pts</strong> — the full amount. ` +
-        `Costs you <strong>${total.toLocaleString()} pts</strong> (${amt.toLocaleString()} sent + ${fee.toLocaleString()} fee).`;
+        `Costs you <strong>${total.toLocaleString()} pts</strong> (${amt.toLocaleString()} sent + ${fee.toLocaleString()} fee` +
+        (off > 0 ? `, 🍀 ${off.toLocaleString()} off for luck` : '') + ').';
     } else {
       xferPreview.innerHTML = `Recipient will receive <strong>${received.toLocaleString()} pts</strong> · <strong>${lost.toLocaleString()} pts</strong> lost in transfer.`;
     }

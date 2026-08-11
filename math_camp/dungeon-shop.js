@@ -216,10 +216,11 @@
             ${esc(item(i.counterpart).name)}</div>` : ''}
         <div class="dg-price">
           <div>
-            ${i.saved ? `<span class="dg-was">${fmt(i.full)}</span>` : ''}
+            ${i.saved || i.luckOff ? `<span class="dg-was">${fmt(i.luckOff ? i.listed : i.full)}</span>` : ''}
             ${gem(i.price)}
             <div class="dg-note" style="font-size:.68rem">
               ${fmt(withTax)} with 13% tax</div>
+            ${i.luckOff ? `<div class="dg-save">🍀 ${fmt(i.luckOff)} off for luck</div>` : ''}
           </div>
           <button class="dg-btn" data-buy="${i.id}"
             ${i.locked || (i.owned && !i.stackable) ? 'disabled' : ''}>
@@ -472,6 +473,16 @@
   }
 
   /* ── Convert ────────────────────────────────────────────────── */
+  function luckLine() {
+    const d = Math.round((cat.luckDiscount || 0) * 100);
+    if (!d) return '';
+    return `<div class="dg-box" style="border-color:rgba(163,230,53,.5)">
+      <h4>🍀 Luck ${fmt(cat.luck)}</h4>
+      <p class="dg-note"><strong>${d}% off</strong> everything on this page —
+      the shelf prices below already have it taken off, and the exchange
+      counter's fee does too.</p></div>`;
+  }
+
   function convertBox() {
     const fee = me.conversionFee || 0;
     const done = !!me.cashedOut;
@@ -530,7 +541,7 @@
         ${tabs.map(([k, l]) =>
           `<button class="dg-tab ${tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}
       </div>
-      ${tab === 'shop' ? convertBox() + shopView()
+      ${tab === 'shop' ? luckLine() + convertBox() + shopView()
         : tab === 'inv' ? invView()
         : tab === 'rec' ? recView()
         : taxView()}`;

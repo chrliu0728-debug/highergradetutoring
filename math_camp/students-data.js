@@ -41,6 +41,21 @@ const TRANSFER_KEEP_RATIO = 0.5;
 // Charged on top of the amount sent. Mirrors LOSSLESS_TRANSFER_COST
 // in server/app.py — the server is the one that enforces it.
 const LOSSLESS_TRANSFER_COST = 400;
+
+/* Luck's standing discount, mirrored from dungeon.py so the portal can quote
+   a price before the camper commits. The server recomputes it on every
+   charge and is the authority — this is for display only. */
+const LUCK_MAX_LEVEL = 40;
+const LUCK_DISCOUNT_MAX = 0.30;
+function luckEffectiveness(luck) {
+  const lv = Math.max(0, Math.min(Number(luck) || 0, LUCK_MAX_LEVEL));
+  if (lv <= 0) return 0;
+  return Math.min(1, Math.log(1 + lv) / Math.log(LUCK_MAX_LEVEL + 1));
+}
+function luckDiscount(luck) { return luckEffectiveness(luck) * LUCK_DISCOUNT_MAX; }
+function luckPrice(price, luck) {
+  return Math.max(0, Math.round((Number(price) || 0) * (1 - luckDiscount(luck))));
+}
 const SPIDER_THRESHOLD = 20;
 
 function defaultStats() {
