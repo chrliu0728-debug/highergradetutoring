@@ -69,6 +69,16 @@ STAT_FIELD_KEYS = [
 ]
 LUCK_COST              = 200
 CLICKER_RATE           = 100
+# Every this many clicks the clicker duplicates itself: +1 clicker level,
+# which is worth another point every AUTO_INTERVAL_MIN minutes and another
+# AUTO_DAILY_CAP_PER_LV of daily headroom. Clicking is how you earn more
+# clickers, rather than waiting for staff to hand you one.
+CLICKER_DUPLICATE_EVERY = 3000
+# ...but only so many times. A level is permanent passive income, and the
+# click COUNT has no daily cap (only the points do), so an unbounded ladder
+# would let one afternoon of clicking print points for the rest of camp.
+# Levels staff grant by hand are not affected by this ceiling.
+CLICKER_DUPLICATE_MAX   = 10
 TRANSFER_KEEP_RATIO    = 0.5
 # Pay this flat fee on a transfer and the recipient gets 100% instead of
 # the usual 50%. Charged on top of the amount sent, and it goes to the
@@ -1272,6 +1282,33 @@ def register_routes(app):
                 stats["dailyAutoPts"]     = 0
             stats["clickerClicks"] = stats.get("clickerClicks", 0) + 1
             earned, spider, capped = 0, False, False
+
+            # ── The clicker duplicates ──
+            # On every CLICKER_DUPLICATE_EVERY-th click the clicker splits
+            # in two: another level of auto-clicker, and the role to go with
+            # it if they somehow don't have it yet (a level without the role
+            # is inert — the auto endpoint checks for both).
+            extras = json.loads(row["extras"] or "{}")
+            duplicated = False
+            if stats["clickerClicks"] % CLICKER_DUPLICATE_EVERY == 0:
+                from_clicks = int(extras.get("clickerLevelsFromClicks") or 0)
+                if from_clicks < CLICKER_DUPLICATE_MAX:
+                    extras["clickerLevel"] = int(extras.get("clickerLevel") or 0) + 1
+                    extras["clickerLevelsFromClicks"] = from_clicks + 1
+                    roles = json.loads(row["roles"] or "[]")
+                    if CLICKER_ROLE_ID not in roles:
+                        roles.append(CLICKER_ROLE_ID)
+                        g.db.execute("UPDATE students SET roles = ? WHERE id = ?",
+                                     (json.dumps(roles), sid))
+                    g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                                 (json.dumps(extras), sid))
+                    duplicated = True
+                    _log_tx(type="clicker", scope="student", subjectId=sid,
+                            subjectName=_full_name(row), amount=0,
+                            description=(f"🖱 Clicker duplicated at "
+                                         f"{stats['clickerClicks']:,} clicks → "
+                                         f"Lv {extras['clickerLevel']}"))
+
             if stats["clickerClicks"] % CLICKER_RATE == 0:
                 if stats.get("dailyManualPts", 0) >= MANUAL_DAILY_CAP:
                     capped = True   # would have earned, but you've hit today's manual cap
@@ -1295,6 +1332,13 @@ def register_routes(app):
             "capped": capped,
             "dailyManualPts": stats.get("dailyManualPts", 0),
             "manualCap": MANUAL_DAILY_CAP,
+            "duplicated": duplicated,
+            "clickerLevel": int(extras.get("clickerLevel") or 0),
+            "duplicateEvery": CLICKER_DUPLICATE_EVERY,
+            "duplicatesLeft": max(0, CLICKER_DUPLICATE_MAX
+                                  - int(extras.get("clickerLevelsFromClicks") or 0)),
+            "nextDuplicateIn": CLICKER_DUPLICATE_EVERY
+                               - (stats["clickerClicks"] % CLICKER_DUPLICATE_EVERY),
         })
 
     @app.route("/api/students/me/auto-click", methods=["POST"])

@@ -35,6 +35,10 @@ const CLICKER_META_DEFAULTS = {
 
 const LUCK_COST = 200;
 const CLICKER_RATE = 100;
+// Mirrors CLICKER_DUPLICATE_EVERY / _MAX in app.py — display only; the
+// server decides when the clicker actually splits.
+const CLICKER_DUPLICATE_EVERY = 3000;
+const CLICKER_DUPLICATE_MAX = 10;
 const CLICKER_COOLDOWN_MS = 60;
 const TRANSFER_KEEP_RATIO = 0.5;
 // Flat fee that buys a 100%-value transfer instead of the usual 50%.
@@ -832,8 +836,17 @@ async function clickerTap(_studentId) {
         me.stats.privatePoints = (me.stats.privatePoints || 0) + r.data.earned;
         me.stats.totalPointsEarned = (me.stats.totalPointsEarned || 0) + r.data.earned;
       }
+      // A duplication changes the level, the levels-from-clicks counter and
+      // possibly the roles array — none of which the per-click patch above
+      // covers, and all of which the card reads straight from the cache.
+      if (r.data.duplicated) {
+        me.clickerLevel = r.data.clickerLevel;
+        me.clickerLevelsFromClicks = (me.clickerLevelsFromClicks || 0) + 1;
+        me.roles = Array.isArray(me.roles) ? me.roles : [];
+        if (!me.roles.includes(CLICKER_ROLE_ID)) me.roles.push(CLICKER_ROLE_ID);
+      }
       const idx = HG.cache.students.findIndex(s => s.id === me.id);
-      if (idx >= 0) HG.cache.students[idx] = { ...HG.cache.students[idx], stats: me.stats };
+      if (idx >= 0) HG.cache.students[idx] = { ...HG.cache.students[idx], ...me };
     }
     return r;
   } catch (e) {
