@@ -35,9 +35,9 @@ const CLICKER_META_DEFAULTS = {
 
 const LUCK_COST = 200;
 const CLICKER_RATE = 100;
-// Mirrors CLICKER_DUPLICATE_EVERY / _MAX in app.py — display only; the
+// Mirrors clicker.DUPLICATE_ODDS / DUPLICATE_LIMIT — display only; the
 // server decides when the clicker actually splits.
-const CLICKER_DUPLICATE_EVERY = 3000;
+const CLICKER_DUPLICATE_ODDS = 3000;   // 1-in-this per click, before luck
 const CLICKER_DUPLICATE_MAX = 10;
 const CLICKER_COOLDOWN_MS = 60;
 const TRANSFER_KEEP_RATIO = 0.5;

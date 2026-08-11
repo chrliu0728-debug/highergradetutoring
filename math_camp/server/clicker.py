@@ -51,6 +51,29 @@ EFFICIENCY_MAX         = 20     # ×6 output at the top
 BASE_POINTS_PER_DAY = 14.4
 MS_PER_DAY = 24 * 60 * 60 * 1000
 
+# Clickers scale sub-linearly: output is BASE × n^SCALE_EXP, not BASE × n.
+#
+# The reason is a real camper who already holds a hundred clickers, from
+# back when levels were handed out by staff. Linear scaling put that one
+# camper at 1,440 points a day, and with luck on top they'd have banked
+# 10,000 points in under three days — while a camper with one clicker was
+# still on 14.4. The brief was that 10,000 should take at least four days
+# from where everyone actually is.
+#
+# The alternative was cutting BASE, but that punishes the camper with one
+# clicker to rein in the camper with a hundred: at the rate needed to fix
+# the top, a first clicker would take four months to pay for itself and
+# nobody would ever buy one. An exponent leaves the bottom of the curve
+# alone and bends the top:
+#
+#     clickers      1      7     21     100
+#     linear     14.4  100.8  302.4  1440.0
+#     ^0.85      14.4   75.3  191.5   721.7
+#
+# which puts the fastest possible run to 10,000 points at 5.8 days with
+# maxed luck and reinvestment, and 9+ days idle.
+CLICKER_SCALE_EXP = 0.85
+
 # Luck's cut of the clicker economy: up to +50% output at luck 40. The
 # discount on buying clickers and the double/triple roll on manual clicks
 # live elsewhere (dungeon.discounted and dungeon.luck_point_multiplier) —
@@ -63,6 +86,32 @@ LUCK_OUTPUT_MAX = 0.50
 # come back to a decade of it. Fourteen days is well past any real absence
 # at a summer camp and bounds what a bad timestamp can do.
 MAX_OFFLINE_MS = 14 * MS_PER_DAY
+
+
+# ── Spontaneous duplication ───────────────────────────────────────────
+# A clicker can split in two off the back of a single click. It used to be
+# a guarantee on every 3,000th click; it's a roll on every click now, at
+# 1-in-DUPLICATE_ODDS. The expected rate is unchanged — one duplication per
+# 3,000 clicks on average — but it can land on click 12 or not until click
+# 9,000, which is the difference between a progress bar and a moment.
+DUPLICATE_ODDS = 3000
+# Luck leans on it like it leans on everything else here: up to twice the
+# chance at luck 40.
+LUCK_DUPLICATE_MAX = 1.0
+DUPLICATE_LIMIT = 10        # how many a camper can win this way, ever
+
+
+def duplicate_chance(luck_effectiveness=0.0):
+    """Probability that any one click splits a clicker in two."""
+    eff = max(0.0, min(float(luck_effectiveness or 0.0), 1.0))
+    return (1.0 / DUPLICATE_ODDS) * (1.0 + LUCK_DUPLICATE_MAX * eff)
+
+
+def rolls_duplicate(luck_effectiveness=0.0, roll=None):
+    """Did this click get lucky? `roll` is injectable for tests."""
+    import secrets
+    r = float(roll) if roll is not None else secrets.randbelow(10**9) / 10**9
+    return r < duplicate_chance(luck_effectiveness)
 
 
 def clicker_cost(owned):
@@ -106,11 +155,16 @@ def luck_multiplier(luck_effectiveness):
 
 
 def points_per_day(clickers, efficiency=0, luck_effectiveness=0.0):
-    """The headline number: points a day at this loadout."""
+    """The headline number: points a day at this loadout.
+
+    Sub-linear in the clicker count — see CLICKER_SCALE_EXP for why. The
+    first clicker is worth a full BASE_POINTS_PER_DAY; the hundredth is
+    worth a fraction of one.
+    """
     n = max(0, int(clickers))
     if n <= 0:
         return 0.0
-    return (BASE_POINTS_PER_DAY * n
+    return (BASE_POINTS_PER_DAY * (n ** CLICKER_SCALE_EXP)
             * efficiency_multiplier(efficiency)
             * luck_multiplier(luck_effectiveness))
 

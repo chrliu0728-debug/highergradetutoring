@@ -72,15 +72,15 @@ STAT_FIELD_KEYS = [
 ]
 LUCK_COST              = 200
 CLICKER_RATE           = 100
-# Every this many clicks the clicker duplicates itself: +1 clicker level,
-# which produces points continuously for as long as the camper owns it.
-# Clicking is one way to earn more clickers; buying them is the other.
-CLICKER_DUPLICATE_EVERY = 3000
-# ...but only so many times. A level is permanent passive income, and the
+# Duplication is a roll on every click, not a milestone — see
+# clicker.duplicate_chance. Clicking is one way to earn more clickers;
+# buying them is the other.
+# ...and only so many times. A clicker is permanent passive income, and the
 # click COUNT has no daily cap (only the points do), so an unbounded ladder
 # would let one afternoon of clicking print points for the rest of camp.
-# Levels staff grant by hand are not affected by this ceiling.
-CLICKER_DUPLICATE_MAX   = 10
+# Clickers staff grant by hand, and clickers bought with points, are not
+# affected by this ceiling — it only bounds the free ones.
+CLICKER_DUPLICATE_MAX   = clicker_econ.DUPLICATE_LIMIT
 # How often the open tab settles production. Production is continuous and
 # the remainder is banked, so this only affects how quickly a camper SEES
 # their points arrive — never how many they get.
@@ -1293,13 +1293,14 @@ def register_routes(app):
             luck_label = None
 
             # ── The clicker duplicates ──
-            # On every CLICKER_DUPLICATE_EVERY-th click the clicker splits
-            # in two: another level of auto-clicker, and the role to go with
-            # it if they somehow don't have it yet (a level without the role
-            # is inert — the auto endpoint checks for both).
+            # Every click gets a roll. On a hit the clicker splits in two:
+            # another clicker, and the role to go with it if they somehow
+            # don't have it yet (a clicker without the role is inert — the
+            # auto endpoint checks for both).
             extras = json.loads(row["extras"] or "{}")
             duplicated = False
-            if stats["clickerClicks"] % CLICKER_DUPLICATE_EVERY == 0:
+            luck_eff = dungeon.luck_effectiveness(stats.get("luck", 0))
+            if clicker_econ.rolls_duplicate(luck_eff):
                 from_clicks = int(extras.get("clickerLevelsFromClicks") or 0)
                 if from_clicks < CLICKER_DUPLICATE_MAX:
                     extras["clickerLevel"] = int(extras.get("clickerLevel") or 0) + 1
@@ -1314,9 +1315,9 @@ def register_routes(app):
                     duplicated = True
                     _log_tx(type="clicker", scope="student", subjectId=sid,
                             subjectName=_full_name(row), amount=0,
-                            description=(f"🖱 Clicker duplicated at "
-                                         f"{stats['clickerClicks']:,} clicks → "
-                                         f"Lv {extras['clickerLevel']}"))
+                            description=(f"🖱 A clicker duplicated on click "
+                                         f"{stats['clickerClicks']:,} → "
+                                         f"×{extras['clickerLevel']}"))
 
             if stats["clickerClicks"] % CLICKER_RATE == 0:
                 if stats.get("dailyManualPts", 0) >= MANUAL_DAILY_CAP:
@@ -1352,11 +1353,10 @@ def register_routes(app):
             "luckLabel": luck_label,
             "duplicated": duplicated,
             "clickerLevel": int(extras.get("clickerLevel") or 0),
-            "duplicateEvery": CLICKER_DUPLICATE_EVERY,
+            "duplicateChance": clicker_econ.duplicate_chance(luck_eff),
+            "duplicateOdds": clicker_econ.DUPLICATE_ODDS,
             "duplicatesLeft": max(0, CLICKER_DUPLICATE_MAX
                                   - int(extras.get("clickerLevelsFromClicks") or 0)),
-            "nextDuplicateIn": CLICKER_DUPLICATE_EVERY
-                               - (stats["clickerClicks"] % CLICKER_DUPLICATE_EVERY),
         })
 
     def _clicker_state(row):
