@@ -44,9 +44,25 @@ highergradetutoring.ca, www.highergradetutoring.ca {
 		@assets path *.png *.jpg *.jpeg *.gif *.svg *.webp *.woff *.woff2 *.ttf
 		header @assets Cache-Control "public, max-age=604800, immutable"
 
-		# HTML/CSS/JS — short cache so updates roll out fast
+		# HTML/CSS/JS — always revalidate.
+		#
+		# These three are one unit: the markup, the styles that lay it out
+		# and the script that drives it by element id. Caching them for a
+		# few minutes let a browser pair a *new* copy of one with an *old*
+		# copy of another, because each file's window opened whenever that
+		# file happened to be fetched. The result was campers being told to
+		# clear their cache after a deploy.
+		#
+		# `no-cache` doesn't mean "don't store" — it means "ask first". The
+		# browser keeps the file and sends an If-None-Match on every load;
+		# unchanged files come back 304 with no body. So the bandwidth is
+		# roughly what it was, and a deploy is live everywhere on the next
+		# page load rather than up to five minutes later, unevenly.
+		#
+		# Images keep their week-long immutable cache above — they're not
+		# part of this coupling.
 		@code path *.html *.css *.js
-		header @code Cache-Control "public, max-age=300, must-revalidate"
+		header @code Cache-Control "no-cache"
 
 		# Hide dot-files (e.g. .git, .env if you ever sync those by mistake)
 		@hidden path /.* /*/.*
