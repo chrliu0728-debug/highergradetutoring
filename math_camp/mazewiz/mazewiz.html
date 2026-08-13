@@ -114,8 +114,12 @@
       letter-spacing: .34em;
       white-space: nowrap;
       overflow: hidden;
-      color: rgba(226, 218, 245, .075);
-      text-shadow: 0 1px 0 rgba(0,0,0,.55), 0 -1px 0 rgba(255,255,255,.02);
+      /* Roughly double the old .075. Against the #2a154f wall that moves the
+         letters from ~14 levels above the stone to ~29 — enough that someone
+         looking at the lintel resolves them, not enough to catch the eye of
+         someone reading the question. Still a squint, deliberately. */
+      color: rgba(226, 218, 245, .16);
+      text-shadow: 0 1px 0 rgba(0,0,0,.6), 0 -1px 0 rgba(255,255,255,.03);
       user-select: text;
       pointer-events: auto;
     }
@@ -846,7 +850,10 @@
       <div class="d300-eyebrow">A folded note tucked into the door frame</div>
       <h3>The Money Tree pattern</h3>
       <p>You've reached door 300 three times. Whoever built this maze left a hint:</p>
-      <p>From door 1, alternate <strong>right answer</strong>, then <strong>wrong answer</strong>, all the way through the first nine doors — <em>R W R W R W R W R</em>.</p>
+      <p>Door 1 is the way in — it doesn't count for anything. Starting at
+         <strong>door 2</strong>, alternate <strong>right answer</strong>, then
+         <strong>wrong answer</strong>, through <strong>door 10</strong> —
+         <em>R W R W R W R W R</em>.</p>
       <p>Get the criss-cross right and the chamber opens. Only one student in the entire camp can ever hold the Money Tree role.</p>
       <button class="mw-claim-btn" id="mw-door300-ok">Pocket the note →</button>
     </div>
@@ -1585,7 +1592,11 @@ async function tryMazeClaim() {
     }
     if ((res.data.completions || 0) >= 3) {
       endHint.style.display = '';
-      endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you seek is hidden in the <strong>first 9 doors</strong>. Try alternating <em>right answer</em>, then <em>wrong answer</em>, all the way through — starting with right. Get the criss-cross right and the chamber opens.`;
+      endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you
+        seek is hidden in <strong>doors 2 through 10</strong> — the entry door is
+        free and counts for nothing. Try alternating <em>right answer</em>, then
+        <em>wrong answer</em>, all the way through, starting with right. Get the
+        criss-cross right and the chamber opens.`;
     }
     // The chest at the bottom knows where the OTHER chest's passcode is —
     // but only roughly. The rest is a walk back up with your eyes open.

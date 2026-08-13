@@ -125,17 +125,48 @@ CREATE TABLE IF NOT EXISTS meta (
   value       TEXT
 );
 
--- Infinity-mode question bank (admin-managed, used by infinity.html).
--- `wrongAnswer` is the admin-chosen decoy that appears on the other door.
+-- Infinity-mode question bank (used by infinity.html).
+-- `wrongAnswer` is the decoy that appears on the other door.
+-- `source` is 'staff' for anything written by hand and 'generated' for the
+-- seeded Grade 9 bank (see infinity_bank.py). Staff can edit or delete
+-- either — the column exists so a re-seed can tell its own rows apart, not
+-- to make generated questions read-only.
+-- `difficulty` (1–5) is what lets the descent get harder: shallow floors
+-- draw from the low tiers, deep floors unlock the high ones.
 CREATE TABLE IF NOT EXISTS infinity_questions (
   id           TEXT PRIMARY KEY,
   question     TEXT NOT NULL,
   answer       TEXT NOT NULL,
   wrongAnswer  TEXT NOT NULL DEFAULT '',
   position     INTEGER NOT NULL DEFAULT 0,
-  createdAt    INTEGER NOT NULL
+  createdAt    INTEGER NOT NULL,
+  source       TEXT NOT NULL DEFAULT 'staff',
+  unit         TEXT NOT NULL DEFAULT '',
+  difficulty   INTEGER NOT NULL DEFAULT 3
 );
 CREATE INDEX IF NOT EXISTS idx_inf_pos ON infinity_questions(position);
+CREATE INDEX IF NOT EXISTS idx_inf_diff ON infinity_questions(difficulty);
+
+-- Every question every camper answers in infinity mode, one row per door.
+-- The question text is snapshotted rather than only referenced, so the log
+-- still reads correctly after staff edit or delete the question itself.
+CREATE TABLE IF NOT EXISTS infinity_answers (
+  id          TEXT PRIMARY KEY,
+  studentId   TEXT NOT NULL,
+  questionId  TEXT NOT NULL DEFAULT '',
+  question    TEXT NOT NULL DEFAULT '',
+  answer      TEXT NOT NULL DEFAULT '',
+  chosen      TEXT NOT NULL DEFAULT '',
+  correct     INTEGER NOT NULL DEFAULT 0,
+  unit        TEXT NOT NULL DEFAULT '',
+  difficulty  INTEGER NOT NULL DEFAULT 0,
+  floor       INTEGER NOT NULL DEFAULT 0,
+  elapsedMs   INTEGER NOT NULL DEFAULT 0,
+  runId       TEXT NOT NULL DEFAULT '',
+  answeredAt  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_infans_student ON infinity_answers(studentId, answeredAt);
+CREATE INDEX IF NOT EXISTS idx_infans_q ON infinity_answers(studentId, questionId);
 
 -- Contact-form / sponsor-inquiry submissions (replaces the email-only flow).
 CREATE TABLE IF NOT EXISTS contact_messages (
@@ -448,6 +479,14 @@ CREATE TABLE IF NOT EXISTS dungeon_runs (
   wrongCount  INTEGER NOT NULL DEFAULT 0,-- wrong clicks on the CURRENT floor
   earringUsed INTEGER NOT NULL DEFAULT 0,
   bowDrawn    INTEGER NOT NULL DEFAULT 0,
-  arrowType   TEXT
+  arrowType   TEXT,
+  -- JSON snapshot of the question currently on screen (text, answer, unit,
+  -- difficulty). Kept on the run so the answer step can log what was asked
+  -- without re-querying a bank row that staff may since have edited.
+  questionMeta TEXT,
+  -- Floor this run started on. 1 for everyone except a camper who spent a
+  -- Checkpoint, and the only reason it's stored is so the summary can say
+  -- "floors 180–214" honestly rather than claiming they started at 1.
+  startFloor  INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_runs_student ON dungeon_runs(studentId, startedAt);

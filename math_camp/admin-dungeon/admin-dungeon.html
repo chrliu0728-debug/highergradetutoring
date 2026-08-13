@@ -150,6 +150,29 @@
     .msg.ok { color: #15803d; } .msg.err { color: #B91C1C; }
     .empty { text-align: center; color: var(--muted); font-style: italic; padding: 26px; }
 
+    /* Infinity-mode answer log */
+    table.dtable tr.clickable { cursor: pointer; }
+    table.dtable tr.clickable:hover { background: rgba(0,0,0,.03); }
+    .chip-mini {
+      display: inline-block; margin: 1px 3px 1px 0; padding: 2px 7px;
+      border-radius: 999px; background: var(--surface2);
+      border: 1px solid var(--border); font-size: .74rem; white-space: nowrap;
+    }
+    .chip-mini small { opacity: .6; }
+    td.detail { background: var(--surface2); }
+    .ans-row {
+      display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+      padding: 5px 2px; border-bottom: 1px solid var(--border); font-size: .82rem;
+    }
+    .ans-row:last-child { border-bottom: 0; }
+    .ans-row .mark { font-weight: 800; }
+    .ans-row .mark.ok { color: #15803d; }
+    .ans-row .mark.no { color: #b91c1c; }
+    .ans-row .fl { color: var(--muted); font-variant-numeric: tabular-nums;
+                   white-space: nowrap; }
+    .ans-row .qq { flex: 1; min-width: 220px; }
+    .ans-row .aa { color: var(--muted); white-space: nowrap; }
+
     .toast {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
       background: var(--navy); color: white; padding: 12px 22px; border-radius: 99px;
@@ -257,6 +280,21 @@
     <div id="chests"></div>
   </div>
 
+  <!-- ── What the camp has been practising ── -->
+  <div class="panel">
+    <h2>📚 Infinity mode — questions answered</h2>
+    <p class="panel-desc">
+      Every question every camper has answered in the dungeon, right or wrong.
+      Accuracy per strand is the useful column: it's the one that tells you what
+      to reteach. Click a camper to see their last answers in order.
+      <span id="bank-line"></span>
+    </p>
+    <div class="toolbar">
+      <input type="search" id="ans-search" placeholder="Search by name…" />
+    </div>
+    <div id="answers"></div>
+  </div>
+
   <!-- ── The roster ── -->
   <div class="panel">
     <h2>🎒 Campers</h2>
@@ -355,6 +393,7 @@ async function load() {
   renderStats();
   renderRoster();
   if (!chestData) loadChests();
+  if (!ansData) loadAnswers();
 }
 
 function renderStats() {
@@ -480,6 +519,86 @@ document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('clic
 document.getElementById('search').addEventListener('input', e => {
   query = (e.target.value || '').trim().toLowerCase();
   renderRoster();
+});
+
+/* ─────────── Infinity mode: what's been answered ─────────── */
+let ansData = null, ansQuery = '', ansOpen = null;
+
+async function loadAnswers() {
+  const r = await api('/api/admin/infinity/answers');
+  if (!r.ok) { document.getElementById('answers').innerHTML =
+    `<div class="empty">${esc(r.error)}</div>`; return; }
+  ansData = r.data;
+  const b = ansData.bank || {};
+  document.getElementById('bank-line').innerHTML =
+    `<br><strong>Bank:</strong> ${(b.total || 0).toLocaleString()} questions —
+     ${(b.generated || 0).toLocaleString()} generated, ${(b.staff || 0).toLocaleString()}
+     written by staff. Add or edit them on the
+     <a href="/admin-hints/admin-hints.html">Hints &amp; questions</a> page.`;
+  renderAnswers();
+}
+
+function renderAnswers() {
+  if (!ansData) return;
+  const root = document.getElementById('answers');
+  const rows = (ansData.totals || []).filter(t =>
+    !ansQuery || (t.name || '').toLowerCase().includes(ansQuery));
+  if (!rows.length) {
+    root.innerHTML = '<div class="empty">Nobody has answered anything in infinity mode yet.</div>';
+    return;
+  }
+  // Per-camper strand breakdown, keyed for quick lookup while drawing.
+  const byUnit = {};
+  for (const u of (ansData.byUnit || [])) {
+    (byUnit[u.studentId] = byUnit[u.studentId] || []).push(u);
+  }
+  const recentFor = sid => (ansData.recent || []).filter(r => r.studentId === sid).slice(0, 12);
+
+  root.innerHTML = `
+    <div style="overflow-x:auto"><table class="dtable">
+      <thead><tr>
+        <th>Camper</th><th>Answered</th><th>Right</th><th>Accuracy</th>
+        <th>Distinct</th><th>By strand</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(t => {
+          const units = (byUnit[t.studentId] || [])
+            .sort((a, b) => (a.c / a.n) - (b.c / b.n))
+            .map(u => `<span class="chip-mini">${esc(u.unit || '—')}
+                        ${Math.round(100 * (u.c || 0) / (u.n || 1))}%
+                        <small>(${u.n})</small></span>`).join(' ');
+          const open = ansOpen === t.studentId;
+          return `
+          <tr class="clickable" data-camper="${esc(t.studentId)}">
+            <td><div class="who">${esc(t.name)}</div></td>
+            <td>${(t.answered || 0).toLocaleString()}</td>
+            <td>${(t.correct || 0).toLocaleString()}</td>
+            <td><b>${t.accuracy}%</b></td>
+            <td>${(t.distinctQs || 0).toLocaleString()}</td>
+            <td>${units || '—'}</td>
+          </tr>
+          ${open ? `<tr><td colspan="6" class="detail">
+            ${recentFor(t.studentId).map(r => `
+              <div class="ans-row">
+                <span class="mark ${r.correct ? 'ok' : 'no'}">${r.correct ? '✔' : '✘'}</span>
+                <span class="fl">floor ${r.floor}</span>
+                <span class="qq">${esc(r.question || '(question since deleted)')}</span>
+                <span class="aa">answer: ${esc(r.answer || '—')}</span>
+              </div>`).join('') || '<div class="empty">No detail recorded.</div>'}
+          </td></tr>` : ''}`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+
+  root.querySelectorAll('[data-camper]').forEach(tr => tr.addEventListener('click', () => {
+    ansOpen = ansOpen === tr.dataset.camper ? null : tr.dataset.camper;
+    renderAnswers();
+  }));
+}
+
+document.getElementById('ans-search').addEventListener('input', e => {
+  ansQuery = (e.target.value || '').trim().toLowerCase();
+  renderAnswers();
 });
 
 /* ─────────── Chests ─────────── */

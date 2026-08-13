@@ -118,6 +118,17 @@
   .toll:first-child{border-top:0}
   .toll b{font-variant-numeric:tabular-nums}
   .ledger{max-width:340px; margin:14px auto 0; text-align:left}
+  /* Checkpoint opt-in. Deliberately a checkbox rather than a second button:
+     spending 40,000 shards of item should be a thing you tick, not a thing
+     you hit by aiming at "Enter" and missing. */
+  .cpt{display:flex; gap:11px; align-items:flex-start; text-align:left;
+       max-width:340px; margin:16px auto 0; padding:12px 14px; cursor:pointer;
+       background:rgba(167,139,250,.10); border:1px solid rgba(167,139,250,.45);
+       border-radius:12px; font-size:.86rem; line-height:1.5}
+  .cpt input{margin-top:3px; flex:none; width:16px; height:16px; accent-color:#A78BFA}
+  .cpt small{display:block; margin-top:3px; opacity:.72; font-size:.78rem}
+  .cpt-none{max-width:340px; margin:16px auto 0; text-align:left; font-size:.83rem;
+            opacity:.75; line-height:1.5}
   .flash{position:fixed; inset:0; background:rgba(220,38,38,.34); pointer-events:none;
          opacity:0; transition:opacity .1s}
   .flash.on{opacity:1}
@@ -338,6 +349,9 @@
     const needStarter = !me.starterClaimed;
     const cat = (await api('/api/dungeon/catalogue')).data;
     const byId = Object.fromEntries((cat.items || []).map(i => [i.id, i]));
+    // Offered, never automatic — a Checkpoint is only spent if the camper
+    // ticks the box, and only when it would actually skip floors.
+    const canCheckpoint = (me.checkpoints || 0) > 0 && (me.resumeFloor || 0) > 1;
 
     showScreen(`
       ${note ? `<div class="fb info" style="margin-bottom:10px">${note}</div>` : ''}
@@ -350,12 +364,27 @@
         that floor was worth.</p>
         <p>Nothing you earn is yours until you <b>walk out</b>. Die down there and
         you'll limp back to your dashboard with <b>70%</b> of it.</p>
+        <p>There are <b>no checkpoints</b> down there. Every run starts on floor 1
+        unless you spend a <b>Checkpoint</b> from your bag.</p>
         <div class="ledger">
           <div class="toll"><span>Your shards</span><b>${gem()} ${fmt(me.shards)}</b></div>
           <div class="toll"><span>Health</span><b>${fmt(me.gear.maxHp)} HP</b></div>
           <div class="toll"><span>Doubling window</span><b>${me.gear.window.toFixed(2)}s</b></div>
           <div class="toll"><span>Deepest floor</span><b>${fmt(me.deepest)}</b></div>
         </div>
+        ${canCheckpoint ? `
+          <label class="cpt" for="use-cpt">
+            <input type="checkbox" id="use-cpt" />
+            <span>
+              <b>Spend a Checkpoint</b> and start on floor ${fmt(me.resumeFloor)}
+              instead of floor 1.
+              <small>You hold ${fmt(me.checkpoints)}. One is spent when you enter,
+              and only if it actually skips floors.</small>
+            </span>
+          </label>` : (me.resumeFloor > 1 ? `
+          <p class="cpt-none">Your last run ended on floor ${fmt(me.resumeFloor)}.
+          A <b>Checkpoint</b> from the shop would start you there instead of
+          walking back down from 1.</p>` : '')}
         ${needStarter ? `
           <p style="margin-top:18px"><b>Pick one piece of kit, free.</b> Everything
           else is bought from the shop — gear only makes the run easier, it's never
@@ -400,10 +429,18 @@
         const slot = (byId[picked] || {}).slot;
         if (slot) await api('/api/students/me/dungeon/equip', { slot, itemId: picked });
       }
-      const s = await api('/api/dungeon/run/start', {});
+      const cpt = $('use-cpt');
+      const useCheckpoint = !!(cpt && cpt.checked);
+      const s = await api('/api/dungeon/run/start', { useCheckpoint });
       if (!s.ok) { $('enter').disabled = false; return alert(s.error); }
       run = s.data;
-      showGame(); paintHud(); nextQuestion();
+      showGame(); paintHud();
+      // After nextQuestion, not before — it clears the feedback line on its
+      // way in, which would swallow this.
+      await nextQuestion();
+      if (s.data.usedCheckpoint) {
+        feedback('info', `🚩 Checkpoint spent — you start on floor <b>${fmt(s.data.startFloor)}</b>.`);
+      }
     });
   }
 
@@ -413,7 +450,8 @@
       <div class="screen">
         <div class="eyebrow" style="color:${died ? 'var(--red)' : 'var(--lime)'}">
           ${died ? 'You died' : 'You made it out'}</div>
-        <h1>${died ? `Floor ${fmt(b.deepest)} got you` : `Floors 1–${fmt(b.deepest)} cleared`}</h1>
+        <h1>${died ? `Floor ${fmt(b.deepest)} got you`
+                   : `Floors ${fmt(b.startFloor || 1)}–${fmt(b.deepest)} cleared`}</h1>
         <p>${died
           ? 'The dungeon keeps 30% of anything you were carrying. The rest limps home with you.'
           : 'Everything you were carrying is banked, less the 13% withheld — file a return in your inventory to claim that back.'}</p>

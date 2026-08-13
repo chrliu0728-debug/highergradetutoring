@@ -161,7 +161,8 @@
   /* ── Shop ───────────────────────────────────────────────────── */
   function shopView() {
     const tiers = [['all', 'Everything'], ['beginner', 'Beginner'],
-                   ['intermediate', 'Intermediate'], ['reward', 'Real rewards']];
+                   ['intermediate', 'Intermediate'], ['utility', 'Utility'],
+                   ['reward', 'Real rewards']];
     const slots = [['all', 'Any slot']].concat(
       Object.entries(SLOT_LABEL), [['none', 'Consumables']]);
     // Quest items ride along in the catalogue so the inventory can name and

@@ -61,6 +61,7 @@ def init_db():
         conn.executescript(SCHEMA_PATH.read_text())
         _migrate(conn)
         _seed(conn)
+        _seed_infinity_bank(conn)
         _encrypt_existing(conn)
     finally:
         conn.close()
@@ -122,6 +123,23 @@ def _migrate(conn):
             )
     except sqlite3.OperationalError:
         pass
+    for col, decl in (("questionMeta", "TEXT"),
+                      ("startFloor", "INTEGER NOT NULL DEFAULT 1")):
+        try:
+            if _has_column("dungeon_runs", "id") and not _has_column("dungeon_runs", col):
+                conn.execute(f"ALTER TABLE dungeon_runs ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass
+    # The bank grew a source/unit/difficulty. Anything already in the table
+    # was typed by a person, so 'staff' is the right default for it.
+    for col, decl in (("source", "TEXT NOT NULL DEFAULT 'staff'"),
+                      ("unit", "TEXT NOT NULL DEFAULT ''"),
+                      ("difficulty", "INTEGER NOT NULL DEFAULT 3")):
+        try:
+            if _has_column("infinity_questions", "id") and not _has_column("infinity_questions", col):
+                conn.execute(f"ALTER TABLE infinity_questions ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass
     try:
         if _has_column("registrations", "id") and not _has_column("registrations", "password"):
             conn.execute("ALTER TABLE registrations ADD COLUMN password TEXT")
@@ -466,6 +484,59 @@ DEFAULT_STAFF = [
      "bio": "Curriculum coordinator at HDSB. I connected this team with board resources, reviewed their MTH1W alignment against the Ontario curriculum expectations, and helped secure space at Abbey Park.",
      "transcript": ""},
 ]
+
+
+def _seed_infinity_bank(conn):
+    """Fill the infinity-mode question bank if it hasn't been filled yet.
+
+    Idempotent by construction: every generated row gets a deterministic id
+    derived from its question text, so re-running this on a DB that already
+    has the bank inserts nothing. That also means a camper part-way through
+    the bank keeps their history — the ids they've already answered are the
+    same ids after a restart.
+
+    Deliberately additive. Staff questions are never touched, and a
+    generated question staff have deleted stays deleted only until the next
+    boot; if that turns out to be annoying the fix is a tombstone table, not
+    a reason to skip seeding. Nothing here overwrites an edit: INSERT OR
+    IGNORE leaves an existing id exactly as it is.
+    """
+    import hashlib
+    try:
+        cur = conn.execute(
+            "SELECT COUNT(*) AS n FROM infinity_questions WHERE source = 'generated'")
+        if cur.fetchone()["n"] > 0:
+            return
+    except sqlite3.OperationalError:
+        return
+    try:
+        import infinity_bank
+    except Exception:
+        return
+    import time as _time
+    now = int(_time.time())
+    # Sit generated rows after anything staff already wrote, so the admin
+    # list opens on the hand-written ones.
+    row = conn.execute(
+        "SELECT COALESCE(MAX(position), 0) AS m FROM infinity_questions").fetchone()
+    base = int((row["m"] if row else 0) or 0)
+    payload = []
+    for i, q in enumerate(infinity_bank.build()):
+        digest = hashlib.sha1(q["question"].encode("utf-8")).hexdigest()[:12]
+        payload.append({
+            "id": "inf-gen-" + digest,
+            "question": q["question"], "answer": q["answer"],
+            "wrongAnswer": q["wrongAnswer"], "position": base + i + 1,
+            "createdAt": now, "source": "generated",
+            "unit": q["unit"], "difficulty": q["difficulty"],
+        })
+    conn.executemany(
+        "INSERT OR IGNORE INTO infinity_questions"
+        " (id, question, answer, wrongAnswer, position, createdAt, source, unit, difficulty)"
+        " VALUES (:id, :question, :answer, :wrongAnswer, :position, :createdAt,"
+        "         :source, :unit, :difficulty)",
+        payload,
+    )
 
 
 def _seed(conn):

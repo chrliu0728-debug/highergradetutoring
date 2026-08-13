@@ -205,6 +205,23 @@ ITEMS = {i["id"]: i for i in [
           counterpart="leather_chestplate",
           blurb="+100 HP, +70 defense."),
 
+    # ── Checkpoint ──
+    # There is no automatic checkpoint anywhere in the dungeon: dying sends
+    # you back to floor 1, always. This is the only exception, and it has to
+    # be bought at a price that makes it a real decision — 40,000 shards is
+    # a full set of iron, so saving a deep run costs about what arming
+    # yourself for the next one would.
+    #
+    # Consumable and stackable: one is spent per resume, and stocking up is
+    # the sane way to protect a long climb.
+    # Its own tier so it isn't shelved as gear or as a real-world reward, and
+    # so it carries no floor lock — the 40,000 price is the gate. A camper who
+    # keeps dying on floor 30 should be allowed to buy their way past it.
+    _item(id="checkpoint", name="Checkpoint", tier="utility", cost=40000,
+          stackable=True, consumable=True,
+          blurb="Start your next run on the floor your last one ended, instead "
+                "of walking back down from 1. Spent when you use it."),
+
     # ── Real-world ──
     _item(id="phone_privileges", name="Phone Privileges", tier="reward", cost=100000,
           realWorld=True,

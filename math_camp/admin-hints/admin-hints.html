@@ -225,7 +225,15 @@
   <!-- ── Infinity-mode question bank ──────────────────────── -->
   <div class="panel">
     <h2>∞ Infinity-mode questions</h2>
-    <p class="panel-desc">Question bank for the post-dungeon Infinity Mode. Add, edit, or remove anything — students draw randomly from this list every time they answer in Infinity Mode (each answer earns +6 pts).</p>
+    <p class="panel-desc">
+      The question bank the dungeon draws from. It ships with about 1,200
+      generated Grade 9 questions, and anything you write here joins the same
+      pool — a camper is served a question they haven't answered before,
+      picked from the difficulties their floor has unlocked.
+      <strong>Difficulty</strong> is how deep it can appear: 3 shows up from
+      floor 1, 5 only past floor 100.
+      Generated questions are ordinary rows — edit or delete them freely.
+    </p>
 
     <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; margin-bottom:12px;">
       <input id="inf-q-new" placeholder="Question (e.g. What is 7 × 8?)"
@@ -237,7 +245,29 @@
       <button id="inf-add-btn" style="background:linear-gradient(135deg, #6D28D9, #2E1065); color:white; border:none; padding:10px 18px; border-radius:8px; font-weight:700; cursor:pointer;">Add</button>
     </div>
     <p style="font-size:.78rem; color:var(--muted); margin: -6px 0 12px;">Both choices appear on the two doors students see. The correct one earns +6 just like the decoy — but the green check / red shake gives them feedback.</p>
+
+    <!-- With ~1,200 rows in the bank, this list has to be searchable and
+         paged: rendering the lot at once locks the page up for seconds. -->
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+      <input id="inf-search" type="search" placeholder="Search questions…"
+        style="flex:1; min-width:190px; padding:9px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:.9rem;" />
+      <select id="inf-source" style="padding:9px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:.88rem;">
+        <option value="all">All sources</option>
+        <option value="staff">Written by staff</option>
+        <option value="generated">Generated</option>
+      </select>
+      <select id="inf-diff" style="padding:9px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:.88rem;">
+        <option value="all">Any difficulty</option>
+        <option value="1">1</option><option value="2">2</option>
+        <option value="3">3</option><option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+      <span id="inf-count" style="font-size:.8rem; color:var(--muted);"></span>
+    </div>
     <div id="inf-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+    <div style="text-align:center; margin-top:12px;">
+      <button id="inf-more" style="display:none; background:var(--surface2); border:1px solid var(--border); padding:9px 20px; border-radius:8px; cursor:pointer; font-weight:600; font-size:.85rem;">Show more</button>
+    </div>
   </div>
 
   <!-- ── Role events ──────────────────────────────────────── -->
@@ -462,22 +492,56 @@ async function loadInfinityQuestions() {
   } catch (_) { return []; }
 }
 
-async function renderInfinityQuestions() {
-  const list = await loadInfinityQuestions();
-  if (!list.length) {
+let infAll = [], infShown = 0;
+const INF_PAGE = 25;
+
+function infFiltered() {
+  const q = (document.getElementById('inf-search').value || '').trim().toLowerCase();
+  const src = document.getElementById('inf-source').value;
+  const dif = document.getElementById('inf-diff').value;
+  return infAll.filter(r =>
+    (!q || (r.question || '').toLowerCase().includes(q)
+        || (r.answer || '').toLowerCase().includes(q)) &&
+    (src === 'all' || (src === 'generated' ? r.source === 'generated'
+                                           : r.source !== 'generated')) &&
+    (dif === 'all' || String(r.difficulty || 3) === dif));
+}
+
+async function renderInfinityQuestions(reload = true) {
+  if (reload) { infAll = await loadInfinityQuestions(); infShown = INF_PAGE; }
+  if (!infAll.length) {
     infListEl.innerHTML = `<div style="font-size:.86rem; color:var(--muted); padding:8px;">No infinity-mode questions yet. Add the first one above.</div>`;
+    document.getElementById('inf-count').textContent = '';
+    document.getElementById('inf-more').style.display = 'none';
     return;
   }
-  infListEl.innerHTML = list.map((q, i) => `
+  const list = infFiltered();
+  const page = list.slice(0, infShown);
+  document.getElementById('inf-count').textContent =
+    `showing ${page.length.toLocaleString()} of ${list.length.toLocaleString()}` +
+    (list.length !== infAll.length ? ` (${infAll.length.toLocaleString()} in the bank)` : '');
+  document.getElementById('inf-more').style.display =
+    page.length < list.length ? '' : 'none';
+  if (!page.length) {
+    infListEl.innerHTML = `<div style="font-size:.86rem; color:var(--muted); padding:8px;">Nothing matches that filter.</div>`;
+    return;
+  }
+  infListEl.innerHTML = page.map((q, i) => `
     <div class="inf-row" data-id="${esc(q.id)}"
-         style="display:grid; grid-template-columns: 30px 2fr 1fr 1fr auto; gap:8px; align-items:center; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;">
-      <div style="color:var(--muted); font-size:.78rem; font-variant-numeric: tabular-nums;">#${i + 1}</div>
+         style="display:grid; grid-template-columns: 30px 2fr 1fr 1fr 62px auto; gap:8px; align-items:center; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px;">
+      <div style="color:var(--muted); font-size:.78rem; font-variant-numeric: tabular-nums;"
+           title="${q.source === 'generated' ? 'Generated' : 'Written by staff'}${q.unit ? ' · ' + esc(q.unit) : ''}">
+        ${q.source === 'generated' ? '⚙' : '✎'}${i + 1}</div>
       <input class="inf-q" value="${esc(q.question)}" placeholder="Question"
         style="padding:8px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:.92rem;" />
       <input class="inf-a" value="${esc(q.answer)}" placeholder="Correct"
         style="padding:8px 10px; border:1.5px solid #16A34A; background:rgba(22,163,74,.05); border-radius:6px; font-size:.92rem;" />
       <input class="inf-w" value="${esc(q.wrongAnswer || '')}" placeholder="Other choice"
         style="padding:8px 10px; border:1.5px solid #DC2626; background:rgba(220,38,38,.04); border-radius:6px; font-size:.92rem;" />
+      <select class="inf-d" title="Difficulty"
+        style="padding:8px 4px; border:1.5px solid var(--border); border-radius:6px; font-size:.88rem;">
+        ${[1,2,3,4,5].map(d => `<option value="${d}" ${Number(q.difficulty || 3) === d ? 'selected' : ''}>d${d}</option>`).join('')}
+      </select>
       <div style="display:flex; gap:6px;">
         <button class="inf-save" style="background:#16A34A; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Save</button>
         <button class="inf-del"  style="background:#DC2626; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:.82rem;">Delete</button>
@@ -492,13 +556,14 @@ async function renderInfinityQuestions() {
       const question    = row.querySelector('.inf-q').value.trim();
       const answer      = row.querySelector('.inf-a').value.trim();
       const wrongAnswer = row.querySelector('.inf-w').value.trim();
+      const difficulty  = Number(row.querySelector('.inf-d').value) || 3;
       if (!question || !answer || !wrongAnswer) return showToast('Question, correct, and other-choice required.');
       if (answer === wrongAnswer) return showToast('Correct and other-choice must differ.');
       try {
         const r = await fetch('/api/admin/infinity-questions/' + encodeURIComponent(id), {
           method: 'PATCH', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question, answer, wrongAnswer }),
+          body: JSON.stringify({ question, answer, wrongAnswer, difficulty }),
         });
         const j = await r.json();
         if (!j.ok) throw new Error(j.error || 'Save failed');
@@ -519,6 +584,18 @@ async function renderInfinityQuestions() {
     });
   });
 }
+
+for (const id of ['inf-search', 'inf-source', 'inf-diff']) {
+  const el = document.getElementById(id);
+  el.addEventListener(id === 'inf-search' ? 'input' : 'change', () => {
+    infShown = INF_PAGE;              // a new filter starts at the top again
+    renderInfinityQuestions(false);
+  });
+}
+document.getElementById('inf-more').addEventListener('click', () => {
+  infShown += INF_PAGE;
+  renderInfinityQuestions(false);
+});
 
 const infWNew = document.getElementById('inf-w-new');
 infAddBtn.addEventListener('click', async () => {

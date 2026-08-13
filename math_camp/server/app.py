@@ -1709,13 +1709,19 @@ def register_routes(app):
             return jsonify(ok=False, error="Question, correct answer, and decoy are all required."), 400
         if w == a:
             return jsonify(ok=False, error="The decoy must differ from the correct answer."), 400
+        try:
+            diff = max(1, min(int(d.get("difficulty") or 3), 5))
+        except (TypeError, ValueError):
+            diff = 3
+        unit = (d.get("unit") or "").strip()
         qid = "inf-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
         row = g.db.execute("SELECT COALESCE(MAX(position), 0) AS m FROM infinity_questions").fetchone()
         pos = (row["m"] or 0) + 1
         g.db.execute(
-            "INSERT INTO infinity_questions (id, question, answer, wrongAnswer, position, createdAt)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (qid, q, a, w, pos, int(time.time())),
+            "INSERT INTO infinity_questions"
+            " (id, question, answer, wrongAnswer, position, createdAt, source, unit, difficulty)"
+            " VALUES (?, ?, ?, ?, ?, ?, 'staff', ?, ?)",
+            (qid, q, a, w, pos, int(time.time()), unit, diff),
         )
         return jsonify(ok=True, id=qid)
 
@@ -1730,10 +1736,20 @@ def register_routes(app):
             return jsonify(ok=False, error="Question, correct answer, and decoy are all required."), 400
         if w == a:
             return jsonify(ok=False, error="The decoy must differ from the correct answer."), 400
+        sets = ["question = ?", "answer = ?", "wrongAnswer = ?"]
+        params = [q, a, w]
+        if d.get("difficulty") is not None:
+            try:
+                sets.append("difficulty = ?")
+                params.append(max(1, min(int(d.get("difficulty")), 5)))
+            except (TypeError, ValueError):
+                sets.pop()
+        if d.get("unit") is not None:
+            sets.append("unit = ?")
+            params.append((d.get("unit") or "").strip())
+        params.append(qid)
         g.db.execute(
-            "UPDATE infinity_questions SET question = ?, answer = ?, wrongAnswer = ? WHERE id = ?",
-            (q, a, w, qid),
-        )
+            f"UPDATE infinity_questions SET {', '.join(sets)} WHERE id = ?", params)
         return jsonify(ok=True)
 
     @app.route("/api/admin/infinity-questions/<qid>", methods=["DELETE"])
@@ -1741,6 +1757,66 @@ def register_routes(app):
     def admin_delete_infinity_question(qid):
         g.db.execute("DELETE FROM infinity_questions WHERE id = ?", (qid,))
         return jsonify(ok=True)
+
+    @app.route("/api/admin/infinity/answers", methods=["GET"])
+    @require_admin
+    def admin_infinity_answers():
+        """What the camp has actually been practising.
+
+        Two views in one call: a per-camper roll-up (how many questions,
+        how many right, which strand they're worst at) and the raw tail of
+        recent answers. `studentId` narrows both to one camper.
+        """
+        sid = (request.args.get("studentId") or "").strip()
+        try:
+            limit = max(1, min(int(request.args.get("limit") or 200), 1000))
+        except (TypeError, ValueError):
+            limit = 200
+
+        names = {r["id"]: _full_name(r)
+                 for r in g.db.execute("SELECT * FROM students").fetchall()}
+
+        where, params = "", []
+        if sid:
+            where, params = " WHERE studentId = ?", [sid]
+
+        totals = [dict(r) for r in g.db.execute(
+            "SELECT studentId, COUNT(*) AS answered,"
+            "       SUM(correct) AS correct,"
+            "       MAX(answeredAt) AS lastAt,"
+            "       COUNT(DISTINCT questionId) AS distinctQs"
+            f"  FROM infinity_answers{where}"
+            " GROUP BY studentId ORDER BY answered DESC", params).fetchall()]
+        for t in totals:
+            t["name"] = names.get(t["studentId"], "(removed)")
+            t["answered"] = int(t["answered"] or 0)
+            t["correct"] = int(t["correct"] or 0)
+            t["accuracy"] = (round(100 * t["correct"] / t["answered"])
+                             if t["answered"] else 0)
+
+        by_unit = [dict(r) for r in g.db.execute(
+            "SELECT studentId, unit, COUNT(*) AS n, SUM(correct) AS c"
+            f"  FROM infinity_answers{where}"
+            " GROUP BY studentId, unit", params).fetchall()]
+
+        recent = [dict(r) for r in g.db.execute(
+            "SELECT * FROM infinity_answers" + where +
+            " ORDER BY answeredAt DESC LIMIT ?", params + [limit]).fetchall()]
+        for r in recent:
+            r["name"] = names.get(r["studentId"], "(removed)")
+
+        bank = g.db.execute(
+            "SELECT COUNT(*) AS n,"
+            " SUM(CASE WHEN source = 'generated' THEN 1 ELSE 0 END) AS generated,"
+            " SUM(CASE WHEN source != 'generated' THEN 1 ELSE 0 END) AS staff"
+            " FROM infinity_questions").fetchone()
+
+        return jsonify(ok=True, data={
+            "totals": totals, "byUnit": by_unit, "recent": recent,
+            "bank": {"total": int(bank["n"] or 0),
+                     "generated": int(bank["generated"] or 0),
+                     "staff": int(bank["staff"] or 0)},
+        })
 
     @app.route("/api/students/me/infinity-answer", methods=["POST"])
     @require_student
@@ -2216,6 +2292,10 @@ def register_routes(app):
             "activeRun": bool(run),
             "unclaimedTax": int(owed["t"] or 0),
             "openReceipts": int(owed["n"] or 0),
+            # Checkpoints held, and the floor one would drop them on. The
+            # entry screen offers the choice; nothing is ever spent silently.
+            "checkpoints": int(owned.get("checkpoint", 0)),
+            "resumeFloor": _resume_floor(sid),
         })
 
     @app.route("/api/students/me/dungeon/starter", methods=["POST"])
@@ -2549,7 +2629,8 @@ def register_routes(app):
             (int(time.time() * 1000), "alive" if alive else "dead", run["id"]))
         rid = None
         if kept > 0:
-            label = (f"Dungeon run — floors 1–{run['deepest']}" if alive else
+            start = int((run["startFloor"] if "startFloor" in run.keys() else 1) or 1)
+            label = (f"Dungeon run — floors {start}–{run['deepest']}" if alive else
                      f"Died on floor {run['floor']} — 70% of {gross:,} recovered")
             rid = _receipt(sid, "earning", label, kept, tax, net)
             _log_tx(type="earn", scope="student", subjectId=sid,
@@ -2557,7 +2638,7 @@ def register_routes(app):
                     description=(f"💎 {label} · +{net:,} shards after {tax:,} tax"))
         return {"gross": gross, "kept": kept, "tax": tax, "net": net,
                 "shards": stats["shards"], "alive": alive,
-                "deepest": run["deepest"], "receiptId": rid}
+                "deepest": run["deepest"], "startFloor": start, "receiptId": rid}
 
     @app.route("/api/dungeon/run", methods=["GET"])
     @require_student
@@ -2570,11 +2651,22 @@ def register_routes(app):
         gear, _, _ = _gear_for(row)
         return jsonify(ok=True, data=_run_state(run, gear))
 
+    def _resume_floor(sid):
+        """The floor this camper's last run ended on — what a Checkpoint buys
+        them back. 0 when they've never finished a run, since there's nothing
+        to return to."""
+        r = g.db.execute(
+            "SELECT floor FROM dungeon_runs WHERE studentId = ? AND endedAt IS NOT NULL"
+            " ORDER BY endedAt DESC LIMIT 1", (sid,)).fetchone()
+        return int((r["floor"] if r else 0) or 0)
+
     @app.route("/api/dungeon/run/start", methods=["POST"])
     @require_student
     @block_when_frozen
     def dungeon_run_start():
         sid = g.session["studentId"]
+        body = request.get_json(silent=True) or {}
+        want_checkpoint = bool(body.get("useCheckpoint"))
         with g.db:
             if _active_run(sid):
                 return jsonify(ok=False, error="You're already in the dungeon."), 400
@@ -2584,16 +2676,116 @@ def register_routes(app):
             barred = _dungeon_barred(row)
             if barred:
                 return jsonify(ok=False, error=barred), 403
-            gear, _, _ = _gear_for(row)
+            gear, equipped, _ = _gear_for(row)
+
+            # A Checkpoint is only spent when it actually buys something. If
+            # the last run ended on floor 1 there's nothing to skip, so the
+            # item stays in the bag rather than vanishing for no benefit.
+            start_floor, spent_checkpoint = 1, False
+            if want_checkpoint:
+                owned = _owned(row)
+                resume = _resume_floor(sid)
+                if owned.get("checkpoint", 0) <= 0:
+                    return jsonify(ok=False, error="You don't have a Checkpoint."), 400
+                if resume <= 1:
+                    return jsonify(
+                        ok=False,
+                        error="No checkpoint to return to — your last run ended on floor 1."), 400
+                owned["checkpoint"] -= 1
+                _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+                start_floor, spent_checkpoint = resume, True
+
             rid = "run-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
             now = int(time.time() * 1000)
             g.db.execute(
                 "INSERT INTO dungeon_runs"
-                " (id, studentId, startedAt, floor, deepest, hp, maxHp, escrow, floorStart)"
-                " VALUES (?, ?, ?, 1, 1, ?, ?, 0, ?)",
-                (rid, sid, now, gear["maxHp"], gear["maxHp"], now))
+                " (id, studentId, startedAt, floor, deepest, hp, maxHp, escrow,"
+                "  floorStart, startFloor)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+                (rid, sid, now, start_floor, start_floor,
+                 gear["maxHp"], gear["maxHp"], now, start_floor))
             run = g.db.execute("SELECT * FROM dungeon_runs WHERE id = ?", (rid,)).fetchone()
-        return jsonify(ok=True, data=_run_state(run, gear))
+        state = _run_state(run, gear)
+        state["usedCheckpoint"] = spent_checkpoint
+        state["startFloor"] = start_floor
+        return jsonify(ok=True, data=state)
+
+    # How hard a floor is allowed to be. The bank is banded 1–5; a camper on
+    # their first lap sees the gentler end, and the top band opens up once
+    # they're past floor 100. Staff questions default to difficulty 3, so
+    # anything hand-written is eligible from the very first floor.
+    def _difficulty_cap(floor_no):
+        return min(5, 3 + floors.tier_for_floor(floor_no))
+
+    def _draw_question(sid, floor_no):
+        """Pick this floor's question.
+
+        Preference order:
+          1. a bank question this camper has never answered, inside the
+             floor's difficulty band,
+          2. any bank question they've never answered,
+          3. the one they answered longest ago,
+          4. a procedurally generated floor (floors.py) if the bank is empty.
+
+        Step 4 is what keeps "infinity" honest. The bank is 1,200 questions
+        plus whatever staff add, which is a lot but not infinite, and a mode
+        that runs out of questions and stops isn't endless. floors.py can
+        generate forever, so the descent continues either way.
+        """
+        cap = _difficulty_cap(floor_no)
+        pick = g.db.execute(
+            "SELECT q.* FROM infinity_questions q"
+            " WHERE q.difficulty <= ?"
+            "   AND NOT EXISTS (SELECT 1 FROM infinity_answers a"
+            "                    WHERE a.studentId = ? AND a.questionId = q.id)"
+            " ORDER BY RANDOM() LIMIT 1", (cap, sid)).fetchone()
+        if not pick:
+            pick = g.db.execute(
+                "SELECT q.* FROM infinity_questions q"
+                " WHERE NOT EXISTS (SELECT 1 FROM infinity_answers a"
+                "                    WHERE a.studentId = ? AND a.questionId = q.id)"
+                " ORDER BY RANDOM() LIMIT 1", (sid,)).fetchone()
+        if not pick:
+            # Everything has been seen at least once — go round again,
+            # oldest first, so it's the least fresh one that comes back.
+            pick = g.db.execute(
+                "SELECT q.* FROM infinity_questions q"
+                " LEFT JOIN (SELECT questionId, MAX(answeredAt) AS seen"
+                "              FROM infinity_answers WHERE studentId = ?"
+                "             GROUP BY questionId) a ON a.questionId = q.id"
+                " ORDER BY COALESCE(a.seen, 0) ASC, RANDOM() LIMIT 1",
+                (sid,)).fetchone()
+        if pick:
+            return {"id": pick["id"], "question": pick["question"],
+                    "answer": str(pick["answer"]), "wrong": str(pick["wrongAnswer"]),
+                    "unit": pick["unit"] or "Grade 9",
+                    "difficulty": int(pick["difficulty"] or 3)}
+        question, correct, wrong, unit_label = floors.generate(floor_no)
+        return {"id": f"floor-{floor_no}", "question": question,
+                "answer": str(correct), "wrong": str(wrong),
+                "unit": unit_label, "difficulty": _difficulty_cap(floor_no)}
+
+    def _log_infinity_answer(sid, run, side, correct, elapsed, floor):
+        """One row per door taken. Never raises: a tracking write must not be
+        able to cost a camper a run they answered correctly."""
+        try:
+            meta = json.loads(run["questionMeta"] or "{}")
+        except (TypeError, ValueError):
+            meta = {}
+        try:
+            g.db.execute(
+                "INSERT INTO infinity_answers"
+                " (id, studentId, questionId, question, answer, chosen, correct,"
+                "  unit, difficulty, floor, elapsedMs, runId, answeredAt)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("ians-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(4),
+                 sid, run["questionId"] or "", meta.get("question", ""),
+                 str(meta.get("answer", "")), side, 1 if correct else 0,
+                 meta.get("unit", ""), int(meta.get("difficulty") or 0),
+                 int(floor), int(elapsed * 1000), run["id"],
+                 int(time.time() * 1000)))
+        except Exception:
+            pass
 
     @app.route("/api/dungeon/run/question", methods=["POST"])
     @require_student
@@ -2602,27 +2794,32 @@ def register_routes(app):
         """Serve the current floor's question. The server decides which door
         is right and starts the clock — the browser is told neither.
 
-        The floor generates its own Grade 9 question (see floors.py). It used
-        to draw from `infinity_questions`, which is the post-maze extra-practice
-        bank staff fill in by hand — so every floor of an endless dungeon asked
-        whatever few questions happened to be in there, and with one row in the
-        table that meant the same question all the way down. The units cycle
-        with depth now, so the descent walks the Grade 9 course."""
+        Questions come from `infinity_questions` — the seeded Grade 9 bank
+        plus anything staff have written — filtered to what this camper
+        hasn't answered yet, so a descent doesn't ask the same thing twice.
+        floors.py still generates a floor when the bank can't supply one,
+        which is what stops an endless mode from running out."""
         sid = g.session["studentId"]
         with g.db:
             run = _active_run(sid)
             if not run:
                 return jsonify(ok=False, error="You're not in the dungeon."), 400
             floor_no = int(run["floor"] or 1)
-            question, correct, wrong, unit_label = floors.generate(floor_no)
+            drawn = _draw_question(sid, floor_no)
+            question, correct, wrong = drawn["question"], drawn["answer"], drawn["wrong"]
+            unit_label = drawn["unit"]
             left_correct = secrets.randbelow(2) == 0
             now = int(time.time() * 1000)
-            # questionId is only a ledger breadcrumb — the answer lives in
-            # correctSide, which is the only thing the resolve step checks.
+            # correctSide is still the only thing the resolve step trusts.
+            # questionMeta rides along so the answer can be logged against
+            # the question that was actually on screen.
             g.db.execute(
-                "UPDATE dungeon_runs SET questionAt = ?, questionId = ?, correctSide = ?"
-                " WHERE id = ?",
-                (now, f"floor-{floor_no}", "L" if left_correct else "R", run["id"]))
+                "UPDATE dungeon_runs SET questionAt = ?, questionId = ?, correctSide = ?,"
+                " questionMeta = ? WHERE id = ?",
+                (now, drawn["id"], "L" if left_correct else "R",
+                 json.dumps({"question": question, "answer": correct,
+                             "unit": unit_label, "difficulty": drawn["difficulty"]}),
+                 run["id"]))
             floor_start = run["floorStart"] or now
         row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
         gear, _, _ = _gear_for(row)
@@ -2696,6 +2893,13 @@ def register_routes(app):
             payload = {"correct": correct, "elapsed": round(elapsed, 2),
                        "speed": round(dungeon.speed_multiplier(elapsed, gear["window"]), 3),
                        "window": gear["window"], "proc": proc}
+
+            # Log the door before resolving its consequences. Every question
+            # every camper answers ends up here — right or wrong, whether or
+            # not the run survives it — which is what makes the admin view a
+            # record of what the camp actually practised rather than a record
+            # of what it got right.
+            _log_infinity_answer(sid, run, side, correct, elapsed, floor)
 
             if correct:
                 gained = dungeon.floor_reward(floor, elapsed, gear, luck, arrow_bonus)
