@@ -140,6 +140,13 @@ def _migrate(conn):
                 conn.execute(f"ALTER TABLE infinity_questions ADD COLUMN {col} {decl}")
         except sqlite3.OperationalError:
             pass
+    # Only once the column is certain to exist — see the note in schema.sql.
+    try:
+        if _has_column("infinity_questions", "difficulty"):
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_inf_diff"
+                         " ON infinity_questions(difficulty)")
+    except sqlite3.OperationalError:
+        pass
     try:
         if _has_column("registrations", "id") and not _has_column("registrations", "password"):
             conn.execute("ALTER TABLE registrations ADD COLUMN password TEXT")

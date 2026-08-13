@@ -145,7 +145,11 @@ CREATE TABLE IF NOT EXISTS infinity_questions (
   difficulty   INTEGER NOT NULL DEFAULT 3
 );
 CREATE INDEX IF NOT EXISTS idx_inf_pos ON infinity_questions(position);
-CREATE INDEX IF NOT EXISTS idx_inf_diff ON infinity_questions(difficulty);
+-- NOTE: the index on difficulty is created in db._migrate, not here.
+-- init_db runs this whole file before the migrations, and on a database
+-- that already has infinity_questions the CREATE TABLE above is a no-op —
+-- so the difficulty column doesn't exist yet and indexing it here fails
+-- the entire script, taking the API down on boot.
 
 -- Every question every camper answers in infinity mode, one row per door.
 -- The question text is snapshotted rather than only referenced, so the log
