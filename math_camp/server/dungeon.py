@@ -121,6 +121,7 @@ def _item(**kw):
         "realWorld": False,
         "quest": False,         # handed out by the story; never on a shelf
         "note": None,           # readable text, re-openable from the inventory
+        "noteBack": None,       # ...and what's written on the other side
     }
     base.update(kw)
     return base
@@ -238,7 +239,71 @@ ITEMS = {i["id"]: i for i in [
           quest=True,
           blurb="Fell out of the Lime Sword the moment it reforged.",
           note="Time to go on a spider **hunt**."),
+    # What's left when the World Spider is gone. Two-sided: the front tells
+    # you to turn it over, and the back is the only thing anyone gets to
+    # keep. Granted after the liquidation, so it survives it.
+    _item(id="peace_note", name="A note, left behind", tier="quest", quest=True,
+          blurb="It was in your hand when the world stopped.",
+          note="password is written on the back",
+          noteBack="Finally at peace huh?"),
 ]}
+
+
+# ══ THE SPIDER ════════════════════════════════════════════════════════
+# The boss waiting at the exit once a camper holds Dungeon Explorer.
+#
+# Fourteen clean hits kill it. The Lime Sword is the only thing that hurts
+# it — 3,000 a swing, which is exactly what its blurb has promised since
+# the trial — so SPIDER_MAX_HP is just 14 × that. Miss and crit rates mean
+# the real number of ATTEMPTS is nearer seventeen, which is the intended
+# feel: fourteen hits, not fourteen tries.
+BOSS_TRIGGER_CHANCE   = 0.25    # per attempt to walk out of the dungeon
+LIME_SWORD_DAMAGE     = 3000
+BOSS_HITS_TO_KILL     = 14
+SPIDER_MAX_HP         = LIME_SWORD_DAMAGE * BOSS_HITS_TO_KILL
+WEB_DAMAGE            = 60      # per web that lands, before luck
+
+# Phase 1 — dodging only. A question every 2–6 seconds, three seconds to
+# answer it, twenty times.
+BOSS_P1_ROUNDS        = 20
+BOSS_DODGE_WINDOW_MS  = 3000
+BOSS_GAP_MIN_MS       = 2000
+BOSS_GAP_MAX_MS       = 6000
+
+# Phase 3 — dodging AND swinging at once. Tighter on both counts.
+BOSS_P3_DODGE_WINDOW_MS  = 2500
+BOSS_P3_GAP_MS           = 2000
+BOSS_P3_ATTACK_WINDOW_MS = 2000
+
+# The swing itself. Luck moves both of these a long way — the brief was
+# that it should matter heavily here, so at luck 40 a miss is rare and a
+# crit is one swing in four.
+BOSS_MISS_CHANCE      = 0.20
+BOSS_CRIT_CHANCE      = 0.05
+BOSS_CRIT_MULTIPLIER  = 2
+LUCK_BOSS_MISS_CUT    = 0.75    # up to 75% of the miss chance removed
+LUCK_BOSS_CRIT_ADD    = 0.20    # up to +20pp of crit
+LUCK_BOSS_WEB_CUT     = 0.40    # up to 40% off what a web costs you
+
+# A grace period on every window, because the question has to cross the
+# network and paint before anyone can read it. Without it a camper on a
+# slow connection is fighting their wifi rather than the spider.
+BOSS_GRACE_MS         = 700
+
+
+def boss_miss_chance(luck_effect):
+    eff = max(0.0, min(float(luck_effect or 0.0), 1.0))
+    return BOSS_MISS_CHANCE * (1 - LUCK_BOSS_MISS_CUT * eff)
+
+
+def boss_crit_chance(luck_effect):
+    eff = max(0.0, min(float(luck_effect or 0.0), 1.0))
+    return min(0.95, BOSS_CRIT_CHANCE + LUCK_BOSS_CRIT_ADD * eff)
+
+
+def boss_web_damage(luck_effect):
+    eff = max(0.0, min(float(luck_effect or 0.0), 1.0))
+    return max(1, round(WEB_DAMAGE * (1 - LUCK_BOSS_WEB_CUT * eff)))
 
 # Whatever the story hands over for reforging the Lime Sword. Kept here so
 # the claim endpoint doesn't hard-code ids the catalogue already owns.

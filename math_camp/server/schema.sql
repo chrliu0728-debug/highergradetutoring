@@ -172,6 +172,31 @@ CREATE TABLE IF NOT EXISTS infinity_answers (
 CREATE INDEX IF NOT EXISTS idx_infans_student ON infinity_answers(studentId, answeredAt);
 CREATE INDEX IF NOT EXISTS idx_infans_q ON infinity_answers(studentId, questionId);
 
+-- The spider that catches you on the way out.
+-- One row per encounter. `pending` is JSON holding the question(s) currently
+-- on screen — which door is right and when the window shuts — because the
+-- client is never told either. Phase 3 has two open at once (dodge and
+-- attack), which is why it's a JSON object rather than columns.
+CREATE TABLE IF NOT EXISTS boss_fights (
+  id            TEXT PRIMARY KEY,
+  studentId     TEXT NOT NULL,
+  startedAt     INTEGER NOT NULL,
+  endedAt       INTEGER,
+  phase         INTEGER NOT NULL DEFAULT 1,
+  round         INTEGER NOT NULL DEFAULT 0,
+  spiderHp      INTEGER NOT NULL,
+  spiderMaxHp   INTEGER NOT NULL,
+  hp            INTEGER NOT NULL,
+  maxHp         INTEGER NOT NULL,
+  hits          INTEGER NOT NULL DEFAULT 0,
+  dodged        INTEGER NOT NULL DEFAULT 0,
+  webbed        INTEGER NOT NULL DEFAULT 0,
+  outcome       TEXT,                       -- won | died | abandoned
+  pending       TEXT NOT NULL DEFAULT '{}',
+  runId         TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_boss_student ON boss_fights(studentId, startedAt);
+
 -- Contact-form / sponsor-inquiry submissions (replaces the email-only flow).
 CREATE TABLE IF NOT EXISTS contact_messages (
   id          TEXT PRIMARY KEY,

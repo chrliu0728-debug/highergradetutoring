@@ -852,12 +852,220 @@ def f_loan_total(r):
             money(round(total - principal, 2)), money(total))
 
 
+# ══ THE HARD END ══════════════════════════════════════════════════════
+# Everything below is difficulty 5, and it exists because the dungeon was
+# too easy: a camper walked to floor 219. Past floor 100 the dungeon now
+# serves ONLY difficulty 5, so this section is what a deep run is made of.
+#
+# These are harder in the way Grade 9 gets harder — more steps, a trap in
+# the middle, numbers that don't divide cleanly — not by reaching for
+# content nobody has been taught. Every one is still MTH1W.
+
+@family("Number", 5)
+def h_successive_discount(r):
+    """Two discounts then tax. Decoy adds the discounts together."""
+    price = r.choice([80, 120, 150, 240, 300, 450])
+    d1, d2 = r.choice([10, 15, 20, 25]), r.choice([10, 15, 20, 30])
+    tax = r.choice([13, 15])
+    right = price * (1 - d1 / 100) * (1 - d2 / 100) * (1 + tax / 100)
+    wrong = price * (1 - (d1 + d2) / 100) * (1 + tax / 100)
+    return (f"A {money(price)} jacket is marked down {d1}%, then a further {d2}% "
+            f"off the sale price, then {tax}% tax is added. The final cost is",
+            money(round(right, 2)), money(round(wrong, 2)))
+
+
+@family("Number", 5)
+def h_area_unit_conversion(r):
+    """cm² to m². Decoy divides by 100 instead of 10,000."""
+    a = r.randint(2, 9) * r.choice([1000, 2500, 5000, 10000])
+    right = a / 10000
+    wrong = a / 100
+    return (f"A floor measures {a:,} cm². In square metres that is",
+            f"{num(right)} m²", f"{num(wrong)} m²")
+
+
+@family("Number", 5)
+def h_average_speed(r):
+    """The classic trap: average speed is total distance over total time,
+    not the mean of the two speeds."""
+    d = r.choice([60, 90, 120, 180, 240])
+    v1, v2 = r.choice([30, 40, 60]), r.choice([20, 45, 80, 90])
+    while v1 == v2:
+        v2 = r.choice([20, 45, 80, 90])
+    right = 2 * d / (d / v1 + d / v2)
+    wrong = (v1 + v2) / 2
+    return (f"A cyclist rides {d} km at {v1} km/h, then the same {d} km back at "
+            f"{v2} km/h. Their average speed for the whole trip, to one decimal, is",
+            f"{right:.1f} km/h", f"{wrong:.1f} km/h")
+
+
+@family("Algebra", 5)
+def h_rearrange_formula(r):
+    """Solve a real formula for an inner variable, then evaluate."""
+    p = r.choice([500, 800, 1200, 2000])
+    rate = r.choice([4, 5, 6, 8])
+    t = r.randint(2, 9)
+    amount = p * (1 + rate * t / 100)
+    right = rate
+    wrong = round(100 * (amount - p) / p, 2)     # forgot to divide by t
+    return (f"A = P(1 + rt) with P = {money(p)}, t = {t} years and "
+            f"A = {money(round(amount, 2))}. The rate r, as a percent, is",
+            f"{num(right)}%", f"{num(wrong)}%")
+
+
+@family("Algebra", 5)
+def h_two_unknowns(r):
+    """Two unknowns from a total and a difference."""
+    small = r.randint(6, 40)
+    diff = r.randint(3, 25)
+    big = small + diff
+    total = small + big
+    return (f"Two numbers add to {total} and differ by {diff}. The larger is",
+            big, total - diff)
+
+
+@family("Algebra", 5)
+def h_ticket_problem(r):
+    """Classic two-price word problem, solvable by one equation."""
+    adult, child = r.choice([12, 15, 18]), r.choice([5, 7, 8])
+    while child >= adult:
+        child = r.choice([5, 7, 8])
+    n_adult = r.randint(4, 30)
+    n_child = r.randint(4, 30)
+    total_people = n_adult + n_child
+    total_money = n_adult * adult + n_child * child
+    return (f"{total_people} tickets sold for {money(total_money)} in total. "
+            f"Adult tickets are {money(adult)} and child tickets {money(child)}. "
+            f"How many adult tickets were sold?",
+            n_adult, n_child)
+
+
+@family("Algebra", 5)
+def h_distance_between(r):
+    """Distance between two points — Pythagoras wearing a coordinate hat."""
+    x1, y1 = r.randint(-9, 9), r.randint(-9, 9)
+    dx, dy = r.randint(2, 12) * r.choice([-1, 1]), r.randint(2, 12) * r.choice([-1, 1])
+    x2, y2 = x1 + dx, y1 + dy
+    right = (dx * dx + dy * dy) ** 0.5
+    wrong = abs(dx) + abs(dy)
+    return (f"The distance between ({x1}, {y1}) and ({x2}, {y2}), to one decimal, is",
+            f"{right:.1f}", f"{wrong:.1f}")
+
+
+@family("Algebra", 5)
+def h_table_to_equation(r):
+    """A table with non-unit x spacing — the rate isn't the row difference."""
+    m = r.randint(2, 9) * r.choice([-1, 1])
+    b = r.randint(-12, 20)
+    step = r.choice([2, 3, 4, 5])
+    xs = [step * i for i in range(1, 5)]
+    ys = [m * x + b for x in xs]
+    pairs = ", ".join(f"({x}, {y})" for x, y in zip(xs, ys))
+    wrong = ys[1] - ys[0]                  # the row difference, not the slope
+    if wrong == m:
+        wrong = m + step
+    return (f"A linear relation passes through {pairs}. Its slope is", m, wrong)
+
+
+@family("Data", 5)
+def h_needed_on_final(r):
+    """Reverse weighted average — what the exam has to be."""
+    term = r.randint(55, 88)
+    w_term = r.choice([70, 75, 80])
+    w_exam = 100 - w_term
+    # Pick the exam mark FIRST and derive the target from it. Choosing a
+    # target and rejection-sampling until it's reachable spins forever
+    # whenever the term mark is low and the exam is only worth 20%.
+    need = r.randint(max(term + 3, 60), 99)
+    # Round the target for display FIRST, then derive the answer back out of
+    # the rounded value. Doing it the other way round left the question
+    # asking for a target of 83.8 while the answer had been computed from
+    # 83.75 — a question whose stated answer is wrong for the question as
+    # printed, which is precisely the failure the checker exists to find.
+    target = round((term * w_term + need * w_exam) / 100, 1)
+    need = (target * 100 - term * w_term) / w_exam
+    return (f"Term work is {term}% and counts for {w_term}% of the final mark; "
+            f"the exam is the other {w_exam}%. To finish with {num(target)}%, the "
+            f"exam mark needed is",
+            f"{need:.1f}%", f"{num(target)}%")
+
+
+@family("Data", 5)
+def h_without_replacement(r):
+    """Two draws, no replacement. Decoy treats them as independent."""
+    red = r.randint(3, 8)
+    blue = r.randint(3, 8)
+    total = red + blue
+    right = Fraction(red, total) * Fraction(red - 1, total - 1)
+    wrong = Fraction(red, total) * Fraction(red, total)
+    return (f"A bag holds {red} red and {blue} blue marbles. Two are drawn "
+            f"without replacement. P(both red) is",
+            frac(right), frac(wrong))
+
+
+@family("Geometry & Measurement", 5)
+def h_composite_solid(r):
+    """Cylinder with a hemisphere on top."""
+    rad = r.randint(3, 10)
+    h = r.randint(6, 20)
+    right = pi * rad ** 2 * h + (2 / 3) * pi * rad ** 3
+    wrong = pi * rad ** 2 * h + (4 / 3) * pi * rad ** 3     # a whole sphere
+    return (f"A cylinder of radius {rad} cm and height {h} cm has a hemisphere "
+            f"of the same radius on top. The total volume, to the nearest cm³, is",
+            f"{round(right):,} cm³", f"{round(wrong):,} cm³")
+
+
+@family("Geometry & Measurement", 5)
+def h_volume_scale(r):
+    """Volume scales with the CUBE of the length factor."""
+    k = r.choice([2, 3, 4])
+    vol = r.choice([15, 24, 40, 75, 120])
+    return (f"Every dimension of a solid is multiplied by {k}. Its volume of "
+            f"{vol} cm³ becomes",
+            f"{vol * k ** 3:,} cm³", f"{vol * k * k:,} cm³")
+
+
+@family("Geometry & Measurement", 5)
+def h_ladder_two_step(r):
+    """Two applications of Pythagoras: how far the foot moves."""
+    ladder = r.choice([13, 15, 17, 20, 25])
+    a = r.randint(3, ladder - 4)
+    b = a + r.randint(2, 5)
+    while b >= ladder:
+        b = a + 2
+    up1 = (ladder ** 2 - a ** 2) ** 0.5
+    up2 = (ladder ** 2 - b ** 2) ** 0.5
+    right = up1 - up2
+    return (f"A {ladder} m ladder rests with its foot {a} m from a wall. The foot "
+            f"is pulled out to {b} m. How far down the wall does the top slide, "
+            f"to one decimal?",
+            f"{right:.1f} m", f"{b - a:.1f} m")
+
+
+@family("Financial Literacy", 5)
+def h_compound_solve_years(r):
+    """How long compounding takes to reach a target."""
+    p = r.choice([1000, 1500, 2000, 4000])
+    rate = r.choice([5, 6, 8, 10])
+    years = r.randint(3, 12)
+    amount = p * (1 + rate / 100) ** years
+    return (f"{money(p)} grows to {money(round(amount, 2))} at {rate}% compounded "
+            f"annually. How many years did that take?",
+            years, round((amount - p) / (p * rate / 100)))
+
+
 # ── building the bank ─────────────────────────────────────────────────
 def _normalise(q):
     return " ".join(str(q).split()).lower()
 
 
-def build(target=1200, seed=20260812, attempts_per=400):
+# Bumped whenever the generated bank changes. db._seed_infinity_bank only
+# re-seeds when this differs from what's recorded in `meta`, so a question
+# staff deleted stays deleted until the bank itself actually moves on.
+BANK_VERSION = 2
+
+
+def build(target=1500, seed=20260812, attempts_per=400):
     """Generate `target` distinct questions, spread evenly over the families.
 
     Deterministic: the same seed gives the same bank, so a re-seed after a

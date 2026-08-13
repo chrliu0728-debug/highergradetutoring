@@ -497,24 +497,28 @@ def _seed_infinity_bank(conn):
     """Fill the infinity-mode question bank if it hasn't been filled yet.
 
     Idempotent by construction: every generated row gets a deterministic id
-    derived from its question text, so re-running this on a DB that already
-    has the bank inserts nothing. That also means a camper part-way through
-    the bank keeps their history — the ids they've already answered are the
-    same ids after a restart.
+    derived from its question text, so re-running this inserts nothing new.
+    A camper part-way through the bank keeps their history — the ids they've
+    already answered are the same ids after a restart.
 
-    Deliberately additive. Staff questions are never touched, and a
-    generated question staff have deleted stays deleted only until the next
-    boot; if that turns out to be annoying the fix is a tombstone table, not
-    a reason to skip seeding. Nothing here overwrites an edit: INSERT OR
-    IGNORE leaves an existing id exactly as it is.
+    Gated on BANK_VERSION rather than on "are there any generated rows",
+    so a generated question staff DELETE stays deleted across restarts. It
+    only re-runs when the bank itself changes, which is the one time you do
+    want the new questions to appear. Nothing here overwrites an edit:
+    INSERT OR IGNORE leaves an existing id exactly as it is.
     """
     import hashlib
     try:
-        cur = conn.execute(
-            "SELECT COUNT(*) AS n FROM infinity_questions WHERE source = 'generated'")
-        if cur.fetchone()["n"] > 0:
-            return
+        conn.execute("SELECT 1 FROM infinity_questions LIMIT 1")
     except sqlite3.OperationalError:
+        return
+    try:
+        import infinity_bank as _ib
+        want = str(getattr(_ib, "BANK_VERSION", 1))
+        row = conn.execute("SELECT value FROM meta WHERE key = 'infinityBankVersion'").fetchone()
+        if row and str(row["value"]) == want:
+            return
+    except Exception:
         return
     try:
         import infinity_bank
@@ -544,6 +548,8 @@ def _seed_infinity_bank(conn):
         "         :source, :unit, :difficulty)",
         payload,
     )
+    conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES"
+                 " ('infinityBankVersion', ?)", (want,))
 
 
 def _seed(conn):

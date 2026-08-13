@@ -1243,6 +1243,17 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     pointsValEl.textContent = (stats.privatePoints || 0).toLocaleString();
     luckValEl.textContent   = (stats.luck || 0).toLocaleString();
 
+    // The World Spider is dead and the web went with it. What's left is
+    // what the ending said would be left: points, roles, and the record of
+    // how the points happened. Everything the gameverse was made of —
+    // the dungeon, the bag, luck, the clicker, transfers — is gone.
+    if ((s.extras || s).worldSpiderKilled) {
+      renderEndedWorld(s);
+      renderRolesPanel(s);
+      renderPointLog(s);
+      return;
+    }
+
     renderClassPanel(s);
     renderRolesPanel(s);
     renderLuckCard(s);
@@ -1254,6 +1265,36 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderContribCard(s);
     renderPointLog(s);
     renderDungeon(s);
+  }
+
+  /* ─── After the World Spider ─── */
+  function renderEndedWorld(s) {
+    // Hide, don't delete: staff can put a camper back together from
+    // extras.worldSpiderBefore, and the markup has to still be here if
+    // they do.
+    for (const sel of ['.actions-grid', '#inventory-section', '#dungeon-section',
+                       '#class-panel', '#infinity-card', '#inventory-jump']) {
+      const n = document.querySelector(sel);
+      if (n) n.style.display = 'none';
+    }
+    const luckTile = document.querySelector('.summary-tile.luck');
+    if (luckTile) luckTile.style.display = 'none';
+    if (document.getElementById('ended-world')) return;
+    const note = document.createElement('div');
+    note.id = 'ended-world';
+    note.style.cssText = 'background:#0c0616; color:#ded7ee; border:1px solid #2f1550;'
+      + 'border-radius:16px; padding:22px 24px; margin-bottom:22px; line-height:1.65;'
+      + 'font-size:.92rem;';
+    note.innerHTML = `
+      <div style="font-size:.68rem; letter-spacing:.18em; text-transform:uppercase;
+           opacity:.6; margin-bottom:8px;">The web came down</div>
+      <p style="margin:0 0 8px;">You killed the World Spider. Everything spun out of
+      it went with it — the dungeon, the shop, your bag, the clicker, all of it.
+      What you were carrying was sold and cashed out; the points are above.</p>
+      <p style="margin:0; opacity:.7;">Your points, your roles and every transaction
+      that ever happened are still here. Nothing else is.</p>`;
+    const anchor = document.querySelector('.summary-row');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(note, anchor.nextSibling);
   }
 
   /* ─── Dungeon: shop, inventory, receipts, tax ─── */
@@ -1367,7 +1408,12 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
   function renderInfinityCard(s) {
     const card = document.getElementById('infinity-card');
     if (!card) return;
-    const beaten = !!(s.extras && (s.extras.doorsRewarded || s.extras.doorsCompleted >= 1));
+    // row_to_student flattens `extras` onto the student and drops the key,
+    // so `s.extras.x` is always undefined — this card had never once shown.
+    // Read the flat field, keeping the nested one as a fallback in case that
+    // ever changes back.
+    const ex = s.extras || s;
+    const beaten = !!(ex.doorsRewarded || Number(ex.doorsCompleted || 0) >= 1);
     card.style.display = beaten ? '' : 'none';
   }
 

@@ -289,6 +289,7 @@
 </div>
 
 <script src="/dungeon-icons.js"></script>
+<script src="/boss-spider.js"></script>
 <script>
 (function () {
   'use strict';
@@ -655,6 +656,9 @@
     clearInterval(clockTimer);
     const r = await api('/api/dungeon/run/exit', {});
     if (!r.ok) return alert(r.error);
+    // Sometimes you don't get to just walk out. The run has already banked
+    // by this point, so the encounter never costs them what they earned.
+    if (r.data.boss && window.HGBoss) { window.HGBoss.start(r.data.boss); return; }
     summaryScreen(r.data, false);
   });
 
@@ -666,6 +670,9 @@
       location.replace('/student-portal/student-portal.html');
       return;
     }
+    // A fight left open by a refresh outranks everything — you don't get to
+    // reload your way out of it.
+    if (window.HGBoss && await window.HGBoss.resume()) return;
     // Reconnecting mid-run drops you back where you were, health and all.
     const existing = await api('/api/dungeon/run');
     if (existing.ok && existing.data) {

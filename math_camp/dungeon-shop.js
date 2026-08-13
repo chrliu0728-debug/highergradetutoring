@@ -301,15 +301,25 @@
     if (!i.note) return;
     const wrap = document.createElement('div');
     wrap.className = 'dg-noteveil';
-    wrap.innerHTML = `
+    // Some notes have something on the reverse, and the front is only worth
+    // reading because it tells you to turn it over.
+    let back = false;
+    function paper() {
+      wrap.innerHTML = `
       <div class="dg-notepaper" role="dialog" aria-modal="true" aria-label="${esc(i.name)}">
-        <div class="dg-notehead">${esc(i.name)}</div>
-        <p class="dg-notebody">${bold(i.note)}</p>
+        <div class="dg-notehead">${esc(i.name)}${back ? ' · back' : ''}</div>
+        <p class="dg-notebody">${bold(back ? i.noteBack : i.note)}</p>
+        ${i.noteBack ? `<button class="dg-btn" data-flip>${
+          back ? 'Turn it back over' : 'Turn it over'}</button>` : ''}
         <button class="dg-btn" data-shut>Fold it back up</button>
       </div>`;
+      const f = wrap.querySelector('[data-flip]');
+      if (f) f.addEventListener('click', () => { back = !back; paper(); });
+      wrap.querySelector('[data-shut]').addEventListener('click', () => wrap.remove());
+    }
+    paper();
     const shut = () => wrap.remove();
     wrap.addEventListener('click', ev => { if (ev.target === wrap) shut(); });
-    wrap.querySelector('[data-shut]').addEventListener('click', shut);
     document.addEventListener('keydown', function esckey(ev) {
       if (ev.key !== 'Escape') return;
       document.removeEventListener('keydown', esckey);

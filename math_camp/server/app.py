@@ -2231,7 +2231,7 @@ def register_routes(app):
                                       "evadeChance", "negateChance", "flatNegate",
                                       "stackable", "capacity", "consumable",
                                       "reveals", "counterpart", "realWorld",
-                                      "quest", "note")},
+                                      "quest", "note", "noteBack")},
                 "full": p["full"], "price": payable, "saved": p["saved"],
                 "listed": p["price"], "luckOff": luck_off,
                 "owned": owned.get(it["id"], 0),
@@ -2296,6 +2296,9 @@ def register_routes(app):
             # entry screen offers the choice; nothing is ever spent silently.
             "checkpoints": int(owned.get("checkpoint", 0)),
             "resumeFloor": _resume_floor(sid),
+            # When this is true the gameverse is over for this camper and
+            # the portal drops back to points, roles and the ledger.
+            "worldSpiderKilled": bool(extras.get("worldSpiderKilled")),
         })
 
     @app.route("/api/students/me/dungeon/starter", methods=["POST"])
@@ -2628,8 +2631,10 @@ def register_routes(app):
             "UPDATE dungeon_runs SET endedAt = ?, outcome = ? WHERE id = ?",
             (int(time.time() * 1000), "alive" if alive else "dead", run["id"]))
         rid = None
+        # Needed by the return value whether or not there was anything to
+        # bank — a run that ends carrying nothing still started somewhere.
+        start = int((run["startFloor"] if "startFloor" in run.keys() else 1) or 1)
         if kept > 0:
-            start = int((run["startFloor"] if "startFloor" in run.keys() else 1) or 1)
             label = (f"Dungeon run — floors {start}–{run['deepest']}" if alive else
                      f"Died on floor {run['floor']} — 70% of {gross:,} recovered")
             rid = _receipt(sid, "earning", label, kept, tax, net)
@@ -2710,12 +2715,24 @@ def register_routes(app):
         state["startFloor"] = start_floor
         return jsonify(ok=True, data=state)
 
-    # How hard a floor is allowed to be. The bank is banded 1–5; a camper on
-    # their first lap sees the gentler end, and the top band opens up once
-    # they're past floor 100. Staff questions default to difficulty 3, so
-    # anything hand-written is eligible from the very first floor.
+    # How hard a floor is. A BAND, not a ceiling — the floor of the band
+    # matters more than the top of it.
+    #
+    # It used to be "difficulty <= cap", which meant floor 300 could still
+    # serve a difficulty-3 question. Deep floors were therefore only harder
+    # on average, and a camper who knew the easy material could ride the
+    # low end of the distribution a very long way. The band now moves as a
+    # whole: past floor 100 nothing below difficulty 5 is served at all.
+    def _difficulty_band(floor_no):
+        tier = floors.tier_for_floor(floor_no)
+        if tier <= 0:
+            return 3, 4          # floors 1–50: the gentle end, but not trivial
+        if tier == 1:
+            return 4, 5          # 51–100
+        return 5, 5              # 101+: hard questions only, forever
+
     def _difficulty_cap(floor_no):
-        return min(5, 3 + floors.tier_for_floor(floor_no))
+        return _difficulty_band(floor_no)[1]
 
     def _draw_question(sid, floor_no):
         """Pick this floor's question.
@@ -2732,13 +2749,22 @@ def register_routes(app):
         that runs out of questions and stops isn't endless. floors.py can
         generate forever, so the descent continues either way.
         """
-        cap = _difficulty_cap(floor_no)
+        lo, hi = _difficulty_band(floor_no)
         pick = g.db.execute(
             "SELECT q.* FROM infinity_questions q"
-            " WHERE q.difficulty <= ?"
+            " WHERE q.difficulty BETWEEN ? AND ?"
             "   AND NOT EXISTS (SELECT 1 FROM infinity_answers a"
             "                    WHERE a.studentId = ? AND a.questionId = q.id)"
-            " ORDER BY RANDOM() LIMIT 1", (cap, sid)).fetchone()
+            " ORDER BY RANDOM() LIMIT 1", (lo, hi, sid)).fetchone()
+        if not pick:
+            # Out of unseen questions in the band — widen upward first, so
+            # running dry makes a floor harder rather than easier.
+            pick = g.db.execute(
+                "SELECT q.* FROM infinity_questions q"
+                " WHERE q.difficulty >= ?"
+                "   AND NOT EXISTS (SELECT 1 FROM infinity_answers a"
+                "                    WHERE a.studentId = ? AND a.questionId = q.id)"
+                " ORDER BY RANDOM() LIMIT 1", (lo, sid)).fetchone()
         if not pick:
             pick = g.db.execute(
                 "SELECT q.* FROM infinity_questions q"
@@ -2962,9 +2988,16 @@ def register_routes(app):
     @require_student
     @block_when_frozen
     def dungeon_run_skip():
-        """The 10-minute boot. Moves you on for free: no shards for the floor
-        you stalled on, but no damage either — so idling is never a way to
-        farm, and never a way to die."""
+        """The floor timer running out.
+
+        This used to move you on for free — no shards, but no damage. That
+        turned out to be the way past the whole dungeon: any question you
+        couldn't answer, you waited out, and you never had to risk a door.
+        Someone walked to floor 219 that way. Timing out is now a failed
+        floor and costs what a slow wrong door costs, armour included. You
+        still advance, and you still lose nothing you were carrying — but
+        stalling is no longer safer than answering.
+        """
         sid = g.session["studentId"]
         with g.db:
             run = _active_run(sid)
@@ -2973,13 +3006,31 @@ def register_routes(app):
             now = int(time.time() * 1000)
             if now < int(run["floorStart"] or now) + dungeon.FLOOR_TIME_LIMIT_MS:
                 return jsonify(ok=False, error="There's still time on this floor."), 400
-            nxt = int(run["floor"]) + 1
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            gear, _, _ = _gear_for(row)
+            floor = int(run["floor"])
+            raw = dungeon.wrong_door_damage(floor, fast=False,
+                                            repeats=int(run["wrongCount"] or 0))
+            cut = ((1 - dungeon.damage_reduction(gear["defense"]))
+                   * (1 - gear["flatNegate"]))
+            damage = max(1, round(raw * cut))
+            hp = int(run["hp"]) - damage
+            nxt = floor + 1
+            if hp <= 0:
+                g.db.execute("UPDATE dungeon_runs SET hp = 0 WHERE id = ?", (run["id"],))
+                run = g.db.execute("SELECT * FROM dungeon_runs WHERE id = ?",
+                                   (run["id"],)).fetchone()
+                death = _bank(sid, run, alive=False)
+                return jsonify(ok=True, data={"floor": floor, "reason": "timeout",
+                                              "damage": damage, "hp": 0,
+                                              "death": death})
             g.db.execute(
                 "UPDATE dungeon_runs SET floor = ?, deepest = ?, floorStart = ?,"
-                " wrongCount = 0, questionAt = NULL, correctSide = NULL,"
+                " hp = ?, wrongCount = 0, questionAt = NULL, correctSide = NULL,"
                 " bowDrawn = 0, arrowType = NULL WHERE id = ?",
-                (nxt, max(int(run["deepest"]), nxt), now, run["id"]))
-        return jsonify(ok=True, data={"floor": nxt, "reason": "timeout"})
+                (nxt, max(int(run["deepest"]), nxt), now, hp, run["id"]))
+        return jsonify(ok=True, data={"floor": nxt, "reason": "timeout",
+                                      "damage": damage, "hp": hp})
 
     @app.route("/api/dungeon/run/draw", methods=["POST"])
     @require_student
@@ -3017,7 +3068,385 @@ def register_routes(app):
             if not run:
                 return jsonify(ok=False, error="You're not in the dungeon."), 400
             result = _bank(sid, run, alive=True)
+            # Something is waiting at the door. The run banks first — they
+            # walked out and earned what they earned — and the encounter is
+            # its own thing on top, so losing it never costs them the run.
+            boss = _maybe_start_boss(sid, run)
+            if boss:
+                result["boss"] = boss
         return jsonify(ok=True, data=result)
+
+    # ══ THE SPIDER ═════════════════════════════════════════════════════
+    def _boss_eligible(row):
+        """Only for campers who've been handed Dungeon Explorer, and only
+        while there's still a world to end."""
+        extras = _extras(row)
+        if extras.get("worldSpiderKilled"):
+            return False
+        roles = set(json.loads(row["roles"] or "[]"))
+        return bool(_role_ids_named("Dungeon Explorer") & roles)
+
+    def _active_boss(sid):
+        return g.db.execute(
+            "SELECT * FROM boss_fights WHERE studentId = ? AND endedAt IS NULL"
+            " ORDER BY startedAt DESC LIMIT 1", (sid,)).fetchone()
+
+    def _boss_state(fight, luck=0):
+        eff = dungeon.luck_effectiveness(luck)
+        return {
+            "id": fight["id"], "phase": int(fight["phase"]),
+            "round": int(fight["round"]),
+            "spiderHp": int(fight["spiderHp"]), "spiderMaxHp": int(fight["spiderMaxHp"]),
+            "hp": int(fight["hp"]), "maxHp": int(fight["maxHp"]),
+            "hits": int(fight["hits"]), "dodged": int(fight["dodged"]),
+            "webbed": int(fight["webbed"]),
+            "outcome": fight["outcome"],
+            "hitsToKill": dungeon.BOSS_HITS_TO_KILL,
+            "swordDamage": dungeon.LIME_SWORD_DAMAGE,
+            "p1Rounds": dungeon.BOSS_P1_ROUNDS,
+            "dodgeWindowMs": dungeon.BOSS_DODGE_WINDOW_MS,
+            "gapMinMs": dungeon.BOSS_GAP_MIN_MS, "gapMaxMs": dungeon.BOSS_GAP_MAX_MS,
+            "p3DodgeWindowMs": dungeon.BOSS_P3_DODGE_WINDOW_MS,
+            "p3GapMs": dungeon.BOSS_P3_GAP_MS,
+            "p3AttackWindowMs": dungeon.BOSS_P3_ATTACK_WINDOW_MS,
+            "missChance": round(dungeon.boss_miss_chance(eff), 4),
+            "critChance": round(dungeon.boss_crit_chance(eff), 4),
+            "webDamage": dungeon.boss_web_damage(eff),
+            "luck": luck,
+        }
+
+    def _maybe_start_boss(sid, run):
+        row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        if not row or not _boss_eligible(row):
+            return None
+        if _active_boss(sid):
+            return None
+        if secrets.randbelow(10000) >= int(dungeon.BOSS_TRIGGER_CHANCE * 10000):
+            return None
+        gear, _, stats = _gear_for(row)
+        fid = "boss-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(3)
+        max_hp = max(int(gear["maxHp"] or 0), dungeon.BASE_MAX_HP)
+        g.db.execute(
+            "INSERT INTO boss_fights"
+            " (id, studentId, startedAt, phase, round, spiderHp, spiderMaxHp,"
+            "  hp, maxHp, runId)"
+            " VALUES (?, ?, ?, 1, 0, ?, ?, ?, ?, ?)",
+            (fid, sid, int(time.time() * 1000), dungeon.SPIDER_MAX_HP,
+             dungeon.SPIDER_MAX_HP, max_hp, max_hp, run["id"]))
+        fight = g.db.execute("SELECT * FROM boss_fights WHERE id = ?", (fid,)).fetchone()
+        return _boss_state(fight, int(stats.get("luck", 0)))
+
+    @app.route("/api/dungeon/boss", methods=["GET"])
+    @require_student
+    def boss_get():
+        sid = g.session["studentId"]
+        fight = _active_boss(sid)
+        if not fight:
+            return jsonify(ok=True, data=None)
+        row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+        _, _, stats = _gear_for(row)
+        state = _boss_state(fight, int(stats.get("luck", 0)))
+        state["hasLimeSword"] = _owned(row).get("lime_sword", 0) > 0
+        return jsonify(ok=True, data=state)
+
+    @app.route("/api/dungeon/boss/question", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def boss_question():
+        """Serve one question for the fight. `kind` is 'dodge' or 'attack';
+        phase 3 has one of each open at the same time, which is the whole
+        difficulty of phase 3."""
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        kind = "attack" if (d.get("kind") == "attack") else "dodge"
+        with g.db:
+            fight = _active_boss(sid)
+            if not fight:
+                return jsonify(ok=False, error="Nothing is attacking you."), 400
+            phase = int(fight["phase"])
+            if kind == "attack" and phase < 3:
+                return jsonify(ok=False, error="You can't hurt it yet."), 400
+            # Deep-dungeon difficulty: the spider doesn't ask easy questions.
+            drawn = _draw_question(sid, 150)
+            window = (dungeon.BOSS_P3_ATTACK_WINDOW_MS if kind == "attack"
+                      else (dungeon.BOSS_P3_DODGE_WINDOW_MS if phase >= 3
+                            else dungeon.BOSS_DODGE_WINDOW_MS))
+            now = int(time.time() * 1000)
+            left_correct = secrets.randbelow(2) == 0
+            slot = {
+                "side": "L" if left_correct else "R",
+                "deadline": now + window + dungeon.BOSS_GRACE_MS,
+                "qid": drawn["id"], "question": drawn["question"],
+                "answer": drawn["answer"], "unit": drawn["unit"],
+                "difficulty": drawn["difficulty"],
+            }
+            # Write the ONE key rather than the whole object. In phase 3 the
+            # dodge and the swing are fetched at the same moment, and a
+            # read-modify-write of the whole JSON lets whichever request
+            # commits last silently drop the other one's question.
+            g.db.execute(
+                "UPDATE boss_fights SET pending ="
+                " json_set(COALESCE(NULLIF(pending, ''), '{}'), '$.' || ?, json(?))"
+                " WHERE id = ?",
+                (kind, json.dumps(slot), fight["id"]))
+        return jsonify(ok=True, data={
+            "kind": kind, "question": drawn["question"], "unit": drawn["unit"],
+            "left": drawn["answer"] if left_correct else drawn["wrong"],
+            "right": drawn["wrong"] if left_correct else drawn["answer"],
+            "windowMs": window, "graceMs": dungeon.BOSS_GRACE_MS,
+            "servedAt": now,
+        })
+
+    @app.route("/api/dungeon/boss/answer", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def boss_answer():
+        """Resolve a dodge or a swing.
+
+        A dodge is right-and-in-time or it isn't: miss it and a web lands on
+        the screen. A swing that lands still has to get past the miss roll,
+        and may crit. Both rolls are made here, server-side, so luck is the
+        camper's stat rather than the browser's opinion.
+        """
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        kind = "attack" if (d.get("kind") == "attack") else "dodge"
+        side = (d.get("side") or "").upper()
+        with g.db:
+            fight = _active_boss(sid)
+            if not fight:
+                return jsonify(ok=False, error="Nothing is attacking you."), 400
+            pending = json.loads(fight["pending"] or "{}")
+            slot = pending.get(kind)
+            if not slot:
+                return jsonify(ok=False, error="Nothing to answer."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            _, _, stats = _gear_for(row)
+            luck = int(stats.get("luck", 0))
+            eff = dungeon.luck_effectiveness(luck)
+            now = int(time.time() * 1000)
+            in_time = now <= int(slot["deadline"])
+            right = side in ("L", "R") and side == slot["side"]
+            solved = bool(right and in_time)
+
+            # The fight is practice too — every question asked in here lands
+            # in the same log as every floor.
+            _log_boss_answer(sid, fight, slot, side, solved, kind)
+
+            out = {"kind": kind, "solved": solved, "inTime": in_time,
+                   "correct": right, "answer": str(slot.get("answer", ""))}
+            hp = int(fight["hp"])
+            spider_hp = int(fight["spiderHp"])
+            hits = int(fight["hits"])
+            dodged = int(fight["dodged"])
+            webbed = int(fight["webbed"])
+
+            if kind == "dodge":
+                if solved:
+                    dodged += 1
+                    out["web"] = "missed"
+                else:
+                    dmg = dungeon.boss_web_damage(eff)
+                    hp = max(0, hp - dmg)
+                    webbed += 1
+                    out["web"] = "hit"
+                    out["damage"] = dmg
+            else:
+                if solved:
+                    missed = secrets.randbelow(10000) < int(
+                        dungeon.boss_miss_chance(eff) * 10000)
+                    if missed:
+                        out["swing"] = "missed"
+                    else:
+                        crit = secrets.randbelow(10000) < int(
+                            dungeon.boss_crit_chance(eff) * 10000)
+                        dmg = dungeon.LIME_SWORD_DAMAGE * (
+                            dungeon.BOSS_CRIT_MULTIPLIER if crit else 1)
+                        spider_hp = max(0, spider_hp - dmg)
+                        hits += 1
+                        out["swing"] = "crit" if crit else "hit"
+                        out["damage"] = dmg
+                else:
+                    out["swing"] = "fumbled"
+
+            rnd = int(fight["round"]) + (1 if kind == "dodge" else 0)
+            outcome = None
+            if spider_hp <= 0:
+                outcome = "won"
+            elif hp <= 0:
+                outcome = "died"
+            # Same reasoning as the write above: clear only this slot, so
+            # resolving a dodge can't wipe a swing that's still on screen.
+            g.db.execute(
+                "UPDATE boss_fights SET"
+                " pending = json_remove(COALESCE(NULLIF(pending, ''), '{}'), '$.' || ?),"
+                " hp = ?, spiderHp = ?, hits = ?,"
+                " dodged = ?, webbed = ?, round = ?, outcome = COALESCE(?, outcome),"
+                " endedAt = CASE WHEN ? IS NULL THEN endedAt ELSE ? END WHERE id = ?",
+                (kind, hp, spider_hp, hits, dodged, webbed, rnd,
+                 outcome, outcome, now, fight["id"]))
+            fight = g.db.execute("SELECT * FROM boss_fights WHERE id = ?",
+                                 (fight["id"],)).fetchone()
+            state = _boss_state(fight, luck)
+        out["state"] = state
+        return jsonify(ok=True, data=out)
+
+    def _log_boss_answer(sid, fight, slot, side, solved, kind):
+        try:
+            g.db.execute(
+                "INSERT INTO infinity_answers"
+                " (id, studentId, questionId, question, answer, chosen, correct,"
+                "  unit, difficulty, floor, elapsedMs, runId, answeredAt)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)",
+                ("ians-" + str(int(time.time() * 1000)) + "-" + secrets.token_hex(4),
+                 sid, slot.get("qid", ""), slot.get("question", ""),
+                 str(slot.get("answer", "")), side, 1 if solved else 0,
+                 f"Spider · {kind}", int(slot.get("difficulty") or 0),
+                 fight["id"], int(time.time() * 1000)))
+        except Exception:
+            pass
+
+    @app.route("/api/dungeon/boss/phase", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def boss_phase():
+        """Move the fight on. Phase 2 needs the twenty dodges of phase 1
+        behind it; phase 3 needs Marcus to have said his piece AND the Lime
+        Sword actually in hand, because that's the whole point of what he
+        came to say."""
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        try:
+            want = int(d.get("phase") or 0)
+        except (TypeError, ValueError):
+            want = 0
+        with g.db:
+            fight = _active_boss(sid)
+            if not fight:
+                return jsonify(ok=False, error="Nothing is attacking you."), 400
+            cur = int(fight["phase"])
+            if want != cur + 1 or want > 3:
+                return jsonify(ok=False, error="Not yet."), 400
+            if want == 2 and int(fight["round"]) < dungeon.BOSS_P1_ROUNDS:
+                return jsonify(ok=False, error="It isn't done with you yet."), 400
+            if want == 3:
+                row = g.db.execute("SELECT * FROM students WHERE id = ?",
+                                   (sid,)).fetchone()
+                _, equipped, _ = _gear_for(row)
+                if equipped.get("weapon") != "lime_sword":
+                    return jsonify(
+                        ok=False,
+                        error="Equip the Lime Sword — nothing else touches it."), 400
+            g.db.execute("UPDATE boss_fights SET phase = ?, pending = '{}' WHERE id = ?",
+                         (want, fight["id"]))
+            fight = g.db.execute("SELECT * FROM boss_fights WHERE id = ?",
+                                 (fight["id"],)).fetchone()
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            _, _, stats = _gear_for(row)
+        return jsonify(ok=True, data=_boss_state(fight, int(stats.get("luck", 0))))
+
+    @app.route("/api/dungeon/boss/flee", methods=["POST"])
+    @require_student
+    def boss_flee():
+        """Closing the tab shouldn't leave a fight open forever."""
+        sid = g.session["studentId"]
+        with g.db:
+            fight = _active_boss(sid)
+            if fight:
+                g.db.execute(
+                    "UPDATE boss_fights SET endedAt = ?, outcome = 'abandoned'"
+                    " WHERE id = ?", (int(time.time() * 1000), fight["id"]))
+        return jsonify(ok=True)
+
+    @app.route("/api/dungeon/boss/world-spider", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def boss_world_spider():
+        """The last question anyone in this camp gets asked.
+
+        There is only one answer. Declining returns a refusal and the prompt
+        comes back — the choice is theatre, and deliberately so. Saying yes
+        liquidates the account: every item sold, every shard cashed, the
+        dungeon and everything attached to it closed. Points, roles and the
+        transaction history survive, and so does luck.
+        """
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        choice = (d.get("choice") or "").strip().lower()
+        if choice != "yes":
+            # Not an error the caller can fix by trying something else.
+            return jsonify(ok=False, code="rejected",
+                           error="bug detected, user input incorrect"), 409
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            extras = _extras(row)
+            if extras.get("worldSpiderKilled"):
+                return jsonify(ok=False, error="It's already over."), 400
+            won = g.db.execute(
+                "SELECT 1 FROM boss_fights WHERE studentId = ? AND outcome = 'won'"
+                " LIMIT 1", (sid,)).fetchone()
+            if not won:
+                return jsonify(ok=False, error="You haven't beaten it."), 400
+
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            owned = _owned(row)
+
+            # Everything in the bag goes back to shards at what it cost,
+            # then every shard goes to points at the counter's own rate.
+            # No fee: there's nobody left to charge it.
+            item_shards = 0
+            sold = []
+            for iid, qty in owned.items():
+                spec = dungeon.ITEMS.get(iid)
+                if not spec or spec.get("quest"):
+                    continue
+                item_shards += int(spec["cost"]) * int(qty)
+                sold.append({"id": iid, "name": spec["name"], "qty": int(qty),
+                             "shards": int(spec["cost"]) * int(qty)})
+            total_shards = int(stats.get("shards", 0)) + item_shards
+            gained, spent = dungeon.shards_to_points(total_shards)
+
+            before = {
+                "points": int(stats.get("privatePoints", 0)),
+                "shards": int(stats.get("shards", 0)),
+                "itemShards": item_shards,
+                "inventory": json.loads(row["inventory"] or "[]"),
+                "equipped": json.loads(row["equipped"] or "{}"),
+            }
+
+            stats["privatePoints"] = int(stats.get("privatePoints", 0)) + gained
+            stats["totalPointsEarned"] = int(stats.get("totalPointsEarned", 0)) + gained
+            stats["shards"] = 0
+            # Luck is explicitly left alone — it isn't sold and it isn't reset.
+            _save_stats(sid, stats)
+            # Everything goes, worn and carried alike. The note is granted
+            # after this line so it survives the clearing.
+            _save_inventory(sid, {}, {})
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+
+            extras["worldSpiderKilled"] = True
+            extras["worldSpiderAt"] = int(time.time() * 1000)
+            # Kept so staff can put someone back together if this turns out
+            # to have been a mistake. It is otherwise unrecoverable.
+            extras["worldSpiderBefore"] = before
+            g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                         (json.dumps(extras), sid))
+
+            _log_tx(type="earn", scope="student", subjectId=sid,
+                    subjectName=_full_name(row), amount=gained,
+                    description=("🕷 The World Spider is dead. Everything sold and "
+                                 f"cashed out — +{gained:,} points from "
+                                 f"{total_shards:,} shards."))
+            _grant_items(sid, row, {"peace_note": 1})
+            note = dungeon.ITEMS["peace_note"]
+        return jsonify(ok=True, data={
+            "pointsGained": gained, "shardsCashed": spent,
+            "totalShards": total_shards, "sold": sold,
+            "note": {"id": "peace_note", "name": note["name"],
+                     "text": note["note"], "back": note["noteBack"]},
+        })
 
     # ── Receipts and the tax cycle ─────────────────────────────────
     @app.route("/api/students/me/receipts", methods=["GET"])
