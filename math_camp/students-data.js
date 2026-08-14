@@ -41,6 +41,10 @@ const CLICKER_DUPLICATE_ODDS = 3000;   // 1-in-this per click, before luck
 const CLICKER_DUPLICATE_MAX = 10;
 const CLICKER_COOLDOWN_MS = 60;
 const TRANSFER_KEEP_RATIO = 0.5;
+// After a final tally, transferring is the only thing left and it costs
+// more: 40% arrives instead of 50%, and the lossless buy-out is gone.
+// Mirrors TALLIED_TRANSFER_KEEP_RATIO in app.py.
+const TALLIED_TRANSFER_KEEP_RATIO = 0.4;
 // Flat fee that buys a 100%-value transfer instead of the usual 50%.
 // Charged on top of the amount sent. Mirrors LOSSLESS_TRANSFER_COST
 // in server/app.py — the server is the one that enforces it.

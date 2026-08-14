@@ -129,6 +129,27 @@
   .cpt small{display:block; margin-top:3px; opacity:.72; font-size:.78rem}
   .cpt-none{max-width:340px; margin:16px auto 0; text-align:left; font-size:.83rem;
             opacity:.75; line-height:1.5}
+  /* The bag sheet. Sits above the run but below the spider overlay, which
+     owns the screen outright when it's up. */
+  .bagveil{position:fixed; inset:0; z-index:1200; background:rgba(4,2,10,.82);
+           display:flex; align-items:flex-start; justify-content:center;
+           padding:24px 14px; overflow:auto; backdrop-filter:blur(4px)}
+  .bagveil[hidden]{display:none}
+  .bagsheet{width:min(880px,100%); background:var(--card,#150c26);
+            border:1px solid rgba(167,139,250,.4); border-radius:18px;
+            padding:20px 20px 26px; box-shadow:0 30px 90px rgba(0,0,0,.7)}
+  .baghead{display:flex; align-items:center; justify-content:space-between;
+           gap:12px; margin-bottom:8px; flex-wrap:wrap}
+  .bageyebrow{font-size:.66rem; letter-spacing:.18em; text-transform:uppercase;
+              opacity:.6}
+  .bagnote{font-size:.84rem; line-height:1.6; opacity:.78; margin:0 0 14px}
+  /* dungeon-shop.js is styled for the portal's light surface and reads its
+     colours from these variables. The dungeon page defines them dark, which
+     left item names nearly invisible on white cards — so the panel gets the
+     light palette back for the length of the sheet. */
+  #inventory-panel{--text:#11131a; --surface:#ffffff; --surface2:#f5f6f8;
+                   --border:#e3e6ea; --muted:#6b7280; --navy:#16304d;
+                   --blush:#E8808A; color:#11131a}
   .flash{position:fixed; inset:0; background:rgba(220,38,38,.34); pointer-events:none;
          opacity:0; transition:opacity .1s}
   .flash.on{opacity:1}
@@ -280,6 +301,7 @@
       <div class="fb" id="fb"></div>
       <div class="row">
         <button class="btn btn-out" id="leave">Leave with your shards</button>
+        <button class="btn btn-out" id="bag-btn">🎒 Bag</button>
         <button class="btn btn-out" id="help-btn" aria-label="How the dungeon works"
                 style="padding:11px 16px">?</button>
       </div>
@@ -288,7 +310,28 @@
   </div>
 </div>
 
+<!-- Your bag, mid-run. Swapping what you're holding is allowed at any depth;
+     restocking is not, and the shop simply isn't in here. -->
+<div class="bagveil" id="bagveil" hidden>
+  <div class="bagsheet" role="dialog" aria-modal="true" aria-label="Your bag">
+    <div class="baghead">
+      <div>
+        <div class="bageyebrow">Your bag</div>
+        <h3 style="margin:2px 0 0">Swap what you're carrying</h3>
+      </div>
+      <button class="btn btn-out" id="bag-close">Close</button>
+    </div>
+    <p class="bagnote">
+      Change gear as often as you like, at any depth — the shop is upstairs
+      and stays shut until you're out. Equipping the <strong>Lime Sword</strong>
+      is how you hurt an Arachnid.
+    </p>
+    <div id="inventory-panel"></div>
+  </div>
+</div>
+
 <script src="/dungeon-icons.js"></script>
+<script src="/dungeon-shop.js"></script>
 <script src="/boss-spider.js"></script>
 <script>
 (function () {
@@ -647,6 +690,30 @@
     if (e.key === 'Escape' && help.classList.contains('open')) closeHelp();
     // "?" anywhere opens it, as long as you're not typing.
     if (e.key === '?' && !/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) openHelp();
+  });
+
+  /* ── The bag, mid-run ────────────────────────────────────────── */
+  let bagReady = false;
+  async function openBag() {
+    const veil = $('bagveil');
+    veil.hidden = false;
+    if (!bagReady && window.DungeonShop) {
+      bagReady = await window.DungeonShop.mountBag();
+    } else if (window.DungeonShop) {
+      await window.DungeonShop.refresh();
+    }
+    // Equipping changes maxHp and the window, so pull the run's own numbers
+    // back down rather than showing stale ones.
+    const fresh = await api('/api/dungeon/run');
+    if (fresh.ok && fresh.data) { run = { ...run, ...fresh.data }; paintHud(); }
+  }
+  $('bag-btn').addEventListener('click', openBag);
+  $('bag-close').addEventListener('click', () => { $('bagveil').hidden = true; });
+  $('bagveil').addEventListener('click', e => {
+    if (e.target === $('bagveil')) $('bagveil').hidden = true;
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('bagveil').hidden) $('bagveil').hidden = true;
   });
 
   $('leave').addEventListener('click', async () => {

@@ -972,6 +972,46 @@
     <!-- Filled by JS -->
   </div>
 
+  <!-- Final tally — the one-way door out of the game -->
+  <div class="tx-panel" id="tally-panel">
+    <div class="tx-panel-head">
+      <div>
+        <div class="label">Cashing out</div>
+        <div class="name">🧾 Final tally</div>
+      </div>
+    </div>
+    <div style="padding:16px 18px; font-size:.88rem; line-height:1.65; color:var(--text-mid);">
+      <p style="margin:0 0 10px;">
+        Sell <strong>everything</strong> you own, cash every shard into points,
+        and close the game. Your gear, your shards, the dungeon, the shop and
+        the clicker all go. <strong>Your luck stays</strong>, and so do your
+        points, your roles and every transaction you've ever made.
+      </p>
+      <p style="margin:0 0 12px;">
+        Afterwards the only thing you can still do is <strong>send points to a
+        classmate</strong> — and it costs more: <strong id="tally-loss">60%</strong>
+        is lost instead of 50%, and you can no longer pay to send the full amount.
+      </p>
+      <p style="margin:0 0 12px; color:#B91C1C; font-weight:700;">
+        This cannot be undone by you. Ask an instructor before you do it.
+      </p>
+      <div id="tally-live">
+        <label for="tally-confirm" style="display:block; font-size:.78rem; font-weight:700;
+               text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px;">
+          Type <code>FINAL TALLY</code> to confirm</label>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <input id="tally-confirm" placeholder="FINAL TALLY" autocomplete="off"
+                 style="flex:1; min-width:180px; padding:10px 12px; border:1.5px solid var(--border);
+                        border-radius:9px; font-family:inherit; font-size:.95rem;" />
+          <button class="action-btn" id="tally-btn"
+                  style="background:#B91C1C; white-space:nowrap;">Take the final tally</button>
+        </div>
+        <div class="action-error" id="tally-error"></div>
+        <div class="action-success" id="tally-success"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Point log — every point in and out, newest first -->
   <div class="tx-panel" id="tx-panel">
     <div class="tx-panel-head">
@@ -1254,6 +1294,17 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       return;
     }
 
+    // Cashed out but the world is still standing: everything that costs
+    // something is shut, and sending points is the one thing left open.
+    if ((s.extras || s).finalTally) {
+      renderTallied(s);
+      renderTallyPanel(s);
+      renderTransferCard(s);
+      renderRolesPanel(s);
+      renderPointLog(s);
+      return;
+    }
+
     renderClassPanel(s);
     renderRolesPanel(s);
     renderLuckCard(s);
@@ -1265,6 +1316,76 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     renderContribCard(s);
     renderPointLog(s);
     renderDungeon(s);
+    renderTallyPanel(s);
+  }
+
+  /* Everything that costs something, hidden — but the transfer card stays,
+     because sending points is the only thing a cashed-out camper can do. */
+  function renderTallied(s) {
+    for (const sel of ['#inventory-section', '#dungeon-section', '#class-panel',
+                       '#infinity-card', '#inventory-jump', '.summary-tile.luck']) {
+      const n = document.querySelector(sel);
+      if (n) n.style.display = 'none';
+    }
+    const grid = document.querySelector('.actions-grid');
+    if (grid) {
+      // Keep the grid, drop every card in it except Transfer.
+      for (const card of grid.children) {
+        const keep = card.querySelector('#xfer-btn');
+        card.style.display = keep ? '' : 'none';
+      }
+    }
+    const loss = document.getElementById('tally-loss');
+    if (loss) loss.textContent = '60%';
+  }
+
+  /* ─── Final tally ─── */
+  function renderTallyPanel(student) {
+    const s = student;
+    const panel = document.getElementById('tally-panel');
+    if (!panel) return;
+    const ex = s.extras || s;
+    const live = document.getElementById('tally-live');
+    if (ex.finalTally) {
+      // Already done. The panel stays as the explanation of why everything
+      // else is missing.
+      live.innerHTML = `<div style="font-weight:700; color:var(--text);">
+        You've taken your final tally. Sending points is all that's left.</div>`;
+      return;
+    }
+    const btn = document.getElementById('tally-btn');
+    const input = document.getElementById('tally-confirm');
+    const err = document.getElementById('tally-error');
+    const ok = document.getElementById('tally-success');
+    if (!btn || btn._wired) return;
+    btn._wired = true;
+    btn.addEventListener('click', async () => {
+      err.textContent = ''; ok.textContent = '';
+      const confirm = (input.value || '').trim().toUpperCase();
+      if (confirm !== 'FINAL TALLY') {
+        err.textContent = 'Type FINAL TALLY exactly to confirm.';
+        return;
+      }
+      if (!window.confirm('Sell everything and close the game? This cannot be undone.')) return;
+      btn.disabled = true;
+      let j = null;
+      try {
+        const res = await fetch('/api/students/me/final-tally', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm }),
+        });
+        j = await res.json();
+      } catch (_) { j = { ok: false, error: 'Network error.' }; }
+      btn.disabled = false;
+      if (!j || !j.ok) { flashBanner(err, (j && j.error) || 'That failed.'); return; }
+      flashBanner(ok, `Sold ${j.data.sold.length} kind(s) of item · `
+        + `${j.data.totalShards.toLocaleString()} shards → `
+        + `+${j.data.pointsGained.toLocaleString()} points.`);
+      if (typeof setLoggedInStudent === 'function') await setLoggedInStudent(s.id);
+      txForceNext = true;
+      renderDashboard();
+    });
   }
 
   /* ─── After the World Spider ─── */
@@ -1635,6 +1756,22 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
     const others = getStudents().filter(x => x.id !== s.id);
     xferTo.innerHTML = '<option value="">Choose a classmate…</option>' +
       others.map(o => `<option value="${esc(o.id)}">${esc(studentFullName(o))}${o.className ? ' (' + esc(o.className) + ')' : ''}</option>`).join('');
+    // After a final tally the terms change and the buy-out disappears. The
+    // server enforces both; this is so the card doesn't advertise a deal
+    // that no longer exists.
+    if ((s.extras || s).finalTally) {
+      const box = xferLossless && xferLossless.closest('label');
+      if (box) box.style.display = 'none';
+      if (xferLossless) xferLossless.checked = false;
+      const card = xferTo.closest('.action-card');
+      const blurb = card && card.querySelector('.ac-sub');
+      if (blurb) {
+        blurb.innerHTML = 'Send points to a classmate. <strong>'
+          + Math.round((1 - TALLIED_TRANSFER_KEEP_RATIO) * 100)
+          + '% is lost in the transfer</strong> — and you\'ve cashed out, so '
+          + 'there\'s no longer a way to pay that away.';
+      }
+    }
     updatePreview();
   }
   function updatePreview() {
@@ -1648,8 +1785,11 @@ fetch('/api/auth/admin/logout', { method: 'POST', credentials: 'same-origin' }).
       if (a) a.textContent = label;
       if (b) b.textContent = label;
     })();
-    const lossless = !!(xferLossless && xferLossless.checked);
-    const received = lossless ? amt : Math.floor(amt * TRANSFER_KEEP_RATIO);
+    const me = currentStudent() || {};
+    const tallied = !!((me.extras || me).finalTally);
+    const keepRatio = tallied ? TALLIED_TRANSFER_KEEP_RATIO : TRANSFER_KEEP_RATIO;
+    const lossless = !tallied && !!(xferLossless && xferLossless.checked);
+    const received = lossless ? amt : Math.floor(amt * keepRatio);
     const lost = amt - received;
     const luck = (currentStudent() && currentStudent().stats
                   && currentStudent().stats.luck) || 0;

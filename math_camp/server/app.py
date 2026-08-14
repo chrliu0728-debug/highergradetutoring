@@ -86,6 +86,10 @@ CLICKER_DUPLICATE_MAX   = clicker_econ.DUPLICATE_LIMIT
 # their points arrive — never how many they get.
 CLICKER_POLL_SEC        = 60
 TRANSFER_KEEP_RATIO    = 0.5
+# Once a camper has taken the final tally, transferring is the only thing
+# they can still do — and it's worse. 40% arrives instead of 50%, and the
+# lossless buy-out is gone.
+TALLIED_TRANSFER_KEEP_RATIO = 0.4
 # Pay this flat fee on a transfer and the recipient gets 100% instead of
 # the usual 50%. Charged on top of the amount sent, and it goes to the
 # transactions bank exactly like the tax it replaces.
@@ -1187,6 +1191,18 @@ def register_routes(app):
             to_stats   = {**default_stats(), **json.loads(to_row["stats"] or "{}")}
             cur = from_stats.get("privatePoints", 0)
             if cur == 0: return jsonify(ok=False, error="You have 0 points!"), 400
+            # After a final tally, transferring is the only thing left — and
+            # it costs more. 60% is lost instead of 50%, and the lossless
+            # option is gone entirely: there's nothing left to buy your way
+            # out with.
+            tallied = bool(_extras(from_row).get("finalTally"))
+            keep_ratio = (TALLIED_TRANSFER_KEEP_RATIO if tallied
+                          else TRANSFER_KEEP_RATIO)
+            if tallied and lossless:
+                return jsonify(ok=False, error=(
+                    "Lossless transfers are gone — you've cashed out. "
+                    f"{int((1 - keep_ratio) * 100)}% is lost on every transfer now."
+                )), 400
             # The lossless fee is charged ON TOP of the amount sent, so the
             # sender needs to cover both.
             fee, fee_off = dungeon.discounted(
@@ -1201,7 +1217,7 @@ def register_routes(app):
                     )), 400
                 return jsonify(ok=False, error=f"You only have {cur} points."), 400
 
-            received = amount if lossless else int(amount * TRANSFER_KEEP_RATIO)
+            received = amount if lossless else int(amount * keep_ratio)
             lost = amount - received
             from_stats["privatePoints"]  = cur - total
             from_stats["pointExchanges"] = from_stats.get("pointExchanges", 0) + 1
@@ -1504,6 +1520,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            locked = _tally_locked(row)
+            if locked:
+                return jsonify(ok=False, error=locked), 403
             # Settle production first — those points are already earned.
             _, stats, extras = _accrue_clickers(sid, row, now_ms)
             owned = int(extras.get("clickerLevel") or 0)
@@ -1546,6 +1565,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            locked = _tally_locked(row)
+            if locked:
+                return jsonify(ok=False, error=locked), 403
             _, stats, extras = _accrue_clickers(sid, row, now_ms)
             level = int(extras.get("clickerEfficiency") or 0)
             listed = clicker_econ.efficiency_cost(level)
@@ -2126,6 +2148,17 @@ def register_routes(app):
             return "Finish the door maze first — the dungeon is behind it."
         return None
 
+    def _tally_locked(row):
+        """Everything except sending points shuts after a final tally.
+
+        One place to ask, so a new spend endpoint can't quietly forget: the
+        whole point of cashing out is that there is nothing left to spend on.
+        """
+        if _extras(row).get("finalTally"):
+            return ("You've taken your final tally — the only thing still open "
+                    "is sending points to a classmate.")
+        return None
+
     def _save_stats(sid, stats):
         g.db.execute("UPDATE students SET stats = ? WHERE id = ?",
                      (json.dumps(stats), sid))
@@ -2299,6 +2332,14 @@ def register_routes(app):
             # When this is true the gameverse is over for this camper and
             # the portal drops back to points, roles and the ledger.
             "worldSpiderKilled": bool(extras.get("worldSpiderKilled")),
+            # Cashed out: shop shut, dungeon shut, transfers only.
+            "finalTally": bool(extras.get("finalTally")),
+            "tallyKeepRatio": TALLIED_TRANSFER_KEEP_RATIO,
+            "transferKeepRatio": TRANSFER_KEEP_RATIO,
+            # Boss-relevant totals, so the shop can say what a relic buys.
+            "spiderBonus": round(gear.get("spiderBonus", 0.0), 4),
+            "bossWindow": round(gear.get("bossWindow", 0.0), 2),
+            "activeRunFloor": int(run["floor"]) if run else 0,
         })
 
     @app.route("/api/students/me/dungeon/starter", methods=["POST"])
@@ -2315,6 +2356,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            locked = _tally_locked(row)
+            if locked:
+                return jsonify(ok=False, error=locked), 403
             barred = _dungeon_barred(row)
             if barred:
                 return jsonify(ok=False, error=barred), 403
@@ -2358,6 +2402,18 @@ def register_routes(app):
             barred = _dungeon_barred(row)
             if barred:
                 return jsonify(ok=False, error=barred), 403
+            # You can rummage through your own bag mid-run and swap what
+            # you're holding, but the shop is upstairs. Restocking from
+            # inside a fight turns a run into a shopping trip with a
+            # health bar.
+            if _active_run(sid):
+                return jsonify(
+                    ok=False,
+                    error="No shopping from inside the dungeon — you can still "
+                          "swap what's already in your bag."), 400
+            if _extras(row).get("finalTally"):
+                return jsonify(ok=False,
+                               error="You've cashed out. The shop is shut."), 400
             owned = _owned(row)
             if it["tier"] == "intermediate":
                 dr = g.db.execute(
@@ -2464,6 +2520,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            locked = _tally_locked(row)
+            if locked:
+                return jsonify(ok=False, error=locked), 403
             barred = _dungeon_barred(row)
             if barred:
                 return jsonify(ok=False, error=barred), 403
@@ -2678,6 +2737,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             if not row:
                 return jsonify(ok=False, error="Student not found."), 404
+            locked = _tally_locked(row)
+            if locked:
+                return jsonify(ok=False, error=locked), 403
             barred = _dungeon_barred(row)
             if barred:
                 return jsonify(ok=False, error=barred), 403
@@ -3171,6 +3233,10 @@ def register_routes(app):
             window = (dungeon.BOSS_P3_ATTACK_WINDOW_MS if kind == "attack"
                       else (dungeon.BOSS_P3_DODGE_WINDOW_MS if phase >= 3
                             else dungeon.BOSS_DODGE_WINDOW_MS))
+            # Relics buy thinking time. This is the main reason to own one.
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            gear, _, _ = _gear_for(row)
+            window += int(max(0.0, gear.get("bossWindow", 0.0)) * 1000)
             now = int(time.time() * 1000)
             left_correct = secrets.randbelow(2) == 0
             slot = {
@@ -3221,7 +3287,7 @@ def register_routes(app):
             if not slot:
                 return jsonify(ok=False, error="Nothing to answer."), 400
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
-            _, _, stats = _gear_for(row)
+            gear, _, stats = _gear_for(row)
             luck = int(stats.get("luck", 0))
             eff = dungeon.luck_effectiveness(luck)
             now = int(time.time() * 1000)
@@ -3246,11 +3312,22 @@ def register_routes(app):
                     dodged += 1
                     out["web"] = "missed"
                 else:
-                    dmg = dungeon.boss_web_damage(eff)
-                    hp = max(0, hp - dmg)
-                    webbed += 1
-                    out["web"] = "hit"
-                    out["damage"] = dmg
+                    # Armour works on webs too. A relic set turns a 60-point
+                    # web into something you can afford to eat.
+                    evaded = secrets.randbelow(10000) < int(
+                        min(0.95, gear.get("evadeChance", 0.0)) * 10000)
+                    if evaded:
+                        dodged += 1
+                        out["web"] = "evaded"
+                    else:
+                        raw = dungeon.boss_web_damage(eff)
+                        cut = ((1 - dungeon.damage_reduction(gear["defense"]))
+                               * (1 - gear["flatNegate"]))
+                        dmg = max(1, round(raw * cut))
+                        hp = max(0, hp - dmg)
+                        webbed += 1
+                        out["web"] = "hit"
+                        out["damage"] = dmg
             else:
                 if solved:
                     missed = secrets.randbelow(10000) < int(
@@ -3260,8 +3337,9 @@ def register_routes(app):
                     else:
                         crit = secrets.randbelow(10000) < int(
                             dungeon.boss_crit_chance(eff) * 10000)
-                        dmg = dungeon.LIME_SWORD_DAMAGE * (
-                            dungeon.BOSS_CRIT_MULTIPLIER if crit else 1)
+                        dmg = round(dungeon.LIME_SWORD_DAMAGE
+                                    * (1 + max(0.0, gear.get("spiderBonus", 0.0)))
+                                    * (dungeon.BOSS_CRIT_MULTIPLIER if crit else 1))
                         spider_hp = max(0, spider_hp - dmg)
                         hits += 1
                         out["swing"] = "crit" if crit else "hit"
@@ -3358,6 +3436,88 @@ def register_routes(app):
                     " WHERE id = ?", (int(time.time() * 1000), fight["id"]))
         return jsonify(ok=True)
 
+    def _liquidate(sid, row, stats, reason):
+        """Sell the bag, cash every shard, and return what happened.
+
+        Shared by the final tally and the World Spider ending, because they
+        are the same act with different framing. Quest items are not sold —
+        they cost nothing, so 'selling' them would pay nothing and lose the
+        camper the only things in there with a story attached. Luck is not
+        touched: it isn't stock, it's who they are by now.
+        """
+        owned = _owned(row)
+        item_shards, sold = 0, []
+        for iid, qty in owned.items():
+            spec = dungeon.ITEMS.get(iid)
+            if not spec or spec.get("quest"):
+                continue
+            worth = int(spec["cost"]) * int(qty)
+            item_shards += worth
+            sold.append({"id": iid, "name": spec["name"], "qty": int(qty),
+                         "shards": worth})
+        total_shards = int(stats.get("shards", 0)) + item_shards
+        gained, spent = dungeon.shards_to_points(total_shards)
+        before = {
+            "points": int(stats.get("privatePoints", 0)),
+            "shards": int(stats.get("shards", 0)),
+            "itemShards": item_shards,
+            "inventory": json.loads(row["inventory"] or "[]"),
+            "equipped": json.loads(row["equipped"] or "{}"),
+        }
+        stats["privatePoints"] = int(stats.get("privatePoints", 0)) + gained
+        stats["totalPointsEarned"] = int(stats.get("totalPointsEarned", 0)) + gained
+        stats["shards"] = 0
+        _save_stats(sid, stats)
+        # Quest items survive: they're the only things worth keeping.
+        keep = {iid: q for iid, q in owned.items()
+                if (dungeon.ITEMS.get(iid) or {}).get("quest")}
+        _save_inventory(sid, keep, {})
+        _log_tx(type="earn", scope="student", subjectId=sid,
+                subjectName=_full_name(row), amount=gained,
+                description=(f"{reason} — everything sold and cashed out: "
+                             f"+{gained:,} points from {total_shards:,} shards."))
+        return {"pointsGained": gained, "shardsCashed": spent,
+                "totalShards": total_shards, "sold": sold, "before": before}
+
+    @app.route("/api/students/me/final-tally", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def final_tally():
+        """Cash out of the game, permanently.
+
+        Everything in the bag is sold, every shard becomes points, and the
+        dungeon, the shop, the clicker and the luck counter all close. What
+        stays open is sending points to a classmate — at a worse rate, with
+        no way to buy the loss away.
+
+        Deliberately one-way and deliberately awkward to trigger: the client
+        has to send confirm:"FINAL TALLY". Nothing about this is recoverable
+        by the camper, so it should not be reachable by a mis-click.
+        """
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        if (d.get("confirm") or "").strip().upper() != "FINAL TALLY":
+            return jsonify(ok=False, error="Type FINAL TALLY to confirm."), 400
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            extras = _extras(row)
+            if extras.get("finalTally"):
+                return jsonify(ok=False, error="You've already cashed out."), 400
+            if _active_run(sid):
+                return jsonify(ok=False, error="Walk out of the dungeon first."), 400
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+            result = _liquidate(sid, row, stats, "🧾 Final tally")
+            extras["finalTally"] = True
+            extras["finalTallyAt"] = int(time.time() * 1000)
+            # Kept so staff can undo it. Nothing else can.
+            extras["finalTallyBefore"] = result.pop("before")
+            g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                         (json.dumps(extras), sid))
+        result["transferKeepRatio"] = TALLIED_TRANSFER_KEEP_RATIO
+        return jsonify(ok=True, data=result)
+
     @app.route("/api/dungeon/boss/world-spider", methods=["POST"])
     @require_student
     @block_when_frozen
@@ -3391,62 +3551,28 @@ def register_routes(app):
                 return jsonify(ok=False, error="You haven't beaten it."), 400
 
             stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
-            owned = _owned(row)
-
-            # Everything in the bag goes back to shards at what it cost,
-            # then every shard goes to points at the counter's own rate.
-            # No fee: there's nobody left to charge it.
-            item_shards = 0
-            sold = []
-            for iid, qty in owned.items():
-                spec = dungeon.ITEMS.get(iid)
-                if not spec or spec.get("quest"):
-                    continue
-                item_shards += int(spec["cost"]) * int(qty)
-                sold.append({"id": iid, "name": spec["name"], "qty": int(qty),
-                             "shards": int(spec["cost"]) * int(qty)})
-            total_shards = int(stats.get("shards", 0)) + item_shards
-            gained, spent = dungeon.shards_to_points(total_shards)
-
-            before = {
-                "points": int(stats.get("privatePoints", 0)),
-                "shards": int(stats.get("shards", 0)),
-                "itemShards": item_shards,
-                "inventory": json.loads(row["inventory"] or "[]"),
-                "equipped": json.loads(row["equipped"] or "{}"),
-            }
-
-            stats["privatePoints"] = int(stats.get("privatePoints", 0)) + gained
-            stats["totalPointsEarned"] = int(stats.get("totalPointsEarned", 0)) + gained
-            stats["shards"] = 0
-            # Luck is explicitly left alone — it isn't sold and it isn't reset.
-            _save_stats(sid, stats)
-            # Everything goes, worn and carried alike. The note is granted
-            # after this line so it survives the clearing.
-            _save_inventory(sid, {}, {})
+            # Same act as the final tally, different framing — and luck is
+            # left alone by both.
+            result = _liquidate(sid, row, stats, "🕷 The World Spider is dead")
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
             extras["worldSpiderKilled"] = True
             extras["worldSpiderAt"] = int(time.time() * 1000)
+            # The tally state comes with it: the shop is shut and transfers
+            # are the only thing still moving.
+            extras["finalTally"] = True
+            extras["finalTallyAt"] = int(time.time() * 1000)
             # Kept so staff can put someone back together if this turns out
             # to have been a mistake. It is otherwise unrecoverable.
-            extras["worldSpiderBefore"] = before
+            extras["worldSpiderBefore"] = result.pop("before")
             g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
                          (json.dumps(extras), sid))
 
-            _log_tx(type="earn", scope="student", subjectId=sid,
-                    subjectName=_full_name(row), amount=gained,
-                    description=("🕷 The World Spider is dead. Everything sold and "
-                                 f"cashed out — +{gained:,} points from "
-                                 f"{total_shards:,} shards."))
             _grant_items(sid, row, {"peace_note": 1})
             note = dungeon.ITEMS["peace_note"]
-        return jsonify(ok=True, data={
-            "pointsGained": gained, "shardsCashed": spent,
-            "totalShards": total_shards, "sold": sold,
-            "note": {"id": "peace_note", "name": note["name"],
-                     "text": note["note"], "back": note["noteBack"]},
-        })
+        result["note"] = {"id": "peace_note", "name": note["name"],
+                          "text": note["note"], "back": note["noteBack"]}
+        return jsonify(ok=True, data=result)
 
     # ── Receipts and the tax cycle ─────────────────────────────────
     @app.route("/api/students/me/receipts", methods=["GET"])

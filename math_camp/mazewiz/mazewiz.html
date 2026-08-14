@@ -124,6 +124,21 @@
       pointer-events: auto;
     }
     .mw-wall-mark.show { display: flex; }
+
+    /* Bag sheet, mid-descent. */
+    .mw-bagveil { position: fixed; inset: 0; z-index: 900; overflow: auto;
+      background: rgba(8,4,18,.86); backdrop-filter: blur(4px);
+      display: flex; align-items: flex-start; justify-content: center; padding: 26px 14px; }
+    .mw-bagveil[hidden] { display: none; }
+    .mw-bagsheet { width: min(880px,100%); background: #150c26; color: #efe9ff;
+      border: 1px solid rgba(167,139,250,.4); border-radius: 18px; padding: 20px;
+      box-shadow: 0 30px 90px rgba(0,0,0,.7); }
+    .mw-baghead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    /* Same reason as the dungeon's sheet: the shop panel is built for a
+       light surface and reads its colours from these variables. */
+    #inventory-panel { --text:#11131a; --surface:#ffffff; --surface2:#f5f6f8;
+      --border:#e3e6ea; --muted:#6b7280; --navy:#16304d; --blush:#E8808A;
+      color:#11131a; }
     @media (max-width: 560px) {
       /* The lintel is the same 21px on a phone, so the string has to give. */
       .mw-wall-mark { font-size: 8px; letter-spacing: .14em; }
@@ -747,7 +762,26 @@
       <div class="mw-maze-bar"><div class="mw-maze-bar-fill" id="mw-maze-bar-fill"></div></div>
       <span class="mw-correct-tag" id="mw-correct-tag">Right so far: 0</span>
       <div class="mw-alarm-banner" id="mw-alarm-banner" style="display:none;">🚨 Alarm tripped — something is descending behind you. Reach door 310!</div>
-      <p class="mw-footer"><a href="#" id="mw-maze-back">← Back to Maze Wizard claim</a></p>
+      <p class="mw-footer">
+        <a href="#" id="mw-maze-back">← Back to Maze Wizard claim</a>
+        &nbsp;·&nbsp;
+        <a href="#" id="mw-bag-open">🎒 Bag</a>
+      </p>
+    </div>
+
+    <!-- Your bag, mid-descent. Swapping gear is always allowed; the shop
+         isn't in here and stays shut until you're out. -->
+    <div class="mw-bagveil" id="mw-bagveil" hidden>
+      <div class="mw-bagsheet" role="dialog" aria-modal="true" aria-label="Your bag">
+        <div class="mw-baghead">
+          <h3 style="margin:0">🎒 Your bag</h3>
+          <button class="mw-claim-btn" id="mw-bag-close" style="padding:8px 16px">Close</button>
+        </div>
+        <p class="sub" style="margin:6px 0 14px">
+          Swap what you're carrying whenever you like. Buying is upstairs.
+        </p>
+        <div id="inventory-panel"></div>
+      </div>
     </div>
 
     <!-- Money Tree (criss-cross pattern triggered) — body.mt-mode swaps theme -->
@@ -880,6 +914,8 @@
   </div>
 </div>
 
+<script src="/dungeon-icons.js"></script>
+<script src="/dungeon-shop.js"></script>
 <script src="/students-data.js"></script>
 <script>
 // Visiting this page ends any admin session — it's a student flow.
@@ -954,6 +990,27 @@ const mazeView      = document.getElementById('mw-maze');
 const mazeEndView   = document.getElementById('mw-maze-end');
 const moneyTreeView = document.getElementById('mw-money-tree');
 const mazeTitle     = document.getElementById('mw-maze-title');
+
+/* The bag, mid-descent. Equipping is allowed at any depth; the shop is not
+   in here at all, so there's nothing to restock from. */
+let mwBagReady = false;
+async function mwOpenBag() {
+  const veil = document.getElementById('mw-bagveil');
+  if (!veil) return;
+  veil.hidden = false;
+  if (window.DungeonShop) {
+    if (!mwBagReady) mwBagReady = await window.DungeonShop.mountBag();
+    else await window.DungeonShop.refresh();
+  }
+}
+document.addEventListener('click', function (e) {
+  const open = e.target.closest && e.target.closest('#mw-bag-open');
+  if (open) { e.preventDefault(); mwOpenBag(); return; }
+  if (e.target.closest && e.target.closest('#mw-bag-close')) {
+    document.getElementById('mw-bagveil').hidden = true; return;
+  }
+  if (e.target.id === 'mw-bagveil') e.target.hidden = true;
+});
 const questionEl    = document.getElementById('mw-question');
 const correctTag    = document.getElementById('mw-correct-tag');
 const mazeBarFill   = document.getElementById('mw-maze-bar-fill');

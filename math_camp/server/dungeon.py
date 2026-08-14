@@ -122,6 +122,12 @@ def _item(**kw):
         "quest": False,         # handed out by the story; never on a shelf
         "note": None,           # readable text, re-openable from the inventory
         "noteBack": None,       # ...and what's written on the other side
+        # Boss-fight stats. `spiderBonus` is extra damage per swing at the
+        # spider; `bossWindow` is extra thinking time on its questions, in
+        # seconds. Both are dead weight anywhere else in the dungeon, which
+        # is the point — relics are for the fight, not for farming floors.
+        "spiderBonus": 0.0,
+        "bossWindow": 0.0,
     }
     base.update(kw)
     return base
@@ -206,6 +212,60 @@ ITEMS = {i["id"]: i for i in [
           counterpart="leather_chestplate",
           blurb="+100 HP, +70 defense."),
 
+    # ══ RELICS ════════════════════════════════════════════════════════
+    # The top of the shop, and the only gear built with the spider in mind.
+    # Everything below is priced in the hundreds of thousands of shards on
+    # purpose: a camper who wants to walk into that fight comfortable has to
+    # have farmed the dungeon properly first, and the relics are what all
+    # those shards are eventually FOR.
+    #
+    # Three of the stats here only do anything in the boss fight —
+    # spiderBonus, bossWindow, and the evade/negate rolls the webs respect.
+    # A relic is a bad way to earn shards and a very good way to survive.
+    _item(id="limebreaker", name="Limebreaker Greatsword", tier="relic",
+          slot="weapon", cost=260000, window=6.0, shardBonus=0.30,
+          spiderBonus=0.35, bossWindow=1.2,
+          blurb="Forged from what the Lime Sword shed. 6s window, +30% shards, "
+                "+35% damage to Arachnids and +1.2s on the spider's questions."),
+    _item(id="widows_fang", name="Widow's Fang", tier="relic", slot="weapon",
+          cost=310000, window=5.0, shardBonus=0.20, negateChance=0.15,
+          spiderBonus=0.60, bossWindow=0.8,
+          blurb="Its own venom, turned around. +60% damage to Arachnids, "
+                "15% to negate a hit, 5s window."),
+    _item(id="titan_helm", name="Titan Helm", tier="relic", slot="helmet",
+          cost=210000, maxHp=700, defense=220,
+          blurb="+700 HP, +220 defense."),
+    _item(id="titan_plate", name="Titan Plate", tier="relic", slot="chestplate",
+          cost=330000, maxHp=1200, defense=420,
+          blurb="+1,200 HP, +420 defense."),
+    _item(id="titan_greaves", name="Titan Greaves", tier="relic", slot="leggings",
+          cost=280000, maxHp=900, defense=340,
+          blurb="+900 HP, +340 defense."),
+    _item(id="titan_sabatons", name="Titan Sabatons", tier="relic", slot="boots",
+          cost=190000, maxHp=600, defense=190,
+          blurb="+600 HP, +190 defense."),
+    _item(id="aegis_of_the_web", name="Aegis of the Web", tier="relic", slot="back",
+          cost=300000, flatNegate=0.45, evadeChance=0.30,
+          blurb="Negates 45% of everything and shrugs off 30% of hits outright — "
+                "webs included."),
+    _item(id="heart_of_the_grove", name="Heart of the Grove", tier="relic",
+          slot="amulet", cost=240000, maxHp=500, shardBonus=0.20,
+          spiderBonus=0.25,
+          blurb="+500 HP, +20% shards, +25% damage to Arachnids."),
+    _item(id="ring_of_eight_eyes", name="Ring of Eight Eyes", tier="relic",
+          slot="ring", cost=250000, defense=260, evadeChance=0.18,
+          bossWindow=1.0,
+          blurb="You see it coming. +260 defense, 18% evade, and +1s on the "
+                "spider's questions."),
+    _item(id="pendant_of_stillness", name="Pendant of Stillness", tier="relic",
+          slot="necklace", cost=290000, reveals="before-animation", window=4.5,
+          bossWindow=1.5,
+          blurb="Shows the next question early, and buys you +1.5s in the fight."),
+    _item(id="unbroken_earring", name="Unbroken Earring", tier="relic",
+          slot="earring", cost=270000, maxHp=400, negateChance=0.12,
+          spiderBonus=0.20,
+          blurb="Doesn't shatter. +400 HP, 12% negate, +20% damage to Arachnids."),
+
     # ── Checkpoint ──
     # There is no automatic checkpoint anywhere in the dungeon: dying sends
     # you back to floor 1, always. This is the only exception, and it has to
@@ -233,8 +293,13 @@ ITEMS = {i["id"]: i for i in [
     # out of the buy endpoint — they carry no cost, so without it they'd be
     # free for the taking. They sit in the bag as trophies and reminders
     # rather than gear, which is why neither takes an equipment slot.
+    # A weapon, not an ornament. It had no slot, which meant the equip
+    # endpoint rejected it for every slot there is — so the one thing that
+    # can hurt the spider could never be put in a hand. `quest` keeps it off
+    # the shop shelf; the slot is what makes it equippable.
     _item(id="lime_sword", name="Lime Sword", tier="quest", quest=True,
-          blurb="Deals 3000 damage per swing to Arachnids."),
+          slot="weapon", window=4.0, shardBonus=0.20, spiderBonus=0.0,
+          blurb="Deals 3000 damage per swing to Arachnids. 4s window, +20% shards."),
     _item(id="spider_hunt_note", name="A note, in the blade's hand", tier="quest",
           quest=True,
           blurb="Fell out of the Lime Sword the moment it reforged.",
@@ -445,6 +510,9 @@ def loadout(equipped, luck=0):
         "window": BASE_WINDOW_S, "evadeChance": 0.0, "negateChance": 0.0,
         "flatNegate": 0.0, "capacity": 0, "reveals": None,
         "hasEarring": False, "items": [],
+        # Boss-only. Additive across relics, because stacking three of them
+        # is exactly the reward for having bought three of them.
+        "spiderBonus": 0.0, "bossWindow": 0.0,
     }
     for slot, item_id in (equipped or {}).items():
         it = ITEMS.get(item_id)
@@ -458,6 +526,8 @@ def loadout(equipped, luck=0):
         out["negateChance"] = max(out["negateChance"], it["negateChance"])
         out["flatNegate"] = max(out["flatNegate"], it["flatNegate"])
         out["capacity"]  += it["capacity"]
+        out["spiderBonus"] += it.get("spiderBonus", 0.0)
+        out["bossWindow"]  += it.get("bossWindow", 0.0)
         if it["window"]:
             out["window"] = max(out["window"], it["window"])
         if it["reveals"]:
