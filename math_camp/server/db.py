@@ -124,7 +124,13 @@ def _migrate(conn):
     except sqlite3.OperationalError:
         pass
     for col, decl in (("questionMeta", "TEXT"),
-                      ("startFloor", "INTEGER NOT NULL DEFAULT 1")):
+                      ("startFloor", "INTEGER NOT NULL DEFAULT 1"),
+                      ("streak", "INTEGER NOT NULL DEFAULT 0"),
+                      ("regenAt", "INTEGER"),
+                      ("abilityAt", "TEXT NOT NULL DEFAULT '{}'"),
+                      ("hurtLog", "TEXT NOT NULL DEFAULT '[]'"),
+                      ("panicUntil", "INTEGER"),
+                      ("panicBonus", "REAL NOT NULL DEFAULT 0")):
         try:
             if _has_column("dungeon_runs", "id") and not _has_column("dungeon_runs", col):
                 conn.execute(f"ALTER TABLE dungeon_runs ADD COLUMN {col} {decl}")

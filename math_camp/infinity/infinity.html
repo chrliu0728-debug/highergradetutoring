@@ -150,6 +150,38 @@
   #inventory-panel{--text:#11131a; --surface:#ffffff; --surface2:#f5f6f8;
                    --border:#e3e6ea; --muted:#6b7280; --navy:#16304d;
                    --blush:#E8808A; color:#11131a}
+  /* Fortune Scale — the tipped door, marked but not proven. */
+  .door.hinted{box-shadow:0 0 0 2px #fbbf24, 0 0 34px rgba(251,191,36,.45)}
+  .door.hinted::after{content:'⚖️'; position:absolute; top:8px; right:10px;
+    font-size:1.1rem; opacity:.9}
+
+  /* Job Application — the door grows legs and walks off. */
+  .door.fleeing{animation:doorFlee 1.6s cubic-bezier(.4,0,.7,1) forwards;
+    position:relative; z-index:5}
+  .door.fleeing::before{content:''; position:absolute; left:24%; right:24%;
+    bottom:-24px; height:26px; pointer-events:none;
+    background:
+      linear-gradient(#e8c39a,#e8c39a) left 20% bottom/7px 26px no-repeat,
+      linear-gradient(#e8c39a,#e8c39a) right 20% bottom/7px 26px no-repeat;
+    animation:doorLegs .16s steps(2,end) infinite}
+  @keyframes doorLegs{
+    0%{transform:translateY(0) rotate(0deg)}
+    50%{transform:translateY(-5px) rotate(-7deg)}
+    100%{transform:translateY(0) rotate(0deg)}}
+  @keyframes doorFlee{
+    0%{transform:translateX(0) rotate(0deg)}
+    12%{transform:translateX(-14px) rotate(-6deg)}
+    100%{transform:translateX(140vw) rotate(16deg)}}
+
+  /* ishkode — everything goes still and cold for ten seconds. */
+  body.frozen .stage, body.frozen .hud{filter:saturate(.25) brightness(1.15)
+    drop-shadow(0 0 12px rgba(147,197,253,.6))}
+  body.frozen::after{content:''; position:fixed; inset:0; pointer-events:none;
+    z-index:1100; background:radial-gradient(circle at 50% 40%,
+      rgba(191,219,254,.16), rgba(30,58,138,.24));
+    animation:frostIn .5s ease}
+  @keyframes frostIn{from{opacity:0}to{opacity:1}}
+
   .flash{position:fixed; inset:0; background:rgba(220,38,38,.34); pointer-events:none;
          opacity:0; transition:opacity .1s}
   .flash.on{opacity:1}
@@ -612,9 +644,21 @@
     $('dLt').textContent = q.left;
     $('dRt').textContent = q.right;
     for (const d of [$('dL'), $('dR')]) {
-      d.disabled = false; d.classList.remove('right', 'wrong');
+      d.disabled = false;
+      d.classList.remove('right', 'wrong', 'hinted', 'fleeing');
+      d.style.visibility = '';
     }
-    feedback('', '');
+    // Fortune Scale. The server already decided whether it's telling the
+    // truth this time, so the tilt is fixed for this question — no amount
+    // of looking again changes it.
+    if (q.hintSide) {
+      (q.hintSide === 'L' ? $('dL') : $('dR')).classList.add('hinted');
+      feedback('info', `⚖️ The scale tips <b>${q.hintSide === 'L' ? 'left' : 'right'}</b>`
+        + (q.hintAccuracy ? ` — it's right about ${Math.round(q.hintAccuracy * 100)}% of the time.` : '.'));
+    } else {
+      feedback('', '');
+    }
+    jobTyped = '';
     startMeter();
     startClock(q.floorDeadline);
   }
@@ -635,6 +679,10 @@
       run.floor = d.floor; run.escrow = d.escrow; run.hp = d.hp;
       let msg = `✅ +${gem()} <b>${fmt(d.gained)}</b> · ×${d.speed.toFixed(2)} for ${d.elapsed}s`;
       if (d.found) msg += `<br>🍀 You spot something in the rubble — <b>+${fmt(d.found)}</b>`;
+      if (d.healed) msg += `<br>🌱 ${d.streak} in a row — <b>+${fmt(d.healed)} HP</b>`;
+      for (const sk of (d.skipped || [])) {
+        msg += `<br>🦿 Stepped clean over floor ${fmt(sk.floor)} — <b>+${gem()} ${fmt(sk.shards)}</b>`;
+      }
       if (d.proc === 'shards') msg += '<br>🎯 Drill needle bit deep — 10% extra';
       feedback('ok', msg);
       paintHud();
@@ -655,6 +703,10 @@
     feedback('err', msg);
     paintHud();
 
+    if (d.vanished && d.vanished.length) {
+      msg += `<br>💀 ${d.vanished.join(', ')} crumbled away.`;
+      feedback('err', msg);
+    }
     if (d.death) {
       clearInterval(clockTimer);
       setTimeout(() => summaryScreen(d.death, true), 1400);
@@ -690,6 +742,68 @@
     if (e.key === 'Escape' && help.classList.contains('open')) closeHelp();
     // "?" anywhere opens it, as long as you're not typing.
     if (e.key === '?' && !/^(INPUT|TEXTAREA)$/.test((e.target.tagName || ''))) openHelp();
+  });
+
+  /* ── The odd shelf: abilities, regen, and a door with legs ───── */
+  let jobTyped = '';
+  let frozenUntil = 0;
+
+  // Healing Orb. The server decides how much time has passed and therefore
+  // how much healing is owed; this just asks, so the bar moves while you
+  // sit there.
+  setInterval(async () => {
+    if (!run || !$('game') || $('game').style.display === 'none') return;
+    const r = await api('/api/dungeon/run/regen', {});
+    if (r.ok && r.data && r.data.healed > 0) {
+      run.hp = r.data.hp; paintHud();
+      feedback('ok', `💚 +${fmt(r.data.healed)} HP`);
+    }
+  }, 2000);
+
+  async function fireAbility(id) {
+    const r = await api('/api/dungeon/run/ability', { ability: id });
+    if (!r.ok) {
+      if (r.error) feedback('err', r.error);
+      return null;
+    }
+    return r.data;
+  }
+
+  // ishkode — space stops the clock and gives back most of what the last
+  // twelve seconds cost.
+  document.addEventListener('keydown', async e => {
+    if (e.code !== 'Space' || !run || answering) return;
+    if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+    e.preventDefault();
+    const d = await fireAbility('ishkode');
+    if (!d) return;
+    run.hp = d.hp; paintHud();
+    frozenUntil = Date.now() + d.freezeMs;
+    // The floor deadline moved server-side; move the one on screen with it.
+    if (q && q.floorDeadline) { q.floorDeadline += d.freezeMs; startClock(q.floorDeadline); }
+    askedAt += d.freezeMs;
+    document.body.classList.add('frozen');
+    setTimeout(() => document.body.classList.remove('frozen'), d.freezeMs);
+    feedback('ok', `🔥 <b>ishkode</b> — ten seconds of stillness, `
+      + `+${fmt(d.healed)} HP back.`);
+  });
+
+  // The Job Application. Type J-O-B and the wrong door finds somewhere
+  // else to be.
+  document.addEventListener('keydown', async e => {
+    if (!run || answering || !q) return;
+    if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+    if (!/^[a-zA-Z]$/.test(e.key)) return;
+    jobTyped = (jobTyped + e.key.toLowerCase()).slice(-3);
+    if (jobTyped !== 'job') return;
+    jobTyped = '';
+    const d = await fireAbility('job');
+    if (!d) return;
+    const door = d.flee === 'L' ? $('dL') : $('dR');
+    door.classList.add('fleeing');
+    door.disabled = true;
+    feedback('ok', '📄 It read the job description and left.');
+    setTimeout(() => { door.style.visibility = 'hidden'; }, 1500);
   });
 
   /* ── The bag, mid-run ────────────────────────────────────────── */

@@ -2226,6 +2226,34 @@ def register_routes(app):
             return "Finish the door maze first — the dungeon is behind it."
         return None
 
+    def _window_for(gear, run, now=None):
+        """The answer window, including the Thorn Ring's panic burst.
+
+        The ring only matters for fifteen seconds of a run, so the bonus
+        can't live on the loadout — it has to be asked for at the moment a
+        question is served or answered.
+        """
+        base = float(gear.get("window") or dungeon.BASE_WINDOW_S)
+        try:
+            until = int(run["panicUntil"] or 0)
+        except (KeyError, IndexError, TypeError):
+            until = 0
+        if until and (now or int(time.time() * 1000)) < until:
+            # From the run, not the loadout: the ring that granted this is
+            # already gone by the time the next question is served.
+            try:
+                base += float(run["panicBonus"] or 0.0)
+            except (KeyError, IndexError, TypeError):
+                pass
+        return base
+
+    def _floor_limit_ms(gear):
+        """How long a floor lasts. The Healing Orb trades three minutes for
+        thirty seconds; that's its entire cost, so it has to be respected
+        everywhere the clock is read, not just where it's drawn."""
+        lim = (gear or {}).get("floorTimeLimitMs")
+        return int(lim) if lim else dungeon.FLOOR_TIME_LIMIT_MS
+
     def _tally_locked(row):
         """Everything except sending points shuts after a final tally.
 
@@ -2493,6 +2521,21 @@ def register_routes(app):
                 return jsonify(ok=False,
                                error="You've cashed out. The shop is shut."), 400
             owned = _owned(row)
+            # The Goblin Mask is bought with shards AND with whatever else
+            # you value most. Resolved server-side so "most expensive" can't
+            # be argued with, and quest items are exempt — they aren't
+            # yours to trade.
+            sacrificed = None
+            if it.get("sacrifice"):
+                candidates = [(dungeon.ITEMS[i]["cost"], i) for i in owned
+                              if owned[i] > 0 and i in dungeon.ITEMS
+                              and not dungeon.ITEMS[i].get("quest")
+                              and dungeon.ITEMS[i]["cost"] > 0]
+                if not candidates:
+                    return jsonify(ok=False, error=(
+                        "The mask wants something of yours as well, and your "
+                        "bag is empty.")), 400
+                sacrificed = max(candidates)[1]
             if it["tier"] == "intermediate":
                 dr = g.db.execute(
                     "SELECT MAX(deepest) AS d FROM dungeon_runs WHERE studentId = ?",
@@ -2525,16 +2568,29 @@ def register_routes(app):
             stats["shards"] = have - total
             _save_stats(sid, stats)
             owned[item_id] = owned.get(item_id, 0) + qty
-            _save_inventory(sid, owned, json.loads(row["equipped"] or "{}") or {})
+            equipped_now = json.loads(row["equipped"] or "{}") or {}
+            # The sacrifice is taken at the same moment as the shards, so a
+            # failed purchase never eats an item.
+            sacrificed_name = None
+            if sacrificed:
+                sacrificed_name = dungeon.ITEMS[sacrificed]["name"]
+                owned[sacrificed] -= 1
+                if owned[sacrificed] <= 0:
+                    owned.pop(sacrificed, None)
+                    equipped_now = {k: v for k, v in equipped_now.items()
+                                    if v != sacrificed}
+            _save_inventory(sid, owned, equipped_now)
             label = it["name"] + (f" ×{qty}" if qty > 1 else "")
             rid = _receipt(sid, "purchase",
                            f"Purchased {label}"
+                           + (f" — sacrificed {sacrificed_name}" if sacrificed_name else "")
                            + (f" (🍀 {luck_off:,} off)" if luck_off else ""),
                            shelf, tax, shelf)
         return jsonify(ok=True, data={
             "itemId": item_id, "qty": qty, "shelf": shelf, "tax": tax,
             "paid": total, "saved": p["saved"] * qty,
             "listed": listed, "luckOff": luck_off,
+            "sacrificed": sacrificed_name,
             "shards": stats["shards"], "receiptId": rid,
         })
 
@@ -2729,9 +2785,15 @@ def register_routes(app):
     def _run_state(run, gear=None):
         d = dict(run)
         d.pop("correctSide", None)      # never leaves the server
+        # questionMeta carries the ANSWER to whatever is currently on screen —
+        # it's there so the answer step can log what was asked. Sending the
+        # row wholesale would hand the client the answer to the open door,
+        # which is the one thing this endpoint must never do.
+        d.pop("questionMeta", None)
+        d.pop("hurtLog", None)
         if gear:
             d["gear"] = {k: v for k, v in gear.items() if k != "items"}
-        d["floorLimitMs"] = dungeon.FLOOR_TIME_LIMIT_MS
+        d["floorLimitMs"] = _floor_limit_ms(gear)
         d["floorBase"] = dungeon.base_shards(d["floor"])
         # What a wrong door on THIS floor would cost, after armour — the
         # number climbs with depth, and players should see it climbing.
@@ -2991,13 +3053,24 @@ def register_routes(app):
         gear, _, _ = _gear_for(row)
         cut = (1 - dungeon.damage_reduction(gear["defense"])) * (1 - gear["flatNegate"])
         misses = int(run["wrongCount"] or 0)
+        # The Fortune Scale tips towards a door — and is wrong 30% of the
+        # time. The lie is decided HERE, server-side, so it's the same lie
+        # every time this question is looked at rather than a fresh coin
+        # flip the browser could re-roll until it liked the answer.
+        hint_side = None
+        if gear.get("revealChance", 0.0) > 0:
+            truthful = secrets.randbelow(10000) < int(gear["revealChance"] * 10000)
+            right_side = "L" if left_correct else "R"
+            hint_side = right_side if truthful else ("R" if left_correct else "L")
         return jsonify(ok=True, data={
             "questionId": f"floor-{floor_no}", "question": question,
             "unit": unit_label,
             "left":  str(correct if left_correct else wrong),
             "right": str(wrong if left_correct else correct),
+            "hintSide": hint_side,
+            "hintAccuracy": round(gear.get("revealChance", 0.0), 3) or None,
             "floor": run["floor"], "askedAt": now,
-            "floorDeadline": floor_start + dungeon.FLOOR_TIME_LIMIT_MS,
+            "floorDeadline": floor_start + _floor_limit_ms(gear),
             "dangerFast": round(dungeon.wrong_door_damage(run["floor"], True, misses) * cut),
             "dangerSlow": round(dungeon.wrong_door_damage(run["floor"], False, misses) * cut),
             "misses": misses,
@@ -3057,8 +3130,9 @@ def register_routes(app):
                 _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
 
             payload = {"correct": correct, "elapsed": round(elapsed, 2),
-                       "speed": round(dungeon.speed_multiplier(elapsed, gear["window"]), 3),
-                       "window": gear["window"], "proc": proc}
+                       "speed": round(dungeon.speed_multiplier(
+                           elapsed, _window_for(gear, run, now)), 3),
+                       "window": _window_for(gear, run, now), "proc": proc}
 
             # Log the door before resolving its consequences. Every question
             # every camper answers ends up here — right or wrong, whether or
@@ -3074,13 +3148,44 @@ def register_routes(app):
                     found = dungeon.luck_discovery(stats.get("luckSpent", 0), floor)
                 escrow = int(run["escrow"] or 0) + gained + found
                 nxt = floor + 1
+
+                # Extendo-Leggings: step over the next floor and take its
+                # shards anyway. Rolled once per cleared door, and it pays
+                # the skipped floor at a flat speed rather than the one you
+                # happened to answer at — you weren't there.
+                skipped = []
+                while (gear.get("skipFloorChance", 0.0) > 0
+                       and len(skipped) < 3
+                       and secrets.randbelow(10000)
+                           < int(gear["skipFloorChance"] * 10000)):
+                    bonus = dungeon.floor_reward(nxt, 2.0, gear, luck)
+                    escrow += bonus
+                    skipped.append({"floor": nxt, "shards": bonus})
+                    nxt += 1
+
+                # Eco-Friendly Boots: a streak of right answers is worth
+                # health. Tracked on the run, and any wrong door resets it.
+                streak = int(run["streak"] or 0) + 1
+                healed = 0
+                hp_now = int(run["hp"])
+                if (gear.get("streakEvery") and gear.get("streakHeal")
+                        and streak % int(gear["streakEvery"]) == 0):
+                    healed = min(int(gear["streakHeal"]),
+                                 int(run["maxHp"]) - hp_now)
+                    healed = max(0, healed)
+                    hp_now += healed
+
                 g.db.execute(
                     "UPDATE dungeon_runs SET escrow = ?, floor = ?, deepest = ?,"
                     " floorStart = ?, wrongCount = 0, questionAt = NULL,"
-                    " correctSide = NULL, bowDrawn = 0, arrowType = NULL WHERE id = ?",
-                    (escrow, nxt, max(int(run["deepest"]), nxt), now, run["id"]))
+                    " correctSide = NULL, bowDrawn = 0, arrowType = NULL,"
+                    " streak = ?, hp = ? WHERE id = ?",
+                    (escrow, nxt, max(int(run["deepest"]), nxt), now,
+                     streak, hp_now, run["id"]))
                 payload.update({"gained": gained, "found": found, "escrow": escrow,
-                                "floor": nxt, "hp": run["hp"], "maxHp": run["maxHp"]})
+                                "floor": nxt, "hp": hp_now, "maxHp": run["maxHp"],
+                                "streak": streak, "healed": healed,
+                                "skipped": skipped})
                 return jsonify(ok=True, data=payload)
 
             # Wrong door: 120 inside the window, 60 after and for every
@@ -3108,17 +3213,59 @@ def register_routes(app):
                 owned.pop("earring", None)
                 _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
 
+            # Thorn Ring: the first time health falls through its threshold,
+            # every window grows for fifteen seconds — and the ring is spent.
+            panic_until = int(run["panicUntil"] or 0)
+            panic_bonus = float(run["panicBonus"] or 0.0)
+            panic_fired = False
+            if (gear.get("panicWindowBonus")
+                    and 0 < hp <= int(run["maxHp"]) * gear.get("panicThreshold", 0.0)
+                    and owned.get("thorn_ring")):
+                panic_until = now + int(gear.get("panicDurationMs") or 0)
+                panic_bonus = float(gear.get("panicWindowBonus") or 0.0)
+                panic_fired = True
+                owned.pop("thorn_ring", None)
+                equipped = {k: v for k, v in equipped.items() if v != "thorn_ring"}
+                _save_inventory(sid, {k: v for k, v in owned.items() if v > 0}, equipped)
+
+            # Keep a short rolling log of damage, timestamped. It exists for
+            # the Goblin Mask, which heals a share of "the last twelve
+            # seconds" and therefore needs to know what those cost.
+            try:
+                hurt = json.loads(run["hurtLog"] or "[]")
+            except (TypeError, ValueError):
+                hurt = []
+            if dealt:
+                hurt.append({"t": now, "d": int(dealt)})
+            hurt = [h for h in hurt if now - int(h.get("t") or 0) <= 60000][-40:]
+
             g.db.execute(
                 "UPDATE dungeon_runs SET hp = ?, escrow = ?, wrongCount = ?,"
                 " questionAt = NULL, correctSide = NULL, bowDrawn = 0, arrowType = NULL,"
-                " earringUsed = ? WHERE id = ?",
+                " earringUsed = ?, streak = 0, hurtLog = ?, panicUntil = ?,"
+                " panicBonus = ? WHERE id = ?",
                 (max(0, hp), escrow, int(run["wrongCount"] or 0) + 1,
-                 1 if (earring_used or int(run["earringUsed"] or 0)) else 0, run["id"]))
+                 1 if (earring_used or int(run["earringUsed"] or 0)) else 0,
+                 json.dumps(hurt), panic_until or None, panic_bonus, run["id"]))
             payload.update({"damage": dealt, "blocked": why, "lost": lost,
                             "escrow": escrow, "hp": max(0, hp),
                             "maxHp": run["maxHp"], "floor": floor,
-                            "earringUsed": earring_used})
+                            "earringUsed": earring_used, "streak": 0,
+                            "panic": (gear.get("panicDurationMs") if panic_fired else 0)})
             if hp <= 0:
+                # Anything that promised to vanish on death makes good on it
+                # before the run banks — the Perfectionist necklace is only
+                # worth its price because it can't be re-worn afterwards.
+                lost_items = []
+                for iid in gear.get("vanishOnDeath", []):
+                    if owned.get(iid):
+                        owned.pop(iid, None)
+                        equipped = {k: v for k, v in equipped.items() if v != iid}
+                        lost_items.append(dungeon.ITEMS[iid]["name"])
+                if lost_items:
+                    _save_inventory(sid, {k: v for k, v in owned.items() if v > 0},
+                                    equipped)
+                    payload["vanished"] = lost_items
                 run = g.db.execute("SELECT * FROM dungeon_runs WHERE id = ?",
                                    (run["id"],)).fetchone()
                 payload["death"] = _bank(sid, run, alive=False)
@@ -3144,10 +3291,13 @@ def register_routes(app):
             if not run:
                 return jsonify(ok=False, error="You're not in the dungeon."), 400
             now = int(time.time() * 1000)
-            if now < int(run["floorStart"] or now) + dungeon.FLOOR_TIME_LIMIT_MS:
-                return jsonify(ok=False, error="There's still time on this floor."), 400
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             gear, _, _ = _gear_for(row)
+            # The orb's shorter clock has to be read here too, or a camper
+            # wearing it gets booted by the browser at 30s and told by the
+            # server there's still time.
+            if now < int(run["floorStart"] or now) + _floor_limit_ms(gear):
+                return jsonify(ok=False, error="There's still time on this floor."), 400
             floor = int(run["floor"])
             raw = dungeon.wrong_door_damage(floor, fast=False,
                                             repeats=int(run["wrongCount"] or 0))
@@ -3171,6 +3321,117 @@ def register_routes(app):
                 (nxt, max(int(run["deepest"]), nxt), now, hp, run["id"]))
         return jsonify(ok=True, data={"floor": nxt, "reason": "timeout",
                                       "damage": damage, "hp": hp})
+
+    def _regen_tick(run, gear, now):
+        """Healing Orb. Pays out whole ticks since it last paid.
+
+        Server-side and time-based rather than a browser interval, so it
+        keeps healing while the tab is backgrounded and can't be sped up by
+        anything the client does. Returns the new HP.
+        """
+        hp = int(run["hp"])
+        per = int(gear.get("regenHp") or 0)
+        every = int(gear.get("regenEveryMs") or 0)
+        if per <= 0 or every <= 0 or hp <= 0:
+            return hp, 0
+        last = int(run["regenAt"] or 0) or int(run["startedAt"] or now)
+        ticks = max(0, (now - last) // every)
+        if ticks <= 0:
+            return hp, 0
+        healed = min(per * ticks, int(run["maxHp"]) - hp)
+        healed = max(0, healed)
+        g.db.execute("UPDATE dungeon_runs SET hp = ?, regenAt = ? WHERE id = ?",
+                     (hp + healed, last + ticks * every, run["id"]))
+        return hp + healed, healed
+
+    @app.route("/api/dungeon/run/regen", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_regen():
+        """Let the orb catch up. The client pings this; the server decides
+        how much time has actually passed."""
+        sid = g.session["studentId"]
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=True, data=None)
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            gear, _, _ = _gear_for(row)
+            hp, healed = _regen_tick(run, gear, int(time.time() * 1000))
+        return jsonify(ok=True, data={"hp": hp, "healed": healed,
+                                      "maxHp": int(run["maxHp"])})
+
+    @app.route("/api/dungeon/run/ability", methods=["POST"])
+    @require_student
+    @block_when_frozen
+    def dungeon_run_ability():
+        """Fire an equipped item's ability.
+
+        Two exist. `ishkode` (the Goblin Mask) stops the floor clock for ten
+        seconds and gives back 80% of the health the last twelve seconds
+        cost — which is why every hit is written to hurtLog. `job` (the Job
+        Application) sends the wrong door away, which on the server's side
+        just means the answer is no longer a secret for this question.
+
+        Cooldowns are held per ability on the run and checked here, so the
+        browser holding down space achieves nothing.
+        """
+        sid = g.session["studentId"]
+        d = request.get_json(silent=True) or {}
+        want = (d.get("ability") or "").strip().lower()
+        with g.db:
+            run = _active_run(sid)
+            if not run:
+                return jsonify(ok=False, error="You're not in the dungeon."), 400
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            gear, _, _ = _gear_for(row)
+            spec = next((a for a in gear.get("abilities", []) if a["id"] == want), None)
+            if not spec:
+                return jsonify(ok=False, error="You aren't carrying that."), 400
+            now = int(time.time() * 1000)
+            try:
+                fired = json.loads(run["abilityAt"] or "{}")
+            except (TypeError, ValueError):
+                fired = {}
+            last = int(fired.get(want) or 0)
+            left = spec["cooldownMs"] - (now - last)
+            if last and left > 0:
+                return jsonify(ok=False, code="cooldown",
+                               error=f"{round(left / 1000)}s until you can do that again.",
+                               data={"readyIn": left}), 429
+
+            out = {"ability": want, "cooldownMs": spec["cooldownMs"]}
+            if want == "ishkode":
+                try:
+                    hurt = json.loads(run["hurtLog"] or "[]")
+                except (TypeError, ValueError):
+                    hurt = []
+                window_ms = 12000
+                recent = sum(int(h.get("d") or 0) for h in hurt
+                             if now - int(h.get("t") or 0) <= window_ms)
+                heal = int(round(recent * 0.80))
+                hp = min(int(run["maxHp"]), int(run["hp"]) + heal)
+                # Ten seconds of stopped clock is ten seconds added to the
+                # floor's deadline — the floor timer is a wall-clock deadline,
+                # so freezing it means moving it.
+                freeze_ms = 10000
+                g.db.execute(
+                    "UPDATE dungeon_runs SET hp = ?, floorStart = ?, questionAt = ?,"
+                    " abilityAt = ? WHERE id = ?",
+                    (hp, int(run["floorStart"] or now) + freeze_ms,
+                     (int(run["questionAt"]) + freeze_ms) if run["questionAt"] else None,
+                     json.dumps({**fired, want: now}), run["id"]))
+                out.update({"healed": heal, "hp": hp, "freezeMs": freeze_ms,
+                            "recentDamage": recent})
+            elif want == "job":
+                if not run["correctSide"]:
+                    return jsonify(ok=False, error="No door to scare."), 400
+                g.db.execute("UPDATE dungeon_runs SET abilityAt = ? WHERE id = ?",
+                             (json.dumps({**fired, want: now}), run["id"]))
+                out["flee"] = "L" if run["correctSide"] == "R" else "R"
+            else:
+                return jsonify(ok=False, error="Nothing happens."), 400
+        return jsonify(ok=True, data=out)
 
     @app.route("/api/dungeon/run/draw", methods=["POST"])
     @require_student
@@ -3315,6 +3576,9 @@ def register_routes(app):
             row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
             gear, _, _ = _gear_for(row)
             window += int(max(0.0, gear.get("bossWindow", 0.0)) * 1000)
+            # Cat Ears stretch every window in the game, and the spider's
+            # count as windows.
+            window = int(round(window * float(gear.get("windowMultiplier", 1.0) or 1.0)))
             now = int(time.time() * 1000)
             left_correct = secrets.randbelow(2) == 0
             slot = {
@@ -3417,6 +3681,7 @@ def register_routes(app):
                             dungeon.boss_crit_chance(eff) * 10000)
                         dmg = round(dungeon.LIME_SWORD_DAMAGE
                                     * (1 + max(0.0, gear.get("spiderBonus", 0.0)))
+                                    * float(gear.get("damageMultiplier", 1.0) or 1.0)
                                     * (dungeon.BOSS_CRIT_MULTIPLIER if crit else 1))
                         spider_hp = max(0, spider_hp - dmg)
                         hits += 1

@@ -513,6 +513,20 @@ CREATE TABLE IF NOT EXISTS dungeon_runs (
   -- difficulty). Kept on the run so the answer step can log what was asked
   -- without re-querying a bank row that staff may since have edited.
   questionMeta TEXT,
+  -- Consecutive correct answers, for the Eco-Friendly Boots. Any wrong
+  -- door resets it to 0.
+  streak      INTEGER NOT NULL DEFAULT 0,
+  -- Unix ms the Healing Orb last ticked, and when each ability last fired.
+  regenAt     INTEGER,
+  abilityAt   TEXT NOT NULL DEFAULT '{}',
+  -- Rolling log of damage taken, so the mask can heal "the last 12 seconds".
+  hurtLog     TEXT NOT NULL DEFAULT '[]',
+  -- Thorn Ring: unix ms until its panic window expires, and how many extra
+  -- seconds it grants. The bonus is stored HERE rather than read back off
+  -- the loadout because the ring is consumed the instant it fires — by the
+  -- next question it isn't equipped any more.
+  panicUntil  INTEGER,
+  panicBonus  REAL NOT NULL DEFAULT 0,
   -- Floor this run started on. 1 for everyone except a camper who spent a
   -- Checkpoint, and the only reason it's stored is so the summary can say
   -- "floors 180–214" honestly rather than claiming they started at 1.

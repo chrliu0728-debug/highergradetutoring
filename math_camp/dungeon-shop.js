@@ -161,7 +161,8 @@
   /* ── Shop ───────────────────────────────────────────────────── */
   function shopView() {
     const tiers = [['all', 'Everything'], ['beginner', 'Beginner'],
-                   ['intermediate', 'Intermediate'], ['relic', 'Relics'],
+                   ['intermediate', 'Intermediate'], ['odd', 'Odd shelf'],
+                   ['relic', 'Relics'],
                    ['utility', 'Utility'], ['reward', 'Real rewards']];
     const slots = [['all', 'Any slot']].concat(
       Object.entries(SLOT_LABEL), [['none', 'Consumables']]);

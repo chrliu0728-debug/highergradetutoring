@@ -13,14 +13,20 @@ import math
 
 # ── Currency ──────────────────────────────────────────────────────────
 SHARD_ICON            = "💎"
-SHARDS_PER_POINT      = 100     # cashing shards IN:  100 shards -> 1 point
-SHARDS_FROM_POINT     = 80      # cashing points OUT: 1 point   -> 80 shards
+SHARDS_PER_POINT      = 500     # cashing shards IN:  500 shards -> 1 point
+SHARDS_FROM_POINT     = 400     # cashing points OUT: 1 point   -> 400 shards
 # Every trip to the counter costs this, in points, on top of the rates and
 # the tax. Rates alone never stopped the round trip being worth doing at
 # volume — a flat fee does, because it doesn't scale with the amount.
 CONVERSION_FEE_POINTS = 150
 # The spread is intentional: a round trip loses 20%, so converting is a
 # decision rather than a free shuffle.
+#
+# BOTH numbers move together, always. The buy rate was raised 80 -> 400 so
+# points go further at the counter; leaving the sell rate at 100 would have
+# meant 1 point -> 400 shards -> 4 points, which is the round-trip printer
+# that had to be closed once already. 400 out and 500 in keeps the same 20%
+# loss the spread has always had.
 
 TAX_RATE              = 0.13    # withheld on every earn AND every spend
 
@@ -128,6 +134,36 @@ def _item(**kw):
         # is the point — relics are for the fight, not for farming floors.
         "spiderBonus": 0.0,
         "bossWindow": 0.0,
+
+        # ── The strange ones ──────────────────────────────────────────
+        # Each of these is one item's whole personality, so they're named
+        # after what they do rather than after a generic stat.
+        "zeroDefense": False,     # Fortune Scale: armour stops counting
+        "revealChance": 0.0,      # ...and it points at a door, this often right
+        "setId": None,            # Midnight: the bonus needs all four pieces
+        "setSize": 0,
+        "forceMaxHp": None,       # Perfectionist: exactly this much HP, full stop
+        "rewardMultiplier": 1.0,  # ...doubles what a floor pays
+        "damageMultiplier": 1.0,  # ...and what a swing does
+        "vanishOnDeath": False,   # ...and is gone the moment you die
+        "regenHp": 0,             # Healing Orb: this much...
+        "regenEveryMs": 0,        # ...this often
+        "floorTimeLimitMs": None, # ...and the floor clock shrinks to this
+        "windowMultiplier": 1.0,  # Cat Ears: every window, longer
+        "panicWindowBonus": 0.0,  # Thorn Ring: +Ns to windows...
+        "panicThreshold": 0.0,    # ...when HP drops under this fraction
+        "panicDurationMs": 0,     # ...for this long, once, then it's gone
+        "streakHeal": 0,          # Eco-Friendly: heal this much...
+        "streakEvery": 0,         # ...every this many right in a row
+        "skipFloorChance": 0.0,   # Extendo: free floor, shards included
+        "ability": None,          # 'ishkode' | 'job' — see run/ability
+        "abilityCooldownMs": 0,
+        "sacrifice": False,       # costs your most expensive item as well
+        # "negates one killing blow, then shatters". This used to be inferred
+        # from the earring SLOT, which quietly handed the same save to Cat
+        # Ears and anything else worn there. It's a promise a specific item
+        # makes, so it's a property of that item.
+        "saveFromDeath": False,
     }
     base.update(kw)
     return base
@@ -175,7 +211,7 @@ ITEMS = {i["id"]: i for i in [
           cost=12000, shardBonus=0.03, defense=5,
           blurb="Barely anything, honestly. +3% shards, +5 defense."),
     _item(id="earring", name="Earring", tier="intermediate", slot="earring", cost=10000,
-          consumable=True,
+          consumable=True, saveFromDeath=True,
           blurb="Negates one killing blow, then shatters."),
     _item(id="better_dagger", name="Better Dagger", tier="intermediate", slot="weapon",
           cost=20000, shardBonus=0.08, window=3.5, counterpart="crappy_dagger",
@@ -211,6 +247,82 @@ ITEMS = {i["id"]: i for i in [
           slot="chestplate", cost=38000, maxHp=100, defense=70,
           counterpart="leather_chestplate",
           blurb="+100 HP, +70 defense."),
+
+    # ══ THE ODD SHELF ═════════════════════════════════════════════════
+    # Items that change how a run is played rather than how big its numbers
+    # are. Most carry a real cost as well as a price — the Fortune Scale
+    # takes your armour, the Perfectionist necklace takes all but one point
+    # of health — so buying one is a decision about how you want to play
+    # rather than a straight upgrade.
+    _item(id="invisibility_cloak", name="Invisibility Cloak", tier="odd",
+          slot="back", cost=50000, evadeChance=0.10,
+          blurb="You're harder to see coming. 10% chance to take no damage "
+                "from a hit."),
+    _item(id="fortune_scale", name="Fortune Scale", tier="odd", slot="amulet",
+          cost=90000, revealChance=0.70, zeroDefense=True,
+          blurb="Tips towards the right door — and is right about 70% of the "
+                "time. While you wear it your defense is ZERO."),
+
+    # Midnight: four ordinary pieces that only matter together. Individually
+    # they're iron; wear all four and the set wakes up. Priced at 170,000 for
+    # the set, so ~42,500 each.
+    _item(id="midnight_helmet", name="Midnight Helm", tier="odd", slot="helmet",
+          cost=42500, maxHp=60, defense=10, setId="midnight", setSize=4,
+          blurb="Iron, blackened. +60 HP, +10 defense. Part of the Midnight set "
+                "— wear all four for +500 defense and +5% evasion."),
+    _item(id="midnight_chestplate", name="Midnight Plate", tier="odd",
+          slot="chestplate", cost=42500, maxHp=100, defense=70,
+          setId="midnight", setSize=4,
+          blurb="+100 HP, +70 defense. Part of the Midnight set — all four "
+                "gives +500 defense and +5% evasion."),
+    _item(id="midnight_leggings", name="Midnight Greaves", tier="odd",
+          slot="leggings", cost=42500, maxHp=80, defense=50,
+          setId="midnight", setSize=4,
+          blurb="+80 HP, +50 defense. Part of the Midnight set — all four "
+                "gives +500 defense and +5% evasion."),
+    _item(id="midnight_boots", name="Midnight Sabatons", tier="odd", slot="boots",
+          cost=42500, maxHp=40, defense=20, setId="midnight", setSize=4,
+          blurb="+40 HP, +20 defense. Part of the Midnight set — all four "
+                "gives +500 defense and +5% evasion."),
+
+    _item(id="perfectionist_necklace", name="Perfectionistical Necklace",
+          tier="odd", slot="necklace", cost=80000,
+          forceMaxHp=1, rewardMultiplier=2.0, damageMultiplier=2.0,
+          vanishOnDeath=True,
+          blurb="Double shards from every door and double damage — and you "
+                "have exactly ONE health. One wrong door ends the run, and "
+                "the necklace is gone with it."),
+    _item(id="goblin_mask", name="Japanese Goblin Mask", tier="odd",
+          slot="helmet", cost=500000, sacrifice=True,
+          ability="ishkode", abilityCooldownMs=72000,
+          blurb="ishkode",
+          note="ishkode.\n\nPress **space** to stop the clock for ten seconds "
+               "and take back **80%** of the health the last twelve seconds "
+               "cost you. Then wait seventy-two."),
+    _item(id="healing_orb", name="Healing Orb", tier="odd", slot="back",
+          cost=65000, regenHp=5, regenEveryMs=2000, floorTimeLimitMs=30000,
+          blurb="Heals 5 HP every 2 seconds, forever. In exchange every floor "
+                "boots you after 30 SECONDS instead of three minutes."),
+    _item(id="thorn_ring", name="Thorn Ring", tier="odd", slot="ring",
+          cost=30000, panicWindowBonus=2.0, panicThreshold=0.10,
+          panicDurationMs=15000,
+          blurb="The first time your health drops below 10%, every window "
+                "grows by 2s for 15 seconds. Then the ring is gone."),
+    _item(id="cat_ears", name="Cat Ears", tier="odd", slot="earring",
+          cost=60000, windowMultiplier=1.30,
+          blurb="You hear the answer coming. Every window is 30% longer."),
+    _item(id="job_application", name="Job Application", tier="odd", slot="weapon",
+          cost=100000, ability="job", abilityCooldownMs=30000,
+          blurb="Type the word JOB to hand it to the wrong door. It grows legs "
+                "and leaves. 30 second cooldown."),
+    _item(id="eco_boots", name="Eco-Friendly Boots", tier="odd", slot="boots",
+          cost=90000, defense=10, streakHeal=100, streakEvery=11,
+          blurb="+10 defense, and 100 HP back for every 11 answers you get "
+                "right in a row."),
+    _item(id="extendo_leggings", name="Extendo-Leggings", tier="odd",
+          slot="leggings", cost=40000, defense=-20, skipFloorChance=0.07,
+          blurb="Long enough to step over a floor entirely — 7% chance per "
+                "door to skip it and take its shards anyway. −20 defense."),
 
     # ══ RELICS ════════════════════════════════════════════════════════
     # The top of the shop, and the only gear built with the spider in mind.
@@ -263,7 +375,7 @@ ITEMS = {i["id"]: i for i in [
           blurb="Shows the next question early, and buys you +1.5s in the fight."),
     _item(id="unbroken_earring", name="Unbroken Earring", tier="relic",
           slot="earring", cost=270000, maxHp=400, negateChance=0.12,
-          spiderBonus=0.20,
+          spiderBonus=0.20, saveFromDeath=True,
           blurb="Doesn't shatter. +400 HP, 12% negate, +20% damage to Arachnids."),
 
     # ── Checkpoint ──
@@ -493,6 +605,13 @@ def luck_discovery(luck_points_spent, floor):
     return round(LUCK_DISCOVERY_BASE + (max(0, int(luck_points_spent)) / fl))
 
 
+# What a completed set is worth. Keyed by setId on the items themselves,
+# so adding a set is two edits: the pieces, and a row here.
+SET_BONUSES = {
+    "midnight": {"defense": 500, "evadeChance": 0.05},
+}
+
+
 # ── Loadout ───────────────────────────────────────────────────────────
 def loadout(equipped, luck=0):
     """Fold every equipped item into one set of numbers.
@@ -513,6 +632,15 @@ def loadout(equipped, luck=0):
         # Boss-only. Additive across relics, because stacking three of them
         # is exactly the reward for having bought three of them.
         "spiderBonus": 0.0, "bossWindow": 0.0,
+        # The odd shelf.
+        "revealChance": 0.0, "zeroDefense": False,
+        "rewardMultiplier": 1.0, "damageMultiplier": 1.0,
+        "forceMaxHp": None, "vanishOnDeath": [],
+        "regenHp": 0, "regenEveryMs": 0, "floorTimeLimitMs": None,
+        "windowMultiplier": 1.0,
+        "panicWindowBonus": 0.0, "panicThreshold": 0.0, "panicDurationMs": 0,
+        "streakHeal": 0, "streakEvery": 0, "skipFloorChance": 0.0,
+        "abilities": [], "sets": {},
     }
     for slot, item_id in (equipped or {}).items():
         it = ITEMS.get(item_id)
@@ -532,8 +660,58 @@ def loadout(equipped, luck=0):
             out["window"] = max(out["window"], it["window"])
         if it["reveals"]:
             out["reveals"] = it["reveals"]
-        if slot == "earring":
+        if it.get("saveFromDeath"):
             out["hasEarring"] = True
+
+        # ── The odd shelf ──
+        out["revealChance"] = max(out["revealChance"], it.get("revealChance", 0.0))
+        if it.get("zeroDefense"):
+            out["zeroDefense"] = True
+        out["rewardMultiplier"] *= it.get("rewardMultiplier", 1.0) or 1.0
+        out["damageMultiplier"] *= it.get("damageMultiplier", 1.0) or 1.0
+        out["windowMultiplier"] *= it.get("windowMultiplier", 1.0) or 1.0
+        if it.get("forceMaxHp") is not None:
+            # Lowest wins: a necklace that says "you have one" beats anything
+            # that says "you have more".
+            out["forceMaxHp"] = (it["forceMaxHp"] if out["forceMaxHp"] is None
+                                 else min(out["forceMaxHp"], it["forceMaxHp"]))
+        if it.get("vanishOnDeath"):
+            out["vanishOnDeath"].append(item_id)
+        if it.get("regenHp"):
+            out["regenHp"] += it["regenHp"]
+            out["regenEveryMs"] = (it["regenEveryMs"] if not out["regenEveryMs"]
+                                   else min(out["regenEveryMs"], it["regenEveryMs"]))
+        if it.get("floorTimeLimitMs"):
+            # Shortest wins — the orb's clock is a cost, not a choice.
+            out["floorTimeLimitMs"] = (it["floorTimeLimitMs"]
+                                       if out["floorTimeLimitMs"] is None
+                                       else min(out["floorTimeLimitMs"],
+                                                it["floorTimeLimitMs"]))
+        if it.get("panicWindowBonus"):
+            out["panicWindowBonus"] = max(out["panicWindowBonus"], it["panicWindowBonus"])
+            out["panicThreshold"] = max(out["panicThreshold"], it.get("panicThreshold", 0.0))
+            out["panicDurationMs"] = max(out["panicDurationMs"], it.get("panicDurationMs", 0))
+        if it.get("streakHeal") and it.get("streakEvery"):
+            out["streakHeal"] += it["streakHeal"]
+            out["streakEvery"] = (it["streakEvery"] if not out["streakEvery"]
+                                  else min(out["streakEvery"], it["streakEvery"]))
+        out["skipFloorChance"] = max(out["skipFloorChance"], it.get("skipFloorChance", 0.0))
+        if it.get("ability"):
+            out["abilities"].append({"id": it["ability"], "item": item_id,
+                                     "cooldownMs": it.get("abilityCooldownMs", 0)})
+        if it.get("setId"):
+            s = out["sets"].setdefault(it["setId"], {"worn": 0, "need": it.get("setSize", 0)})
+            s["worn"] += 1
+
+    # Set bonuses. Midnight is four ordinary pieces that only become worth
+    # wearing together — the whole point is that you give up mixing.
+    for set_id, s in out["sets"].items():
+        bonus = SET_BONUSES.get(set_id)
+        if not bonus or s["worn"] < (s["need"] or 99):
+            continue
+        s["complete"] = True
+        out["defense"] += bonus.get("defense", 0)
+        out["evadeChance"] = min(0.95, out["evadeChance"] + bonus.get("evadeChance", 0.0))
 
     # Luck: +1 to every base stat per level, +1ms of window per level, and a
     # 5%-per-level amplification of the percentage effects.
@@ -544,6 +722,17 @@ def loadout(equipped, luck=0):
     out["evadeChance"]  = min(0.95, out["evadeChance"] * amp)
     out["negateChance"] = min(0.95, out["negateChance"] * amp)
     out["flatNegate"]   = min(0.95, out["flatNegate"] * amp)
+
+    # These two override rather than adjust, so they land last — luck adds
+    # +1 defense per level, and the Fortune Scale's whole cost is that your
+    # defense is zero, not "zero plus your luck".
+    if out["zeroDefense"]:
+        out["defense"] = 0
+    if out["forceMaxHp"] is not None:
+        out["maxHp"] = max(1, int(out["forceMaxHp"]))
+    # Cat Ears (and anything else multiplicative) stretch the final window,
+    # after the widest-wins pick and luck's milliseconds.
+    out["window"] = round(out["window"] * out["windowMultiplier"], 3)
     return out
 
 
@@ -558,7 +747,8 @@ def floor_reward(floor, seconds, gear, luck=0, arrow_bonus=1.0):
     # stays smooth rather than swinging on a coin flip.
     luck_mult = 1.0 + eff
     return max(0, round(base * speed * (1.0 + gear["shardBonus"])
-                        * luck_mult * float(arrow_bonus)))
+                        * luck_mult * float(arrow_bonus)
+                        * float(gear.get("rewardMultiplier", 1.0) or 1.0)))
 
 
 def wrong_door_loss(floor, seconds, gear, luck=0):
