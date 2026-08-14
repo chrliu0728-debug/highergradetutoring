@@ -179,6 +179,25 @@ DOOR_REWARD_TIERS = [
 ]
 DOOR_REWARD_FLOOR = 300
 
+# The maze pays shards too, not just the one-time points.
+#
+# It's presented as a dungeon descent and every floor of the actual dungeon
+# pays shards, so a 310-door descent paying nothing was simply a hole. Paid
+# per CORRECT door, so a sloppy run pays less, and paid on EVERY completion
+# — the maze is deliberately replayable for the Money Tree hunt, and a
+# reward that only ever lands once isn't a reason to go back down.
+#
+# The rate is deliberately below the dungeon's. A perfect descent is ~12,400
+# shards, about what a 60-floor dungeon run pays — and the maze is far
+# easier per question, so it should not be the better way to earn.
+MAZE_SHARDS_PER_DOOR = 40
+# Two guards, and they exist because `correct` and `total` are reported by
+# the browser. That was survivable while the reward was once-only; with a
+# repeatable payout it would otherwise be an unbounded shard printer for
+# anyone who worked out how to POST the endpoint directly.
+MAZE_SHARD_DAILY_CAP = 25_000          # ~two perfect descents a day
+MAZE_PAID_MIN_INTERVAL_S = 8 * 60      # no legitimate 310-door run is faster
+
 # ── Playtest account ─────────────────────────────────────────────────
 # "HGT TEST" is the throwaway camper an admin becomes when they enter
 # playtest mode from the admin panel. It's a real students row (so every
@@ -1681,25 +1700,53 @@ def register_routes(app):
             extras["doorsCompleted"] = int(extras.get("doorsCompleted") or 0) + 1
             completions = extras["doorsCompleted"]
 
+            stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
+
+            # ── Points: the original tier, first completion only ──
             awarded = 0
             if not already_rewarded and tier_pts > 0:
                 awarded = tier_pts
                 extras["doorsRewarded"] = True
-                stats = {**default_stats(), **json.loads(row["stats"] or "{}")}
                 stats["privatePoints"]     = stats.get("privatePoints", 0) + awarded
                 stats["totalPointsEarned"] = stats.get("totalPointsEarned", 0) + awarded
-                g.db.execute(
-                    "UPDATE students SET stats = ?, extras = ? WHERE id = ?",
-                    (json.dumps(stats), json.dumps(extras), sid),
-                )
                 _log_tx(type="earn", scope="student", subjectId=sid,
                         subjectName=_full_name(row), amount=awarded,
                         description=f"🚪 Maze complete · {correct}/{total} ({pct:.0f}%) · +{awarded} pts")
-            else:
-                g.db.execute(
-                    "UPDATE students SET extras = ? WHERE id = ?",
-                    (json.dumps(extras), sid),
-                )
+
+            # ── Shards: every completion, per correct door ──
+            now_s = int(time.time())
+            today = time.strftime("%Y-%m-%d", time.gmtime(now_s))
+            if extras.get("mazeShardDay") != today:
+                extras["mazeShardDay"] = today
+                extras["mazeShardsToday"] = 0
+            earned_today = int(extras.get("mazeShardsToday") or 0)
+            last_paid = int(extras.get("mazeShardsAt") or 0)
+
+            shards = correct * MAZE_SHARDS_PER_DOOR
+            shard_note = None
+            if shards > 0 and now_s - last_paid < MAZE_PAID_MIN_INTERVAL_S:
+                wait_m = (MAZE_PAID_MIN_INTERVAL_S - (now_s - last_paid) + 59) // 60
+                shards, shard_note = 0, (
+                    f"You've just been paid for a descent — the next one pays "
+                    f"in about {wait_m} minute(s).")
+            room = max(0, MAZE_SHARD_DAILY_CAP - earned_today)
+            if shards > room:
+                shards = room
+                shard_note = (f"That's the daily maze limit of "
+                              f"{MAZE_SHARD_DAILY_CAP:,} shards.")
+            if shards > 0:
+                stats["shards"] = int(stats.get("shards", 0)) + shards
+                extras["mazeShardsToday"] = earned_today + shards
+                extras["mazeShardsAt"] = now_s
+                _log_tx(type="earn", scope="student", subjectId=sid,
+                        subjectName=_full_name(row), amount=0,
+                        description=(f"💎 Maze descent · {correct}/{total} doors "
+                                     f"right · +{shards:,} shards"))
+
+            g.db.execute(
+                "UPDATE students SET stats = ?, extras = ? WHERE id = ?",
+                (json.dumps(stats), json.dumps(extras), sid),
+            )
         return jsonify(ok=True, data={
             "correct": correct,
             "total":   total,
@@ -1708,6 +1755,10 @@ def register_routes(app):
             "awarded":        awarded,
             "alreadyRewarded": already_rewarded,
             "completions":    completions,
+            "shards":         shards,
+            "shardsPerDoor":  MAZE_SHARDS_PER_DOOR,
+            "shardNote":      shard_note,
+            "shardBalance":   int(stats.get("shards", 0)),
         })
 
     # ── Infinity mode (post-dungeon endless mode) ─────────────────

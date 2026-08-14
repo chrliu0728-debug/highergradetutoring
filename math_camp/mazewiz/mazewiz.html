@@ -1035,6 +1035,10 @@ const mtMsg         = document.getElementById('mw-mt-msg');
 const MAZE_LENGTH        = 310;
 const ALARM_AT           = 300;     // alarm sounds + spider awakens at this floor
 const MONEY_TREE_PATTERN = 'RWRWRWRWR';
+// Shards per correct door, banked when you reach the bottom. Mirrors
+// MAZE_SHARDS_PER_DOOR in app.py — the server is what actually pays, this
+// is only so the descent can show the total climbing.
+const MAZE_SHARDS_PER_DOOR = 40;
 
 // The Discord chest's passcode, carved into the wall on one floor of the
 // descent. The hint handed out at the chest at the bottom only narrows it to
@@ -1288,9 +1292,13 @@ function updateMazeUI() {
   const pct = Math.min(100, (mazeClicks / MAZE_LENGTH) * 100);
   mazeBarFill.style.width = pct + '%';
   const scored = Math.max(0, mazeClicks - 1);
-  correctTag.textContent = scored === 0
+  // Show the shards as they accrue. The descent pays per correct door and
+  // banks at the bottom, so the running total is the thing worth watching.
+  const earned = mazeCorrect * MAZE_SHARDS_PER_DOOR;
+  correctTag.innerHTML = scored === 0
     ? 'First floor — freebie · score starts on door 2'
-    : `Right so far: ${mazeCorrect} / ${scored}`;
+    : `Right so far: ${mazeCorrect} / ${scored}`
+      + ` · <strong>💎 ${earned.toLocaleString()}</strong> banked at the bottom`;
 
   // Depth-meter player marker — % of MAZE_LENGTH from the top.
   const playerPct = (mazeClicks / MAZE_LENGTH) * 100;
@@ -1642,11 +1650,21 @@ async function tryMazeClaim() {
       return;
     }
     endMsg.className = 'mw-msg ok';
+    // Points land once; shards land every descent. Say both, and say why
+    // when the shards didn't land.
+    const shards = res.data.shards || 0;
+    const bits = [];
     if (res.data.alreadyRewarded) {
-      endMsg.textContent = `Maze complete (${res.data.percent}%). You've already claimed this reward, but the descent counts.`;
+      bits.push(`Maze complete (${res.data.percent}%) — you've already claimed the points for this one.`);
     } else {
-      endMsg.textContent = `✅ +${(res.data.awarded || 0).toLocaleString()} points awarded · ${res.data.percent}% correct.`;
+      bits.push(`✅ +${(res.data.awarded || 0).toLocaleString()} points awarded · ${res.data.percent}% correct.`);
     }
+    if (shards > 0) {
+      bits.push(`💎 +${shards.toLocaleString()} shards for ${res.data.correct} correct doors.`);
+    } else if (res.data.shardNote) {
+      bits.push(`💎 No shards this time — ${res.data.shardNote}`);
+    }
+    endMsg.innerHTML = bits.join('<br>');
     if ((res.data.completions || 0) >= 3) {
       endHint.style.display = '';
       endHint.innerHTML = `🌳 <strong>Whisper from the dungeon:</strong> the secret you
