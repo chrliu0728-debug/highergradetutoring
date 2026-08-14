@@ -30,7 +30,7 @@ from db import (
     STUDENT_ENC_FIELDS, REGISTRATION_ENC_FIELDS,
 )
 
-ADMIN_PASSCODE = os.environ.get("HIGHERGRADE_ADMIN_PASSCODE", "HigherGrade Tutoring")
+ADMIN_PASSCODE = os.environ.get("HIGHERGRADE_ADMIN_PASSCODE", "Children")
 
 # Shared secret the Discord bot sends as `Authorization: Bearer <token>`.
 # Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
