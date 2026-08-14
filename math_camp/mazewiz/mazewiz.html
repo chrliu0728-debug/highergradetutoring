@@ -1311,6 +1311,13 @@ function updateMazeUI() {
 
 function enterMaze() {
   if (!currentQ) newQuestion();
+  // Tell the server the descent has begun. It times the trip and pays the
+  // shards at the bottom on that basis — there's no cap, but a descent has
+  // to have actually taken as long as a descent takes.
+  fetch('/api/students/me/maze/start', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }, body: '{}',
+  }).catch(() => {});
   showOnly(mazeView);
   updateMazeUI();
 }
@@ -1662,7 +1669,7 @@ async function tryMazeClaim() {
     if (shards > 0) {
       bits.push(`💎 +${shards.toLocaleString()} shards for ${res.data.correct} correct doors.`);
     } else if (res.data.shardNote) {
-      bits.push(`💎 No shards this time — ${res.data.shardNote}`);
+      bits.push(`💎 No shards — ${res.data.shardNote}`);
     }
     endMsg.innerHTML = bits.join('<br>');
     if ((res.data.completions || 0) >= 3) {

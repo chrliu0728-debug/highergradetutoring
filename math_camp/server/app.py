@@ -191,12 +191,22 @@ DOOR_REWARD_FLOOR = 300
 # shards, about what a 60-floor dungeon run pays — and the maze is far
 # easier per question, so it should not be the better way to earn.
 MAZE_SHARDS_PER_DOOR = 40
-# Two guards, and they exist because `correct` and `total` are reported by
-# the browser. That was survivable while the reward was once-only; with a
-# repeatable payout it would otherwise be an unbounded shard printer for
-# anyone who worked out how to POST the endpoint directly.
-MAZE_SHARD_DAILY_CAP = 25_000          # ~two perfect descents a day
-MAZE_PAID_MIN_INTERVAL_S = 8 * 60      # no legitimate 310-door run is faster
+# There is no cap. Run the maze all day and get paid for all of it.
+#
+# What there IS: the descent has to have actually taken place. `correct`
+# and `total` come from the browser, so without something anchoring them a
+# repeatable payout is just an endpoint you can POST in a loop. Rather than
+# limiting how much an honest camper can earn — which is what a daily
+# ceiling does — the server now times the descent itself: entering the maze
+# stamps a start, and a claim only pays if enough time has passed since
+# that stamp for the doors to have been walked.
+#
+# 180 seconds over 309 scored doors is 0.58s a door. Nobody reads a
+# question, thinks, and clicks that fast, so this never touches real play —
+# it only rules out a script. Reloading the page restarts the descent from
+# door 1 anyway (the run lives in a JS variable), so re-stamping on entry
+# costs a legitimate camper nothing.
+MAZE_MIN_DESCENT_S = 180
 
 # ── Playtest account ─────────────────────────────────────────────────
 # "HGT TEST" is the throwaway camper an admin becomes when they enter
@@ -1660,6 +1670,31 @@ def register_routes(app):
             )
         return jsonify(ok=True, data={"clickerLevel": extras["clickerLevel"]})
 
+    @app.route("/api/students/me/maze/start", methods=["POST"])
+    @require_student
+    def maze_start():
+        """Stamp the beginning of a descent.
+
+        This is the whole anti-abuse story for maze shards, and it replaced a
+        daily cap. A cap punishes the camper who genuinely wants to run the
+        maze ten times; a start stamp only asks that the ten runs took as
+        long as ten runs take.
+
+        Called every time the maze view opens. Re-entering restarts the clock,
+        which is correct: the run itself lives in a browser variable, so
+        coming back in always means starting from door 1.
+        """
+        sid = g.session["studentId"]
+        with g.db:
+            row = g.db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+            if not row:
+                return jsonify(ok=False, error="Student not found."), 404
+            extras = _extras(row)
+            extras["mazeStartedAt"] = int(time.time())
+            g.db.execute("UPDATE students SET extras = ? WHERE id = ?",
+                         (json.dumps(extras), sid))
+        return jsonify(ok=True, data={"minSeconds": MAZE_MIN_DESCENT_S})
+
     @app.route("/api/students/me/claim-doors", methods=["POST"])
     @require_student
     @block_when_frozen
@@ -1713,31 +1748,23 @@ def register_routes(app):
                         subjectName=_full_name(row), amount=awarded,
                         description=f"🚪 Maze complete · {correct}/{total} ({pct:.0f}%) · +{awarded} pts")
 
-            # ── Shards: every completion, per correct door ──
+            # ── Shards: every completion, per correct door, no ceiling ──
             now_s = int(time.time())
-            today = time.strftime("%Y-%m-%d", time.gmtime(now_s))
-            if extras.get("mazeShardDay") != today:
-                extras["mazeShardDay"] = today
-                extras["mazeShardsToday"] = 0
-            earned_today = int(extras.get("mazeShardsToday") or 0)
-            last_paid = int(extras.get("mazeShardsAt") or 0)
+            started = int(extras.get("mazeStartedAt") or 0)
+            elapsed = now_s - started if started else None
 
             shards = correct * MAZE_SHARDS_PER_DOOR
             shard_note = None
-            if shards > 0 and now_s - last_paid < MAZE_PAID_MIN_INTERVAL_S:
-                wait_m = (MAZE_PAID_MIN_INTERVAL_S - (now_s - last_paid) + 59) // 60
-                shards, shard_note = 0, (
-                    f"You've just been paid for a descent — the next one pays "
-                    f"in about {wait_m} minute(s).")
-            room = max(0, MAZE_SHARD_DAILY_CAP - earned_today)
-            if shards > room:
-                shards = room
-                shard_note = (f"That's the daily maze limit of "
-                              f"{MAZE_SHARD_DAILY_CAP:,} shards.")
+            if shards > 0 and (not started or elapsed < MAZE_MIN_DESCENT_S):
+                shards = 0
+                shard_note = ("that descent came back faster than it can be "
+                              "walked. Start from door 1 and the shards will "
+                              "be there at the bottom.")
             if shards > 0:
                 stats["shards"] = int(stats.get("shards", 0)) + shards
-                extras["mazeShardsToday"] = earned_today + shards
-                extras["mazeShardsAt"] = now_s
+                # Consumed: this descent has been paid for, and the next
+                # payout needs a fresh trip through the door.
+                extras["mazeStartedAt"] = 0
                 _log_tx(type="earn", scope="student", subjectId=sid,
                         subjectName=_full_name(row), amount=0,
                         description=(f"💎 Maze descent · {correct}/{total} doors "
